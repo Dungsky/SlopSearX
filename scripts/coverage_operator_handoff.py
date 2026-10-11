@@ -25,6 +25,12 @@ _SCOPE = re.compile(r"[a-z][a-z0-9-]{0,47}\Z")
 _REQUEST_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,95}\Z")
 MAX_REQUEST_BYTES = 128_000
 MAX_RECEIPT_BYTES = 16_384
+# The selector's complete one-shot permit batch is a single receipt.  Its
+# exact frozen 39-operation response is 37,607 bytes, so give only that scope
+# a separately bounded envelope; individual permits and every other handoff
+# receipt retain their existing limits.
+MAX_SELECTOR_PERMIT_BATCH_BYTES = 64_000
+_RECEIPT_BYTES_BY_SCOPE = {"selector-operation-permits": MAX_SELECTOR_PERMIT_BATCH_BYTES}
 MAX_WAIT_SECONDS = 8 * 60 * 60
 
 
@@ -201,7 +207,10 @@ class OperatorReceiptHandoff:
         pin_path = pin_root / f"{request_id}.sha256"
         while time.monotonic() < deadline_monotonic:
             if response_path.exists() and pin_path.exists():
-                receipt_bytes = _read_private(response_path, MAX_RECEIPT_BYTES)
+                receipt_bytes = _read_private(
+                    response_path,
+                    _RECEIPT_BYTES_BY_SCOPE.get(scope, MAX_RECEIPT_BYTES),
+                )
                 pin_bytes = _read_private(pin_path, 66)
                 try:
                     pinned = pin_bytes.decode("ascii").strip()
