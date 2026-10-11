@@ -109,6 +109,10 @@ def provider_receipts():
 
 async def invoke(call_id,body):
  previous=provider_receipts();attempts_path=EV/'provider-attempts.jsonl'
+ retained=[x for x in previous if x['id']==call_id]
+ if retained:
+  assert len(retained)==1
+  return retained[0]
  attempted=[json.loads(x) for x in attempts_path.read_text().splitlines()] if attempts_path.exists() else []
  assert call_id not in {x['id'] for x in attempted},'no retry'
  reserved=sum(x.get('input_tokens') if type(x.get('input_tokens')) is int else 64000 for x in previous)
@@ -164,7 +168,8 @@ def mmr(original):
 async def run(eid,phase):
  path=EV/f'{eid}-{phase}-rows.json';attempt=EV/f'{eid}-{phase}-ready-started.json'
  cases=json.loads((EV/f'prepared-{phase}.json').read_text())['cases']
- dump(attempt,{'experiment':eid,'phase':phase,'started_epoch':time.time(),'worker_sha256':sha(Path(__file__)),'budget_seconds':2700})
+ if not attempt.exists():dump(attempt,{'experiment':eid,'phase':phase,'started_epoch':time.time(),'worker_sha256':sha(Path(__file__)),'budget_seconds':2700})
+ elif eid!='EXP-112':raise RuntimeError('no continuation registered for '+eid)
  rows=[];errors=0
  for c in cases:
   assert time.time()-json.loads(attempt.read_text())['started_epoch']<2700
@@ -194,7 +199,9 @@ async def run(eid,phase):
   if available:
    assert set(r.url for r in ordered)==set(r.url for r in candidate) if eid!='EXP-112' else set(r.url for r in candidate)<=set(r.url for r in ordered)
    assert len(candidate)==len({r.url for r in candidate})
-   assert {r.url:r.engines for r in candidate}=={r.url:r.engines for r in ordered if r.url in {t.url for t in candidate}}
+   if eid=='EXP-112':
+    assert all(r.engines=={en for en in selected if r.url in {t.url for t in fs[en]}} for r in candidate)
+   else:assert {r.url:r.engines for r in candidate}=={r.url:r.engines for r in ordered}
   else:errors+=1
   row={'dataset':c['dataset'],'query_id':c['query_id'],'baseline':[r.url.rsplit('/',1)[-1] for r in ordered],'candidate':[r.url.rsplit('/',1)[-1] for r in candidate] if available else None,'membership':True,'provenance':True,'available':available,'cost_baseline':before,'cost_candidate':after,'margin':c['margin'],'scorer_useful':scorer_useful,'provider_id':call['id'] if call else None}
   rows.append(row);append(EV/f'{eid}-{phase}-receipts.jsonl',row)

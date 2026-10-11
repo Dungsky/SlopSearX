@@ -1,0 +1,5 @@
+# Routing-provenance fixture correction and bounded continuation
+
+One EXP-112 provider response was valid (398 input tokens); then the harness asserted the narrowed feed must retain provenance from an engine it did not query. That assertion is invalid for resource selection: provenance must exactly name the selected resources contributing the result, not unqueried resources. No qrel, primary metric or quality result was inspected. The provider response and original start marker remain untouched.
+
+Prospective correction: selected-scope provenance equality, identical policy and thresholds, zero retries. The continuation replays the single retained response offline and issues only the remaining23 original requests within the original45-minute clock. It does not requery/regrade/replace that response. Original worker preserved; output rows append once after the failed pre-row assertion. This repairs the fixture's erroneous invariant rather than relaxing product contracts. Frozen scope, sample, primary metric, labels and budget remain unchanged.
