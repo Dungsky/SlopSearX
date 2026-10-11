@@ -55,3 +55,5 @@ Worker revisions, raw attempt/response journals, all24 rows per candidate, analy
   "known_estimated_usd": 0.013749204000000001,
   "reserved_upper_usd": 0.013749204000000001
 }
+
+Documentation persistence: [SlopSearX PR#781](https://github.com/magnus919/SlopSearX/pull/781). Verify current merge state on GitHub; no implementation PR exists.
