@@ -8,7 +8,7 @@ from pathlib import Path
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
-HARNESS_SHA = "ad8b87c1a0ef40d189101e7b42d7b18fd18bb681"
+HARNESS_SHA = "04c7fc0b42221872e6c6b611be91c68e462fc679"
 
 
 def _workflow(filename: str) -> dict:
@@ -85,7 +85,7 @@ def test_publisher_requires_successful_target_run_and_protected_main_ref() -> No
     assert checkout_steps[0]["with"]["ref"] == "${{ github.sha }}"
     assert checkout_steps[0]["with"]["persist-credentials"] == "false"
     for step in job["steps"]:
-        if "uses" in step:
+        if "uses" in step and not step["uses"].startswith("./"):
             assert re.search(r"@[0-9a-f]{40}$", step["uses"])
     assert publisher["concurrency"]["group"] == "pr-review-publish-${{ github.repository_id }}"
     assert publisher["concurrency"]["queue"] == "max"
@@ -95,7 +95,8 @@ def test_publisher_requires_successful_target_run_and_protected_main_ref() -> No
 
 def test_policy_is_enabled_for_comment_only_canary_and_binds_publisher_hash() -> None:
     policy = json.loads((ROOT / ".github/pr-review-publisher-policy.json").read_text())
-    assert policy["schema"] == "pr-review-protected-publication-policy.v4"
+    assert policy["schema"] == "pr-review-protected-publication-policy.v5"
+    assert policy["publication_mode"] == "NON_BINDING_COMMENT"
     assert policy["enabled"] is True
     assert policy["authorization_mode"] == "STANDING_BOUNDED"
     assert policy["repository"] == {"name": "magnus919/SlopSearX", "id": 1263452316}
@@ -117,6 +118,15 @@ def test_policy_is_enabled_for_comment_only_canary_and_binds_publisher_hash() ->
     )
     assert f'TRUSTED_HARNESS_SHA = "{HARNESS_SHA}"' in harness_checkout["run"]
     assert '"checkout", "--detach", TRUSTED_HARNESS_SHA' in harness_checkout["run"]
+    run_action = next(
+        step
+        for step in _workflow("pr-publish.yml")["jobs"]["publisher"]["steps"]
+        if step.get("name") == "Run the protected publication runtime"
+    )
+    assert run_action["uses"] == f"groktopus/codereview/scripts/protected-publication-action@{HARNESS_SHA}"
+    assert run_action["uses"].endswith(f"@{policy['called_harness']['sha']}")
+    assert "run" not in run_action
+    assert run_action["env"]["PYTHONPATH"] == "${{ runner.temp }}/trusted-review-harness/src"
     assert policy["credential"] == {"kind": "ACTIONS_TOKEN", "actor_login": "github-actions[bot]"}
     assert policy["profile"] == {
         "version": "slopsearx-production-v17-context-target-manifest-candidate",
