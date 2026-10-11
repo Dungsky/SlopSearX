@@ -1,0 +1,19 @@
+{
+  "provider": "typesafe",
+  "model": "jev-1.13.0",
+  "attempts": 88,
+  "valid_responses": 88,
+  "known_input_tokens": 370538,
+  "known_output_tokens": 71984,
+  "unknown_usage_attempts": 0,
+  "new_estimated_usd": 0.015562596000000001,
+  "prior_known_estimated_usd": 0.013749204,
+  "cumulative_known_estimated_usd": 0.0293118,
+  "authorized_total_usd": 10,
+  "paid_search_calls": 0,
+  "live_resource_search_calls": 0,
+  "first_attempt_utc": "2026-10-11T18:32:17.616353+00:00",
+  "last_attempt_utc": "2026-10-11T18:32:31.224966+00:00",
+  "routing_wall_max_ms": 773.1977920047939,
+  "not_invoice_verification": true
+}
