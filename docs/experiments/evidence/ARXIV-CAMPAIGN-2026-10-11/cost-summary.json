@@ -1,0 +1,13 @@
+{
+  "provider": "typesafe",
+  "model": "jev-1.13.0",
+  "attempts": 55,
+  "valid": 55,
+  "input_tokens": 327362,
+  "output_tokens": 8976,
+  "unknown_usage_attempts": 0,
+  "price_usd_per_million_input": 0.042,
+  "paid_search_calls": 0,
+  "known_estimated_usd": 0.013749204000000001,
+  "reserved_upper_usd": 0.013749204000000001
+}

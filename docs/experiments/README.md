@@ -273,3 +273,9 @@ production path and establishing a measurable baseline.
 ## Daily readiness records
 
 - [2026-10-11](daily-readiness-2026-10-11.md): no new trial; supported fixes delivered, coverage study terminated before acquisition and bounded restart amendment pending. Zero scientific calls; no material-effect claim.
+
+## User-requested ten-paper campaign
+
+[Sequential campaign and interaction plan](ARXIV-CAMPAIGN-2026-10-11.md), EXP-109–118. Current state: planned; no candidate measured. $10 ceiling; source-aware bounded pilots and external-label benchmark screens, with feature requests only after supported confirmation.
+
+Ten-paper campaign readout: EXP-113/114/115/117 not-supported; EXP-112 inconclusive; EXP-116 blocked pending temporal cohort; EXP-118 measurement prerequisite qualified. EXP-109/110/111 routed to Grok-to-Crawl-X experiment requests. [Evidence](evidence/ARXIV-CAMPAIGN-2026-10-11/readout.md). No feature requests, confirmation or compound study warranted.

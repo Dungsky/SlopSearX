@@ -1,0 +1,5 @@
+# Provider verification — 2026-10-11
+
+Primary source https://docs.typesafe.ai/models inspected live. jev-1.13.0 accepted version; $0.042 per million input tokens, outputs free; 64k request /32k state+longest-question limits. Direct https://api.typesafe.ai/v1/systemone with no retries. Use only the TYPESAFE_API_KEY already configured for SlopSearX; do not print it. Whole campaign authorization $10; tighter 2M known/reserved input token ceiling costs at most $0.084 at verified price. Missing failed-call usage is reserved at64k, not zero. No paid search planned.
+
+Benchmark permissions/provenance: BEIR official distribution, public research evaluation. Original dataset papers/owners remain authoritative; do not treat BEIR code license as corpus license. Retain hashes and document IDs/grades rather than redistribute corpus text in evidence. Only bounded public title/text projections may be sent to the user-authorized model. SciFact: https://github.com/allenai/scifact ; NFCorpus: https://www.cl.uni-heidelberg.de/statnlpgroup/nfcorpus/ .

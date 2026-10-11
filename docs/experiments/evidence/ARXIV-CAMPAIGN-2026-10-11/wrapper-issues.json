@@ -1,0 +1,27 @@
+[
+  {
+    "paper": "2305.14283",
+    "title": "experiment: evaluate caller query rewriting before SlopSearX meta-search",
+    "url": "https://github.com/magnus919/groktocrawl-x/issues/444"
+  },
+  {
+    "paper": "2212.10509",
+    "title": "experiment: evidence-conditioned research follow-ups with source-grounded dependencies",
+    "url": "https://github.com/magnus919/groktocrawl-x/issues/445"
+  },
+  {
+    "paper": "2601.21208",
+    "title": "experiment: adaptive continue/stop decisions for bounded research",
+    "url": "https://github.com/magnus919/groktocrawl-x/issues/446"
+  },
+  {
+    "paper": "2607.04281",
+    "title": "experiment: risk-gated answer and page cache reuse in research workflows",
+    "url": "https://github.com/magnus919/groktocrawl-x/issues/447"
+  },
+  {
+    "paper": "2108.04026",
+    "title": "experiment: generated evidence facets for diverse research source selection",
+    "url": "https://github.com/magnus919/groktocrawl-x/issues/448"
+  }
+]

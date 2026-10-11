@@ -1,0 +1,33 @@
+{
+  "baseline_ndcg": 0.5153160168842521,
+  "candidate_ndcg": 0.4828132107731666,
+  "confirmation_allowed": false,
+  "experiment": "EXP-114",
+  "guards": false,
+  "n_planned": 24,
+  "n_valid": 24,
+  "outcome": "not-supported",
+  "per_dataset_quality_delta": {
+    "nfcorpus": -0.013910012825049426,
+    "scifact": -0.05109559939712153
+  },
+  "phase": "development",
+  "primary_interval_99_5": [
+    0.08333333333333333,
+    0.5416666666666666
+  ],
+  "primary_mean": 0.2916666666666667,
+  "production_claim": false,
+  "quality_delta": -0.032502806111085476,
+  "quality_interval_99_5": [
+    -0.12773899849280382,
+    0.0
+  ],
+  "reranking_quality": {
+    "interval_99_5": [
+      0.031635972927594166,
+      0.25661080801658226
+    ],
+    "mean": 0.12916562464502204
+  }
+}

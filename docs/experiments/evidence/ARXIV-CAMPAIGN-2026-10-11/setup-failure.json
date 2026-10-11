@@ -1,0 +1,12 @@
+{
+  "stage": "fixture qualification",
+  "failure": "temporary benchmark engine classes absent from registration catalog",
+  "prepare_exit": 1,
+  "premature_run_exit": 1,
+  "analysis_exit": 1,
+  "provider_calls": 0,
+  "candidate_rows": 0,
+  "qrels_loaded": false,
+  "old_worker_sha256": "10e30ff5580ffc5ec5e604fd41f2e84ec3735600ecac9b5ad424179e395a489f",
+  "repair": "Register ephemeral fixture classes before CapabilityCatalog; preserve attempted start and use a separate ready run marker."
+}

@@ -1,0 +1,137 @@
+from __future__ import annotations
+import asyncio,collections,csv,dataclasses,hashlib,json,math,os,platform,random,re,statistics,sys,time
+from pathlib import Path
+ROOT=Path.cwd();sys.path.insert(0,str(ROOT))
+from slopsearx.adapter import EngineAdapter,AdapterResponse,EngineStatus,SearchResult,register_engine
+from slopsearx.merger import ReciprocalRankFusionRanker,_normalise_url
+from slopsearx.service import AppContext,SearchRequest,SearchService,search_response_to_payload,search_response_from_payload
+from slopsearx.capabilities import CapabilityCatalog,MCPPolicy
+from slopsearx.config import Config,EngineEntry
+from slopsearx.mcp.tools import _enforce_policy
+from types import SimpleNamespace
+EV=ROOT/'docs/experiments/evidence/ARXIV-CAMPAIGN-2026-10-11'
+DATA=Path('/private/tmp/slopsearx-arxiv-campaign/data')
+MAN=json.loads((EV/'manifest.json').read_text());SEED=20261011
+
+def dump(p,x):
+ if p.exists():raise RuntimeError('refusing overwrite '+str(p))
+ p.parent.mkdir(parents=True,exist_ok=True);p.write_text(json.dumps(x,sort_keys=True,indent=2,allow_nan=False)+'\n')
+def append(p,x):
+ with p.open('a') as f:f.write(json.dumps(x,sort_keys=True,allow_nan=False)+'\n');f.flush();os.fsync(f.fileno())
+def sha(p):return hashlib.sha256(p.read_bytes()).hexdigest()
+def tok(s):return re.findall(r'[a-z0-9]+',s.lower())
+def bound(s,n):return s.encode()[:n].decode('utf-8','ignore')
+def dataset(name):
+ spec=next(x for x in MAN['datasets'] if x['name']==name)
+ for file,h in spec['files'].items():assert sha(DATA/name/file)==h,file
+ corpus={x['_id']:x for x in map(json.loads,(DATA/name/'corpus.jsonl').read_text().splitlines())}
+ queries={x['_id']:x['text'] for x in map(json.loads,(DATA/name/'queries.jsonl').read_text().splitlines())}
+ return spec,corpus,queries
+class BM25:
+ def __init__(self,corpus,title_only):
+  self.ids=sorted(corpus);self.count=len(self.ids);self.length={};self.post=collections.defaultdict(dict)
+  for did in self.ids:
+   d=corpus[did];ts=tok(d['title']+('' if title_only else ' '+d['text']));self.length[did]=len(ts)
+   for t,f in collections.Counter(ts).items():self.post[t][did]=f
+  self.avg=sum(self.length.values())/self.count
+ def search(self,q):
+  score=collections.defaultdict(float)
+  for t in set(tok(q)):
+   post=self.post.get(t,{})
+   if not post:continue
+   idf=math.log(1+(self.count-len(post)+.5)/(len(post)+.5))
+   for did,f in post.items():score[did]+=idf*f*2.2/(f+1.2*(.25+.75*self.length[did]/self.avg))
+  # Always retain top20; explicit zero-score padding is benchmark fixture behavior.
+  return [(d,score[d]) for d in sorted(self.ids,key=lambda d:(-score[d],d))[:20]]
+class Feed(EngineAdapter):
+ def __init__(self,name,results):super().__init__({});self.name=name;self.results=results;self.calls=0
+ async def search(self,q,params=None):
+  self.calls+=1;return AdapterResponse(results=[dataclasses.replace(r,engines=set(r.engines)) for r in self.results],status=EngineStatus.OK)
+class RankK:
+ def __init__(self,k):self.k=k
+ def rank(self,feeds,q,params=None):
+  seen={}
+  for en in sorted(feeds):
+   contributed=set()
+   for rank,r in enumerate(feeds[en],1):
+    url=_normalise_url(r.url)
+    if url in contributed:continue
+    contributed.add(url);v=1/(self.k+rank)
+    if url in seen:seen[url].score+=v;seen[url].engines.add(en);seen[url].tier=min(seen[url].tier,r.tier)
+    else:seen[url]=dataclasses.replace(r,engine=en,engines={en},score=v)
+  out=sorted(seen.items(),key=lambda x:(x[1].tier,-x[1].score,x[0]))
+  for i,(_,r) in enumerate(out,1):r.position=i
+  return [r for _,r in out]
+async def service(query,feeds,k=60,selected=None):
+ engines={}
+ for n,rs in feeds.items():
+  cls=register_engine(type('Benchmark_'+n,(Feed,),{'name':n}))
+  engines[n]=cls(n,rs);cfg=Config(engines={n:EngineEntry() for n in engines})
+ catalog=CapabilityCatalog(cfg,engines);state=SimpleNamespace(catalog=catalog,policy=MCPPolicy())
+ chosen=selected if selected is not None else list(engines)
+ assert _enforce_policy(state,chosen) is None
+ assert _enforce_policy(state,chosen+['hibp']) is not None
+ ctx=AppContext(active_engines=engines,catalog=catalog,ranking_strategy='reciprocal_rank_fusion')
+ svc=SearchService(ctx)
+ if k!=60:svc._ranker=RankK(k)
+ result=await svc.search(SearchRequest(query=query,engines=chosen))
+ assert all(e.status=='ok' for e in result.engine_outcomes)
+ payload=search_response_to_payload(result);restored=search_response_from_payload(json.loads(json.dumps(payload)))
+ assert [(r.url,r.engines) for r in restored.results]==[(r.url,r.engines) for r in result.results]
+ assert all(a.tier<=b.tier for a,b in zip(result.results,result.results[1:]))
+ return result,engines
+async def prepare(phase='development'):
+ if (EV/f'prepared-{phase}.json').exists():raise RuntimeError('already prepared')
+ cases=[]
+ for name in ['scifact','nfcorpus']:
+  spec,corpus,queries=dataset(name);indexes={n:BM25(corpus,n=='bench_title') for n in ['bench_title','bench_full']}
+  for qid in spec[phase+'_ids']:
+   q=queries[qid];feeds={};raw={}
+   for en,index in indexes.items():
+    values=index.search(q);raw[en]=values;feeds[en]=[SearchResult(url=f'https://benchmark.invalid/{name}/{d}',title=bound(corpus[d]['title'],256),content=bound(corpus[d]['text'],1200),engine=en,tier=2) for d,_ in values]
+   baseline,_=await service(q,feeds)
+   first,second=[v for _,v in raw['bench_full'][:2]]
+   cases.append({'dataset':name,'query_id':qid,'query':q,'feeds':{en:[dataclasses.asdict(r)|{'engines':sorted(r.engines)} for r in rs] for en,rs in feeds.items()},'baseline_ids':[r.url.rsplit('/',1)[-1] for r in baseline.results],'margin':(first-second)/first if first>0 else 0,'fulltext_scores':raw['bench_full']})
+ dump(EV/f'prepared-{phase}.json',{'phase':phase,'cases':cases,'qrels_loaded':False,'source':sha(Path(__file__))})
+ if phase=='development':dump(EV/'readiness.json',{'state':'qualified','dataset_counts':{n:len(dataset(n)[1]) for n in ['scifact','nfcorpus']},'cases':len(cases),'qrels_independent':True,'query_metadata_excluded':True,'claims':['offline corpus comparison only'],'python':platform.python_version(),'manifest_sha256':sha(EV/'manifest.json')})
+ print(json.dumps({'prepared':phase,'cases':len(cases),'qrels_loaded':False}))
+def feeds(case):return {en:[SearchResult(**(r|{'engines':set(r['engines'])})) for r in rs] for en,rs in case['feeds'].items()}
+async def run(eid,phase):
+ path=EV/f'{eid}-{phase}-rows.json';attempt=EV/f'{eid}-{phase}-ready-started.json'
+ dump(attempt,{'experiment':eid,'phase':phase,'started_epoch':time.time(),'worker_sha256':sha(Path(__file__)),'budget_seconds':2700})
+ cases=json.loads((EV/f'prepared-{phase}.json').read_text())['cases'];rows=[]
+ for c in cases:
+  fs=feeds(c);base,_=await service(c['query'],fs)
+  if eid=='EXP-113':cand,_=await service(c['query'],fs,20)
+  else:raise ValueError('unimplemented candidate '+eid)
+  assert set(r.url for r in base.results)==set(r.url for r in cand.results)
+  assert {r.url:r.engines for r in base.results}=={r.url:r.engines for r in cand.results}
+  row={'dataset':c['dataset'],'query_id':c['query_id'],'baseline':[r.url.rsplit('/',1)[-1] for r in base.results],'candidate':[r.url.rsplit('/',1)[-1] for r in cand.results],'membership':True,'provenance':True}
+  rows.append(row);append(EV/f'{eid}-{phase}-receipts.jsonl',row)
+ dump(path,rows);print(json.dumps({'experiment':eid,'phase':phase,'rows':len(rows)}))
+def qrels(name):
+ out=collections.defaultdict(dict)
+ for row in csv.DictReader((DATA/name/'qrels/test.tsv').open(),delimiter='\t'):out[row['query-id']][row['corpus-id']]=int(row['score'])
+ return out
+
+def ndcg(ids,grades,k=10):
+ gain=lambda values:sum((2**v-1)/math.log2(i+2) for i,v in enumerate(values[:k]))
+ ideal=gain(sorted(grades.values(),reverse=True));return gain([grades.get(d,0) for d in ids])/ideal if ideal else 0
+
+def interval(values):
+ rng=random.Random(SEED);n=len(values);boots=sorted(sum(rng.choices(values,k=n))/n for _ in range(20000));return [boots[49],boots[19949]]
+def analyze(eid,phase):
+ rows=json.loads((EV/f'{eid}-{phase}-rows.json').read_text());labels={n:qrels(n) for n in ['scifact','nfcorpus']};values=[]
+ for r in rows:
+  g=labels[r['dataset']][r['query_id']];r['baseline_ndcg']=ndcg(r['baseline'],g);r['candidate_ndcg']=ndcg(r['candidate'],g);r['ndcg_delta']=r['candidate_ndcg']-r['baseline_ndcg'];values.append(r['ndcg_delta'])
+ ci=interval(values);families={n:statistics.mean(r['ndcg_delta'] for r in rows if r['dataset']==n) for n in labels}
+ guards=all(v>=-.02 for v in families.values()) and all(r['membership'] and r['provenance'] for r in rows)
+ supported=ci[0]>=.05 and guards
+ outcome='supported' if supported else ('not-supported' if statistics.mean(values)<.05 or not guards else 'inconclusive')
+ summary={'experiment':eid,'phase':phase,'n':len(rows),'baseline_ndcg':statistics.mean(r['baseline_ndcg'] for r in rows),'candidate_ndcg':statistics.mean(r['candidate_ndcg'] for r in rows),'delta':statistics.mean(values),'interval_99_5':ci,'per_dataset':families,'guards':guards,'outcome':outcome,'confirmation_allowed':supported,'production_claim':False}
+ dump(EV/f'{eid}-{phase}-analysis-rows.json',rows);dump(EV/f'{eid}-{phase}-summary.json',summary);print(json.dumps(summary))
+if __name__=='__main__':
+ mode=sys.argv[1]
+ if mode=='prepare':asyncio.run(prepare(sys.argv[2] if len(sys.argv)>2 else 'development'))
+ elif mode=='run':asyncio.run(run(sys.argv[2],sys.argv[3]))
+ elif mode=='analyze':analyze(sys.argv[2],sys.argv[3])

@@ -1,0 +1,7 @@
+{
+  "budget_seconds": 2700,
+  "experiment": "EXP-113",
+  "phase": "development",
+  "started_epoch": 1791740924.73347,
+  "worker_sha256": "dd79fdd035322e00d5d0af5e5309b3b8cb92590a6b5ca22cfc0625227374ded7"
+}

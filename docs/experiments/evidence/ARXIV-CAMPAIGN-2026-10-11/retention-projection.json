@@ -1,0 +1,9 @@
+{
+  "raw_input_sha256": "b7b00909cf2f1b4a521a19c8d1c30d4661d574b84d146c1b8b7178e0a2b38f7a",
+  "projection_sha256": "a14c11c88a822dfbec81c73a2d7ac2876a44eb55878d5ef6f3e7e994b7d611f5",
+  "public_input": "ordered document IDs, feed fields and bounded text SHA256s; corpus text reconstructed from pinned external archives",
+  "source_text_not_redistributed": true,
+  "measurement_worker": "runner-measurement-v2.py.txt",
+  "portable_runner": "runner.py.txt",
+  "portability_change": "original BM25 term iteration was set-based; exact scientific replay uses frozen ordered feeds, not regenerated floating-point ranking. Sorted term iteration applies only to future preparation. No trial rerun."
+}

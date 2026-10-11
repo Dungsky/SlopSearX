@@ -1,0 +1,23 @@
+{
+  "baseline_sha": "178bc43bad357a7d9bb2177415cd75807bbb7c3d",
+  "registration_commits": [
+    "6206f4c",
+    "cf9fb2f",
+    "1925c8f"
+  ],
+  "python": "3.12.11",
+  "platform": "macOS-27.0-arm64-arm-64bit",
+  "packages": {
+    "httpx": "0.28.1",
+    "fastmcp": "3.4.7",
+    "mcp": "1.29.0",
+    "pytest": "9.0.3"
+  },
+  "component_hashes": {
+    "slopsearx/service.py": "aed455ccbefcfee5ffcf099876dc7230cead27527313269edc0f69b504c20922",
+    "slopsearx/merger.py": "5bb1a599ed8330aad02bd6567984d12c02f4ed735059c4f50cd6dfefd21e5eda",
+    "slopsearx/adapter.py": "5883a35c48d0dad1077306fbda21997ee1d32116a8c03633a6b762de0c26d6f3",
+    "slopsearx/rerank.py": "df518bac899fa457e713201192a65f8ee0c3599419382e5be221d5ac366b479e",
+    "slopsearx/capabilities.py": "ed4e332a4df1de32d83b9dd2b62dddb622082ab4c236c0c9cef8d8d23336fd6f"
+  }
+}

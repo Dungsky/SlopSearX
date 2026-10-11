@@ -1,0 +1,270 @@
+from __future__ import annotations
+import asyncio,collections,csv,dataclasses,hashlib,json,math,os,platform,random,re,statistics,sys,time
+from pathlib import Path
+import httpx
+from slopsearx.rerank import MODEL,LEVELS,INSTRUCTIONS
+ROOT=Path.cwd();sys.path.insert(0,str(ROOT))
+from slopsearx.adapter import EngineAdapter,AdapterResponse,EngineStatus,SearchResult,register_engine
+from slopsearx.merger import ReciprocalRankFusionRanker,_normalise_url
+from slopsearx.service import AppContext,SearchRequest,SearchService,search_response_to_payload,search_response_from_payload
+from slopsearx.capabilities import CapabilityCatalog,MCPPolicy
+from slopsearx.config import Config,EngineEntry
+from slopsearx.mcp.tools import _enforce_policy
+from types import SimpleNamespace
+EV=ROOT/'docs/experiments/evidence/ARXIV-CAMPAIGN-2026-10-11'
+DATA=Path('/private/tmp/slopsearx-arxiv-campaign/data')
+MAN=json.loads((EV/'manifest.json').read_text());SEED=20261011
+RAWINPUT=DATA.parent
+
+def dump(p,x):
+ if p.exists():raise RuntimeError('refusing overwrite '+str(p))
+ p.parent.mkdir(parents=True,exist_ok=True);p.write_text(json.dumps(x,sort_keys=True,indent=2,allow_nan=False)+'\n')
+def append(p,x):
+ with p.open('a') as f:f.write(json.dumps(x,sort_keys=True,allow_nan=False)+'\n');f.flush();os.fsync(f.fileno())
+def sha(p):return hashlib.sha256(p.read_bytes()).hexdigest()
+def tok(s):return re.findall(r'[a-z0-9]+',s.lower())
+def bound(s,n):return s.encode()[:n].decode('utf-8','ignore')
+def dataset(name):
+ spec=next(x for x in MAN['datasets'] if x['name']==name)
+ for file,h in spec['files'].items():assert sha(DATA/name/file)==h,file
+ corpus={x['_id']:x for x in map(json.loads,(DATA/name/'corpus.jsonl').read_text().splitlines())}
+ queries={x['_id']:x['text'] for x in map(json.loads,(DATA/name/'queries.jsonl').read_text().splitlines())}
+ return spec,corpus,queries
+class BM25:
+ def __init__(self,corpus,title_only):
+  self.ids=sorted(corpus);self.count=len(self.ids);self.length={};self.post=collections.defaultdict(dict)
+  for did in self.ids:
+   d=corpus[did];ts=tok(d['title']+('' if title_only else ' '+d['text']));self.length[did]=len(ts)
+   for t,f in collections.Counter(ts).items():self.post[t][did]=f
+  self.avg=sum(self.length.values())/self.count
+ def search(self,q):
+  score=collections.defaultdict(float)
+  for t in sorted(set(tok(q))):
+   post=self.post.get(t,{})
+   if not post:continue
+   idf=math.log(1+(self.count-len(post)+.5)/(len(post)+.5))
+   for did,f in post.items():score[did]+=idf*f*2.2/(f+1.2*(.25+.75*self.length[did]/self.avg))
+  # Always retain top20; explicit zero-score padding is benchmark fixture behavior.
+  return [(d,score[d]) for d in sorted(self.ids,key=lambda d:(-score[d],d))[:20]]
+class Feed(EngineAdapter):
+ def __init__(self,name,results):super().__init__({});self.name=name;self.results=results;self.calls=0
+ async def search(self,q,params=None):
+  self.calls+=1;return AdapterResponse(results=[dataclasses.replace(r,engines=set(r.engines)) for r in self.results],status=EngineStatus.OK)
+class RankK:
+ def __init__(self,k):self.k=k
+ def rank(self,feeds,q,params=None):
+  seen={}
+  for en in sorted(feeds):
+   contributed=set()
+   for rank,r in enumerate(feeds[en],1):
+    url=_normalise_url(r.url)
+    if url in contributed:continue
+    contributed.add(url);v=1/(self.k+rank)
+    if url in seen:seen[url].score+=v;seen[url].engines.add(en);seen[url].tier=min(seen[url].tier,r.tier)
+    else:seen[url]=dataclasses.replace(r,engine=en,engines={en},score=v)
+  out=sorted(seen.items(),key=lambda x:(x[1].tier,-x[1].score,x[0]))
+  for i,(_,r) in enumerate(out,1):r.position=i
+  return [r for _,r in out]
+async def service(query,feeds,k=60,selected=None):
+ engines={}
+ for n,rs in feeds.items():
+  cls=register_engine(type('Benchmark_'+n,(Feed,),{'name':n}))
+  engines[n]=cls(n,rs);cfg=Config(engines={n:EngineEntry() for n in engines})
+ catalog=CapabilityCatalog(cfg,engines);state=SimpleNamespace(catalog=catalog,policy=MCPPolicy())
+ chosen=selected if selected is not None else list(engines)
+ assert _enforce_policy(state,chosen) is None
+ assert _enforce_policy(state,chosen+['hibp']) is not None
+ ctx=AppContext(active_engines=engines,catalog=catalog,ranking_strategy='reciprocal_rank_fusion')
+ svc=SearchService(ctx)
+ if k!=60:svc._ranker=RankK(k)
+ result=await svc.search(SearchRequest(query=query,engines=chosen))
+ assert all(e.status=='ok' for e in result.engine_outcomes)
+ payload=search_response_to_payload(result);restored=search_response_from_payload(json.loads(json.dumps(payload)))
+ assert [(r.url,r.engines) for r in restored.results]==[(r.url,r.engines) for r in result.results]
+ assert all(a.tier<=b.tier for a,b in zip(result.results,result.results[1:]))
+ return result,engines
+async def prepare(phase='development'):
+ if (RAWINPUT/f'prepared-{phase}.json').exists():raise RuntimeError('already prepared')
+ cases=[]
+ for name in ['scifact','nfcorpus']:
+  spec,corpus,queries=dataset(name);indexes={n:BM25(corpus,n=='bench_title') for n in ['bench_title','bench_full']}
+  for qid in spec[phase+'_ids']:
+   q=queries[qid];feeds={};raw={}
+   for en,index in indexes.items():
+    values=index.search(q);raw[en]=values;feeds[en]=[SearchResult(url=f'https://benchmark.invalid/{name}/{d}',title=bound(corpus[d]['title'],256),content=bound(corpus[d]['text'],1200),engine=en,tier=2) for d,_ in values]
+   baseline,_=await service(q,feeds)
+   first,second=[v for _,v in raw['bench_full'][:2]]
+   cases.append({'dataset':name,'query_id':qid,'query':q,'feeds':{en:[dataclasses.asdict(r)|{'engines':sorted(r.engines)} for r in rs] for en,rs in feeds.items()},'baseline_ids':[r.url.rsplit('/',1)[-1] for r in baseline.results],'margin':(first-second)/first if first>0 else 0,'fulltext_scores':raw['bench_full']})
+ dump(RAWINPUT/f'prepared-{phase}.json',{'phase':phase,'cases':cases,'qrels_loaded':False,'source':sha(Path(__file__))})
+ if phase=='development':dump(EV/'readiness.json',{'state':'qualified','dataset_counts':{n:len(dataset(n)[1]) for n in ['scifact','nfcorpus']},'cases':len(cases),'qrels_independent':True,'query_metadata_excluded':True,'claims':['offline corpus comparison only'],'python':platform.python_version(),'manifest_sha256':sha(EV/'manifest.json')})
+ print(json.dumps({'prepared':phase,'cases':len(cases),'qrels_loaded':False}))
+def feeds(case):
+ out={};_,corpus,_=dataset(case['dataset'])
+ for en,rs in case['feeds'].items():
+  out[en]=[]
+  for raw in rs:
+   r=dict(raw)
+   if 'content_sha256' in r:
+    d=corpus[r['url'].rsplit('/',1)[-1]]
+    for field,source,limit in [('title','title',256),('content','text',1200)]:
+     value=bound(d[source],limit);assert hashlib.sha256(value.encode()).hexdigest()==r.pop(field+'_sha256');r[field]=value
+   out[en].append(SearchResult(**(r|{'engines':set(r['engines'])})))
+ return out
+
+def key():
+ # Only the already-configured project credential; never print keys/headers.
+ for line in Path('/Volumes/tank01/magnus/git/SlopSearX/.env').read_text().splitlines():
+  if line.startswith('TYPESAFE_API_KEY='):return line.split('=',1)[1].strip().strip('"\'')
+ raise RuntimeError('project Typesafe credential unavailable')
+
+def provider_receipts():
+ p=EV/'provider-receipts.jsonl';return [json.loads(x) for x in p.read_text().splitlines()] if p.exists() else []
+
+async def invoke(call_id,body):
+ previous=provider_receipts();attempts_path=EV/'provider-attempts.jsonl'
+ retained=[x for x in previous if x['id']==call_id]
+ if retained:
+  assert len(retained)==1
+  return retained[0]
+ attempted=[json.loads(x) for x in attempts_path.read_text().splitlines()] if attempts_path.exists() else []
+ assert call_id not in {x['id'] for x in attempted},'no retry'
+ reserved=sum(x.get('input_tokens') if type(x.get('input_tokens')) is int else 64000 for x in previous)
+ # Interrupted reservations also consume worst-case quota.
+ reserved+=64000*len({x['id'] for x in attempted}-{x['id'] for x in previous})
+ assert len(attempted)<150 and reserved+64000<=2000000
+ raw=json.dumps(body,ensure_ascii=False,allow_nan=False).encode();assert len(raw)<=128000
+ # Conservative bytes bound: state+question request <=32k bytes, below both documented token limits even at one token/byte.
+ assert len(raw)<=64000
+ assert len(json.dumps(body['state'],ensure_ascii=False).encode())+max(len(json.dumps(q,ensure_ascii=False).encode()) for q in body['questions'].values())<=32000
+ append(attempts_path,{'id':call_id,'request_sha256':hashlib.sha256(raw).hexdigest(),'request_bytes':len(raw),'reserved_input_tokens':64000,'at_epoch':time.time()})
+ started=time.monotonic();receipt={'id':call_id,'valid':False,'model':MODEL}
+ try:
+  async with httpx.AsyncClient(timeout=1.0,trust_env=False,follow_redirects=False) as client:
+   async with asyncio.timeout(1.0):resp=await client.post('https://api.typesafe.ai/v1/systemone',content=raw,headers={'Authorization':'Bearer '+key(),'Content-Type':'application/json'})
+  receipt['http_status']=resp.status_code;assert len(resp.content)<=2000000
+  # Retain bounded response, not request content or credential-bearing headers.
+  receipt['response']=resp.json();resp.raise_for_status();data=receipt['response']
+  usage=data.get('usage',{});receipt['input_tokens']=usage.get('input_tokens');receipt['output_tokens']=usage.get('output_tokens')
+  assert type(receipt['input_tokens']) is int and receipt['input_tokens']>=0
+  assert type(receipt['output_tokens']) is int and receipt['output_tokens']>=0
+  assert data.get('model')==MODEL and set(data.get('answers',{}))==set(body['questions'])
+  values={}
+  for cid,question in body['questions'].items():
+   answer=data['answers'][cid];kind=question['type'];value=answer[kind]
+   assert answer.get('type')==kind and type(value) in [int,float] and math.isfinite(value)
+   assert 0<=value<=(9 if kind=='score' else 1)
+   values[cid]=float(value)
+  receipt['values']=values;receipt['valid']=True
+ except Exception as exc:receipt['error_type']=type(exc).__name__
+ receipt['elapsed_ms']=(time.monotonic()-started)*1000;append(EV/'provider-receipts.jsonl',receipt)
+ return receipt
+
+def score_body(query,results):
+ cards=[{'id':'c'+str(i),'title':bound(r.title,256),'url':bound(r.url,512),'snippet':bound(r.content,1200)} for i,r in enumerate(results)]
+ return {'model':MODEL,'state':{'query':query,'candidates':cards},'questions':{c['id']:{'type':'score','instructions':INSTRUCTIONS.format(id=c['id']),'criteria':LEVELS} for c in cards}}
+
+def score_order(original,receipt):
+ values=receipt['values'];head=original[:len(values)];return sorted(enumerate(head),key=lambda t:(-values['c'+str(t[0])],t[0]))
+
+def mmr(original):
+ left=list(enumerate(original));selected=[];maximum=max((r.score for r in original),default=1)
+ sets={r.url:set(tok(r.title+' '+r.content)) for r in original}
+ while left:
+  tier=min(r.tier for _,r in left)
+  def utility(item):
+   i,r=item;a=sets[r.url]
+   redundancy=max((len(a&sets[t.url])/max(1,len(a|sets[t.url])) for t in selected),default=0)
+   return .85*r.score/maximum-.15*redundancy
+  i,r=max((t for t in left if t[1].tier==tier),key=lambda t:(utility(t),-t[0]));selected.append(r);left.remove((i,r))
+ return selected
+
+async def run(eid,phase):
+ path=EV/f'{eid}-{phase}-rows.json';attempt=EV/f'{eid}-{phase}-ready-started.json'
+ input_path=RAWINPUT/f'prepared-{phase}.json'
+ if not input_path.exists():input_path=EV/f'prepared-{phase}-index.json'
+ cases=json.loads(input_path.read_text())['cases']
+ if not attempt.exists():dump(attempt,{'experiment':eid,'phase':phase,'started_epoch':time.time(),'worker_sha256':sha(Path(__file__)),'budget_seconds':2700})
+ elif eid!='EXP-112':raise RuntimeError('no continuation registered for '+eid)
+ rows=[];errors=0
+ for c in cases:
+  assert time.time()-json.loads(attempt.read_text())['started_epoch']<2700
+  fs=feeds(c);base,_=await service(c['query'],fs);ordered=base.results;candidate=ordered;available=True;before=after=0;scorer_useful=None;call=None
+  if eid=='EXP-113':candidate=(await service(c['query'],fs,20))[0].results
+  elif eid=='EXP-112':
+   questions={en:{'type':'noul','instructions':f"Resource {en}. "+('Searches document titles only; economical exact named-topic lookup.' if en=='bench_title' else 'Searches titles and full abstracts; terminology, mechanisms and evidence may occur beyond the title.')+" Would searching this resource add directly useful relevant documents for the user query? Consider its retrieval fit; do not infer actual gold relevance."} for en in fs}
+   call=await invoke(f'{eid}:{phase}:{c["dataset"]}:{c["query_id"]}',{'model':MODEL,'state':{'user_query':c['query']},'questions':questions})
+   available=call['valid'];selected=[en for en,v in call.get('values',{}).items() if v>=.65] or ['bench_full']
+   if available:candidate=(await service(c['query'],fs,selected=selected))[0].results
+   before=2;after=len(selected)
+  elif eid=='EXP-114':
+   call=await invoke(f'baseline20:{phase}:{c["dataset"]}:{c["query_id"]}',score_body(c['query'],ordered[:20]));available=call['valid']
+   if available:
+    ranked=[r for _,r in score_order(ordered,call)]+ordered[20:];scorer_useful={'incumbent':[r.url.rsplit('/',1)[-1] for r in ordered],'reranked':[r.url.rsplit('/',1)[-1] for r in ranked]};candidate=ordered if c['margin']>=.25 else ranked;ordered=ranked
+    before=call['input_tokens'];after=0 if c['margin']>=.25 else before
+  elif eid=='EXP-115':
+   callid=f'baseline20:{phase}:{c["dataset"]}:{c["query_id"]}';prior=[x for x in provider_receipts() if x['id']==callid];assert len(prior)==1
+   baseline=prior[0];available=baseline['valid'];before=baseline.get('input_tokens',0)
+   if available:
+    ordered=[r for _,r in score_order(base.results,baseline)]+base.results[20:];candidate=ordered;after=before
+    if c['margin']>=.25:
+     call=await invoke(f'depth10:{phase}:{c["dataset"]}:{c["query_id"]}',score_body(c['query'],base.results[:10]));available=call['valid']
+     if available:candidate=[r for _,r in score_order(base.results,call)]+base.results[10:];after=call['input_tokens']
+  elif eid=='EXP-117':candidate=mmr(ordered)
+  else:raise ValueError('unimplemented candidate '+eid)
+  if available:
+   assert set(r.url for r in ordered)==set(r.url for r in candidate) if eid!='EXP-112' else set(r.url for r in candidate)<=set(r.url for r in ordered)
+   assert len(candidate)==len({r.url for r in candidate})
+   if eid=='EXP-112':
+    assert all(r.engines=={en for en in selected if r.url in {t.url for t in fs[en]}} for r in candidate)
+   else:assert {r.url:r.engines for r in candidate}=={r.url:r.engines for r in ordered}
+  else:errors+=1
+  row={'dataset':c['dataset'],'query_id':c['query_id'],'baseline':[r.url.rsplit('/',1)[-1] for r in ordered],'candidate':[r.url.rsplit('/',1)[-1] for r in candidate] if available else None,'membership':True,'provenance':True,'available':available,'cost_baseline':before,'cost_candidate':after,'margin':c['margin'],'scorer_useful':scorer_useful,'provider_id':call['id'] if call else None}
+  rows.append(row);append(EV/f'{eid}-{phase}-receipts.jsonl',row)
+  if errors>=3:break
+ dump(path,rows);print(json.dumps({'experiment':eid,'phase':phase,'rows':len(rows),'errors':errors}))
+def qrels(name):
+ out=collections.defaultdict(dict)
+ for row in csv.DictReader((DATA/name/'qrels/test.tsv').open(),delimiter='\t'):out[row['query-id']][row['corpus-id']]=int(row['score'])
+ return out
+
+def ndcg(ids,grades,k=10):
+ gain=lambda values:sum((2**v-1)/math.log2(i+2) for i,v in enumerate(values[:k]))
+ ideal=gain(sorted(grades.values(),reverse=True));return gain([grades.get(d,0) for d in ids])/ideal if ideal else 0
+
+def interval(values):
+ rng=random.Random(SEED);n=len(values);boots=sorted(sum(rng.choices(values,k=n))/n for _ in range(20000));return [boots[49],boots[19949]]
+def recall(ids,grades,k=10):
+ relevant={d for d,v in grades.items() if v>0};return len(set(ids[:k])&relevant)/len(relevant) if relevant else 0
+
+def analyze(eid,phase):
+ rows=json.loads((EV/f'{eid}-{phase}-rows.json').read_text());labels={n:qrels(n) for n in ['scifact','nfcorpus']};values=[];quality=[];valid=[]
+ for r in rows:
+  if r.get('candidate') is None:continue
+  valid.append(r);g=labels[r['dataset']][r['query_id']];r['baseline_ndcg']=ndcg(r['baseline'],g);r['candidate_ndcg']=ndcg(r['candidate'],g);r['ndcg_delta']=r['candidate_ndcg']-r['baseline_ndcg'];quality.append(r['ndcg_delta'])
+  if eid=='EXP-117':v=recall(r['candidate'],g)-recall(r['baseline'],g)
+  elif eid in ['EXP-112','EXP-114','EXP-115']:v=1-r['cost_candidate']/r['cost_baseline'] if r['cost_baseline'] else 0
+  else:v=r['ndcg_delta']
+  r['primary_delta']=v;values.append(v)
+ families={n:statistics.mean(r['ndcg_delta'] for r in valid if r['dataset']==n) if any(r['dataset']==n for r in valid) else None for n in labels}
+ complete=len(valid)>=22 and len(rows)==24
+ if values:
+  ci=interval(values);qci=interval(quality);mean=statistics.mean(values)
+ else:ci=qci=[None,None];mean=None
+ guards=complete and all(v is not None and v>=-.02 for v in families.values()) and all(r['membership'] and r['provenance'] for r in valid)
+ # Reranking efficiency is meaningful only if baseline reranking does not degrade the independent relevance baseline.
+ rerank_gain=None
+ if eid=='EXP-114' and valid:
+  gains=[ndcg(r['scorer_useful']['reranked'],labels[r['dataset']][r['query_id']])-ndcg(r['scorer_useful']['incumbent'],labels[r['dataset']][r['query_id']]) for r in valid]
+  rerank_gain={'mean':statistics.mean(gains),'interval_99_5':interval(gains)};guards=guards and rerank_gain['interval_99_5'][0]>=-.02
+ if eid=='EXP-115':
+  prerequisite=json.loads((EV/f'EXP-114-{phase}-summary.json').read_text());rerank_gain=prerequisite.get('reranking_quality');guards=guards and rerank_gain is not None and rerank_gain['interval_99_5'][0]>=-.02
+ threshold=.25 if eid in ['EXP-112','EXP-114','EXP-115'] else .05
+ supported=guards and ci[0]>=threshold and (eid not in ['EXP-112','EXP-114','EXP-115','EXP-117'] or qci[0]>=-.02)
+ outcome='inconclusive' if not complete else ('supported' if supported else ('not-supported' if mean<threshold or not guards or (qci[1] is not None and qci[1]<-.02) else 'inconclusive'))
+ summary={'experiment':eid,'phase':phase,'n_planned':24,'n_valid':len(valid),'primary_mean':mean,'primary_interval_99_5':ci,'baseline_ndcg':statistics.mean(r['baseline_ndcg'] for r in valid) if valid else None,'candidate_ndcg':statistics.mean(r['candidate_ndcg'] for r in valid) if valid else None,'quality_delta':statistics.mean(quality) if quality else None,'quality_interval_99_5':qci,'per_dataset_quality_delta':families,'guards':guards,'reranking_quality':rerank_gain,'outcome':outcome,'confirmation_allowed':supported,'production_claim':False}
+ dump(EV/f'{eid}-{phase}-analysis-rows.json',rows);dump(EV/f'{eid}-{phase}-summary.json',summary);print(json.dumps(summary))
+if __name__=='__main__':
+ mode=sys.argv[1]
+ if mode=='prepare':asyncio.run(prepare(sys.argv[2] if len(sys.argv)>2 else 'development'))
+ elif mode=='run':asyncio.run(run(sys.argv[2],sys.argv[3]))
+ elif mode=='analyze':analyze(sys.argv[2],sys.argv[3])

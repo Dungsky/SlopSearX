@@ -1,0 +1,5 @@
+# Prospective provider-trial clarification
+
+Before any EXP-112/114/115 provider call or EXP-117 result: primary savings is mean per-query fraction of resource calls or reported scorer input tokens avoided. Baseline reranking must independently be noninferior to no-rerank at a −0.02 nDCG margin before recommending its selective/depth optimization. This is an additional strict guard, not a relaxed gate. Report total tokens separately. Conservative request size bounds: total <=64k UTF-8 bytes and state+longest question <=32k bytes, in addition to service128k request-byte cap. Account for failed unknown usage at64k; no retries. No scientific outcomes for these trials have been inspected.
+
+The static two-domain corpus provides no explicit multi-hop/facet/time evidence. It cannot qualify wrapper follow-ups, semantic freshness or subtopic claims. Exact-title navigation controls are not part of the sampled corpus; a feature request therefore also requires separately registered actual-engine identifier/navigation checks. Do not claim these checks passed from membership assertions.
