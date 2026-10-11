@@ -1,0 +1,7 @@
+{
+  "method": "Python urllib default user agent",
+  "url": "https://trec.nist.gov/data/federated/2014/queryterms_fedweb2014.txt",
+  "http_status": 403,
+  "candidate_or_provider_calls": 0,
+  "phase": "public-source acquisition before registration"
+}

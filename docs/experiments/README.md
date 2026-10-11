@@ -279,3 +279,7 @@ production path and establishing a measurable baseline.
 [Sequential campaign and interaction plan](ARXIV-CAMPAIGN-2026-10-11.md), EXP-109–118. Current state: planned; no candidate measured. $10 ceiling; source-aware bounded pilots and external-label benchmark screens, with feature requests only after supported confirmation.
 
 Ten-paper campaign readout: EXP-113/114/115/117 not-supported; EXP-112 inconclusive; EXP-116 blocked pending temporal cohort; EXP-118 measurement prerequisite qualified. EXP-109/110/111 routed to Grok-to-Crawl-X experiment requests. [Evidence](evidence/ARXIV-CAMPAIGN-2026-10-11/readout.md). No feature requests, confirmation or compound study warranted.
+
+## Resource-selection iteration after the ten-paper campaign
+
+[EXP-119](EXP-119-heterogeneous-resource-selection.md): registered prospective historical-source-quality screen against development-trained fixed and lexical controls; prior EXP-112 remains inconclusive. Retrospective fixed-control audit is explanatory only. No provider calls or new corpus quality metrics yet.
