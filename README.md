@@ -347,3 +347,5 @@ MIT — see [LICENSE](LICENSE).
 Scholarly results are grouped by [identified work](docs/SCHOLARLY_WORK_GROUPING.md) before reranking, with bounded internal source provenance and optional SearXNG Paper metadata.
 
 Caller-directed query planning previews decomposition, terminology variants and evidence-linked follow-ups without dispatch. See [query planning](docs/QUERY_PLANNING.md).
+
+The v5 PR review policy and pinned JavaScript publisher action are deployed in non-binding `COMMENT` mode; Droid Auto Review remains active, and the independent Droid Tag and Wiki workflows are unchanged. Post-merge checks and actual v5 publication, replay, and containment verification remain pending. For setup, run receipts, bounded history reconciliation, and rollback, see [PR review operations](docs/code-review.md). A green workflow is not proof that a review was published or that the review is accurate.
