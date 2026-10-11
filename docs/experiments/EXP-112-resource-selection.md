@@ -2,7 +2,7 @@
 
 ## Registration
 
-State: planned; freeze activation before this candidate's work. Date:2026-10-11; user-authorized bounded campaign. Paper 4: https://arxiv.org/abs/2401.17645. Related implementation issue: none; create only after supported confirmation.
+State: registered; activation frozen before candidate work. Development then confirmation only if advancement gates pass. Date:2026-10-11; user-authorized bounded campaign. Paper 4: https://arxiv.org/abs/2401.17645. Related implementation issue: none; create only after supported confirmation.
 
 Hypothesis: Zero-shot description-based Jev selection avoids 25% resource calls with nDCG@10 noninferiority within 0.02 versus both resources.
 

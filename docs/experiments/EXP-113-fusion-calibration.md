@@ -2,7 +2,7 @@
 
 ## Registration
 
-State: planned; freeze activation before this candidate's work. Date:2026-10-11; user-authorized bounded campaign. Paper 5: https://arxiv.org/abs/2210.11934. Related implementation issue: none; create only after supported confirmation.
+State: registered; activation frozen before candidate work. Development then confirmation only if advancement gates pass. Date:2026-10-11; user-authorized bounded campaign. Paper 5: https://arxiv.org/abs/2210.11934. Related implementation issue: none; create only after supported confirmation.
 
 Hypothesis: RRF k=20 improves nDCG@10 by 0.05 versus shipped k=60 on identical title/fulltext benchmark feeds.
 

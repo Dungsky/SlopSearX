@@ -38,3 +38,15 @@ Budget and sequencing never justify tuning on confirmation, relabeling failures,
 ## Decision/preservation rules
 
 Register activation before each candidate; preserve raw inputs, external qrels hashes, command receipts, provider costs/errors and outcome. Supported confirmation yields one focused feature-request issue specifying before/after, evidence, limits, implementation seam, interactions and acceptance/rollback. Negative, inconclusive, blocked and readiness records remain documented. No auto-implementation.
+
+## Maintainer ownership clarification — before execution
+
+SlopSearX remains confined to meta-search. EXP-109/110/111 are routed experiment requests, not local candidate runs. Answer/page-cache reuse and generated research facets are also wrapper-owned; core EXP-116 stays search-response-only and EXP-117 stays deterministic result selection.
+
+- [experiment: evaluate caller query rewriting before SlopSearX meta-search](https://github.com/magnus919/groktocrawl-x/issues/444)
+- [experiment: evidence-conditioned research follow-ups with source-grounded dependencies](https://github.com/magnus919/groktocrawl-x/issues/445)
+- [experiment: adaptive continue/stop decisions for bounded research](https://github.com/magnus919/groktocrawl-x/issues/446)
+- [experiment: risk-gated answer and page cache reuse in research workflows](https://github.com/magnus919/groktocrawl-x/issues/447)
+- [experiment: generated evidence facets for diverse research source selection](https://github.com/magnus919/groktocrawl-x/issues/448)
+
+EXP-118,113,112,114,115,117 registrations activated prospectively under their signed fixed plans; execution remains sequential. Dataset query metadata containing original support labels is excluded from candidate inputs; only text fields are projected. Confirmation stays unopened until its gate.

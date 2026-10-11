@@ -2,7 +2,7 @@
 
 ## Registration
 
-State: planned; freeze activation before this candidate's work. Date:2026-10-11; user-authorized bounded campaign. Paper 10: https://arxiv.org/abs/2104.08663. Related implementation issue: none; create only after supported confirmation.
+State: registered; activation frozen before candidate work. Development then confirmation only if advancement gates pass. Date:2026-10-11; user-authorized bounded campaign. Paper 10: https://arxiv.org/abs/2104.08663. Related implementation issue: none; create only after supported confirmation.
 
 Hypothesis: A BEIR-backed evaluation layer can compute independently labeled per-domain quality for the same service result pools and detect regressions hidden by averages.
 
