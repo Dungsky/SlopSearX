@@ -1,0 +1,21 @@
+{
+  "checks": [
+    "linear metric perfect",
+    "unjudged zero convention",
+    "full ideal denominator and linear grades",
+    "lexical completeness",
+    "disjoint phase IDs",
+    "conservative request byte fit",
+    "valid response exact IDs",
+    "rejected missing",
+    "rejected nan",
+    "rejected wrong_model",
+    "rejected usage",
+    "historical resource IDs cannot bypass current adapter policy"
+  ],
+  "external_calls": 0,
+  "passed": 12,
+  "python": "3.12.11",
+  "research_selector_not_live_engine_scope": true,
+  "worker_sha256": "45053aed20e162c3c910e8d3790247c6723662545e51aa44515cbdbf07760dff"
+}

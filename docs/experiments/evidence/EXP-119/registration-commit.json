@@ -1,0 +1,8 @@
+{
+  "registration_commit": "81f3026",
+  "baseline_sha": "4ad7ce5e779c99a46bd2ea6d5ae7f7ad40292aa3",
+  "worker_sha256": "45053aed20e162c3c910e8d3790247c6723662545e51aa44515cbdbf07760dff",
+  "phase": "before first provider call",
+  "qualification_sha256": "ebe640d8ffb20136600877ff866801e569bebfea8a537d1206cdf0f06b73e6bc",
+  "controls_sha256": "218820356ceb560473b8b2f2a8340feacfff7da469785ac9b15b11149d347306"
+}
