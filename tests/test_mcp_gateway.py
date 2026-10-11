@@ -310,12 +310,14 @@ class TestCatalogPagination:
             gateway._get_session()
 
     async def test_native_sdk_sends_followup_cursor(self, monkeypatch: Any) -> None:
+        import anyio
         from mcp import ClientSession
         from mcp.types import ListToolsResult
 
         from slopsearx.mcp.gateway import _list_remote_tools
 
-        session = ClientSession(None, None)
+        write, read = anyio.create_memory_object_stream(1)
+        session = ClientSession(read, write)
         requests: list[dict[str, Any]] = []
 
         async def send(request: Any, result_type: Any, **kwargs: Any) -> Any:
@@ -331,3 +333,5 @@ class TestCatalogPagination:
         monkeypatch.setattr(session, "send_request", send)
         assert len(await _list_remote_tools(session)) == 2
         assert requests[1]["params"]["cursor"] == "opaque-next"
+        await read.aclose()
+        await write.aclose()
