@@ -1,0 +1,11 @@
+{
+  "cycle_start": "2026-10-11T12:59:18Z",
+  "recorded_at": "2026-10-11T13:01:05.428139+00:00",
+  "elapsed_to_record_seconds": 107.428139,
+  "scientific_calls": 0,
+  "provider_calls": 0,
+  "provider_cost": 0,
+  "subscription_usage": "unknown",
+  "outcome": "readiness_only_no_new_experiment",
+  "baseline": "e3f2305ca8b52c50070bf23e8b2eec3e2e0eed37"
+}

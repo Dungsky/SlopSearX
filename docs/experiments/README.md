@@ -268,3 +268,7 @@ These are investigation leads, not accepted hypotheses or promised benefits.
 
 Promote a lead into a registered experiment only after inspecting its real
 production path and establishing a measurable baseline.
+
+## Daily readiness records
+
+- [2026-10-11](daily-readiness-2026-10-11.md): no new trial; supported fixes delivered, coverage study terminated before acquisition and bounded restart amendment pending. Zero scientific calls; no material-effect claim.
