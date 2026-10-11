@@ -23,3 +23,9 @@ Query-paired bootstrap 20,000 samples, seed20261011, two-sided99.5% intervals (t
 Exact run commands (inert harness created only after signed registration): `PYTHONPATH=. /Volumes/tank01/magnus/git/SlopSearX/.venv/bin/python docs/experiments/evidence/ARXIV-CAMPAIGN-2026-10-11/runner.py.txt prepare`; then `... runner.py.txt run EXP-NNN development`; analyze with `... runner.py.txt analyze EXP-NNN development`; confirmation is invoked once only if development advancement passes. All commands use the pinned local data directory /private/tmp/slopsearx-arxiv-campaign/data. Captured code is inert .py.txt, responses/attempts are append-only, evidence and SHA256s are retained under the campaign directory. Inputs missing a task-appropriate corpus get a retained eligibility receipt; no replacement measurement of convenience. Existing #516 frozen cohort and terminal stopping rules are untouched.
 
 Portal impact: no production/backend/browser contract changes. Any later implementation needs applicable portal CI and API/MCP/cache/snapshot coverage. This campaign ends in feature requests only for supported gains, not implementation or deployment.
+
+## Readout — 2026-10-11
+
+Disposition: qualified prerequisite. Two independently labeled public retrieval corpora and24 development service replays qualified. This is measurement readiness, not a causal user-benefit result or feature support. No confirmation query opened.
+
+Signed pre-candidate planning/activation:6206f4c,cf9fb2f. Fixture corrections preserved prospectively with zero primary outcomes before corrections; EXP-112 used a retained response without retry (1b47274). [Campaign readout](evidence/ARXIV-CAMPAIGN-2026-10-11/readout.md) contains limitations, cost and next prerequisites.

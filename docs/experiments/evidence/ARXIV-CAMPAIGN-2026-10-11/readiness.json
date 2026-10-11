@@ -1,0 +1,15 @@
+{
+  "cases": 24,
+  "claims": [
+    "offline corpus comparison only"
+  ],
+  "dataset_counts": {
+    "nfcorpus": 3633,
+    "scifact": 5183
+  },
+  "manifest_sha256": "28749119590aea732c2347411419b37070c148bf3e8a65916a7123b43ef400d1",
+  "python": "3.12.11",
+  "qrels_independent": true,
+  "query_metadata_excluded": true,
+  "state": "qualified"
+}

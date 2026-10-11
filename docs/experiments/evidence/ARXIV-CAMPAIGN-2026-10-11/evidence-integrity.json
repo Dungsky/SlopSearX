@@ -1,0 +1,39 @@
+{
+  "checks": [
+    {
+      "experiment": 112,
+      "rows": 24,
+      "unique_queries": 24,
+      "raw_rows_sha256": "96ef7447576fafd8fe60874af92740636b83bb49674fda01506f590c69af070e"
+    },
+    {
+      "experiment": 113,
+      "rows": 24,
+      "unique_queries": 24,
+      "raw_rows_sha256": "df9b3bd6038e55d5af4a7c108180b479948031d2b5c566e84331e906bd7aa896"
+    },
+    {
+      "experiment": 114,
+      "rows": 24,
+      "unique_queries": 24,
+      "raw_rows_sha256": "1c451f1c1f7bb0b3bda2ea97888e9b34547bd53aed05c69df54cf3020ef67738"
+    },
+    {
+      "experiment": 115,
+      "rows": 24,
+      "unique_queries": 24,
+      "raw_rows_sha256": "71946323ed51fa7d6f8f49162589071c5230b3760cf757ac79eea67ae1cb1d45"
+    },
+    {
+      "experiment": 117,
+      "rows": 24,
+      "unique_queries": 24,
+      "raw_rows_sha256": "7fcc2f79751e8f1d249ee453dd9b40801e41a684658303b4afd31c9aca648a53"
+    }
+  ],
+  "provider_attempts": 55,
+  "unique_provider_ids": 55,
+  "confirmation_files": 0,
+  "all_worker_revisions_parse": true,
+  "not_a_product_test_suite": true
+}

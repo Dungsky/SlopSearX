@@ -14,6 +14,7 @@ from types import SimpleNamespace
 EV=ROOT/'docs/experiments/evidence/ARXIV-CAMPAIGN-2026-10-11'
 DATA=Path('/private/tmp/slopsearx-arxiv-campaign/data')
 MAN=json.loads((EV/'manifest.json').read_text());SEED=20261011
+RAWINPUT=DATA.parent
 
 def dump(p,x):
  if p.exists():raise RuntimeError('refusing overwrite '+str(p))
@@ -38,7 +39,7 @@ class BM25:
   self.avg=sum(self.length.values())/self.count
  def search(self,q):
   score=collections.defaultdict(float)
-  for t in set(tok(q)):
+  for t in sorted(set(tok(q))):
    post=self.post.get(t,{})
    if not post:continue
    idf=math.log(1+(self.count-len(post)+.5)/(len(post)+.5))
@@ -83,7 +84,7 @@ async def service(query,feeds,k=60,selected=None):
  assert all(a.tier<=b.tier for a,b in zip(result.results,result.results[1:]))
  return result,engines
 async def prepare(phase='development'):
- if (EV/f'prepared-{phase}.json').exists():raise RuntimeError('already prepared')
+ if (RAWINPUT/f'prepared-{phase}.json').exists():raise RuntimeError('already prepared')
  cases=[]
  for name in ['scifact','nfcorpus']:
   spec,corpus,queries=dataset(name);indexes={n:BM25(corpus,n=='bench_title') for n in ['bench_title','bench_full']}
@@ -94,10 +95,22 @@ async def prepare(phase='development'):
    baseline,_=await service(q,feeds)
    first,second=[v for _,v in raw['bench_full'][:2]]
    cases.append({'dataset':name,'query_id':qid,'query':q,'feeds':{en:[dataclasses.asdict(r)|{'engines':sorted(r.engines)} for r in rs] for en,rs in feeds.items()},'baseline_ids':[r.url.rsplit('/',1)[-1] for r in baseline.results],'margin':(first-second)/first if first>0 else 0,'fulltext_scores':raw['bench_full']})
- dump(EV/f'prepared-{phase}.json',{'phase':phase,'cases':cases,'qrels_loaded':False,'source':sha(Path(__file__))})
+ dump(RAWINPUT/f'prepared-{phase}.json',{'phase':phase,'cases':cases,'qrels_loaded':False,'source':sha(Path(__file__))})
  if phase=='development':dump(EV/'readiness.json',{'state':'qualified','dataset_counts':{n:len(dataset(n)[1]) for n in ['scifact','nfcorpus']},'cases':len(cases),'qrels_independent':True,'query_metadata_excluded':True,'claims':['offline corpus comparison only'],'python':platform.python_version(),'manifest_sha256':sha(EV/'manifest.json')})
  print(json.dumps({'prepared':phase,'cases':len(cases),'qrels_loaded':False}))
-def feeds(case):return {en:[SearchResult(**(r|{'engines':set(r['engines'])})) for r in rs] for en,rs in case['feeds'].items()}
+def feeds(case):
+ out={};_,corpus,_=dataset(case['dataset'])
+ for en,rs in case['feeds'].items():
+  out[en]=[]
+  for raw in rs:
+   r=dict(raw)
+   if 'content_sha256' in r:
+    d=corpus[r['url'].rsplit('/',1)[-1]]
+    for field,source,limit in [('title','title',256),('content','text',1200)]:
+     value=bound(d[source],limit);assert hashlib.sha256(value.encode()).hexdigest()==r.pop(field+'_sha256');r[field]=value
+   out[en].append(SearchResult(**(r|{'engines':set(r['engines'])})))
+ return out
+
 def key():
  # Only the already-configured project credential; never print keys/headers.
  for line in Path('/Volumes/tank01/magnus/git/SlopSearX/.env').read_text().splitlines():
@@ -167,7 +180,9 @@ def mmr(original):
 
 async def run(eid,phase):
  path=EV/f'{eid}-{phase}-rows.json';attempt=EV/f'{eid}-{phase}-ready-started.json'
- cases=json.loads((EV/f'prepared-{phase}.json').read_text())['cases']
+ input_path=RAWINPUT/f'prepared-{phase}.json'
+ if not input_path.exists():input_path=EV/f'prepared-{phase}-index.json'
+ cases=json.loads(input_path.read_text())['cases']
  if not attempt.exists():dump(attempt,{'experiment':eid,'phase':phase,'started_epoch':time.time(),'worker_sha256':sha(Path(__file__)),'budget_seconds':2700})
  elif eid!='EXP-112':raise RuntimeError('no continuation registered for '+eid)
  rows=[];errors=0

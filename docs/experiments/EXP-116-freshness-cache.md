@@ -27,3 +27,9 @@ Portal impact: no production/backend/browser contract changes. Any later impleme
 ## Scope clarification before execution
 
 Core scope is canonical search-response TTL only. Answer and page-content cache tiers routed to https://github.com/magnus919/groktocrawl-x/issues/447. No serving change without real temporal recurrence evidence.
+
+## Readout — 2026-10-11
+
+Disposition: blocked. No eligible temporal query-recurrence cohort in available benchmark inputs; zero temporal measurements. [Eligibility receipt](evidence/ARXIV-CAMPAIGN-2026-10-11/freshness-eligibility.json).
+
+Signed pre-candidate planning/activation:6206f4c,cf9fb2f. Fixture corrections preserved prospectively with zero primary outcomes before corrections; EXP-112 used a retained response without retry (1b47274). [Campaign readout](evidence/ARXIV-CAMPAIGN-2026-10-11/readout.md) contains limitations, cost and next prerequisites.

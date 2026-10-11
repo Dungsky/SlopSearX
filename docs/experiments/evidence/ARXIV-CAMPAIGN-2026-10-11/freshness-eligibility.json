@@ -1,0 +1,16 @@
+{
+  "experiment": "EXP-116",
+  "state": "blocked",
+  "inspected_inputs": [
+    "manifest.json",
+    "prepared-development-index.json",
+    "SciFact/NFCorpus corpus, queries, test qrels schemas"
+  ],
+  "eligible_temporal_query_families": 0,
+  "reason": "static retrieval qrels have no recurrent same-key search-response timestamps, changed evidence captures or independent answer-changing labels",
+  "provider_calls": 0,
+  "retries": 0,
+  "candidate_measured": false,
+  "required_next_step": "register a real temporal recurrence/capture cohort with source identity and labels; cannot infer stale-serving improvement from TTL unit tests",
+  "wrapper_cache_request": "https://github.com/magnus919/groktocrawl-x/issues/447"
+}

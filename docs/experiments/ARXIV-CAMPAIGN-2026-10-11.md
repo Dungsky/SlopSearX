@@ -50,3 +50,20 @@ SlopSearX remains confined to meta-search. EXP-109/110/111 are routed experiment
 - [experiment: generated evidence facets for diverse research source selection](https://github.com/magnus919/groktocrawl-x/issues/448)
 
 EXP-118,113,112,114,115,117 registrations activated prospectively under their signed fixed plans; execution remains sequential. Dataset query metadata containing original support labels is excluded from candidate inputs; only text fields are projected. Confirmation stays unopened until its gate.
+
+## Current disposition
+
+[Readout and evidence](evidence/ARXIV-CAMPAIGN-2026-10-11/readout.md): five completed meta-search development screens, no advancement/feature request, evaluation readiness qualified, temporal freshness blocked, wrapper-owned experiments requested in#444–448. No confirmation/compound execution or runtime/default/deployment change.
+
+| Experiment | Final disposition |
+|---|---|
+| EXP-109 | routed #444 |
+| EXP-110 | routed #445 |
+| EXP-111 | routed #446 |
+| EXP-112 | inconclusive |
+| EXP-113 | not-supported |
+| EXP-114 | not-supported |
+| EXP-115 | not-supported |
+| EXP-116 | blocked; temporal data |
+| EXP-117 | not-supported |
+| EXP-118 | measurement readiness qualified |

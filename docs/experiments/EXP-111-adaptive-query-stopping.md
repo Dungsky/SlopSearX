@@ -27,3 +27,9 @@ Portal impact: no production/backend/browser contract changes. Any later impleme
 ## Ownership correction before execution
 
 Maintainer clarified meta-search/wrapper boundary after planning registration. No candidate ran. This record is routed to Grok-to-Crawl-X; do not execute orchestration in SlopSearX. Request: https://github.com/magnus919/groktocrawl-x/issues/446 . Original hypothesis preserved as history; wrapper issue specifies the prospective experiment.
+
+## Readout — 2026-10-11
+
+Disposition: routed. Wrapper-owned experiment request submitted before any local orchestration candidate. See linked issue; no experiment result claimed.
+
+Signed pre-candidate planning/activation:6206f4c,cf9fb2f. Fixture corrections preserved prospectively with zero primary outcomes before corrections; EXP-112 used a retained response without retry (1b47274). [Campaign readout](evidence/ARXIV-CAMPAIGN-2026-10-11/readout.md) contains limitations, cost and next prerequisites.
