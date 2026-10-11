@@ -273,3 +273,7 @@ production path and establishing a measurable baseline.
 ## Daily readiness records
 
 - [2026-10-11](daily-readiness-2026-10-11.md): no new trial; supported fixes delivered, coverage study terminated before acquisition and bounded restart amendment pending. Zero scientific calls; no material-effect claim.
+
+## User-requested ten-paper campaign
+
+[Sequential campaign and interaction plan](ARXIV-CAMPAIGN-2026-10-11.md), EXP-109–118. Current state: planned; no candidate measured. $10 ceiling; source-aware bounded pilots and external-label benchmark screens, with feature requests only after supported confirmation.
