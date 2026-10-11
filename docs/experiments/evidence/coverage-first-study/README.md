@@ -1,9 +1,9 @@
-# Coverage-first study preparation
+# Coverage-first study registration and preparation
 
-**Status: proposed design and offline preparation; not registered or admitted.**
-The [maintainer-approved amendment](../../coverage-first-release-decision.md)
-permits preparing this new candidate study. These artifacts are not an invocation
-permit, completed experiment, or product qualification.
+**Status: static protocol and initial stage registrations are registered; the
+study is not admitted or executed.** The [maintainer-approved amendment](../../coverage-first-release-decision.md)
+approved preparing this candidate study. Static registration does not provide a
+stage invocation permit, completed experiment, or product qualification.
 
 The question is whether reserving relevant leads for the caller's research needs
 helps finish research tasks compared with the configured query-only Jev ranking.
@@ -16,7 +16,10 @@ pools of 41–80 results. Confirmation has not been acquired or scored.
 | --- | --- |
 | [cohorts.json](cohorts.json) | Proposed tasks, caller facets, queries, explicit scopes and navigation targets |
 | [cohort-overlap-check.json](cohort-overlap-check.json) | Input-bound metadata comparison against prior declared cases; not proof of corpus independence |
-| [protocol.json](protocol.json) | Draft schedule, unchanged gates and limits, with outstanding execution prerequisites |
+| [protocol.json](protocol.json) | Base draft protocol, retained for history; the registered static protocol is in the dated bundle below |
+| [registered-2026-10-11/](registered-2026-10-11/README.md) | Registered static protocol and 11-pin initial registrations; late inputs, assignment materials, and stage admission are not present |
+| [registered-2026-10-11/target-host-preflight.json](registered-2026-10-11/target-host-preflight.json) | Sanitized Linux source/environment preflight; no stage started and no scientific provider dispatches |
+| [registered-2026-10-11/designated-w0-preflight.json](registered-2026-10-11/designated-w0-preflight.json) | Separate designated W0 identity preflight; outside the 11 registration pins |
 | [observed-control-baseline.json](observed-control-baseline.json) | Sanitized read-only source/configuration observations; no inference or quality probe |
 | [control-source-parity.json](control-source-parity.json) | Source comparison identifying the deployed V1 parser and unchanged projection helpers |
 | [w0-rerank-v1.py.txt](w0-rerank-v1.py.txt) | Exact public V1 source bytes for reproducible offline control replay |
@@ -52,30 +55,33 @@ per-call reserves, one-second selector phase, no-retry policy and task-use gates
 remain. The available token budget does not guarantee completion; missing usage
 or an exhausted reserve stops the stage with retained evidence.
 
-Before any scientific call, finish the guarded live acquisition/capture/provider,
-answer and assessment driver; freeze exact source/dependency closure, prompts,
-assignments, manifests, subgroup decision rules and complete response inventories;
-independently review and merge registration/qualification artifacts; and publish
-new source-bound admissions. Fresh blind references must precede task scoring.
-Both stages must pass before optional product implementation. Failed or
-inconclusive results are retained and published, with no automatic rescue study.
+The dated bundle records the registered static protocol, initial registrations,
+source closure, and sanitized host preflight. The separate protected-capture lab
+report now records successful boundary checks for the exact candidate runtime.
+Execution requires stage-specific external admission and one-shot permits.
+Acquisition snapshots, late task/capture materials, the selector operation map,
+and blind reference and answer assignments are produced and sealed at their
+prescribed phase boundaries. Fresh blind references must precede task scoring. Both stages must pass before
+optional product implementation. Failed or inconclusive results are retained
+and published, with no automatic rescue study.
 
 [Paired answer and grading preparation](answer-grading-preparation.md) now
 composes the once-only stage through a complete synthetic workflow. Its
 [validation receipt](answer-grading-validation.json) records the limited offline
-evidence. Live capture remains disabled pending the
-[fetch-boundary qualification](capture-fetch-boundary-review.md).
+evidence. The [fetch-boundary review](capture-fetch-boundary-review.md) links the
+separate protected-capture lab result and states its limits for study execution.
 
-The protocol document is schema v2 draft. The gate inventory remains
-non-authoritative until an independent verifier checks the durable lower-bound
-sample, exact gate-input and calculation receipts, and actual post-final-fsync
-elapsed receipt. The original 28,800-second limit includes calculation and
-final decision inventory fsync; a late actual sample invalidates even a
-preliminary pass. This protocol amendment requires fresh review and registration
-before any calls and does not transfer prior authority.
+The top-level `protocol.json` remains the retained draft. The dated bundle contains
+the registered static protocol and initial registrations; its registration does
+not admit either stage. The gate inventory remains non-authoritative until an
+independent verifier checks the durable lower-bound sample, exact gate-input and
+calculation receipts, and actual post-final-fsync elapsed receipt. The original
+28,800-second limit includes calculation and final decision inventory fsync; a
+late actual sample invalidates even a preliminary pass. No prior authority
+transfers to the registered candidate.
 
-No Brave search, source capture, Jev evaluation, answerer or scientific-assessor
-call was made in preparing this packet. Coding and review agents helped prepare
-the offline artifacts. Runtime metadata checks were read-only; deployments and credentials were
-unchanged. Private endpoints, addresses, hostnames, paths and credential values
-are excluded from these artifacts.
+No study acquisition, Jev evaluation, answerer, or scientific-assessor call was
+made. The separate protected-capture lab report includes boundary probes and
+one bounded model diagnostic; it reports no scientific evaluation. Runtime
+metadata and source checks were read-only. Private endpoints, addresses,
+hostnames, paths, and credential values are excluded from these artifacts.
