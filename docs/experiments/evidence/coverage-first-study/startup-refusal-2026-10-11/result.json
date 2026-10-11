@@ -1,0 +1,57 @@
+{
+  "config_sha256": "8d04b3104c6b62188212e279ad7c419e2f18413794d8e2a95c709e5a78d20c90",
+  "disposition": {
+    "fixed_study_terminated": true,
+    "original_attempt_retained": true,
+    "product_qualified": false,
+    "retry_authorized": false,
+    "startup_fix_issue": 774
+  },
+  "execution_source_revision": "9bb0b4edf9a07e5c558b8c9935f677d0fcba7ee3",
+  "interpretation": {
+    "boundary": "private inventory root validation precedes stage claim and acquisition",
+    "clock_initialization_reached_by_source_path": true,
+    "durable_stage_clock_record_available": false,
+    "root_cause_basis": "actual absent directory, source entry path, and read-only validator result; original exception message was not recorded"
+  },
+  "observed_filesystem": {
+    "grader_handoff_root_created": true,
+    "operator_handoff_root_created": true,
+    "phase_permits_issued": 0,
+    "phase_requests_created": 0,
+    "stage_inventory_claim_created": false,
+    "stage_inventory_root_present": false
+  },
+  "packet_stage_uuid": "54c01338-df81-4053-81c2-b7f0b0d4e1a2",
+  "private_log_sha256": {
+    "operator-process-terminal.json": "47034010bb73af6750b60918f97bb8d68bfab88d62d843a698faf69f9dc785c7",
+    "operator.stderr.private.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "operator.stdout.private.log": "5fa6de5a1994dd4e88fef97a261753051035b5d11ec90b2bd13992f0f297a641"
+  },
+  "process_exit_code": 1,
+  "read_only_diagnosis": {
+    "filesystem_writes": 0,
+    "result": "inventory-root-unavailable",
+    "runner_reinvoked": false,
+    "validator": "coverage_stage_orchestration._private_root"
+  },
+  "registration_commit": "5359f410a87f0d3275366e3d6bde8b68aa8557c7",
+  "registration_merge_commit": "3d8a21457776dd03451b3e736218b7fbea69bc89",
+  "reported_exception_message": null,
+  "reported_stdout": {
+    "error_class": "OrchestrationError",
+    "status": "refused-or-terminal"
+  },
+  "schema": "coverage-first-startup-refusal/1",
+  "scientific_calls": {
+    "acquisition": 0,
+    "answerer": 0,
+    "basis": "no phase request/permit and failure before stage-inventory claim or phase dispatch",
+    "capture": 0,
+    "grader": 0,
+    "jev": 0
+  },
+  "stage_uuid": "1c855d55-07c8-4d59-8724-3ab9c1df83a6",
+  "status": "terminated_before_acquisition_no_quality_measurement",
+  "supervisor_invocation_started_utc": "2026-10-11T04:34:32.277384+00:00"
+}

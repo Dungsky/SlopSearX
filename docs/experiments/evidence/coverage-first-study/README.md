@@ -1,5 +1,7 @@
 # Coverage-first study registration and preparation
 
+The first registered development invocation [stopped during startup](startup-refusal-2026-10-11/README.md), before acquisition or any scientific calls. The fixed study is terminated under its one-invocation rule; the startup repair in #774 does not authorize a retry or product implementation.
+
 **Status: static protocol and initial stage registrations are registered; the
 study is not admitted or executed.** The [maintainer-approved amendment](../../coverage-first-release-decision.md)
 approved preparing this candidate study. Static registration does not provide a
