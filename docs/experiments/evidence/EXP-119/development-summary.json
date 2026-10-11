@@ -1,0 +1,33 @@
+{
+  "advance": false,
+  "candidate_np5": 0.27985288692597343,
+  "guards": true,
+  "historical_resource_quality_only": true,
+  "lexical_np5": 0.020331711927753293,
+  "outcome": "not-supported",
+  "phase": "development",
+  "primary_interval_95": [
+    -0.6284275879769503,
+    -0.4140946176944853
+  ],
+  "primary_min_gain": -0.5255366723230388,
+  "project_feature_qualified": false,
+  "routing_wall_max_ms": 773.1977920047939,
+  "selected_unjudged_share": 0.09,
+  "stability_passed": true,
+  "stability_probes": [
+    {
+      "kind": "repeat",
+      "overlap": 0.8,
+      "query_id": "7015"
+    },
+    {
+      "kind": "rotated",
+      "overlap": 1.0,
+      "query_id": "7044"
+    }
+  ],
+  "static_np5": 0.8053895592490122,
+  "topics_planned": 20,
+  "topics_valid": 20
+}

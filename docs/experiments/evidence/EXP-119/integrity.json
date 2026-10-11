@@ -1,0 +1,13 @@
+{
+  "source_qrel_pairs": 4286,
+  "duplicate_source_pairs": 0,
+  "unknown_source_resource_ids": 0,
+  "original_topics": 20,
+  "stability_operations": 2,
+  "unique_provider_attempts": 88,
+  "valid_provider_receipts": 88,
+  "confirmation_invoked": false,
+  "worker_syntax_valid": true,
+  "configured_secret_values_absent": true,
+  "source_qrels_sha256": "82df2400f544809c86691a0235580130bab8b98d34a9abbcefd8a7a0e22a1078"
+}

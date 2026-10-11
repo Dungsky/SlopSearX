@@ -1,0 +1,13 @@
+{
+  "python": "3.12.11",
+  "baseline_sha": "4ad7ce5e779c99a46bd2ea6d5ae7f7ad40292aa3",
+  "registration_commit": "81f3026",
+  "worker_freeze_commit": "aa5a947",
+  "packages": {
+    "httpx": "0.28.1",
+    "fastmcp": "3.4.7",
+    "mcp": "1.29.0"
+  },
+  "service_sha256": "aed455ccbefcfee5ffcf099876dc7230cead27527313269edc0f69b504c20922",
+  "worker_sha256": "45053aed20e162c3c910e8d3790247c6723662545e51aa44515cbdbf07760dff"
+}

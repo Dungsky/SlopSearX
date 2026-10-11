@@ -1,0 +1,322 @@
+[
+  {
+    "candidate_np5": 0.3341708542713568,
+    "delta_lexical": 0.3341708542713568,
+    "delta_static": -0.4505862646566164,
+    "lexical_np5": 0.0,
+    "query_id": "7015",
+    "routing_wall_ms": 662.4537077732384,
+    "selected": [
+      "FW14-e034",
+      "FW14-e028",
+      "FW14-e029",
+      "FW14-e010",
+      "FW14-e052"
+    ],
+    "static_np5": 0.7847571189279732
+  },
+  {
+    "candidate_np5": 0.6481149012567325,
+    "delta_lexical": 0.6481149012567325,
+    "delta_static": 0.011968880909634994,
+    "lexical_np5": 0.0,
+    "query_id": "7044",
+    "routing_wall_ms": 560.8647083863616,
+    "selected": [
+      "FW14-e028",
+      "FW14-e034",
+      "FW14-e029",
+      "FW14-e039",
+      "FW14-e062"
+    ],
+    "static_np5": 0.6361460203470976
+  },
+  {
+    "candidate_np5": 0.5542080117603823,
+    "delta_lexical": 0.5542080117603823,
+    "delta_static": -0.13267181183388455,
+    "lexical_np5": 0.0,
+    "query_id": "7441",
+    "routing_wall_ms": 773.1977920047939,
+    "selected": [
+      "FW14-e160",
+      "FW14-e159",
+      "FW14-e022",
+      "FW14-e176",
+      "FW14-e161"
+    ],
+    "static_np5": 0.6868798235942668
+  },
+  {
+    "candidate_np5": 0.2423861852433281,
+    "delta_lexical": 0.2423861852433281,
+    "delta_static": -0.6970172684458399,
+    "lexical_np5": 0.0,
+    "query_id": "7307",
+    "routing_wall_ms": 576.0030001401901,
+    "selected": [
+      "FW14-e034",
+      "FW14-e013",
+      "FW14-e029",
+      "FW14-e010",
+      "FW14-e134"
+    ],
+    "static_np5": 0.939403453689168
+  },
+  {
+    "candidate_np5": 0.1969741916345298,
+    "delta_lexical": 0.1969741916345298,
+    "delta_static": -0.7478493028774844,
+    "lexical_np5": 0.0,
+    "query_id": "7176",
+    "routing_wall_ms": 613.3377500809729,
+    "selected": [
+      "FW14-e052",
+      "FW14-e057",
+      "FW14-e101",
+      "FW14-e062",
+      "FW14-e130"
+    ],
+    "static_np5": 0.9448234945120142
+  },
+  {
+    "candidate_np5": 0.3401360544217687,
+    "delta_lexical": 0.3401360544217687,
+    "delta_static": -0.399234693877551,
+    "lexical_np5": 0.0,
+    "query_id": "7431",
+    "routing_wall_ms": 614.8305418901145,
+    "selected": [
+      "FW14-e034",
+      "FW14-e098",
+      "FW14-e101",
+      "FW14-e109",
+      "FW14-e052"
+    ],
+    "static_np5": 0.7393707482993197
+  },
+  {
+    "candidate_np5": 0.1,
+    "delta_lexical": 0.1,
+    "delta_static": -0.4172916666666667,
+    "lexical_np5": 0.0,
+    "query_id": "7252",
+    "routing_wall_ms": 602.9813750647008,
+    "selected": [
+      "FW14-e034",
+      "FW14-e052",
+      "FW14-e062",
+      "FW14-e124",
+      "FW14-e134"
+    ],
+    "static_np5": 0.5172916666666667
+  },
+  {
+    "candidate_np5": 0.5708855948308628,
+    "delta_lexical": 0.5708855948308628,
+    "delta_static": -0.3192702394526796,
+    "lexical_np5": 0.0,
+    "query_id": "7293",
+    "routing_wall_ms": 602.8316249139607,
+    "selected": [
+      "FW14-e135",
+      "FW14-e138",
+      "FW14-e137",
+      "FW14-e139",
+      "FW14-e136"
+    ],
+    "static_np5": 0.8901558342835424
+  },
+  {
+    "candidate_np5": 0.07671381936887922,
+    "delta_lexical": 0.07671381936887922,
+    "delta_static": -0.6833514689880305,
+    "lexical_np5": 0.0,
+    "query_id": "7263",
+    "routing_wall_ms": 733.2864589989185,
+    "selected": [
+      "FW14-e017",
+      "FW14-e070",
+      "FW14-e063",
+      "FW14-e013",
+      "FW14-e071"
+    ],
+    "static_np5": 0.7600652883569097
+  },
+  {
+    "candidate_np5": 0.1961904761904762,
+    "delta_lexical": 0.1961904761904762,
+    "delta_static": -0.6902857142857144,
+    "lexical_np5": 0.0,
+    "query_id": "7197",
+    "routing_wall_ms": 570.8560831844807,
+    "selected": [
+      "FW14-e070",
+      "FW14-e072",
+      "FW14-e017",
+      "FW14-e034",
+      "FW14-e071"
+    ],
+    "static_np5": 0.8864761904761905
+  },
+  {
+    "candidate_np5": 0.12018561484918794,
+    "delta_lexical": 0.12018561484918794,
+    "delta_static": -0.691415313225058,
+    "lexical_np5": 0.0,
+    "query_id": "7123",
+    "routing_wall_ms": 611.1571663059294,
+    "selected": [
+      "FW14-e148",
+      "FW14-e140",
+      "FW14-e143",
+      "FW14-e147",
+      "FW14-e144"
+    ],
+    "static_np5": 0.8116009280742459
+  },
+  {
+    "candidate_np5": 0.2896206997941782,
+    "delta_lexical": 0.2596295207291973,
+    "delta_static": -0.6401058512202293,
+    "lexical_np5": 0.02999117906498089,
+    "query_id": "7211",
+    "routing_wall_ms": 726.4092504046857,
+    "selected": [
+      "FW14-e033",
+      "FW14-e029",
+      "FW14-e034",
+      "FW14-e131",
+      "FW14-e134"
+    ],
+    "static_np5": 0.9297265510144075
+  },
+  {
+    "candidate_np5": 0.06372325898953118,
+    "delta_lexical": 0.06372325898953118,
+    "delta_static": -0.915794264906691,
+    "lexical_np5": 0.0,
+    "query_id": "7328",
+    "routing_wall_ms": 602.4284157902002,
+    "selected": [
+      "FW14-e070",
+      "FW14-e067",
+      "FW14-e076",
+      "FW14-e071",
+      "FW14-e072"
+    ],
+    "static_np5": 0.9795175238962222
+  },
+  {
+    "candidate_np5": 0.3307799442896936,
+    "delta_lexical": 0.3307799442896936,
+    "delta_static": -0.4543871866295265,
+    "lexical_np5": 0.0,
+    "query_id": "7261",
+    "routing_wall_ms": 568.3657079935074,
+    "selected": [
+      "FW14-e034",
+      "FW14-e029",
+      "FW14-e010",
+      "FW14-e037",
+      "FW14-e013"
+    ],
+    "static_np5": 0.7851671309192201
+  },
+  {
+    "candidate_np5": 0.25806451612903225,
+    "delta_lexical": 0.25806451612903225,
+    "delta_static": -0.6960950764006791,
+    "lexical_np5": 0.0,
+    "query_id": "7146",
+    "routing_wall_ms": 581.5072916448116,
+    "selected": [
+      "FW14-e034",
+      "FW14-e134",
+      "FW14-e129",
+      "FW14-e128",
+      "FW14-e052"
+    ],
+    "static_np5": 0.9541595925297114
+  },
+  {
+    "candidate_np5": 0.06537753222836096,
+    "delta_lexical": 0.06537753222836096,
+    "delta_static": -0.8121546961325967,
+    "lexical_np5": 0.0,
+    "query_id": "7194",
+    "routing_wall_ms": 608.8431249372661,
+    "selected": [
+      "FW14-e034",
+      "FW14-e029",
+      "FW14-e100",
+      "FW14-e010",
+      "FW14-e030"
+    ],
+    "static_np5": 0.8775322283609577
+  },
+  {
+    "candidate_np5": 0.4727868852459016,
+    "delta_lexical": 0.11278688524590164,
+    "delta_static": -0.08590163934426231,
+    "lexical_np5": 0.36,
+    "query_id": "7167",
+    "routing_wall_ms": 630.1935827359557,
+    "selected": [
+      "FW14-e034",
+      "FW14-e013",
+      "FW14-e010",
+      "FW14-e134",
+      "FW14-e029"
+    ],
+    "static_np5": 0.5586885245901639
+  },
+  {
+    "candidate_np5": 0.20170454545454544,
+    "delta_lexical": 0.20170454545454544,
+    "delta_static": -0.6647727272727273,
+    "lexical_np5": 0.0,
+    "query_id": "7200",
+    "routing_wall_ms": 601.2662500143051,
+    "selected": [
+      "FW14-e034",
+      "FW14-e109",
+      "FW14-e124",
+      "FW14-e010",
+      "FW14-e129"
+    ],
+    "static_np5": 0.8664772727272727
+  },
+  {
+    "candidate_np5": 0.16961756373937678,
+    "delta_lexical": 0.1529745042492918,
+    "delta_static": -0.6320821529745043,
+    "lexical_np5": 0.016643059490084985,
+    "query_id": "7274",
+    "routing_wall_ms": 606.0540829785168,
+    "selected": [
+      "FW14-e034",
+      "FW14-e101",
+      "FW14-e100",
+      "FW14-e109",
+      "FW14-e010"
+    ],
+    "static_np5": 0.8016997167138811
+  },
+  {
+    "candidate_np5": 0.36541708882134416,
+    "delta_lexical": 0.36541708882134416,
+    "delta_static": -0.39243498817966904,
+    "lexical_np5": 0.0,
+    "query_id": "7299",
+    "routing_wall_ms": 568.7630409374833,
+    "selected": [
+      "FW14-e034",
+      "FW14-e129",
+      "FW14-e019",
+      "FW14-e062",
+      "FW14-e052"
+    ],
+    "static_np5": 0.7578520770010132
+  }
+]
