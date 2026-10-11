@@ -28,9 +28,10 @@ requested remaining duration to it; invoking this command cannot start a fresh
 eight-hour allowance. A bound failed dispatch summary stops collection promptly.
 
 Before any turn, the dispatcher disables supported tools and configured MCP
-servers, verifies the effective MCP inventory, and saves private sanitized
-`tool-policy-evidence.json`. The handoff checks its hash and stage, phase and CLI
-bindings alongside the transcript tool policy before accepting a grade.
+servers, including stable environment-tool advertisement, verifies the effective
+MCP inventory, and saves private sanitized `tool-policy-evidence.json`. The
+handoff checks its hash and stage, phase and CLI bindings alongside the transcript
+tool policy before accepting a grade.
 
 Use `--phase answers` for the answer-assessment packet handoff. The dispatcher
 reserves each packet before starting its app-server process, permits at most two
