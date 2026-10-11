@@ -8,7 +8,7 @@ from pathlib import Path
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
-HARNESS_SHA = "23852759ed3cfb1e6964b7438141e293508aa178"
+HARNESS_SHA = "ad8b87c1a0ef40d189101e7b42d7b18fd18bb681"
 
 
 def _workflow(filename: str) -> dict:
@@ -95,7 +95,7 @@ def test_publisher_requires_successful_target_run_and_protected_main_ref() -> No
 
 def test_policy_is_enabled_for_comment_only_canary_and_binds_publisher_hash() -> None:
     policy = json.loads((ROOT / ".github/pr-review-publisher-policy.json").read_text())
-    assert policy["schema"] == "pr-review-protected-publication-policy.v3"
+    assert policy["schema"] == "pr-review-protected-publication-policy.v4"
     assert policy["enabled"] is True
     assert policy["authorization_mode"] == "STANDING_BOUNDED"
     assert policy["repository"] == {"name": "magnus919/SlopSearX", "id": 1263452316}
@@ -127,6 +127,62 @@ def test_policy_is_enabled_for_comment_only_canary_and_binds_publisher_hash() ->
     }
     assert policy["publication"]["allowed_dispositions"] == ["COMMENT"]
     assert policy["artifact_download_mode"] == "AUTHENTICATED_API_LOCATION_NO_AUTH"
+    history = policy["history_reconciliation"]
+    assert history["schema"] == "publisher-history-reconciliation.v1"
+    assert history["max_historical_exceptions"] == 4
+    assert len(history["historical_exceptions"]) == 4
+    assert [item["run_id"] for item in history["historical_exceptions"]] == [
+        38100234484,
+        38100501781,
+        38101731057,
+        38102353998,
+    ]
+    expected_exception_fields = {
+        "run_id", "attempt", "publisher_workflow_id", "publisher_run_head_sha",
+        "runtime_pin", "publisher_workflow_blob_sha", "analysis_workflow_blob_sha",
+        "publisher_job_id", "publisher_job_name", "runtime_step", "log_sha256",
+        "log_bytes", "outcome", "reason_code", "proof_kind",
+    }
+    expected_historical_bindings = {
+        38100234484: (
+            "39a30957885edcdd2e0f29fb0066ba04ac8bd1ee",
+            "537418ca9f542ba403b6bc6b8280eacb52d1ce0f",
+        ),
+        38100501781: (
+            "39a30957885edcdd2e0f29fb0066ba04ac8bd1ee",
+            "537418ca9f542ba403b6bc6b8280eacb52d1ce0f",
+        ),
+        38101731057: (
+            "39a30957885edcdd2e0f29fb0066ba04ac8bd1ee",
+            "537418ca9f542ba403b6bc6b8280eacb52d1ce0f",
+        ),
+        38102353998: (
+            "e924b7815393a145b2abd121069a7cb9cdbe571b",
+            "23852759ed3cfb1e6964b7438141e293508aa178",
+        ),
+    }
+    for exception in history["historical_exceptions"]:
+        assert set(exception) == expected_exception_fields
+        assert exception["publisher_workflow_id"] == policy["publisher_workflow"]["id"]
+        assert (
+            exception["publisher_run_head_sha"], exception["runtime_pin"]
+        ) == expected_historical_bindings[exception["run_id"]]
+        assert exception["publisher_job_name"] == "publisher"
+        assert exception["runtime_step"] == 8
+        assert exception["outcome"] == "UNKNOWN"
+        assert exception["attempt"] == 1
+        assert exception["publisher_run_head_sha"] in {
+            "39a30957885edcdd2e0f29fb0066ba04ac8bd1ee",
+            "e924b7815393a145b2abd121069a7cb9cdbe571b",
+        }
+        assert len(exception["publisher_workflow_blob_sha"]) == 40
+        assert len(exception["analysis_workflow_blob_sha"]) == 40
+        assert len(exception["log_sha256"]) == 64
+        assert exception["log_bytes"] > 0
+        assert exception["reason_code"] in {
+            "source_artifact_redirect_untrusted", "publication_admission_unavailable"
+        }
+        assert exception["proof_kind"] == "TRUSTED_PRE_POST_RECONCILIATION"
     assert "artifact_redirect_hosts" not in policy
     assert "app" not in policy
 

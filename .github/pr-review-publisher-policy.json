@@ -1,5 +1,5 @@
 {
-  "schema": "pr-review-protected-publication-policy.v3",
+  "schema": "pr-review-protected-publication-policy.v4",
   "authorization_mode": "STANDING_BOUNDED",
   "enabled": true,
   "repository": {
@@ -11,7 +11,7 @@
     "id": 377341907,
     "path": ".github/workflows/pr-publish.yml",
     "ref": "magnus919/SlopSearX/.github/workflows/pr-publish.yml@refs/heads/main",
-    "sha256": "b7f13e0fe91b5502617b8c7f28ddff81d33e0f5a0f3e4507db4b9df741cbd3cc"
+    "sha256": "77cb5dc89f0d2270f3796062008f2a7f699a7104dd51956b0483552d9229063a"
   },
   "source_workflow": {
     "id": 377341909,
@@ -21,7 +21,7 @@
   "called_harness": {
     "repository": "groktopus/codereview",
     "path": ".github/workflows/pr-analysis.yml",
-    "sha": "23852759ed3cfb1e6964b7438141e293508aa178"
+    "sha": "ad8b87c1a0ef40d189101e7b42d7b18fd18bb681"
   },
   "credential": {
     "kind": "ACTIONS_TOKEN",
@@ -46,5 +46,79 @@
     "deadline_seconds": 25
   },
   "artifact_trust_mode": "API_BOUND_SHA256",
-  "artifact_download_mode": "AUTHENTICATED_API_LOCATION_NO_AUTH"
+  "artifact_download_mode": "AUTHENTICATED_API_LOCATION_NO_AUTH",
+  "history_reconciliation": {
+    "schema": "publisher-history-reconciliation.v1",
+    "max_historical_exceptions": 4,
+    "historical_exceptions": [
+      {
+        "run_id": 38100234484,
+        "attempt": 1,
+        "publisher_workflow_id": 377341907,
+        "publisher_run_head_sha": "39a30957885edcdd2e0f29fb0066ba04ac8bd1ee",
+        "runtime_pin": "537418ca9f542ba403b6bc6b8280eacb52d1ce0f",
+        "publisher_workflow_blob_sha": "abbbec8a159b0bc1a775d0effeff60e3b597ee96",
+        "analysis_workflow_blob_sha": "d538f7625b54d9764952ad3629e9ac303a718896",
+        "publisher_job_id": 114354487357,
+        "publisher_job_name": "publisher",
+        "runtime_step": 8,
+        "log_sha256": "e165023aa81047765001116a624b566b63b66e232dfee76a8a7975b1e12861d1",
+        "log_bytes": 36257,
+        "outcome": "UNKNOWN",
+        "reason_code": "source_artifact_redirect_untrusted",
+        "proof_kind": "TRUSTED_PRE_POST_RECONCILIATION"
+      },
+      {
+        "run_id": 38100501781,
+        "attempt": 1,
+        "publisher_workflow_id": 377341907,
+        "publisher_run_head_sha": "39a30957885edcdd2e0f29fb0066ba04ac8bd1ee",
+        "runtime_pin": "537418ca9f542ba403b6bc6b8280eacb52d1ce0f",
+        "publisher_workflow_blob_sha": "abbbec8a159b0bc1a775d0effeff60e3b597ee96",
+        "analysis_workflow_blob_sha": "d538f7625b54d9764952ad3629e9ac303a718896",
+        "publisher_job_id": 114355280862,
+        "publisher_job_name": "publisher",
+        "runtime_step": 8,
+        "log_sha256": "2006ef18b6987549ea20cce9afabdb837b34ab34cbca93d49453165413285bba",
+        "log_bytes": 36260,
+        "outcome": "UNKNOWN",
+        "reason_code": "source_artifact_redirect_untrusted",
+        "proof_kind": "TRUSTED_PRE_POST_RECONCILIATION"
+      },
+      {
+        "run_id": 38101731057,
+        "attempt": 1,
+        "publisher_workflow_id": 377341907,
+        "publisher_run_head_sha": "39a30957885edcdd2e0f29fb0066ba04ac8bd1ee",
+        "runtime_pin": "537418ca9f542ba403b6bc6b8280eacb52d1ce0f",
+        "publisher_workflow_blob_sha": "abbbec8a159b0bc1a775d0effeff60e3b597ee96",
+        "analysis_workflow_blob_sha": "d538f7625b54d9764952ad3629e9ac303a718896",
+        "publisher_job_id": 114358878416,
+        "publisher_job_name": "publisher",
+        "runtime_step": 8,
+        "log_sha256": "112d98a621db357de0c44aa0e7fcd81e884c0a99d701793d2879dbd00777b50b",
+        "log_bytes": 36258,
+        "outcome": "UNKNOWN",
+        "reason_code": "source_artifact_redirect_untrusted",
+        "proof_kind": "TRUSTED_PRE_POST_RECONCILIATION"
+      },
+      {
+        "run_id": 38102353998,
+        "attempt": 1,
+        "publisher_workflow_id": 377341907,
+        "publisher_run_head_sha": "e924b7815393a145b2abd121069a7cb9cdbe571b",
+        "runtime_pin": "23852759ed3cfb1e6964b7438141e293508aa178",
+        "publisher_workflow_blob_sha": "a6a27550f902eefe0acf6d729c6f5555f0508c27",
+        "analysis_workflow_blob_sha": "90744888892b9ea247f1bbace2fc2c196911614b",
+        "publisher_job_id": 114360716430,
+        "publisher_job_name": "publisher",
+        "runtime_step": 8,
+        "log_sha256": "3baa48b59b504a3f19ba3d3e9bc3293f84b5fb26178f3c9c671f167e30f1be21",
+        "log_bytes": 36730,
+        "outcome": "UNKNOWN",
+        "reason_code": "publication_admission_unavailable",
+        "proof_kind": "TRUSTED_PRE_POST_RECONCILIATION"
+      }
+    ]
+  }
 }
