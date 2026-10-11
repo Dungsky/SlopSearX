@@ -55,7 +55,7 @@ jobs:
           import subprocess
           from pathlib import Path
 
-          TRUSTED_HARNESS_SHA = "ad8b87c1a0ef40d189101e7b42d7b18fd18bb681"
+          TRUSTED_HARNESS_SHA = "04c7fc0b42221872e6c6b611be91c68e462fc679"
           policy = json.loads((Path(os.environ["GITHUB_WORKSPACE"]) / ".github/pr-review-publisher-policy.json").read_text())
           harness = policy["called_harness"]
           if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", harness["repository"]):
@@ -95,10 +95,10 @@ jobs:
         run: npm ci --ignore-scripts --no-audit --no-fund
 
       - name: Run the protected publication runtime
+        uses: groktopus/codereview/scripts/protected-publication-action@04c7fc0b42221872e6c6b611be91c68e462fc679
         env:
           GITHUB_TOKEN: ${{ github.token }}
           PYTHONPATH: ${{ runner.temp }}/trusted-review-harness/src
-        run: python -m pr_review_harness.protected_publication_runtime
 
 # The writer job needs contents:read to check out its protected policy/runtime
 # source. That token remains available to the trusted job's actions and code;

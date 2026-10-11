@@ -1,5 +1,6 @@
 {
-  "schema": "pr-review-protected-publication-policy.v4",
+  "schema": "pr-review-protected-publication-policy.v5",
+  "publication_mode": "NON_BINDING_COMMENT",
   "authorization_mode": "STANDING_BOUNDED",
   "enabled": true,
   "repository": {
@@ -11,7 +12,7 @@
     "id": 377341907,
     "path": ".github/workflows/pr-publish.yml",
     "ref": "magnus919/SlopSearX/.github/workflows/pr-publish.yml@refs/heads/main",
-    "sha256": "77cb5dc89f0d2270f3796062008f2a7f699a7104dd51956b0483552d9229063a"
+    "sha256": "fa9f0bd89cf81bb329e73d666520765b2601cfee276040b32a04a81cc25cb80f"
   },
   "source_workflow": {
     "id": 377341909,
@@ -21,7 +22,7 @@
   "called_harness": {
     "repository": "groktopus/codereview",
     "path": ".github/workflows/pr-analysis.yml",
-    "sha": "ad8b87c1a0ef40d189101e7b42d7b18fd18bb681"
+    "sha": "04c7fc0b42221872e6c6b611be91c68e462fc679"
   },
   "credential": {
     "kind": "ACTIONS_TOKEN",
