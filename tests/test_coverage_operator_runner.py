@@ -3,6 +3,8 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import os
+import stat
 import subprocess
 import tempfile
 import unittest
@@ -56,6 +58,79 @@ class OperatorRunnerConfigTests(unittest.TestCase):
         config_path.chmod(0o600)
         return config_path, digest(raw)
 
+    def _registered_config(self, root: Path) -> tuple[Path, str, dict[str, str]]:
+        """Make a synthetic, internally pinned config that reaches root prep."""
+        bundle = Path(__file__).parents[1] / "docs/experiments/evidence/coverage-first-study/registered-2026-10-11"
+        stage_dir = bundle / "development"
+        external_paths = {
+            "cohorts": bundle / "cohorts.json",
+            "protocol": bundle / "protocol.json",
+            "qualified_source_closure": bundle / "current-qualified-source-closure.json",
+            "coverage_source": Path(__file__).parents[1] / "scripts/intent_ranking_coverage.py",
+            "production_rerank_source": (
+                Path(__file__).parents[1] / "docs/experiments/evidence/coverage-first-study/w0-rerank-v1.py.txt"
+            ),
+            "dependency_lock": Path(__file__).parents[1] / "uv.lock",
+            "reference_manifest": stage_dir / "reference-manifest-shell.json",
+            "answer_assessment_plan": stage_dir / "answer-assessment-plan-shell.json",
+            "capture_plan": stage_dir / "capture-plan.json",
+            "candidate_identity": bundle / "candidate-runtime-identity.json",
+        }
+        config_path, _ = self._config(root, external_paths["protocol"].read_bytes())
+        config = json.loads(config_path.read_bytes())
+        config["source_revision"] = "a" * 40
+        config["candidate_base_url"] = "https://candidate.example"
+        stage_uuid = config["stage_uuid"]
+        path_values = {key: Path(value) for key, value in config["paths"].items()}
+        material_bytes = {key: path.read_bytes() for key, path in external_paths.items()}
+        material_bytes["qualified_source_closure"] = runner._canonical(
+            {
+                "schema": "coverage-study-qualified-source-closure/1",
+                "source_revision": config["source_revision"],
+                "material_pins": {
+                    "coverage_source": digest(material_bytes["coverage_source"]),
+                    "production_rerank_source": digest(material_bytes["production_rerank_source"]),
+                    "dependency_lock": digest(material_bytes["dependency_lock"]),
+                },
+            }
+        )
+        for key, raw in material_bytes.items():
+            path_values[key].write_bytes(raw)
+
+        cohorts = runner.core._strict_json(material_bytes["cohorts"], "test-cohorts")
+        stage_row = runner._stage_cohort(cohorts, config["stage_kind"])
+        acquisition_plan = runner._build_acquisition_plan(
+            stage_uuid, stage_row["research_cases"], stage_row["navigation_targets"]
+        )
+        static_materials = {
+            "protocol": material_bytes["protocol"],
+            "qualified_source_closure": material_bytes["qualified_source_closure"],
+            "coverage_source": material_bytes["coverage_source"],
+            "production_rerank_source": material_bytes["production_rerank_source"],
+            "dependency_lock": material_bytes["dependency_lock"],
+            "reference_manifest": material_bytes["reference_manifest"],
+            "answer_assessment_plan": material_bytes["answer_assessment_plan"],
+            "acquisition_plan": acquisition_plan,
+            "capture_plan": material_bytes["capture_plan"],
+        }
+        registration = runner._canonical(
+            {
+                "stage_uuid": stage_uuid,
+                "pins": {
+                    **{key: digest(raw) for key, raw in static_materials.items()},
+                    "task_input_manifest": "b" * 64,
+                    "source_capture_manifest": "c" * 64,
+                },
+            }
+        )
+        path_values["initial_registration"].write_bytes(registration)
+        config["initial_registration_sha256"] = digest(registration)
+        config["paths"] = {key: str(path) for key, path in path_values.items()}
+        raw_config = canonical(config)
+        config_path.write_bytes(raw_config)
+        config_path.chmod(0o600)
+        return config_path, digest(raw_config), config["directories"]
+
     def test_unregistered_or_draft_protocol_fails_before_clock_or_handoff_side_effects(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -63,6 +138,9 @@ class OperatorRunnerConfigTests(unittest.TestCase):
             config, pin = self._config(root, protocol)
             with (
                 mock.patch.object(runner.time, "monotonic", side_effect=AssertionError("clock must not start")),
+                mock.patch.object(
+                    runner, "_prepare_private_directories", side_effect=AssertionError("no root preparation")
+                ),
                 mock.patch.object(
                     runner.operator_handoff, "OperatorReceiptHandoff", side_effect=AssertionError("no handoff")
                 ),
@@ -72,6 +150,88 @@ class OperatorRunnerConfigTests(unittest.TestCase):
                 with self.assertRaisesRegex(runner.OperatorRunnerError, "registered-source-materials-required"):
                     runner.OperatorStageRunner.from_file(config, pin)
             self.assertFalse((root / "operator_handoff").exists())
+            configured_directories = json.loads(config.read_bytes())["directories"].values()
+            self.assertTrue(all(not Path(path).exists() for path in configured_directories))
+
+    def test_registered_config_creates_all_private_roots_before_clock(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            config, pin, directories = self._registered_config(root)
+
+            def clock_after_root_preparation():
+                for value in directories.values():
+                    info = Path(value).lstat()
+                    self.assertTrue(stat.S_ISDIR(info.st_mode))
+                    self.assertFalse(stat.S_ISLNK(info.st_mode))
+                    self.assertEqual(stat.S_IMODE(info.st_mode), 0o700)
+                    self.assertEqual(info.st_uid, os.geteuid())
+                return 123.0
+
+            with (
+                mock.patch.object(runner, "_verify_checkout_sources"),
+                mock.patch.object(runner, "_require_source_bootstrap"),
+                mock.patch.object(runner.core, "_verify_qualified_source_closure"),
+                mock.patch.object(runner.runtime_environment, "verify_active_environment", return_value=b"{}"),
+                mock.patch.object(runner.orchestration, "_validate_plan"),
+                mock.patch.object(runner.time, "monotonic", side_effect=clock_after_root_preparation),
+            ):
+                instance = runner.OperatorStageRunner.from_file(config, pin)
+
+            self.assertEqual(instance.started_monotonic, 123.0)
+            self.assertEqual(set(directories), runner._DIRECTORY_KEYS)
+
+    def test_registered_pin_mismatch_fails_before_clock_or_root_creation(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            config_path, _pin, directories = self._registered_config(root)
+            config_value = json.loads(config_path.read_bytes())
+            registration_path = Path(config_value["paths"]["initial_registration"])
+            registration = json.loads(registration_path.read_bytes())
+            registration["pins"]["protocol"] = "d" * 64
+            registration_raw = canonical(registration)
+            registration_path.write_bytes(registration_raw)
+            config_value["initial_registration_sha256"] = digest(registration_raw)
+            config_raw = canonical(config_value)
+            config_path.write_bytes(config_raw)
+            config_path.chmod(0o600)
+
+            with (
+                mock.patch.object(runner, "_verify_checkout_sources"),
+                mock.patch.object(runner, "_require_source_bootstrap"),
+                mock.patch.object(runner.core, "_verify_qualified_source_closure"),
+                mock.patch.object(runner.runtime_environment, "verify_active_environment", return_value=b"{}"),
+                mock.patch.object(runner.time, "monotonic", side_effect=AssertionError("clock must not start")),
+            ):
+                with self.assertRaisesRegex(
+                    runner.OperatorRunnerError, "initial-registration-static-pin-mismatch:protocol"
+                ):
+                    runner.OperatorStageRunner.from_file(config_path, digest(config_raw))
+
+            self.assertTrue(all(not Path(value).exists() for value in directories.values()))
+
+    def test_unsafe_existing_private_root_fails_before_clock_or_other_creation(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            config, pin, directories = self._registered_config(root)
+            unsafe = Path(directories["stage_inventory"])
+            unsafe.mkdir(mode=0o755)
+            unsafe.chmod(0o755)
+
+            with (
+                mock.patch.object(runner, "_verify_checkout_sources"),
+                mock.patch.object(runner, "_require_source_bootstrap"),
+                mock.patch.object(runner.core, "_verify_qualified_source_closure"),
+                mock.patch.object(runner.runtime_environment, "verify_active_environment", return_value=b"{}"),
+                mock.patch.object(runner, "_prepare_private_directories", wraps=runner._prepare_private_directories),
+                mock.patch.object(runner.time, "monotonic", side_effect=AssertionError("clock must not start")),
+            ):
+                with self.assertRaisesRegex(runner.OperatorRunnerError, "configured-private-root-unsafe"):
+                    runner.OperatorStageRunner.from_file(config, pin)
+
+            self.assertEqual(stat.S_IMODE(unsafe.stat().st_mode), 0o755)
+            self.assertTrue(
+                all(Path(value).exists() is (key == "stage_inventory") for key, value in directories.items())
+            )
 
     def test_config_expected_digest_is_external_and_secret_paths_are_private(self):
         with tempfile.TemporaryDirectory() as temporary:

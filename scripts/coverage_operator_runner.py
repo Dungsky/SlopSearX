@@ -460,6 +460,77 @@ def _stage_cohort(cohorts: object, stage_kind: str) -> dict[str, Any]:
     return rows[0]
 
 
+def _prepare_private_directories(directories: dict[str, str]) -> None:
+    """Create configured stage roots without repairing unsafe existing paths.
+
+    Static registration validation must finish before this helper is called.
+    All roots are checked before any missing root is created, so an unsafe
+    existing path cannot leave a partial set of new roots behind.
+    """
+    if type(directories) is not dict or set(directories) != _DIRECTORY_KEYS:
+        raise OperatorRunnerError("configured-private-root-inventory-invalid")
+
+    missing: list[Path] = []
+    owner = os.geteuid()
+    for name in sorted(_DIRECTORY_KEYS):
+        value = directories[name]
+        if type(value) is not str or not value:
+            raise OperatorRunnerError("configured-private-root-path-invalid")
+        path = Path(value)
+        if not path.is_absolute() or path == path.parent:
+            raise OperatorRunnerError("configured-private-root-path-invalid")
+        try:
+            parent_info = path.parent.lstat()
+        except OSError as exc:
+            raise OperatorRunnerError("configured-private-root-parent-unavailable") from exc
+        if stat.S_ISLNK(parent_info.st_mode) or not stat.S_ISDIR(parent_info.st_mode):
+            raise OperatorRunnerError("configured-private-root-parent-unsafe")
+        try:
+            info = path.lstat()
+        except FileNotFoundError:
+            missing.append(path)
+        except OSError as exc:
+            raise OperatorRunnerError("configured-private-root-unavailable") from exc
+        else:
+            if (
+                stat.S_ISLNK(info.st_mode)
+                or not stat.S_ISDIR(info.st_mode)
+                or stat.S_IMODE(info.st_mode) != 0o700
+                or info.st_uid != owner
+            ):
+                raise OperatorRunnerError("configured-private-root-unsafe")
+    for path in missing:
+        try:
+            os.mkdir(path, mode=0o700)
+        except FileExistsError:
+            # A concurrent creator is acceptable only if the resulting root
+            # already satisfies the exact private-directory contract.
+            pass
+        except OSError as exc:
+            raise OperatorRunnerError("configured-private-root-create-failed") from exc
+        try:
+            info = path.lstat()
+            parent_fd = os.open(
+                path.parent,
+                os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0),
+            )
+        except OSError as exc:
+            raise OperatorRunnerError("configured-private-root-create-failed") from exc
+        try:
+            if (
+                stat.S_ISLNK(info.st_mode)
+                or not stat.S_ISDIR(info.st_mode)
+                or stat.S_IMODE(info.st_mode) != 0o700
+                or info.st_uid != owner
+            ):
+                raise OperatorRunnerError("configured-private-root-unsafe")
+            os.fsync(parent_fd)
+        except OSError as exc:
+            raise OperatorRunnerError("configured-private-root-create-failed") from exc
+        finally:
+            os.close(parent_fd)
+
+
 class OperatorStageRunner:
     """Loads a pinned registered bundle and invokes only the fixed phase graph."""
 
@@ -584,6 +655,10 @@ class OperatorStageRunner:
         for name in ("task_input_manifest", "source_capture_manifest"):
             if type(pins.get(name)) is not str or not _SHA.fullmatch(pins[name]):
                 raise OperatorRunnerError(f"initial-registration-dynamic-pin-invalid:{name}")
+        # Directory preparation is deliberately after all registered static
+        # pins, source bytes, and dynamic-pin shapes have been checked, but
+        # before the stage clock or any phase/permit can begin.
+        _prepare_private_directories(self.directories)
         self.started_monotonic = time.monotonic()
         self.started_utc = datetime.now(timezone.utc)
         self.deadline_monotonic = self.started_monotonic + orchestration.MAX_STAGE_WALL_SECONDS
