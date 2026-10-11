@@ -1,0 +1,41 @@
+import asyncio,json,sys
+from pathlib import Path
+import uvicorn
+from fastmcp import FastMCP,Client
+from mcp.types import ListToolsRequest,ListToolsResult,ServerResult
+from slopsearx.mcp.gateway import create_gateway,_field
+from slopsearx.mcp.security import make_http_app
+from tests.test_mcp_gateway import _free_port,_wait_for_port,_gateway_client,TOKEN
+async def main():
+ remote=FastMCP('paginated catalog')
+ for name in ('first','second','third'):
+  def make(name):
+   async def run():return {'tool':name}
+   return run
+  remote.tool(name=name)(make(name))
+ tools=[(await remote.get_tool(name)).to_mcp_tool() for name in ('first','second','third')]
+ calls=[]
+ async def pages(req):
+  cursor=req.params.cursor if req is not None and req.params else None
+  if req is not None:calls.append(cursor)
+  index={None:0,'page-two':1,'page-three':2}[cursor]
+  return ServerResult(ListToolsResult(tools=[tools[index]],nextCursor=('page-two','page-three',None)[index]))
+ remote._mcp_server.request_handlers[ListToolsRequest]=pages
+ port=_free_port();server=uvicorn.Server(uvicorn.Config(make_http_app(remote,TOKEN),host='127.0.0.1',port=port,log_level='warning'));task=asyncio.create_task(server.serve())
+ try:
+  assert await _wait_for_port(port)
+  gateway=create_gateway(f'http://127.0.0.1:{port}/mcp',token=TOKEN)
+  async with _gateway_client(gateway) as client:
+   names={t.name for t in await client.list_tools()};rows=[]
+   for name in ('first','second','third'):
+    try:
+     result=await client.call_tool_mcp(name,{})
+     actual=_field(result,'structured_content','structuredContent');passed=actual=={'tool':name}
+    except Exception as exc:actual={'exception':type(exc).__name__};passed=False
+    rows.append({'name':name,'discovered':name in names,'actual':actual,'passed':passed})
+ finally:
+  server.should_exit=True;await asyncio.wait_for(task,timeout=10)
+ out=Path(sys.argv[1]);out.mkdir(exist_ok=False)
+ (out/'result.json').write_text(json.dumps({'rows':rows,'discovery_cursors':calls,'primary_passed':sum(r['passed'] and r['discovered'] for r in rows[1:]),'primary_total':2,'control_passed':rows[0]['passed'],'provider_calls':0},indent=2)+'\n')
+ print((out/'result.json').read_text())
+asyncio.run(main())
