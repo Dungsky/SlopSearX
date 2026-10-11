@@ -569,6 +569,8 @@ async def test_dispatch_disables_builtin_tools_and_each_configured_mcp_before_tu
     assert command[:4] == ["app-server", "--listen", "stdio://", "--disable"]
     disabled = [command[index + 1] for index, value in enumerate(command[:-1]) if value == "--disable"]
     assert disabled == list(native.DISABLED_FEATURES)
+    assert "stable_environment_tools" in disabled
+    assert "stable_environment_tools" in native._tool_policy(["fixture_mcp"])["disabled_features"]
     assert command[command.index("-c") + 1] == 'web_search="disabled"'
     assert command[command.index("tools.view_image=false") - 1] == "-c"
     assert command[-2:] == ["-c", "mcp_servers.fixture_mcp.enabled=false"]

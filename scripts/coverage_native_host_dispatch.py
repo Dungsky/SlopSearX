@@ -51,6 +51,7 @@ DISABLED_FEATURES = (
     "remote_plugin",
     "shell_snapshot",
     "shell_tool",
+    "stable_environment_tools",
     "skill_mcp_dependency_install",
     "skill_search",
     "tool_call_mcp_elicitation",
