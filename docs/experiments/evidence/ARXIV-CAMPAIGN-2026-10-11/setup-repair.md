@@ -1,0 +1,3 @@
+# Fixture setup repair before any candidate measurement
+
+Initial policy qualification correctly rejected unregistered temporary benchmark engines. No corpus metric, provider call or candidate result was produced. A premature run/analysis command then found no prepared input; the original start marker is retained. Ephemeral classes now use the normal registration API in the isolated worker process; no built-in engine, policy grant or service configuration is changed. Use a separate ready-start marker. No primary retry or reference change occurs. This is qualification repair, not a supported result.
