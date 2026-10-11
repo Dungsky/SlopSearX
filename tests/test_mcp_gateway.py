@@ -213,3 +213,125 @@ def test_gateway_structured_results_and_legacy_precedence(structured, text, erro
         }
     )
     assert _extract_tool_result(result) == expected
+
+
+class TestCatalogPagination:
+    @pytest.mark.parametrize("alias", ["nextCursor", "next_cursor"])
+    async def test_follows_pages_including_empty_cursor(self, alias: str) -> None:
+        from types import SimpleNamespace
+
+        from slopsearx.mcp.gateway import _list_remote_tools
+
+        class Session:
+            calls: list[str | None] = []
+
+            async def list_tools(self, *, params: Any = None) -> Any:
+                cursor = None if params is None else params.cursor
+                self.calls.append(cursor)
+                pages = {
+                    None: ([SimpleNamespace(name="first")], ""),
+                    "": ([], "last"),
+                    "last": ([SimpleNamespace(name="last")], None),
+                }
+                tools, following = pages[cursor]
+                return SimpleNamespace(tools=tools, **{alias: following})
+
+        session = Session()
+        result = await _list_remote_tools(session)  # type: ignore[arg-type]
+        assert [tool.name for tool in result] == ["first", "last"]
+        assert session.calls == [None, "", "last"]
+
+    @pytest.mark.parametrize("failure", ["cursor", "duplicate", "pages", "tools", "error"])
+    async def test_broken_catalog_rejected(self, failure: str) -> None:
+        from types import SimpleNamespace
+
+        from slopsearx.mcp.gateway import _list_remote_tools
+
+        class Session:
+            count = 0
+
+            async def list_tools(self, *, params: Any = None) -> Any:
+                self.count += 1
+                if failure == "error" and self.count == 2:
+                    raise RuntimeError("upstream page failed")
+                names = ["same"] if failure == "duplicate" else []
+                if failure == "tools":
+                    names = [f"tool_{i}" for i in range(4097)]
+                cursor = "repeat" if failure in ("cursor", "duplicate") else str(self.count)
+                return SimpleNamespace(tools=[SimpleNamespace(name=n) for n in names], nextCursor=cursor)
+
+        session = Session()
+        with pytest.raises(RuntimeError):
+            await _list_remote_tools(session)  # type: ignore[arg-type]
+        assert session.count <= 128
+
+    async def test_empty_catalog(self) -> None:
+        from types import SimpleNamespace
+
+        from slopsearx.mcp.gateway import _list_remote_tools
+
+        class Session:
+            async def list_tools(self) -> Any:
+                return SimpleNamespace(tools=[], nextCursor=None)
+
+        assert await _list_remote_tools(Session()) == []  # type: ignore[arg-type]
+
+    async def test_discovery_timeout_leaves_no_session_or_proxies(self, monkeypatch: Any) -> None:
+        from slopsearx.mcp import gateway
+
+        @asynccontextmanager
+        async def streams(*args: Any, **kwargs: Any):
+            yield (None, None)
+
+        class Session:
+            def __init__(self, *args: Any) -> None:
+                pass
+
+            async def __aenter__(self) -> Any:
+                return self
+
+            async def __aexit__(self, *args: Any) -> None:
+                pass
+
+            async def initialize(self) -> None:
+                pass
+
+            async def list_tools(self) -> Any:
+                await asyncio.Event().wait()
+
+        monkeypatch.setattr(gateway, "streamable_http_client", streams)
+        monkeypatch.setattr(gateway, "ClientSession", Session)
+        server = FastMCP("timeout")
+        with pytest.raises(RuntimeError, match="cannot list tools"):
+            async with gateway._gateway_lifespan(server, "https://example.invalid/mcp", None, 0.01):
+                pytest.fail("incomplete discovery must not publish a ready gateway")
+        assert gateway._state is None
+        with pytest.raises(RuntimeError, match="not connected"):
+            gateway._get_session()
+
+    async def test_native_sdk_sends_followup_cursor(self, monkeypatch: Any) -> None:
+        import anyio
+        from mcp import ClientSession
+        from mcp.types import ListToolsResult
+
+        from slopsearx.mcp.gateway import _list_remote_tools
+
+        write, read = anyio.create_memory_object_stream(1)
+        session = ClientSession(read, write)
+        requests: list[dict[str, Any]] = []
+
+        async def send(request: Any, result_type: Any, **kwargs: Any) -> Any:
+            payload = request.model_dump(mode="json", by_alias=True, exclude_none=True)
+            requests.append(payload)
+            return ListToolsResult.model_validate(
+                {
+                    "tools": [{"name": f"tool_{len(requests)}", "inputSchema": {"type": "object"}}],
+                    "nextCursor": "opaque-next" if len(requests) == 1 else None,
+                }
+            )
+
+        monkeypatch.setattr(session, "send_request", send)
+        assert len(await _list_remote_tools(session)) == 2
+        assert requests[1]["params"]["cursor"] == "opaque-next"
+        await read.aclose()
+        await write.aclose()

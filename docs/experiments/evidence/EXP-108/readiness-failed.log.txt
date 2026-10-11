@@ -1,0 +1,97 @@
+ERROR:      + Exception Group Traceback (most recent call last):
+  |   File "/private/tmp/slopsearx-extra-20261011/.venv/lib/python3.12/site-packages/anyio/_backends/_asyncio.py", line 799, in __aexit__
+  |     raise BaseExceptionGroup(
+  | ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)
+  +-+---------------- 1 ----------------
+    | Traceback (most recent call last):
+    |   File "/private/tmp/slopsearx-extra-20261011/.venv/lib/python3.12/site-packages/mcp/client/streamable_http.py", line 670, in streamable_http_client
+    |     yield (
+    |   File "/private/tmp/slopsearx-extra-20261011/slopsearx/mcp/gateway.py", line 397, in _gateway_lifespan
+    |     async with ClientSession(read, write) as session:
+    |                ^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/private/tmp/slopsearx-extra-20261011/.venv/lib/python3.12/site-packages/mcp/shared/session.py", line 238, in __aexit__
+    |     return await self._task_group.__aexit__(exc_type, exc_val, exc_tb)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/private/tmp/slopsearx-extra-20261011/.venv/lib/python3.12/site-packages/anyio/_backends/_asyncio.py", line 810, in __aexit__
+    |     return self.cancel_scope.__exit__(exc_type, exc_val, exc_tb)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/private/tmp/slopsearx-extra-20261011/.venv/lib/python3.12/site-packages/anyio/_backends/_asyncio.py", line 463, in __exit__
+    |     raise RuntimeError(
+    | RuntimeError: Attempted to exit a cancel scope that isn't the current tasks's current cancel scope
+    +------------------------------------
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/private/tmp/slopsearx-extra-20261011/.venv/lib/python3.12/site-packages/starlette/routing.py", line 638, in lifespan
+    async with self.lifespan_context(app) as maybe_state:
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/magnus/.local/share/uv/python/cpython-3.12.11-macos-aarch64-none/lib/python3.12/contextlib.py", line 217, in __aexit__
+    await anext(self.gen)
+  File "/private/tmp/slopsearx-extra-20261011/.venv/lib/python3.12/site-packages/fastmcp/server/http.py", line 666, in lifespan
+    server._lifespan_manager(),
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/magnus/.local/share/uv/python/cpython-3.12.11-macos-aarch64-none/lib/python3.12/contextlib.py", line 217, in __aexit__
+    await anext(self.gen)
+  File "/private/tmp/slopsearx-extra-20261011/.venv/lib/python3.12/site-packages/fastmcp/server/mixins/lifespan.py", line 232, in _lifespan_manager
+    await stack.aclose()
+  File "/Users/magnus/.local/share/uv/python/cpython-3.12.11-macos-aarch64-none/lib/python3.12/contextlib.py", line 696, in aclose
+    await self.__aexit__(None, None, None)
+  File "/Users/magnus/.local/share/uv/python/cpython-3.12.11-macos-aarch64-none/lib/python3.12/contextlib.py", line 754, in __aexit__
+    raise exc_details[1]
+  File "/Users/magnus/.local/share/uv/python/cpython-3.12.11-macos-aarch64-none/lib/python3.12/contextlib.py", line 737, in __aexit__
+    cb_suppress = await cb(*exc_details)
+                  ^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/magnus/.local/share/uv/python/cpython-3.12.11-macos-aarch64-none/lib/python3.12/contextlib.py", line 217, in __aexit__
+    await anext(self.gen)
+  File "/private/tmp/slopsearx-extra-20261011/slopsearx/mcp/gateway.py", line 393, in _gateway_lifespan
+    async with streamable_http_client(remote_url, http_client=http_client) as streams:
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/magnus/.local/share/uv/python/cpython-3.12.11-macos-aarch64-none/lib/python3.12/contextlib.py", line 231, in __aexit__
+    await self.gen.athrow(value)
+  File "/private/tmp/slopsearx-extra-20261011/.venv/lib/python3.12/site-packages/mcp/client/streamable_http.py", line 647, in streamable_http_client
+    async with anyio.create_task_group() as tg:
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/private/tmp/slopsearx-extra-20261011/.venv/lib/python3.12/site-packages/anyio/_backends/_asyncio.py", line 805, in __aexit__
+    if self.cancel_scope.__exit__(type(exc), exc, exc.__traceback__):
+       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/private/tmp/slopsearx-extra-20261011/.venv/lib/python3.12/site-packages/anyio/_backends/_asyncio.py", line 463, in __exit__
+    raise RuntimeError(
+RuntimeError: Attempted to exit a cancel scope that isn't the current tasks's current cancel scope
+
+ERROR:    Application shutdown failed. Exiting.
+{
+  "rows": [
+    {
+      "name": "first",
+      "discovered": true,
+      "actual": {
+        "error": {
+          "code": "remote_error",
+          "message": "'NoneType' object has no attribute 'params'"
+        }
+      },
+      "passed": false
+    },
+    {
+      "name": "second",
+      "discovered": false,
+      "actual": null,
+      "passed": false
+    },
+    {
+      "name": "third",
+      "discovered": false,
+      "actual": null,
+      "passed": false
+    }
+  ],
+  "discovery_cursors": [
+    null
+  ],
+  "primary_passed": 0,
+  "primary_total": 2,
+  "control_passed": false,
+  "provider_calls": 0
+}
+

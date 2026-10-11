@@ -448,6 +448,10 @@ mcp_servers:
 - The gateway preserves an upstream `structuredContent` object, including an
   empty object. Text-only tools retain their JSON/plain-text fallback, and
   remote error flags retain the existing normalized error response.
+- The gateway follows all remote tool-catalog pages before registering proxies.
+  Discovery uses the connection timeout and rejects repeated cursors, duplicate
+  tool names, catalogs over 128 pages or 4,096 tools, and later-page failures
+  instead of advertising a partial catalog. Tool changes still require restart.
 - The gateway registers the remote server's tools at startup; if the
   server is unreachable or the credentials are wrong, the gateway fails
   with a clear message and Hermes reports the connection error.

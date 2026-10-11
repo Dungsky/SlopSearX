@@ -16,6 +16,7 @@ OAuth mode.
 
 from __future__ import annotations
 
+import asyncio
 import inspect
 import json
 import logging
@@ -27,7 +28,7 @@ from typing import Any, AsyncIterator, Awaitable, Callable, cast
 from fastmcp import FastMCP
 from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
-from mcp.types import CallToolResult
+from mcp.types import CallToolResult, PaginatedRequestParams
 
 try:
     httpx: Any = import_module("httpx2")
@@ -64,6 +65,34 @@ def _field(value: Any, snake_name: str, legacy_name: str) -> Any:
     """Read an MCP model field across SDK v1 and SDK v2 attribute names."""
     result = getattr(value, snake_name, None)
     return result if result is not None else getattr(value, legacy_name, None)
+
+
+async def _list_remote_tools(session: ClientSession) -> list[Any]:
+    """Collect a complete, bounded catalog before publishing any proxies."""
+    tools: list[Any] = []
+    names: set[str] = set()
+    cursors: set[str] = set()
+    cursor: str | None = None
+    for _ in range(128):
+        page = (
+            await session.list_tools()
+            if cursor is None
+            else await session.list_tools(params=PaginatedRequestParams(cursor=cursor))
+        )
+        for tool in page.tools:
+            if tool.name in names:
+                raise RuntimeError("remote tool catalog contains duplicate names")
+            names.add(tool.name)
+            tools.append(tool)
+            if len(tools) > 4096:
+                raise RuntimeError("remote tool catalog exceeds 4096 tools")
+        cursor = _field(page, "next_cursor", "nextCursor")
+        if cursor is None:
+            return tools
+        if cursor in cursors:
+            raise RuntimeError("remote tool catalog repeats a pagination cursor")
+        cursors.add(cursor)
+    raise RuntimeError("remote tool catalog exceeds 128 pages")
 
 
 def _get_session() -> ClientSession:
@@ -400,22 +429,23 @@ async def _gateway_lifespan(
                 except Exception as exc:  # noqa: BLE001 — wrap into a clear startup error
                     raise RuntimeError(f"cannot connect to remote SlopSearX MCP server at {remote_url}: {exc}") from exc
 
-                _state = _GatewayState(session=session, remote_url=remote_url)
                 try:
-                    tools_result = await session.list_tools()
+                    async with asyncio.timeout(connect_timeout):
+                        tools = await _list_remote_tools(session)
                 except Exception as exc:  # noqa: BLE001
                     _state = None
                     raise RuntimeError(f"cannot list tools from remote server at {remote_url}: {exc}") from exc
 
-                for tool in tools_result.tools:
+                for tool in tools:
                     input_schema = _field(tool, "input_schema", "inputSchema") or {}
                     _register_proxy(server, _make_proxy(tool.name, input_schema), tool.name, tool.description or "")
                 logger.info(
                     "Remote gateway connected to %s (%d tools registered)",
                     remote_url,
-                    len(tools_result.tools),
+                    len(tools),
                 )
 
+                _state = _GatewayState(session=session, remote_url=remote_url)
                 try:
                     yield
                 finally:
