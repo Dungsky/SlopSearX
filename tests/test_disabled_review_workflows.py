@@ -93,10 +93,10 @@ def test_publisher_requires_successful_target_run_and_protected_main_ref() -> No
     assert job["timeout-minutes"] == "5"
 
 
-def test_policy_is_enabled_for_comment_only_canary_and_binds_publisher_hash() -> None:
+def test_policy_allows_review_dispositions_and_binds_publisher_hash() -> None:
     policy = json.loads((ROOT / ".github/pr-review-publisher-policy.json").read_text())
     assert policy["schema"] == "pr-review-protected-publication-policy.v5"
-    assert policy["publication_mode"] == "NON_BINDING_COMMENT"
+    assert policy["publication_mode"] == "DISPOSITION"
     assert policy["enabled"] is True
     assert policy["authorization_mode"] == "STANDING_BOUNDED"
     assert policy["repository"] == {"name": "magnus919/SlopSearX", "id": 1263452316}
@@ -135,7 +135,19 @@ def test_policy_is_enabled_for_comment_only_canary_and_binds_publisher_hash() ->
             "provider-identity-sha256:c87999815e0c8d35d486803558939375130c79a332ed6d421bbfb7171d4a63b6"
         ),
     }
-    assert policy["publication"]["allowed_dispositions"] == ["COMMENT"]
+    assert policy["publication"]["allowed_dispositions"] == [
+        "COMMENT",
+        "APPROVE",
+        "REQUEST_CHANGES",
+    ]
+    assert policy["publication"]["max_review_body_bytes"] == 60000
+    assert policy["publication"]["effect_policy"] == "PUBLISH_REVIEW"
+    assert policy["limits"] == {
+        "max_runs": 20,
+        "max_pages": 2,
+        "max_reviews": 100,
+        "deadline_seconds": 25,
+    }
     assert policy["artifact_download_mode"] == "AUTHENTICATED_API_LOCATION_NO_AUTH"
     history = policy["history_reconciliation"]
     assert history["schema"] == "publisher-history-reconciliation.v1"
@@ -195,6 +207,19 @@ def test_policy_is_enabled_for_comment_only_canary_and_binds_publisher_hash() ->
         assert exception["proof_kind"] == "TRUSTED_PRE_POST_RECONCILIATION"
     assert "artifact_redirect_hosts" not in policy
     assert "app" not in policy
+
+
+def test_full_cutover_disables_only_droid_auto_review() -> None:
+    droid_review = _workflow("droid-review.yml")
+    assert droid_review["jobs"]["droid-review"]["if"] in {False, "false", "${{ false }}"}
+    tag_workflow = ROOT / ".github/workflows/droid.yml"
+    wiki_workflow = ROOT / ".github/workflows/droid-wiki-refresh.yml"
+    assert hashlib.sha256(tag_workflow.read_bytes()).hexdigest() == (
+        "b5e4a736ef559dcb2aca41f2c5c1c2e7f196eda681c15f8908bc89285eebac4b"
+    )
+    assert hashlib.sha256(wiki_workflow.read_bytes()).hexdigest() == (
+        "76f19668a49507139199f75b7bc182c8ebe56996abe3a5eccb9900b9b28e3b8d"
+    )
 
 
 def test_source_context_probe_remains_disabled_and_read_only() -> None:
