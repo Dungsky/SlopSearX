@@ -1,0 +1,230 @@
+test (3.13)	Test with pytest and coverage	﻿2026-10-11T16:44:15.0489619Z ##[group]Run # Live loopback servers can leave event-loop resources pending when
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:15.0490269Z ^[[36;1m# Live loopback servers can leave event-loop resources pending when^[[0m
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:15.0490791Z ^[[36;1m# several transport modules share one hosted-runner process. Run each^[[0m
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:15.0491301Z ^[[36;1m# such module in a fresh process and combine their coverage below.^[[0m
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:15.0491981Z ^[[36;1misolated_tests=(^[[0m
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:15.0492272Z ^[[36;1m  tests/test_adaptive_transport.py^[[0m
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:15.0492586Z ^[[36;1m  tests/test_entity_transport.py^[[0m
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:15.0492881Z ^[[36;1m  tests/test_http_pooling.py^[[0m
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:15.0493159Z ^[[36;1m  tests/test_mcp_gateway.py^[[0m
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:15.0493440Z ^[[36;1m  tests/test_mcp_harness.py^[[0m
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:15.0493710Z ^[[36;1m  tests/test_mcp_oauth.py^[[0m
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:15.0494003Z ^[[36;1m  tests/test_mcp_oauth_client.py^[[0m
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:15.0494330Z ^[[36;1m  tests/test_retrieval_receipts_transport.py^[[0m
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:15.0494705Z ^[[36;1m  tests/test_saved_events_transport.py^[[0m
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:15.0495037Z ^[[36;1m  tests/test_saved_transport.py^[[0m
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:15.0495365Z ^[[36;1m  tests/test_workflow_composition_transport.py^[[0m
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:15.0495680Z ^[[36;1m)^[[0m
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:15.0495871Z ^[[36;1m^[[0m
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:15.0496151Z ^[[36;1mpytest -v -o addopts='' -o faulthandler_timeout=60 \^[[0m
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:15.0496628Z ^[[36;1m  --cov=slopsearx --cov=engines --cov-report= --cov-fail-under=0 \^[[0m
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:15.0497041Z ^[[36;1m  "${isolated_tests[0]}"^[[0m
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:15.0497287Z ^[[36;1m^[[0m
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:15.0497527Z ^[[36;1mfor test_file in "${isolated_tests[@]:1}"; do^[[0m
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:15.0497915Z ^[[36;1m  pytest -v -o addopts='' -o faulthandler_timeout=60 \^[[0m
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:15.0498324Z ^[[36;1m    --cov=slopsearx --cov=engines --cov-append \^[[0m
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:15.0498705Z ^[[36;1m    --cov-report= --cov-fail-under=0 "$test_file"^[[0m
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:15.0499023Z ^[[36;1mdone^[[0m
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:15.0499221Z ^[[36;1m^[[0m
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:15.0499408Z ^[[36;1mignore_args=()^[[0m
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:15.0499681Z ^[[36;1mfor test_file in "${isolated_tests[@]}"; do^[[0m
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:15.0500011Z ^[[36;1m  ignore_args+=("--ignore=$test_file")^[[0m
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:15.0500293Z ^[[36;1mdone^[[0m
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:15.0500613Z ^[[36;1mpytest -v -o addopts='' -o faulthandler_timeout=60 --durations=10 \^[[0m
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:15.0501004Z ^[[36;1m  "${ignore_args[@]}" \^[[0m
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:15.0501316Z ^[[36;1m  --cov=slopsearx --cov=engines --cov-append \^[[0m
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:15.0502011Z ^[[36;1m  --cov-report=term-missing --cov-report=html --cov-fail-under=80^[[0m
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:15.0568125Z shell: /usr/bin/bash -e {0}
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:15.0568378Z env:
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:15.0568646Z   pythonLocation: /opt/hostedtoolcache/Python/3.13.16/x64
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:15.0569126Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.13.16/x64/lib/pkgconfig
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:15.0569569Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.13.16/x64
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:15.0569987Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.13.16/x64
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:15.0570370Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.13.16/x64
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:15.0570760Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.13.16/x64/lib
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:15.0571090Z ##[endgroup]
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:15.9334456Z ============================= test session starts ==============================
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:15.9335726Z platform linux -- Python 3.13.16, pytest-9.1.1, pluggy-1.6.0 -- /opt/hostedtoolcache/Python/3.13.16/x64/bin/python
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:15.9336805Z cachedir: .pytest_cache
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:15.9337399Z rootdir: /home/runner/work/SlopSearX/SlopSearX
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:15.9338159Z configfile: pyproject.toml
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:15.9338694Z plugins: asyncio-1.4.0, platformdirs-4.13.0, cov-7.1.0, anyio-4.15.1
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:15.9339735Z asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:17.9499421Z collecting ... collected 3 items
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:17.9499870Z 
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:19.5262467Z tests/test_adaptive_transport.py::test_adaptive_research_journey PASSED  [ 33%]
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:20.9300365Z tests/test_adaptive_transport.py::test_budget_exhaustion_completion_replays_over_mcp_transport PASSED [ 66%]
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:22.4676916Z tests/test_adaptive_transport.py::test_exact_query_cap_completion_over_mcp_transport PASSED [100%]
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:22.4677650Z 
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:22.4677881Z ============================== 3 passed in 6.42s ===============================
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:23.0548525Z ============================= test session starts ==============================
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:23.0549417Z platform linux -- Python 3.13.16, pytest-9.1.1, pluggy-1.6.0 -- /opt/hostedtoolcache/Python/3.13.16/x64/bin/python
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:23.0550154Z cachedir: .pytest_cache
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:23.0550509Z rootdir: /home/runner/work/SlopSearX/SlopSearX
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:23.0550940Z configfile: pyproject.toml
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:23.0551387Z plugins: asyncio-1.4.0, platformdirs-4.13.0, cov-7.1.0, anyio-4.15.1
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:23.0552524Z asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:24.6381334Z collecting ... collected 1 item
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:24.6384613Z 
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:25.9123371Z tests/test_entity_transport.py::test_entity_view_preserves_cached_flat_results PASSED [100%]
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:25.9124403Z 
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:25.9124764Z ============================== 1 passed in 2.75s ===============================
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:26.4911146Z ============================= test session starts ==============================
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:26.4912888Z platform linux -- Python 3.13.16, pytest-9.1.1, pluggy-1.6.0 -- /opt/hostedtoolcache/Python/3.13.16/x64/bin/python
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:26.4914140Z cachedir: .pytest_cache
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:26.4914753Z rootdir: /home/runner/work/SlopSearX/SlopSearX
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:26.4915508Z configfile: pyproject.toml
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:26.4916295Z plugins: asyncio-1.4.0, platformdirs-4.13.0, cov-7.1.0, anyio-4.15.1
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:26.4917375Z asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:26.7717182Z collecting ... collected 8 items
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:26.7717695Z 
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:27.3610377Z tests/test_http_pooling.py::test_connection_reuse_probe 
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:27.3612122Z TCP accepts={'ephemeral': 20, 'pooled': 1}; local milliseconds (p50,p95)={'ephemeral': (22.733424499989496, 23.551394999998365), 'pooled': (2.551818000014805, 18.209132999999156)}
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:27.3627798Z PASSED           [ 12%]
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:27.3678077Z tests/test_http_pooling.py::test_sessions_isolate_cookies_and_injected_transport_ownership PASSED [ 25%]
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:27.4492955Z tests/test_http_pooling.py::test_proxy_pools_separate_bounded_and_closed PASSED [ 37%]
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:27.4707151Z tests/test_http_pooling.py::test_environment_proxy_fallback_preserves_httpx_resolution PASSED [ 50%]
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:27.4917610Z tests/test_http_pooling.py::test_no_proxy_alone_does_not_disable_pooling PASSED [ 62%]
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:27.5316900Z tests/test_http_pooling.py::test_explicit_tls_options_are_not_silently_ignored[options0] PASSED [ 75%]
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:27.5538589Z tests/test_http_pooling.py::test_explicit_tls_options_are_not_silently_ignored[options1] PASSED [ 87%]
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:27.6235270Z tests/test_http_pooling.py::test_explicit_pool_limits_are_forwarded PASSED [100%]
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:27.6235887Z 
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:28.0333065Z ============================== 8 passed in 1.11s ===============================
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:28.0333793Z ============================= test session starts ==============================
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:28.0334702Z platform linux -- Python 3.13.16, pytest-9.1.1, pluggy-1.6.0 -- /opt/hostedtoolcache/Python/3.13.16/x64/bin/python
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:28.0335889Z cachedir: .pytest_cache
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:28.0336419Z rootdir: /home/runner/work/SlopSearX/SlopSearX
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:28.0336804Z configfile: pyproject.toml
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:28.0337216Z plugins: asyncio-1.4.0, platformdirs-4.13.0, cov-7.1.0, anyio-4.15.1
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:28.0338003Z asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:30.1737308Z collecting ... collected 21 items
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:30.1737703Z 
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:30.2480183Z tests/test_mcp_gateway.py::TestGateway::test_dynamic_proxy_registration_preserves_remote_schema PASSED [  4%]
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:31.4556956Z tests/test_mcp_gateway.py::TestGateway::test_gateway_proxies_tools_and_resources PASSED [  9%]
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.0600373Z tests/test_mcp_gateway.py::TestGateway::test_gateway_rejects_wrong_token PASSED [ 14%]
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.0629378Z tests/test_mcp_gateway.py::test_gateway_structured_results_and_legacy_precedence[structured0-One reading lead.-False-expected0] PASSED [ 19%]
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.0655232Z tests/test_mcp_gateway.py::test_gateway_structured_results_and_legacy_precedence[structured1-{"display": "summary"}-False-expected1] PASSED [ 23%]
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.0680515Z tests/test_mcp_gateway.py::test_gateway_structured_results_and_legacy_precedence[structured2-None-False-expected2] PASSED [ 28%]
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.0705929Z tests/test_mcp_gateway.py::test_gateway_structured_results_and_legacy_precedence[structured3-No reading leads.-False-expected3] PASSED [ 33%]
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.0732253Z tests/test_mcp_gateway.py::test_gateway_structured_results_and_legacy_precedence[None-{"count": 1}-False-expected4] PASSED [ 38%]
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.0757858Z tests/test_mcp_gateway.py::test_gateway_structured_results_and_legacy_precedence[None-Unstructured note.-False-expected5] PASSED [ 42%]
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.0782691Z tests/test_mcp_gateway.py::test_gateway_structured_results_and_legacy_precedence[None-None-False-expected6] PASSED [ 47%]
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.0809865Z tests/test_mcp_gateway.py::test_gateway_structured_results_and_legacy_precedence[structured7-Remote rejected request.-True-expected7] PASSED [ 52%]
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.0842044Z tests/test_mcp_gateway.py::TestCatalogPagination::test_follows_pages_including_empty_cursor[nextCursor] PASSED [ 57%]
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.0870010Z tests/test_mcp_gateway.py::TestCatalogPagination::test_follows_pages_including_empty_cursor[next_cursor] PASSED [ 61%]
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.0898360Z tests/test_mcp_gateway.py::TestCatalogPagination::test_broken_catalog_rejected[cursor] PASSED [ 66%]
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.0926615Z tests/test_mcp_gateway.py::TestCatalogPagination::test_broken_catalog_rejected[duplicate] PASSED [ 71%]
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.0961167Z tests/test_mcp_gateway.py::TestCatalogPagination::test_broken_catalog_rejected[pages] PASSED [ 76%]
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.1038440Z tests/test_mcp_gateway.py::TestCatalogPagination::test_broken_catalog_rejected[tools] PASSED [ 80%]
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.1066749Z tests/test_mcp_gateway.py::TestCatalogPagination::test_broken_catalog_rejected[error] PASSED [ 85%]
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.1094677Z tests/test_mcp_gateway.py::TestCatalogPagination::test_empty_catalog PASSED [ 90%]
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.1239886Z tests/test_mcp_gateway.py::TestCatalogPagination::test_discovery_timeout_leaves_no_session_or_proxies PASSED [ 95%]
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4031040Z tests/test_mcp_gateway.py::TestCatalogPagination::test_native_sdk_sends_followup_cursor FAILED [100%]
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4032302Z 
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4032563Z =================================== FAILURES ===================================
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4033336Z _________ TestCatalogPagination.test_native_sdk_sends_followup_cursor __________
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4033868Z 
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4034224Z self = <tests.test_mcp_gateway.TestCatalogPagination object at 0x7f10031c7e30>
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4035086Z monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f1000611650>
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4035977Z 
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4036376Z     async def test_native_sdk_sends_followup_cursor(self, monkeypatch: Any) -> None:
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4037308Z         from mcp import ClientSession
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4037763Z         from mcp.types import ListToolsResult
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4038184Z     
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4038572Z         from slopsearx.mcp.gateway import _list_remote_tools
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4039060Z     
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4039362Z >       session = ClientSession(None, None)
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4039797Z                   ^^^^^^^^^^^^^^^^^^^^^^^^^
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4040091Z 
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4040249Z tests/test_mcp_gateway.py:318: 
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4040733Z _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4041167Z 
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4041480Z self = <mcp.client.session.ClientSession object at 0x7f1001ba8190>
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4042463Z read_stream = None, write_stream = None, read_timeout_seconds = None
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4043130Z sampling_callback = None, elicitation_callback = None
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4043823Z list_roots_callback = None, logging_callback = None, message_handler = None
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4044603Z client_info = None, log_level = None, sampling_capabilities = None
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4045320Z extensions = None, result_claims = None, notification_bindings = None
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4045882Z dispatcher = None
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4046075Z 
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4046191Z     def __init__(
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4046495Z         self,
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4046953Z         read_stream: ReadStream[SessionMessage | Exception] | None = None,
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4047648Z         write_stream: WriteStream[SessionMessage] | None = None,
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4048226Z         read_timeout_seconds: float | None = None,
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4048754Z         sampling_callback: SamplingFnT | None = None,
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4049334Z         elicitation_callback: ElicitationFnT | None = None,
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4049906Z         list_roots_callback: ListRootsFnT | None = None,
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4050419Z         logging_callback: LoggingFnT | None = None,
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4050964Z         message_handler: MessageHandlerFnT | None = None,
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4051732Z         client_info: types.Implementation | None = None,
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4052210Z         *,
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4052554Z         log_level: types.LoggingLevel | None = None,
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4053179Z         sampling_capabilities: types.SamplingCapability | None = None,
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4053831Z         extensions: dict[str, dict[str, Any]] | None = None,
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4054487Z         result_claims: Mapping[str, Sequence[ResultClaim[Any]]] | None = None,
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4055278Z         notification_bindings: Sequence[NotificationBinding[Any]] | None = None,
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4055947Z         dispatcher: Dispatcher[Any] | None = None,
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4056383Z     ) -> None:
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4056797Z         self._session_read_timeout_seconds = read_timeout_seconds
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4057391Z         self._client_info = client_info or DEFAULT_CLIENT_INFO
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4058092Z         self._sampling_callback = sampling_callback or _default_sampling_callback
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4058791Z         self._sampling_capabilities = sampling_capabilities
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4059458Z         self._extensions = dict(extensions) if extensions is not None else None
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4060177Z         self._result_claims = _index_claims(result_claims, extensions)
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4060886Z         self._notification_bindings = _index_bindings(notification_bindings)
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4061735Z         self._active_claims: dict[str, ResultClaim[Any]] = {}
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4062306Z         self._call_tool_adapter = _CallToolResultAdapter
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4062799Z         self._binding_queues: dict[
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4063476Z             str, tuple[MemoryObjectSendStream[BaseModel], MemoryObjectReceiveStream[BaseModel]]
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4064390Z         ] = {}
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4064921Z         self._elicitation_callback = elicitation_callback or _default_elicitation_callback
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4066002Z         self._list_roots_callback = list_roots_callback or _default_list_roots_callback
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4066806Z         self._logging_callback = logging_callback or _default_logging_callback
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4067494Z         self._log_level: types.LoggingLevel | None = log_level
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4068187Z         self._message_handler = message_handler or _default_message_handler
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4068911Z         self._tool_output_schemas: dict[str, dict[str, Any] | None] = {}
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4069732Z         # Compiled output-schema validators, derived from `_tool_output_schemas` and owned by
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4070667Z         # `_absorb_tool_listing`, which evicts a tool's entry whenever its schema changes.
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4071425Z         self._tool_output_validators: dict[str, Validator] = {}
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4072393Z         self._x_mcp_header_maps: dict[str, dict[tuple[str, ...], str]] = {}
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4073170Z         self._initialize_result: types.InitializeResult | None = None
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4073846Z         self._discover_result: types.DiscoverResult | None = None
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4074525Z         self._discover_server_info: types.Implementation | None = None
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4075131Z         self._negotiated_version: str | None = None
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4075814Z         self._stamp: Callable[[dict[str, Any], CallOptions], None] = _preconnect_stamp
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4076527Z         self._task_group: anyio.abc.TaskGroup | None = None
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4077442Z         # subscriptions/listen demux routes; membership decides ack consumption (raw listens are never registered)
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4078384Z         self._listen_routes: dict[RequestId, ListenRoute] = {}
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4078918Z         if dispatcher is not None:
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4079422Z             if read_stream is not None or write_stream is not None:
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4080164Z                 raise ValueError("pass read_stream/write_stream or dispatcher, not both")
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4080886Z             self._dispatcher: Dispatcher[Any] = dispatcher
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4081886Z             if isinstance(dispatcher, JSONRPCDispatcher) and dispatcher.on_stream_exception is None:
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4083116Z                 # Route transport-level Exception items into message_handler — only
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4083916Z                 # stream-backed dispatchers carry these; DirectDispatcher has none.
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4084591Z                 # Don't clobber a caller-supplied hook.
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4085235Z                 # TODO(L78): this leaves a bound-method ref on the dispatcher after the
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4086045Z                 # session exits (memory pin) and a second wrap of the same dispatcher would
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4086890Z                 # skip install. The Transport-as-Dispatcher rework (L77) removes this seam.
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4087686Z                 dispatcher.on_stream_exception = self._on_stream_exception
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4088229Z         else:
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4088592Z             if read_stream is None or write_stream is None:
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4089379Z >               raise ValueError("read_stream and write_stream are required when no dispatcher is given")
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4090360Z E               ValueError: read_stream and write_stream are required when no dispatcher is given
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4090917Z 
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4091421Z /opt/hostedtoolcache/Python/3.13.16/x64/lib/python3.13/site-packages/mcp/client/session.py:467: ValueError
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4092495Z =============================== warnings summary ===============================
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4093266Z tests/test_mcp_gateway.py::TestGateway::test_gateway_proxies_tools_and_resources
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4095083Z   /home/runner/work/SlopSearX/SlopSearX/slopsearx/mcp/gateway.py:67: FastMCPDeprecationWarning: Accessing `ListToolsResult.nextCursor` is deprecated; MCP SDK v2 renamed this field to `next_cursor`. Update your code to read `.next_cursor` instead.
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4097439Z     return result if result is not None else getattr(value, legacy_name, None)
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4097925Z 
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4098499Z tests/test_mcp_gateway.py::test_gateway_structured_results_and_legacy_precedence[None-{"count": 1}-False-expected4]
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4100673Z   /home/runner/work/SlopSearX/SlopSearX/slopsearx/mcp/gateway.py:67: FastMCPDeprecationWarning: Accessing `CallToolResult.structuredContent` is deprecated; MCP SDK v2 renamed this field to `structured_content`. Update your code to read `.structured_content` instead.
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4102818Z     return result if result is not None else getattr(value, legacy_name, None)
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4103296Z 
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4103620Z -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4104330Z =========================== short test summary info ============================
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4105679Z FAILED tests/test_mcp_gateway.py::TestCatalogPagination::test_native_sdk_sends_followup_cursor - ValueError: read_stream and write_stream are required when no dispatcher is given
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.4107023Z =================== 1 failed, 20 passed, 2 warnings in 4.25s ===================
+test (3.13)	Test with pytest and coverage	2026-10-11T16:44:32.6560039Z ##[error]Process completed with exit code 1.
