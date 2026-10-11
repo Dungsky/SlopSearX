@@ -204,7 +204,7 @@
   "execution_status": "not_admitted",
   "target_environment_receipt_sha256": "6190c60a71e64018931a695820f31fcb3d1cb1ba7d09bac249eb25f6c89971ac",
   "target_environment_receipt_artifact_included": false,
-  "target_environment_note": "Host receipt SHA reported by root; original receipt remains private on target. A sanitized public host-preflight artifact must be attached before final source/environment review.",
+  "target_environment_note": "Original host receipt remains private on target; the sanitized public host-preflight artifact is included and SHA-pinned above.",
   "target_host_preflight": {
     "path": "target-host-preflight.json",
     "sha256": "6f473c00ac9128bfba62403f760d7c4feaee44805ec5f7a8eab276c3f08c2ffe",
