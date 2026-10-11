@@ -71,3 +71,5 @@ No feature request was created: the candidate failed development, and even histo
   "routing_wall_max_ms": 773.1977920047939,
   "not_invoice_verification": true
 }
+
+Documentation persistence: [SlopSearX PR#782](https://github.com/magnus919/SlopSearX/pull/782). Current merge state is verified separately; no implementation PR.
