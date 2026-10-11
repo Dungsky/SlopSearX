@@ -1,4 +1,5 @@
 {
+  "catalog_metadata_transport": "not_metered_unknown",
   "dependency_lock_sha256": "8ecfcd029d2461631d44a2910ef5cfaa23a436da9cbc9a96ed0302e1d96861d0",
   "environment": {
     "distributions": [
@@ -617,7 +618,7 @@
     "scripts/coverage_local_authority.py": "8d8bfadb0cb21e0beee47c08eb6504b34936ae198e8686d3128f5e873e5e5513",
     "scripts/coverage_native_grader_handoff.py": "e7aba70d6e645a58d81532dee9619e2ae86af94ee038a44ac07200345255c528",
     "scripts/coverage_native_host_dispatch.py": "cee85930408ad2409ed6a60c90434b9cbf976f493ca56939ec3db09a2c89f99e",
-    "scripts/coverage_operator_handoff.py": "bf21e5fcf3a6f485ef2e0f2ba741a39152c0e1cc9aecc817b38eca6be30bbb4f",
+    "scripts/coverage_operator_handoff.py": "7b0273cdf96676a3566362a3c6dc9da6a9290851330c90490648f24a613d1e57",
     "scripts/coverage_operator_launcher.py": "e477259f15257c24caa26b7e221afeaf0ffc9a0929ffac7d4e4fdf8d0691c832",
     "scripts/coverage_operator_runner.py": "74586de6fcfe01a1ecf8e2be7a86e8df9b09b75fd17d2a2eac084367a48f7a72",
     "scripts/coverage_pipeline_inputs.py": "3b2a7bc1161791dbec9d7f20037595fa09de261634ba8dd99f2a64eb63c95c8b",
@@ -655,24 +656,24 @@
     "slopsearx/stats.py": "04dd73d675394d3d0cea39a9841db4fad19d9de16515236d227c00bbc12d1169",
     "slopsearx/suggest.py": "52da46168fa09208bba88a8e414e878ce9d2b6260b2aadea2306ff3e1e8b3dc1"
   },
-  "native_catalog_metadata_transport_requests": "not_metered_unknown",
   "native_cli": {
     "binary_sha256": "628e35487d888a28f0427fc37501da529dd3d81fcbad7a2c3421c1e8670d92e1",
+    "binary_unchanged_since_metadata_observation": true,
     "catalog_contains_requested_model": true,
     "catalog_response_sha256": "9a7727c0ba2fb1ece091f07792b2f8610751edfb2a2ae2a000a737e7c5fff3b9",
     "catalog_row_sha256": "40ce3747b1ab30214a5c50e0b860e1330ddb485c3688e36e56ef13a8ba20f96e",
     "configured_mcp_count": 0,
+    "metadata_observed_under_source_revision": "a3e2b81724e462fe72606e715112ede587cb07a2",
     "requested_model": "gpt-6.1-sol",
     "route_qualification": "not_established_by_metadata",
     "stable_environment_tools_effective": false,
     "version": "codex-cli 0.162.1"
   },
-  "original_host_preflight_sha256": "01e52e230ff49e4527648750149c8dd5ec8ad02a8f7f1071f0c5cc63539e8d21",
-  "original_private_environment_receipt_sha256": "6190c60a71e64018931a695820f31fcb3d1cb1ba7d09bac249eb25f6c89971ac",
+  "original_private_environment_receipt_sha256": "696e1dc760bf48f5f6feafe79509e7a6dd1a8d3f776e6b7404944060e96585d1",
   "schema": "coverage-study-target-host-preflight/1",
   "scientific_evaluation_calls": 0,
   "scientific_provider_dispatches": 0,
   "source_bootstrap": "coverage-source-bootstrap/1",
-  "source_revision": "a3e2b81724e462fe72606e715112ede587cb07a2",
+  "source_revision": "9bb0b4edf9a07e5c558b8c9935f677d0fcba7ee3",
   "status": "source_and_environment_verified_no_stage_started"
 }

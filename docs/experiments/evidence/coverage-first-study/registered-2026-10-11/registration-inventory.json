@@ -21,15 +21,15 @@
   "schema": "coverage-registration-proposal-inventory/1",
   "selector_input_map_contract_sha256": "8db67e6e01e79bf11b4a7c76aa796e3c38cd32a704f73e1e3b2482002045e5bb",
   "source_checkout_clean": true,
-  "source_closure_sha256": "6879f5ad8e18ab98fc10ece4b12347efe752af98ba5c981c665356cbcf4e551f",
-  "source_revision": "a3e2b81724e462fe72606e715112ede587cb07a2",
+  "source_closure_sha256": "75e1a9f42a177185fdbbaf8e6ac8bc53c27df4c0b5414d8a8be91e649b8a1a87",
+  "source_revision": "9bb0b4edf9a07e5c558b8c9935f677d0fcba7ee3",
   "stages": [
     {
       "acquisition_calls": 34,
       "acquisition_plan_sha256": "f92c9420054f1e07854593f07a6f7477cffe66ac3cc60d1d8df64418dc7c1444",
       "capture_call_ceiling": 640,
       "capture_plan_sha256": "cb5e15daaadb69820ed1ee49c69cc95aafc96bc37402b624d8f7b6abaf8ccd7a",
-      "initial_registration_sha256": "831546cea720430a3a8f979916b60bf21c85b31e375be834f296e1d3a8ded341",
+      "initial_registration_sha256": "2d4add718221a145308a3c4f3f11ee7871e0558831f4b8613920c79804d8ba4c",
       "operation_count": 39,
       "operation_ids": [
         "neutral-w0-first40",
@@ -81,7 +81,7 @@
         "dependency_lock": "8ecfcd029d2461631d44a2910ef5cfaa23a436da9cbc9a96ed0302e1d96861d0",
         "production_rerank_source": "df518bac899fa457e713201192a65f8ee0c3599419382e5be221d5ac366b479e",
         "protocol": "0225d84114d65f943ae00bda3fe79e83698fb412271f8bd64fd176e4325d253b",
-        "qualified_source_closure": "6879f5ad8e18ab98fc10ece4b12347efe752af98ba5c981c665356cbcf4e551f",
+        "qualified_source_closure": "75e1a9f42a177185fdbbaf8e6ac8bc53c27df4c0b5414d8a8be91e649b8a1a87",
         "reference_manifest": "86fc7f6b3f1423fa73f566dd36c1e1f649ed9ff1635a2cc5fdb2bf511319f51c",
         "source_capture_manifest": "f3fc00bc4f2d74bd4ac3894972a795269b624e0d379af74b19c66fe4db625091",
         "task_input_manifest": "b7c45cf8fef298d58d1bb6eec806d3af20b9ef3769e71aba12e47f4e3ba43f45"
@@ -105,7 +105,7 @@
         "D-N05"
       ],
       "status": "registered_static_candidate_not_admitted",
-      "source_revision": "a3e2b81724e462fe72606e715112ede587cb07a2",
+      "source_revision": "9bb0b4edf9a07e5c558b8c9935f677d0fcba7ee3",
       "late_materials_status": "absent_task_input_and_source_capture_placeholders",
       "operation_map_status": "not_materialized_acquisition_required",
       "assignments_status": "not_materialized_downstream_evidence_required",
@@ -116,7 +116,7 @@
       "acquisition_plan_sha256": "6374cff4944f770b804b37359623bf942c9322aae5f258ad680ae86e01541b12",
       "capture_call_ceiling": 640,
       "capture_plan_sha256": "f39c6642dfac8a4925bbf383a63d9907a1f505b5495b10d35adc875464def619",
-      "initial_registration_sha256": "94aca53598a200f0a9654533c8d7287d1ab0cce6726191d78c13710960164485",
+      "initial_registration_sha256": "71e68bc70a2384a3f1a5f94ea59e01afdd313fe14df99307eb4d4ee9aa9c078d",
       "operation_count": 39,
       "operation_ids": [
         "neutral-w0-first40",
@@ -168,7 +168,7 @@
         "dependency_lock": "8ecfcd029d2461631d44a2910ef5cfaa23a436da9cbc9a96ed0302e1d96861d0",
         "production_rerank_source": "df518bac899fa457e713201192a65f8ee0c3599419382e5be221d5ac366b479e",
         "protocol": "0225d84114d65f943ae00bda3fe79e83698fb412271f8bd64fd176e4325d253b",
-        "qualified_source_closure": "6879f5ad8e18ab98fc10ece4b12347efe752af98ba5c981c665356cbcf4e551f",
+        "qualified_source_closure": "75e1a9f42a177185fdbbaf8e6ac8bc53c27df4c0b5414d8a8be91e649b8a1a87",
         "reference_manifest": "a06439982da80c314d2221fefc0076e652323c37f3d6e4e38e487a9b8a720593",
         "source_capture_manifest": "258323aba397e3116ff3f2701265f654554c9d6ac85c1ad4429dcb6d3ada0ca3",
         "task_input_manifest": "270183c71654a394791f04f173948d2f19e154ab934d204548a903e5f505481c"
@@ -192,7 +192,7 @@
         "C-N05"
       ],
       "status": "registered_static_candidate_not_admitted",
-      "source_revision": "a3e2b81724e462fe72606e715112ede587cb07a2",
+      "source_revision": "9bb0b4edf9a07e5c558b8c9935f677d0fcba7ee3",
       "late_materials_status": "absent_task_input_and_source_capture_placeholders",
       "operation_map_status": "not_materialized_acquisition_required",
       "assignments_status": "not_materialized_downstream_evidence_required",
@@ -202,12 +202,12 @@
   "status": "registered_static_candidate_not_admitted",
   "registration_status": "registered",
   "execution_status": "not_admitted",
-  "target_environment_receipt_sha256": "6190c60a71e64018931a695820f31fcb3d1cb1ba7d09bac249eb25f6c89971ac",
+  "target_environment_receipt_sha256": "696e1dc760bf48f5f6feafe79509e7a6dd1a8d3f776e6b7404944060e96585d1",
   "target_environment_receipt_artifact_included": false,
-  "target_environment_note": "Original host receipt remains private on target; the sanitized public host-preflight artifact is included and SHA-pinned above.",
+  "target_environment_note": "Original host environment receipt remains private; the sanitized host preflight for the selected source revision is included and SHA-pinned below.",
   "target_host_preflight": {
     "path": "target-host-preflight.json",
-    "sha256": "6f473c00ac9128bfba62403f760d7c4feaee44805ec5f7a8eab276c3f08c2ffe",
+    "sha256": "0f31b9ab46edd291da11b53917b7cb730a8df902709c65b1c599870cd12ef7c4",
     "schema": "coverage-study-target-host-preflight/1",
     "status": "source_and_environment_verified_no_stage_started",
     "environment": {
