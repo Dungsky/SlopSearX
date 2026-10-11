@@ -1,0 +1,10 @@
+{
+  "before_registration": [
+    "Fixture initial FastMCP.get_tools method absent; changed fixture lookup to get_tool.",
+    "Loopback socket denied in sandbox; approved escalated loopback replay used.",
+    "Initial fixture callback did not accept FastMCP internal no-request invocation; first-page control failed. Fixed before freezing worker and baseline."
+  ],
+  "original_tool_outputs": "retained in this thread",
+  "invalid_control_replay": "readiness-failed.log.txt",
+  "primary_retries": 0
+}

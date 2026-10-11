@@ -1,0 +1,37 @@
+{
+  "rows": [
+    {
+      "name": "first",
+      "discovered": true,
+      "actual": {
+        "tool": "first"
+      },
+      "passed": true
+    },
+    {
+      "name": "second",
+      "discovered": true,
+      "actual": {
+        "tool": "second"
+      },
+      "passed": true
+    },
+    {
+      "name": "third",
+      "discovered": true,
+      "actual": {
+        "tool": "third"
+      },
+      "passed": true
+    }
+  ],
+  "discovery_cursors": [
+    null,
+    "page-two",
+    "page-three"
+  ],
+  "primary_passed": 2,
+  "primary_total": 2,
+  "control_passed": true,
+  "provider_calls": 0
+}

@@ -1,0 +1,11 @@
+{
+  "start": "2026-10-11T16:36:58+00:00",
+  "readout_recorded_at": "2026-10-11T16:55:50.988469+00:00",
+  "elapsed_to_readout_seconds": 1132.988469,
+  "experiment_provider_calls": 0,
+  "experiment_provider_cost": 0,
+  "valid_primary_replay_arms": 2,
+  "primary_retries": 0,
+  "CI_automated_review_provider_usage": "see retained review records; not experiment acquisition; complete cost unknown",
+  "subscription_usage": "unknown"
+}
