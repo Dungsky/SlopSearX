@@ -1,8 +1,8 @@
 # Coverage-first study registration and preparation
 
-**Status: the authorized development attempt was invoked and terminated during acquisition-permit validation; research quality remains unmeasured.** The first registered development invocation [stopped during startup](startup-refusal-2026-10-11/README.md). A later amended attempt [refused during static preflight](startup-refusal-amended-2026-10-11/README.md) because its acquisition-plan bytes differed from the runtime builder. The fresh attempt [started, then stopped on a permit-manifest binding mismatch](acquisition-permit-refusal-2026-10-12/README.md). All three terminal setup records remain preserved; their identities are not reusable. The runner rejected the acquisition permit receipt before lease consumption or source transport dispatch. The [setup-retry registration](registered-2026-10-11-setup-retry/README.md) retains the frozen protocol, cohorts, and budgets; its successful static preflight did not guarantee that the later acquisition permit would validate. Confirmation remains unstarted.
+**Status: the latest development acquisition was inconclusive; research quality remains unmeasured.** The first registered development invocation [stopped during startup](startup-refusal-2026-10-11/README.md). A later amended attempt [refused during static preflight](startup-refusal-amended-2026-10-11/README.md) because its acquisition-plan bytes differed from the runtime builder. The next attempt [stopped on a permit-manifest binding mismatch](acquisition-permit-refusal-2026-10-12/README.md) before source transport. A later fresh development stage acquired three complete research pools and one incomplete pool, then stopped; its sanitized [acquisition outcome](acquisition-inconclusive-2026-10-12/README.md) records the boundary. These terminal stage identities are not reusable. The [setup-retry registration](registered-2026-10-11-setup-retry/README.md) retains the frozen protocol, cohorts, and budgets. Confirmation remains unstarted.
 
-A separate [prospective static registration](registered-2026-10-12-canonical-acquisition/README.md) records fresh planned stage identities against the canonicalization fix merged unchanged from PR #789. It contains no admission or phase permits; do not invoke it without normal phase authority.
+The [canonical-acquisition registration](registered-2026-10-12-canonical-acquisition/README.md) records the static materials used before the latest development invocation. Its development identity has now been consumed by the terminal partial acquisition; the dated materials remain preserved and provide no authority for another stage.
 
 The [coverage-first approval](../../coverage-first-release-decision.md) preserves the original gates. Standing authorization covers setup-only recovery without repeated prompts; scientific failure or inconclusive outcomes are retained without rescue, regrading, or tuning. Static registration does not itself provide stage admission, phase permits, completed results, or product qualification.
 
@@ -22,7 +22,8 @@ pools of 41–80 results. Confirmation has not been acquired or scored.
 | [registered-2026-10-11-startup-amended/](registered-2026-10-11-startup-amended/README.md) | Preserved intermediate registration; its canonical-plan static-preflight refusal is terminal and not reused |
 | [registered-2026-10-11-setup-retry/](registered-2026-10-11-setup-retry/README.md) | Static registration used by the terminal development attempt; frozen protocol, cohorts, canonical plans, and initial registrations remain preserved |
 | [acquisition-permit-refusal-2026-10-12/](acquisition-permit-refusal-2026-10-12/README.md) | Terminal inventory and sanitized evidence for the rejected acquisition-permit binding; no source transport or later phase ran |
-| [registered-2026-10-12-canonical-acquisition/](registered-2026-10-12-canonical-acquisition/README.md) | Minimal prospective static registration against the canonicalization fix; fresh stage identities, no admission or execution authority |
+| [acquisition-inconclusive-2026-10-12/](acquisition-inconclusive-2026-10-12/README.md) | Sanitized outcome of the later partial acquisition; no source capture, ranking, answer assessment, or quality result |
+| [registered-2026-10-12-canonical-acquisition/](registered-2026-10-12-canonical-acquisition/README.md) | Historical static registration used by the latest terminal development acquisition; its development identity is consumed and no authority transfers |
 | [registered-2026-10-11/target-host-preflight.json](registered-2026-10-11/target-host-preflight.json) | Sanitized Linux source/environment preflight; no stage started and no scientific provider dispatches |
 | [registered-2026-10-11-startup-amended/target-host-preflight.json](registered-2026-10-11-startup-amended/target-host-preflight.json) | Refreshed sanitized Linux preflight for the repaired source revision; no stage started and no scientific provider dispatches |
 | [registered-2026-10-11-setup-retry/full-static-preflight-observation.json](registered-2026-10-11-setup-retry/full-static-preflight-observation.json) | Source/configuration/registration-bound development `--preflight-only` pass; no working directories, marker, stage invocation, or provider dispatch |
@@ -86,10 +87,12 @@ calculation receipts, and actual post-final-fsync elapsed receipt. The original
 late actual sample invalidates even a preliminary pass. No prior authority
 transfers to the registered candidate.
 
-No research-source acquisition, Jev evaluation, answerer, or scientific-assessor call was
-made. The development attempt persisted an operator permit request and receipt, but
-the runner rejected the manifest binding before consuming the lease or dispatching
-source transport. The separate protected-capture lab report includes boundary probes and
-one bounded model diagnostic; it reports no scientific evaluation. Runtime
-metadata and source checks were read-only. Private endpoints, addresses,
-hostnames, paths, and credential values are excluded from these artifacts.
+The earlier development attempt persisted an operator permit request and receipt, but
+the runner rejected its manifest binding before consuming the lease or dispatching
+source transport; that event is documented separately. The later partial acquisition
+is documented in the linked outcome record. Neither event reached source capture,
+selector ranking, answer assessment, or scientific grading. The separate
+protected-capture lab report includes boundary probes and one bounded model
+diagnostic; it reports no scientific evaluation. Runtime metadata and source checks
+were read-only. Private endpoints, addresses, hostnames, paths, permit details, and
+credential values are excluded from these artifacts.
