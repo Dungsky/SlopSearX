@@ -196,8 +196,14 @@ class PinnedReceiptAuthorities:
             "protected_profile_sha256",
             "full_boundary_evidence_sha256",
         }
-        if set(evidence) != required or any(
-            type(value) is not str or not _SHA.fullmatch(value) for value in evidence.values()
+        if (
+            set(evidence) != required
+            or type(evidence.get("grok_image_digest")) is not str
+            or not re.fullmatch(r"sha256:[0-9a-f]{64}", evidence["grok_image_digest"])
+            or any(
+                type(evidence.get(name)) is not str or not _SHA.fullmatch(evidence[name])
+                for name in required - {"grok_image_digest"}
+            )
         ):
             raise LocalAuthorityError("capture-qualification-evidence-invalid")
         return capture.VerifiedProtectedCaptureQualification(
