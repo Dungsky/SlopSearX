@@ -13,6 +13,7 @@ import sys
 import tempfile
 import unittest
 import uuid
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
@@ -273,6 +274,51 @@ class OperatorRunnerConfigTests(unittest.TestCase):
 
             self.assertEqual(instance.started_monotonic, 123.0)
             self.assertEqual(set(directories), runner._DIRECTORY_KEYS)
+
+    def test_from_file_rounds_deadline_toward_start_at_float_boundaries(self):
+        starts = (60_000.123456789, 65_535.123456789, 1_234.5)
+        for start in starts:
+            with self.subTest(start=start), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                config, pin, _directories = self._registered_config(root)
+                clock_calls = 0
+
+                def clock():
+                    nonlocal clock_calls
+                    clock_calls += 1
+                    return start if clock_calls == 1 else start + 1.0
+
+                with (
+                    mock.patch.object(runner, "_verify_checkout_sources"),
+                    mock.patch.object(runner, "_require_source_bootstrap"),
+                    mock.patch.object(runner.core, "_verify_qualified_source_closure"),
+                    mock.patch.object(runner.runtime_environment, "verify_active_environment", return_value=b"{}"),
+                    mock.patch.object(runner.time, "monotonic", side_effect=clock),
+                    mock.patch.object(runner.operator_handoff, "OperatorReceiptHandoff"),
+                ):
+                    instance = runner.OperatorStageRunner.from_file(config, pin)
+
+                span = instance.deadline_monotonic - instance.started_monotonic
+                self.assertLessEqual(span, runner.orchestration.MAX_STAGE_WALL_SECONDS)
+                self.assertGreater(span, 0)
+                self.assertEqual(
+                    instance.deadline_utc - instance.started_utc,
+                    timedelta(seconds=runner.orchestration.MAX_STAGE_WALL_SECONDS),
+                )
+
+    def test_stage_validator_still_rejects_an_extended_deadline(self):
+        plan = plan_fixture()
+        started = 60_000.123456789
+        extended = replace(
+            plan,
+            stage_started_monotonic=started,
+            stage_deadline_monotonic=started + runner.orchestration.MAX_STAGE_WALL_SECONDS + 0.001,
+        )
+        with (
+            mock.patch.object(runner.orchestration, "_monotonic", return_value=started + 1.0),
+            self.assertRaisesRegex(runner.orchestration.OrchestrationError, "stage-deadline-invalid"),
+        ):
+            runner.orchestration._validate_plan(extended)
 
     def test_registered_pin_mismatch_fails_before_clock_or_root_creation(self):
         with tempfile.TemporaryDirectory() as temporary:

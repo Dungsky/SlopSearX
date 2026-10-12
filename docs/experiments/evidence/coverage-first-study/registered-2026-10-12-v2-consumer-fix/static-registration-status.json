@@ -6,7 +6,7 @@
     "path": "../registered-2026-10-12-acquisition-v2/cohorts.json",
     "sha256": "36d4cbff9c93555d35d7269525616f009a21727c8d1141a8a2a61934791038f0"
   },
-  "historical_note": "The previous profile/2 registration is historical. Its terminal development outcome is preserved separately and no results, pools, assignments, or authority are reused.",
+  "historical_note": "The development identity was consumed by a terminal startup refusal before acquisition; confirmation was not invoked. Earlier acquisition outcomes remain separate and immutable.",
   "late_phase_materials": "placeholders_only",
   "protocol": {
     "path": "../registered-2026-10-12-acquisition-v2/protocol.json",
@@ -17,7 +17,7 @@
     "sha256": "c5aeab00fbf0a5653c6f86a7803b265d8b7651a08f04020cdee32ff67920030b"
   },
   "quality_result": "none",
-  "registration_state": "registered_static_materials",
+  "registration_state": "historical_static_materials_development_identity_consumed",
   "schema": "coverage-acquisition-v2-static-registration-review/1",
   "scientific_provider_dispatches_under_this_registration": 0,
   "source_revision": "45104509bc86bec271f4a79131b80878c3dd8567",
@@ -25,7 +25,9 @@
     "confirmation": {
       "acquisition_manifest_preview_sha256": "a0b917f738ca8a761a20cdb132a96964bc8ed4828a1ec95075550ed6ea0ec6fe",
       "admission_status": "not_admitted",
+      "execution_status": "not_invoked",
       "full_static_preflight": "not_run_offline_materials_and_pins_verified",
+      "invoked_phases": [],
       "navigation_target_count": 5,
       "packet_stage_uuid": "5f5a68fc-e6cd-4488-bc7e-1dcdffcde6f3",
       "research_case_count": 8,
@@ -36,7 +38,9 @@
     "development": {
       "acquisition_manifest_preview_sha256": "23ae47962c69cba624dee72576fa5a623bc85f16a54bfe1e58f47e3abcfd1508",
       "admission_status": "not_admitted",
+      "execution_status": "terminal_startup_refusal_before_acquisition",
       "full_static_preflight": "passed_on_exact_source_and_static_materials",
+      "invoked_phases": [],
       "navigation_target_count": 5,
       "packet_stage_uuid": "a5bd1e09-b25c-45ea-a547-4359f0c443ff",
       "research_case_count": 8,
@@ -45,5 +49,5 @@
       "static_material_status": "verified"
     }
   },
-  "status": "prospective_full_static_registration_not_admitted_or_executed"
+  "status": "historical_static_registration_development_startup_refused_confirmation_not_invoked"
 }
