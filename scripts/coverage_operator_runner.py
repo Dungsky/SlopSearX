@@ -12,6 +12,7 @@ import base64
 import hashlib
 import importlib.machinery
 import json
+import math
 import os
 import re
 import stat
@@ -807,6 +808,9 @@ class OperatorStageRunner:
         self.started_monotonic = time.monotonic()
         self.started_utc = datetime.now(timezone.utc)
         self.deadline_monotonic = self.started_monotonic + orchestration.MAX_STAGE_WALL_SECONDS
+        # Addition can round upward across a float boundary; retain the strict duration cap.
+        while self.deadline_monotonic - self.started_monotonic > orchestration.MAX_STAGE_WALL_SECONDS:
+            self.deadline_monotonic = math.nextafter(self.deadline_monotonic, self.started_monotonic)
         self.deadline_utc = self.started_utc + timedelta(seconds=orchestration.MAX_STAGE_WALL_SECONDS)
         self.plan = orchestration.StagePlan(
             stage_uuid=self.config["stage_uuid"],
