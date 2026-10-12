@@ -251,6 +251,10 @@ class OperatorRunnerConfigTests(unittest.TestCase):
 
             self.assertTrue(all(not Path(value).exists() for value in directories.values()))
 
+    @unittest.skipUnless(
+        sys.version_info[:2] == (3, 12) and sys.prefix != sys.base_prefix,
+        "the registered environment smoke test requires the isolated Python 3.12 study venv",
+    )
     def test_preflight_only_runs_static_checks_without_clock_dirs_or_handoff(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -321,6 +325,7 @@ class OperatorRunnerConfigTests(unittest.TestCase):
             with (
                 source_bootstrap_for_test(root),
                 mock.patch.object(runner, "_verify_checkout_sources"),
+                mock.patch.object(runner.runtime_environment, "verify_active_environment", return_value=b"{}"),
                 mock.patch.object(runner.time, "monotonic", side_effect=AssertionError("stage clock must not start")),
                 contextlib.redirect_stdout(output),
             ):
@@ -385,6 +390,7 @@ class OperatorRunnerConfigTests(unittest.TestCase):
                 with (
                     source_bootstrap_for_test(root),
                     mock.patch.object(runner, "_verify_checkout_sources"),
+                    mock.patch.object(runner.runtime_environment, "verify_active_environment", return_value=b"{}"),
                     mock.patch.object(
                         runner.time, "monotonic", side_effect=AssertionError("stage clock must not start")
                     ),
