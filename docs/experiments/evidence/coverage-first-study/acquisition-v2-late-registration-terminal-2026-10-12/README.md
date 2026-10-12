@@ -1,0 +1,9 @@
+# Development acquisition completed; late-registration preflight stopped
+
+**Outcome: the acquisition phase completed, but the stage stopped at late-registration preflight before any later phase. No research-quality gate ran.** The [profile/2 static registration](../registered-2026-10-12-acquisition-v2/README.md) was used for this one development attempt and is now historical. The 13 planned acquisition operations completed with 33 physical HTTP dispatches. The eight research pools contained 21, 40, 40, 32, 47, 71, 61, and 61 cards for D-R01 through D-R08 respectively; all five navigation targets completed. Pipeline inputs were complete.
+
+Late-registration preflight ended with a snapshot-index compatibility error (`LateRegistrationError`). The runtime’s snapshot verifier defaults to the legacy acquisition profile, while this stage used acquisition profile/2. A separate offline check using the explicit profile/2 setting validated all 13 completed snapshots. The source-level compatibility issue and the two affected caller paths are documented in [snapshot-profile compatibility](../acquisition-v2-snapshot-profile-compatibility-2026-10-12.md).
+
+This is a terminal post-acquisition validation failure, not an acquisition failure and not a quality result. Source capture, reference-packet preparation or grading, selector/Jev execution, answer assessment, and gate calculation were not invoked. The completed pool evidence is retained as this attempt’s record; do not retry later phases, reacquire, repair, or reuse its pools for another stage. No coverage, relevance, candidate uplift, adoption, or product qualification is established.
+
+The [structured outcome](result.json) contains only public case labels and aggregate counts. It omits stage and packet identifiers, process details, receipt hashes, timestamps, private configuration, environment metadata, endpoints, paths, and raw provider output.
