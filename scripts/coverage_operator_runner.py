@@ -86,6 +86,59 @@ _DIRECTORY_KEYS = {
     "answer_results",
     "grader_handoff",
 }
+_STATIC_REGISTRATION_PIN_NAMES = {
+    "protocol",
+    "qualified_source_closure",
+    "coverage_source",
+    "production_rerank_source",
+    "dependency_lock",
+    "reference_manifest",
+    "answer_assessment_plan",
+    "acquisition_plan",
+    "capture_plan",
+}
+_SAFE_PREFLIGHT_ERRORS = {
+    "config-external-pin-mismatch",
+    "config-schema-invalid",
+    "config-path-inventory-invalid",
+    "config-path-invalid",
+    "config-stage-identity-invalid",
+    "config-forbidden-stage-inventory-invalid",
+    "checkout-audit-unavailable",
+    "checkout-revision-mismatch",
+    "checkout-not-clean",
+    "checkout-source-path-inventory",
+    "checkout-source-material-inventory",
+    "checkout-source-path-unavailable",
+    "loaded-source-path-unavailable",
+    "loaded-source-path-mismatch",
+    "critical-loaded-source-module-missing",
+    "loaded-project-module-outside-checkout",
+    "loaded-project-module-source-unverifiable",
+    "static-material-shape-invalid",
+    "registered-source-materials-required",
+    "cohort-inventory-invalid",
+    "protocol-cohort-pin-mismatch",
+    "source-closure-preflight-failed",
+    "active-environment-preflight-failed",
+    "initial-registration-config-pin-mismatch",
+    "initial-registration-stage-mismatch",
+    "initial-registration-schema-invalid",
+    "initial-registration-stage-kind-mismatch",
+    "initial-registration-source-revision-mismatch",
+    "initial-registration-task-inventory-mismatch",
+    "initial-registration-pin-inventory-invalid",
+    "initial-registration-selector-inventory-invalid",
+    "initial-registration-pins-invalid",
+    "initial-registration-dynamic-pin-invalid:task_input_manifest",
+    "initial-registration-dynamic-pin-invalid:source_capture_manifest",
+    "configured-private-root-inventory-invalid",
+    "configured-private-root-path-invalid",
+    "configured-private-root-parent-unavailable",
+    "configured-private-root-parent-unsafe",
+    "configured-private-root-unavailable",
+    "configured-private-root-unsafe",
+}
 _REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 _CHECKOUT_SOURCE_PATHS = {
     "coverage_source": Path(coverage_impl.__file__).resolve(),
@@ -96,6 +149,19 @@ _CHECKOUT_SOURCE_PATHS = {
 
 class OperatorRunnerError(RuntimeError):
     """The explicit operator config or its verified bindings are invalid."""
+
+
+def _safe_preflight_error_code(exc: Exception) -> str:
+    """Return only fixed or enumerated validation codes to the preflight CLI."""
+    if type(exc) is not OperatorRunnerError:
+        return "preflight-validation-failed"
+    code = str(exc)
+    if code in _SAFE_PREFLIGHT_ERRORS:
+        return code
+    prefix = "initial-registration-static-pin-mismatch:"
+    if code.startswith(prefix) and code[len(prefix) :] in _STATIC_REGISTRATION_PIN_NAMES:
+        return code
+    return "preflight-validation-failed"
 
 
 def _sha(raw: bytes) -> str:
@@ -460,13 +526,8 @@ def _stage_cohort(cohorts: object, stage_kind: str) -> dict[str, Any]:
     return rows[0]
 
 
-def _prepare_private_directories(directories: dict[str, str]) -> None:
-    """Create configured stage roots without repairing unsafe existing paths.
-
-    Static registration validation must finish before this helper is called.
-    All roots are checked before any missing root is created, so an unsafe
-    existing path cannot leave a partial set of new roots behind.
-    """
+def _inspect_private_directories(directories: dict[str, str]) -> list[Path]:
+    """Validate configured roots without creating or changing filesystem paths."""
     if type(directories) is not dict or set(directories) != _DIRECTORY_KEYS:
         raise OperatorRunnerError("configured-private-root-inventory-invalid")
 
@@ -499,6 +560,18 @@ def _prepare_private_directories(directories: dict[str, str]) -> None:
                 or info.st_uid != owner
             ):
                 raise OperatorRunnerError("configured-private-root-unsafe")
+    return missing
+
+
+def _prepare_private_directories(directories: dict[str, str]) -> None:
+    """Create configured stage roots without repairing unsafe existing paths.
+
+    Static registration validation must finish before this helper is called.
+    All roots are checked before any missing root is created, so an unsafe
+    existing path cannot leave a partial set of new roots behind.
+    """
+    missing = _inspect_private_directories(directories)
+    owner = os.geteuid()
     for path in missing:
         try:
             os.mkdir(path, mode=0o700)
@@ -534,21 +607,28 @@ def _prepare_private_directories(directories: dict[str, str]) -> None:
 class OperatorStageRunner:
     """Loads a pinned registered bundle and invokes only the fixed phase graph."""
 
-    def __init__(self, config: dict[str, Any], *, config_sha256: str):
+    def __init__(self, config: dict[str, Any], *, config_sha256: str, preflight_only: bool = False):
         _require_source_bootstrap()
         self.config = config
         self.config_sha256 = config_sha256
         self.paths = config["paths"]
         self.private_paths = config["private_paths"]
         self.directories = config["directories"]
-        self._build_plan()
-        self.handoff = operator_handoff.OperatorReceiptHandoff(self.directories["operator_handoff"])
+        self.preflight_only = preflight_only
+        self._build_plan(preflight_only=preflight_only)
+        if not preflight_only:
+            self.handoff = operator_handoff.OperatorReceiptHandoff(self.directories["operator_handoff"])
 
     @classmethod
     def from_file(cls, path: str | os.PathLike[str], expected_sha256: str) -> "OperatorStageRunner":
         return cls(_load_config(path, expected_sha256), config_sha256=expected_sha256)
 
-    def _build_plan(self) -> None:
+    @classmethod
+    def preflight_from_file(cls, path: str | os.PathLike[str], expected_sha256: str) -> "OperatorStageRunner":
+        """Validate static stage bindings without starting the run or making filesystem changes."""
+        return cls(_load_config(path, expected_sha256), config_sha256=expected_sha256, preflight_only=True)
+
+    def _build_plan(self, *, preflight_only: bool = False) -> None:
         path_bytes = {key: _read_file(value, 64_000_000) for key, value in self.paths.items()}
         _verify_checkout_sources(self.config["source_revision"], self.paths, path_bytes)
         cohorts = core._strict_json(path_bytes["cohorts"], "cohorts")
@@ -643,18 +723,71 @@ class OperatorStageRunner:
         # Verify every static registration pin before taking the stage clock or
         # creating operator/lease directories. Dynamic pins are replaced only
         # by the separately pinned late registration after acquisition.
-        self.initial_doc = core._strict_json(self.initial_registration, "initial-registration")
-        if type(self.initial_doc) is not dict or self.initial_doc.get("stage_uuid") != self.config["stage_uuid"]:
+        try:
+            self.initial_doc = core._parse_registration(self.initial_registration)
+        except core.StudyError as exc:
+            raise OperatorRunnerError("initial-registration-schema-invalid") from exc
+        if self.initial_doc.get("stage_uuid") != self.config["stage_uuid"]:
             raise OperatorRunnerError("initial-registration-stage-mismatch")
+        if self.initial_doc.get("stage_kind") != self.config["stage_kind"]:
+            raise OperatorRunnerError("initial-registration-stage-kind-mismatch")
+        if self.initial_doc.get("source_revision") != self.config["source_revision"]:
+            raise OperatorRunnerError("initial-registration-source-revision-mismatch")
+        expected_task_ids = tuple(row["task_id"] for row in cases) + tuple(row["target_id"] for row in targets)
+        try:
+            registered_task_ids = core._task_ids(
+                self.initial_doc.get("task_ids"), "registration-task-ids", expected_count=13
+            )
+        except core.StudyError as exc:
+            raise OperatorRunnerError("initial-registration-task-inventory-mismatch") from exc
+        if registered_task_ids != expected_task_ids:
+            raise OperatorRunnerError("initial-registration-task-inventory-mismatch")
         pins = self.initial_doc.get("pins")
-        if type(pins) is not dict:
-            raise OperatorRunnerError("initial-registration-pins-invalid")
+        if type(pins) is not dict or set(pins) != set(core.PIN_NAMES):
+            raise OperatorRunnerError("initial-registration-pin-inventory-invalid")
+        try:
+            # The initial registration declares the navigation skip decisions;
+            # validate their fixed inventory and the corresponding selector
+            # schedule without inventing acquisition results during preflight.
+            registered_operations = core.selector_inventory(self.initial_doc.get("navigation_skip_reasons"))
+        except (core.StudyError, TypeError) as exc:
+            raise OperatorRunnerError("initial-registration-selector-inventory-invalid") from exc
+        operation_ids = self.initial_doc.get("operation_ids")
+        if type(operation_ids) is not list or tuple(operation_ids) != tuple(
+            call.operation_id for call in registered_operations
+        ):
+            raise OperatorRunnerError("initial-registration-selector-inventory-invalid")
         for name, body in self.static_materials.items():
             if pins.get(name) != _sha(body):
                 raise OperatorRunnerError(f"initial-registration-static-pin-mismatch:{name}")
         for name in ("task_input_manifest", "source_capture_manifest"):
             if type(pins.get(name)) is not str or not _SHA.fullmatch(pins[name]):
                 raise OperatorRunnerError(f"initial-registration-dynamic-pin-invalid:{name}")
+        if preflight_only:
+            # This path verifies configured roots and all source-bound plan
+            # content without starting a clock, creating directories, or
+            # exposing handoff/credential-capable runtime methods.
+            _inspect_private_directories(self.directories)
+            self.plan = orchestration.StagePlan(
+                stage_uuid=self.config["stage_uuid"],
+                stage_kind=self.config["stage_kind"],
+                source_revision=self.config["source_revision"],
+                protocol_bytes=path_bytes["protocol"],
+                cohorts_bytes=path_bytes["cohorts"],
+                acquisition_plan_bytes=acquisition_plan,
+                acquisition_manifest_bytes=acquisition_manifest,
+                source_closure_sha256=_sha(path_bytes["qualified_source_closure"]),
+                research_cases=tuple(cases),
+                navigation_targets=tuple(targets),
+                candidate_identity_bytes=path_bytes["candidate_identity"],
+                candidate_endpoint_sha256=endpoint_sha,
+                packet_stage_uuid=self.config["packet_stage_uuid"],
+                stage_started_monotonic=0.0,
+                stage_deadline_monotonic=0.0,
+                expected_acquisition_manifest_sha256=_sha(acquisition_manifest),
+            )
+            self.preflight_validation = orchestration._validate_plan_static(self.plan)
+            return
         # Directory preparation is deliberately after all registered static
         # pins, source bytes, and dynamic-pin shapes have been checked, but
         # before the stage clock or any phase/permit can begin.
@@ -990,6 +1123,8 @@ class OperatorStageRunner:
         }
 
     def runtime_bindings(self) -> runtime.RuntimeBindings:
+        if getattr(self, "preflight_only", False):
+            raise OperatorRunnerError("preflight-only-runtime-bindings-forbidden")
         return runtime.RuntimeBindings(
             acquisition_authority=self._acquisition_authority,
             verify_acquisition=self._verify_acquisition,
@@ -1010,6 +1145,8 @@ class OperatorStageRunner:
         )
 
     async def run(self) -> orchestration.StageResult:
+        if getattr(self, "preflight_only", False):
+            raise OperatorRunnerError("preflight-only-run-forbidden")
         return await orchestration.coordinate_coverage_stage(
             plan=self.plan,
             executors=runtime.build_stage_executors(self.plan, self.runtime_bindings()),
@@ -1028,13 +1165,37 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Run one externally registered coverage development stage.")
     parser.add_argument("--config", required=True, help="private operator JSON config")
     parser.add_argument("--config-sha256", required=True, help="out-of-band SHA-256 pin for config bytes")
+    parser.add_argument(
+        "--preflight-only",
+        action="store_true",
+        help="validate registered static bindings without starting a stage, clock, or handoff",
+    )
     args = parser.parse_args(argv)
     try:
-        runner = OperatorStageRunner.from_file(args.config, args.config_sha256)
+        runner = (
+            OperatorStageRunner.preflight_from_file(args.config, args.config_sha256)
+            if args.preflight_only
+            else OperatorStageRunner.from_file(args.config, args.config_sha256)
+        )
+        if args.preflight_only:
+            print(
+                json.dumps(
+                    {
+                        "status": "static-preflight-passed",
+                        "source_revision": runner.plan.source_revision,
+                        "config_sha256": args.config_sha256,
+                        "registration_sha256": runner.initial_registration_sha256,
+                    },
+                    sort_keys=True,
+                )
+            )
+            return 0
         result = asyncio.run(runner.run())
     except Exception as exc:
         # Keep all potentially sensitive details out of the terminal.
-        print(json.dumps({"status": "refused-or-terminal", "error_class": type(exc).__name__}, sort_keys=True))
+        error_key = _safe_preflight_error_code(exc) if args.preflight_only else ""
+        error_detail = {"error_code": error_key} if args.preflight_only else {"error_class": type(exc).__name__}
+        print(json.dumps({"status": "refused-or-terminal", **error_detail}, sort_keys=True))
         return 1
     print(
         json.dumps(

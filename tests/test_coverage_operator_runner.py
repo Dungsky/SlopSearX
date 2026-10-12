@@ -1,11 +1,15 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import hashlib
+import inspect
+import io
 import json
 import os
 import stat
 import subprocess
+import sys
 import tempfile
 import unittest
 import uuid
@@ -26,6 +30,27 @@ def canonical(value):
 
 def digest(value: bytes) -> str:
     return hashlib.sha256(value).hexdigest()
+
+
+@contextlib.contextmanager
+def source_bootstrap_for_test(root: Path):
+    cache = root / "bootstrap-cache"
+    cache.mkdir(mode=0o700)
+    old_marker = getattr(sys, "_coverage_operator_source_bootstrap", None)
+    old_prefix = sys.pycache_prefix
+    old_dont_write = sys.dont_write_bytecode
+    sys._coverage_operator_source_bootstrap = "coverage-source-bootstrap/1"
+    sys.pycache_prefix = str(cache)
+    sys.dont_write_bytecode = True
+    try:
+        yield
+    finally:
+        if old_marker is None:
+            delattr(sys, "_coverage_operator_source_bootstrap")
+        else:
+            sys._coverage_operator_source_bootstrap = old_marker
+        sys.pycache_prefix = old_prefix
+        sys.dont_write_bytecode = old_dont_write
 
 
 class OperatorRunnerConfigTests(unittest.TestCase):
@@ -67,9 +92,7 @@ class OperatorRunnerConfigTests(unittest.TestCase):
             "protocol": bundle / "protocol.json",
             "qualified_source_closure": bundle / "current-qualified-source-closure.json",
             "coverage_source": Path(__file__).parents[1] / "scripts/intent_ranking_coverage.py",
-            "production_rerank_source": (
-                Path(__file__).parents[1] / "docs/experiments/evidence/coverage-first-study/w0-rerank-v1.py.txt"
-            ),
+            "production_rerank_source": Path(__file__).parents[1] / "slopsearx/rerank.py",
             "dependency_lock": Path(__file__).parents[1] / "uv.lock",
             "reference_manifest": stage_dir / "reference-manifest-shell.json",
             "answer_assessment_plan": stage_dir / "answer-assessment-plan-shell.json",
@@ -78,11 +101,20 @@ class OperatorRunnerConfigTests(unittest.TestCase):
         }
         config_path, _ = self._config(root, external_paths["protocol"].read_bytes())
         config = json.loads(config_path.read_bytes())
-        config["source_revision"] = "a" * 40
+        config["source_revision"] = subprocess.run(
+            ["git", "rev-parse", "--verify", "HEAD^{commit}"],
+            cwd=runner._REPOSITORY_ROOT,
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
         config["candidate_base_url"] = "https://candidate.example"
         stage_uuid = config["stage_uuid"]
         path_values = {key: Path(value) for key, value in config["paths"].items()}
         material_bytes = {key: path.read_bytes() for key, path in external_paths.items()}
+        for key in ("coverage_source", "production_rerank_source", "dependency_lock"):
+            path_values[key] = external_paths[key]
         material_bytes["qualified_source_closure"] = runner._canonical(
             {
                 "schema": "coverage-study-qualified-source-closure/1",
@@ -95,7 +127,8 @@ class OperatorRunnerConfigTests(unittest.TestCase):
             }
         )
         for key, raw in material_bytes.items():
-            path_values[key].write_bytes(raw)
+            if key not in {"coverage_source", "production_rerank_source", "dependency_lock"}:
+                path_values[key].write_bytes(raw)
 
         cohorts = runner.core._strict_json(material_bytes["cohorts"], "test-cohorts")
         stage_row = runner._stage_cohort(cohorts, config["stage_kind"])
@@ -115,12 +148,21 @@ class OperatorRunnerConfigTests(unittest.TestCase):
         }
         registration = runner._canonical(
             {
+                "schema": runner.core.REGISTRATION_SCHEMA,
                 "stage_uuid": stage_uuid,
+                "stage_kind": config["stage_kind"],
+                "source_revision": config["source_revision"],
                 "pins": {
                     **{key: digest(raw) for key, raw in static_materials.items()},
                     "task_input_manifest": "b" * 64,
                     "source_capture_manifest": "c" * 64,
                 },
+                "task_ids": [row["task_id"] for row in stage_row["research_cases"]]
+                + [row["target_id"] for row in stage_row["navigation_targets"]],
+                "navigation_skip_reasons": [None] * len(stage_row["navigation_targets"]),
+                "operation_ids": [
+                    call.operation_id for call in runner.core.selector_inventory([None] * 5)
+                ],
             }
         )
         path_values["initial_registration"].write_bytes(registration)
@@ -208,6 +250,185 @@ class OperatorRunnerConfigTests(unittest.TestCase):
                     runner.OperatorStageRunner.from_file(config_path, digest(config_raw))
 
             self.assertTrue(all(not Path(value).exists() for value in directories.values()))
+
+    @unittest.skipUnless(
+        sys.version_info[:2] == (3, 12) and sys.prefix != sys.base_prefix,
+        "the registered environment smoke test requires the isolated Python 3.12 study venv",
+    )
+    def test_preflight_only_runs_static_checks_without_clock_dirs_or_handoff(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            config, pin, directories = self._registered_config(root)
+            real_subprocess_run = subprocess.run
+            real_monotonic = runner.time.monotonic
+
+            def clean_checkout_audit(command, **kwargs):
+                if command[:3] == ["git", "status", "--porcelain"]:
+                    return SimpleNamespace(stdout="")
+                return real_subprocess_run(command, **kwargs)
+
+            def forbid_stage_clock():
+                frame = inspect.currentframe().f_back
+                if frame.f_globals.get("__name__") == runner.__name__ and frame.f_code.co_name == "_build_plan":
+                    raise AssertionError("stage clock must not start")
+                return real_monotonic()
+
+            output = io.StringIO()
+            with (
+                source_bootstrap_for_test(root),
+                mock.patch.object(runner.subprocess, "run", side_effect=clean_checkout_audit),
+                mock.patch.object(runner.time, "monotonic", side_effect=forbid_stage_clock),
+                mock.patch.object(asyncio, "run", side_effect=AssertionError("phase graph must not run")),
+                contextlib.redirect_stdout(output),
+            ):
+                for secret_path in json.loads(config.read_bytes())["private_paths"].values():
+                    Path(secret_path).unlink()
+                exit_code = runner.main(["--config", str(config), "--config-sha256", pin, "--preflight-only"])
+
+            self.assertEqual(exit_code, 0, output.getvalue())
+            receipt = json.loads(output.getvalue())
+            self.assertEqual(
+                set(receipt), {"status", "source_revision", "config_sha256", "registration_sha256"}
+            )
+            self.assertEqual(receipt["status"], "static-preflight-passed")
+            self.assertEqual(receipt["config_sha256"], pin)
+            config_value = json.loads(config.read_bytes())
+            self.assertEqual(receipt["source_revision"], config_value["source_revision"])
+            self.assertEqual(receipt["registration_sha256"], config_value["initial_registration_sha256"])
+            self.assertTrue(all(not Path(value).exists() for value in directories.values()))
+
+    def test_preflight_rejects_pretty_acquisition_plan_pin_without_side_effects(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            config, _pin, directories = self._registered_config(root)
+            config_value = json.loads(config.read_bytes())
+            registration_path = Path(config_value["paths"]["initial_registration"])
+            registration = json.loads(registration_path.read_bytes())
+            cohorts = json.loads(Path(config_value["paths"]["cohorts"]).read_bytes())
+            stage_row = runner._stage_cohort(cohorts, config_value["stage_kind"])
+            compact_plan = runner._build_acquisition_plan(
+                config_value["stage_uuid"], stage_row["research_cases"], stage_row["navigation_targets"]
+            )
+            pretty_plan = json.dumps(
+                json.loads(compact_plan), ensure_ascii=False, sort_keys=True, indent=2
+            ).encode("utf-8")
+            self.assertNotEqual(digest(compact_plan), digest(pretty_plan))
+            registration["pins"]["acquisition_plan"] = digest(pretty_plan)
+            registration_raw = canonical(registration)
+            registration_path.write_bytes(registration_raw)
+            config_value["initial_registration_sha256"] = digest(registration_raw)
+            config_raw = canonical(config_value)
+            config.write_bytes(config_raw)
+            config.chmod(0o600)
+
+            output = io.StringIO()
+            with (
+                source_bootstrap_for_test(root),
+                mock.patch.object(runner, "_verify_checkout_sources"),
+                mock.patch.object(runner.runtime_environment, "verify_active_environment", return_value=b"{}"),
+                mock.patch.object(runner.time, "monotonic", side_effect=AssertionError("stage clock must not start")),
+                contextlib.redirect_stdout(output),
+            ):
+                exit_code = runner.main(
+                    ["--config", str(config), "--config-sha256", digest(config_raw), "--preflight-only"]
+                )
+
+            self.assertEqual(exit_code, 1)
+            self.assertEqual(
+                json.loads(output.getvalue()),
+                {
+                    "status": "refused-or-terminal",
+                    "error_code": "initial-registration-static-pin-mismatch:acquisition_plan",
+                },
+            )
+            self.assertTrue(all(not Path(value).exists() for value in directories.values()))
+
+    def test_preflight_checks_complete_initial_registration_inventory_without_side_effects(self):
+        mutations = (
+            ("schema", lambda doc: doc.pop("operation_ids"), "initial-registration-schema-invalid"),
+            (
+                "source revision",
+                lambda doc: doc.__setitem__("source_revision", "f" * 40),
+                "initial-registration-source-revision-mismatch",
+            ),
+            (
+                "stage kind",
+                lambda doc: doc.__setitem__("stage_kind", "confirmation"),
+                "initial-registration-stage-kind-mismatch",
+            ),
+            (
+                "task inventory",
+                lambda doc: doc["task_ids"].__setitem__(0, "D-N99"),
+                "initial-registration-task-inventory-mismatch",
+            ),
+            (
+                "selector inventory",
+                lambda doc: doc["operation_ids"].__setitem__(0, "unregistered-operation"),
+                "initial-registration-selector-inventory-invalid",
+            ),
+            (
+                "navigation skip declaration",
+                lambda doc: doc["navigation_skip_reasons"].__setitem__(0, "not-a-production-guard"),
+                "initial-registration-selector-inventory-invalid",
+            ),
+        )
+        for label, mutate, expected_code in mutations:
+            with self.subTest(label=label), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                config_path, _pin, directories = self._registered_config(root)
+                config = json.loads(config_path.read_bytes())
+                registration_path = Path(config["paths"]["initial_registration"])
+                registration = json.loads(registration_path.read_bytes())
+                mutate(registration)
+                registration_raw = canonical(registration)
+                registration_path.write_bytes(registration_raw)
+                config["initial_registration_sha256"] = digest(registration_raw)
+                config_raw = canonical(config)
+                config_path.write_bytes(config_raw)
+                config_path.chmod(0o600)
+                output = io.StringIO()
+                with (
+                    source_bootstrap_for_test(root),
+                    mock.patch.object(runner, "_verify_checkout_sources"),
+                    mock.patch.object(runner.runtime_environment, "verify_active_environment", return_value=b"{}"),
+                    mock.patch.object(
+                        runner.time, "monotonic", side_effect=AssertionError("stage clock must not start")
+                    ),
+                    contextlib.redirect_stdout(output),
+                ):
+                    exit_code = runner.main(
+                        ["--config", str(config_path), "--config-sha256", digest(config_raw), "--preflight-only"]
+                    )
+                self.assertEqual(exit_code, 1)
+                self.assertEqual(json.loads(output.getvalue())["error_code"], expected_code)
+                self.assertTrue(all(not Path(value).exists() for value in directories.values()))
+
+    def test_preflight_refuses_unsafe_existing_root_without_repair(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            config, pin, directories = self._registered_config(root)
+            unsafe = Path(directories["stage_inventory"])
+            unsafe.mkdir(mode=0o755)
+            unsafe.chmod(0o755)
+            output = io.StringIO()
+            with (
+                source_bootstrap_for_test(root),
+                mock.patch.object(runner, "_verify_checkout_sources"),
+                mock.patch.object(runner.core, "_verify_qualified_source_closure"),
+                mock.patch.object(runner.runtime_environment, "verify_active_environment", return_value=b"{}"),
+                contextlib.redirect_stdout(output),
+            ):
+                exit_code = runner.main(["--config", str(config), "--config-sha256", pin, "--preflight-only"])
+
+            self.assertEqual(exit_code, 1)
+            self.assertEqual(
+                json.loads(output.getvalue()),
+                {"status": "refused-or-terminal", "error_code": "configured-private-root-unsafe"},
+            )
+            self.assertEqual(stat.S_IMODE(unsafe.stat().st_mode), 0o755)
+            self.assertTrue(
+                all(Path(value).exists() is (key == "stage_inventory") for key, value in directories.items())
+            )
 
     def test_unsafe_existing_private_root_fails_before_clock_or_other_creation(self):
         with tempfile.TemporaryDirectory() as temporary:
