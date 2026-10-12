@@ -12,6 +12,7 @@ from types import SimpleNamespace
 import pytest
 
 from scripts import coverage_native_grader_handoff as handoff
+from tests.test_coverage_assessment_packets import _fixture as assessment_fixture
 
 
 def sha(raw):
@@ -41,6 +42,30 @@ def packet(packet_id, task_id="task-1"):
 
 def inputs(*packets):
     return SimpleNamespace(preassessment_packets=tuple(packets))
+
+
+def test_assessment_producer_packets_satisfy_handoff_contract_and_skip_unassessable_sources():
+    prepared, _ = assessment_fixture()
+    requests = handoff._packet_rows(prepared)
+    assert len(requests) == len(prepared.preassessment_packets)
+    assert {request.role for request in requests} == {"card", "source"}
+    assert all(json.loads(request.packet_bytes)["model_input"]["model_call_required"] is True for request in requests)
+
+    # Model the producer's source-packet shape when a chunk has no assessable
+    # sources; the handoff should preserve its existing skip behavior.
+    packets = []
+    for packet_row in prepared.preassessment_packets:
+        packet_copy = dict(packet_row)
+        payload = json.loads(packet_copy["bytes"])
+        if packet_copy["role"] == "source":
+            payload["model_input"]["model_call_required"] = False
+            payload["model_input"]["sources"] = []
+        raw = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+        packet_copy.update(bytes=raw, sha256=sha(raw), byte_count=len(raw))
+        packets.append(packet_copy)
+    skipped = handoff._packet_rows(SimpleNamespace(preassessment_packets=tuple(packets)))
+    assert len(skipped) == sum(packet["role"] == "card" for packet in prepared.preassessment_packets)
+    assert all(request.role == "card" for request in skipped)
 
 
 async def wait_for_requests(scope, count):
