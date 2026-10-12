@@ -4,11 +4,11 @@
   "authority": "No stage admission, phase permit, or execution authority is included or inferred.",
   "cohorts_sha256": "36d4cbff9c93555d35d7269525616f009a21727c8d1141a8a2a61934791038f0",
   "late_phase_inputs": "placeholders_only",
+  "preparation_provider_calls": 0,
   "protocol_sha256": "567e337d41268f380348abc70ab1bf4a0249852f237797fa361295f1e34afb06",
   "qualified_source_closure_sha256": "cdbced3f16a40e37ffa6445c58d7f736f652d9ab6f5f1654a2a4211272d8ba63",
   "quality_result": "none",
   "schema": "coverage-acquisition-v2-static-registration-status/1",
-  "scientific_calls_made_by_this_preparation": 0,
   "source_revision": "372f764c939facd2f63cf6474aa8bb03fa576508",
   "stages": {
     "confirmation": {
@@ -17,16 +17,18 @@
       "full_static_preflight": "not_run",
       "packet_stage_uuid": "5fd88312-676b-4c42-a38b-c1ab11a2f1ed",
       "stage_uuid": "14831d72-6b6f-44da-891e-97e72eeff52b",
-      "static_material_status": "offline_materials_and_pins_verified"
+      "static_material_status": "offline_materials_and_pins_verified",
+      "status": "not_invoked"
     },
     "development": {
       "acquisition_manifest_preview_sha256": "3e22a172818c9d87441c681d487c91715240daae851745cfac91e4accd30aca8",
-      "admission_status": "not_admitted",
+      "admission_status": "historical_admission_consumed",
       "full_static_preflight": "passed_on_exact_source_and_static_materials",
       "packet_stage_uuid": "1677cd44-784d-4549-b352-5f8a9ca03934",
       "stage_uuid": "f9c4ac4b-9f7c-4ad8-9c47-7e36a7efbca4",
-      "static_material_status": "verified"
+      "static_material_status": "verified",
+      "status": "terminal_late_registration_preflight_failure_after_complete_acquisition"
     }
   },
-  "status": "prospective_static_registration_not_admitted"
+  "status": "historical_static_registration_development_consumed"
 }

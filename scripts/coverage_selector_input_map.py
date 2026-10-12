@@ -18,6 +18,7 @@ from typing import Mapping, Sequence
 from scripts import coverage_jev_execution as execution
 from scripts import coverage_legacy_control as legacy
 from scripts import coverage_live_acquire
+from scripts import coverage_study_acquire as acquisition
 from scripts import coverage_study_core as core
 from slopsearx.adapter import SearchResult
 from slopsearx.service import SearchService, _rerank_text, _rerank_url
@@ -182,12 +183,17 @@ def build_selector_input_map(
     ):
         raise SelectorInputMapError("acquisition-manifest-binding")
     try:
+        execution_profile = acquisition.execution_profile_from_manifest(acquisition_manifest)
+    except Exception as exc:
+        raise SelectorInputMapError("acquisition-manifest-profile-invalid") from exc
+    try:
         verified_snapshot = coverage_live_acquire.verify_pool_snapshot_index(
             snapshots_directory,
             expected_index_sha256=acquisition_snapshot_index_sha256,
             expected_stage_manifest_sha256=acquisition_manifest_sha256,
             expected_stage_uuid=prepared.stage_uuid,
             expected_source_revision=prepared.source_revision,
+            expected_execution_profile=execution_profile.identifier,
         )
     except Exception as exc:
         raise SelectorInputMapError("acquisition-snapshot-verification-failed") from exc
