@@ -1,0 +1,49 @@
+{
+  "acquisition_manifest_schema": "coverage-live-acquisition-manifest/2",
+  "acquisition_profile": "coverage-acquisition-profile/2",
+  "authority": "No stage admission, phase permit, or execution authority is included or inferred.",
+  "cohorts": {
+    "path": "../registered-2026-10-12-acquisition-v2/cohorts.json",
+    "sha256": "36d4cbff9c93555d35d7269525616f009a21727c8d1141a8a2a61934791038f0"
+  },
+  "historical_note": "The previous profile/2 registration is historical. Its terminal development outcome is preserved separately and no results, pools, assignments, or authority are reused.",
+  "late_phase_materials": "placeholders_only",
+  "protocol": {
+    "path": "../registered-2026-10-12-acquisition-v2/protocol.json",
+    "sha256": "567e337d41268f380348abc70ab1bf4a0249852f237797fa361295f1e34afb06"
+  },
+  "qualified_source_closure": {
+    "path": "current-qualified-source-closure.json",
+    "sha256": "c5aeab00fbf0a5653c6f86a7803b265d8b7651a08f04020cdee32ff67920030b"
+  },
+  "quality_result": "none",
+  "registration_state": "registered_static_materials",
+  "schema": "coverage-acquisition-v2-static-registration-review/1",
+  "scientific_provider_dispatches_under_this_registration": 0,
+  "source_revision": "45104509bc86bec271f4a79131b80878c3dd8567",
+  "stages": {
+    "confirmation": {
+      "acquisition_manifest_preview_sha256": "a0b917f738ca8a761a20cdb132a96964bc8ed4828a1ec95075550ed6ea0ec6fe",
+      "admission_status": "not_admitted",
+      "full_static_preflight": "not_run_offline_materials_and_pins_verified",
+      "navigation_target_count": 5,
+      "packet_stage_uuid": "5f5a68fc-e6cd-4488-bc7e-1dcdffcde6f3",
+      "research_case_count": 8,
+      "selector_operation_count": 39,
+      "stage_uuid": "485dbef3-6662-4e85-9a02-2a736508ccae",
+      "static_material_status": "verified"
+    },
+    "development": {
+      "acquisition_manifest_preview_sha256": "23ae47962c69cba624dee72576fa5a623bc85f16a54bfe1e58f47e3abcfd1508",
+      "admission_status": "not_admitted",
+      "full_static_preflight": "passed_on_exact_source_and_static_materials",
+      "navigation_target_count": 5,
+      "packet_stage_uuid": "a5bd1e09-b25c-45ea-a547-4359f0c443ff",
+      "research_case_count": 8,
+      "selector_operation_count": 39,
+      "stage_uuid": "40bf32a9-22ff-4c3c-a1e1-80d2bb88c5b6",
+      "static_material_status": "verified"
+    }
+  },
+  "status": "prospective_full_static_registration_not_admitted_or_executed"
+}
