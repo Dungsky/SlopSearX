@@ -154,7 +154,7 @@ class PinnedReceiptAuthorityTests(unittest.TestCase):
             capture_module_sha256="4" * 64,
         )
         evidence = {
-            "grok_image_digest": "5" * 64,
+            "grok_image_digest": "sha256:" + "5" * 64,
             "grok_config_sha256": "6" * 64,
             "protected_profile_sha256": "7" * 64,
             "full_boundary_evidence_sha256": "8" * 64,
@@ -164,6 +164,15 @@ class PinnedReceiptAuthorityTests(unittest.TestCase):
         self.assertEqual(verified.status, "verified-qualified")
         self.assertEqual(verified.bindings, bindings)
         self.assertEqual(authority.ProtectedCaptureReceiptVerifier().verify(raw, digest(raw), bindings), verified)
+        self.assertEqual(
+            capture._verify_protected_capture_qualification(
+                receipt_bytes=raw,
+                expected_receipt_sha256=digest(raw),
+                verifier=authority.ProtectedCaptureReceiptVerifier(),
+                bindings=bindings,
+            ),
+            verified,
+        )
         modified = dict(bindings.__dict__, candidate_endpoint_scheme="http")
         changed_raw = receipt("protected-source-capture", modified, evidence=evidence)
         with self.assertRaisesRegex(authority.LocalAuthorityError, "receipt-claims-mismatch"):
@@ -176,6 +185,19 @@ class PinnedReceiptAuthorityTests(unittest.TestCase):
                 digest(receipt("protected-source-capture", bindings.__dict__, evidence={"grok_image_digest": "x"})),
                 bindings,
             )
+        for invalid_image_id in ("5" * 64, "sha256x:" + "5" * 64, "sha256:" + "5" * 63):
+            invalid_evidence = dict(evidence, grok_image_digest=invalid_image_id)
+            invalid_raw = receipt("protected-source-capture", bindings.__dict__, evidence=invalid_evidence)
+            with self.subTest(grok_image_digest=invalid_image_id):
+                with self.assertRaisesRegex(
+                    authority.LocalAuthorityError, "capture-qualification-evidence-invalid"
+                ):
+                    authority.ProtectedCaptureReceiptVerifier().verify(invalid_raw, digest(invalid_raw), bindings)
+
+        invalid_other_evidence = dict(evidence, grok_config_sha256="sha256:" + "6" * 64)
+        invalid_raw = receipt("protected-source-capture", bindings.__dict__, evidence=invalid_other_evidence)
+        with self.assertRaisesRegex(authority.LocalAuthorityError, "capture-qualification-evidence-invalid"):
+            authority.ProtectedCaptureReceiptVerifier().verify(invalid_raw, digest(invalid_raw), bindings)
 
     def test_answer_receipt_binds_exact_endpoint_operations_and_caps(self):
         bindings = {
