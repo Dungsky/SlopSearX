@@ -27,3 +27,15 @@ advertised tool, with affordable decisive measurement; it outranks speculative
 ranking/host UI work lacking admission or independent host evidence today.
 
 Frozen worker SHA256 `37a91f8e3d98596876f22ef24fcfce6f7f6f39a0e2a3fb8467b44698d45ae41b`.
+
+## Review clarification — measurement and decision are separate
+
+The frozen worker is a measurement collector; its process exit is not the
+experiment verdict (the expected deficient baseline also exits zero). The
+runner originally checked the registered counts and raw equality results.
+Review requested an explicit executable gate: `verify.py.txt` now applies the
+unchanged frozen predicates offline to retained output and returns nonzero on
+failure. It accepts the original candidate record and rejects seven deliberately
+corrupted records under `verify-tests.py.txt`. These are analyzer regressions,
+not new primary observations. No worker, corpus, threshold, outcome or primary
+replay was changed or repeated. Reproduction must run both collector and verifier.

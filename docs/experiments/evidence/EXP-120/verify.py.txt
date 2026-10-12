@@ -1,0 +1,31 @@
+"""Apply frozen EXP-120 gates to retained output; never rerun acquisition."""
+import json
+import sys
+from pathlib import Path
+
+PRIMARY = {"slopsearx_search_targeted", "slopsearx_search_science", "slopsearx_plan_research"}
+CONTROLS = {"slopsearx_list_capabilities", "slopsearx_search"}
+
+
+def verify(data):
+    rows = data["rows"]
+    controls = data["controls"]
+    assert len(rows) == 38 and len({r["name"] for r in rows}) == 38, "catalog membership"
+    assert {r["name"] for r in rows if r["primary"]} == PRIMARY, "primary membership"
+    assert {r["name"] for r in controls} == CONTROLS and len(controls) == 2, "control membership"
+    for row in rows:
+        assert isinstance(row["upstream"], dict) and row["gateway"] == row["upstream"], "schema equality"
+        assert row["equal"] is True, "reported schema equality"
+    for row in controls:
+        direct = row["upstream"].get("structuredContent")
+        gateway = row["gateway"].get("structuredContent")
+        assert isinstance(direct, dict) and direct == gateway, "control equality"
+        assert row["equal"] is True, "reported control equality"
+    assert data["primary_passed"] == data["primary_total"] == 3, "primary count"
+    assert data["catalog_equal"] == data["catalog_total"] == 38, "catalog count"
+    assert data["provider_calls"] == 0, "provider budget"
+
+
+if __name__ == "__main__":
+    verify(json.loads(Path(sys.argv[1]).read_text()))
+    print("EXP-120 frozen gates passed")
