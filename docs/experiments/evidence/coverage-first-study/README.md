@@ -1,9 +1,10 @@
+The approved fresh development invocation [also refused during static preflight](startup-refusal-amended-2026-10-11/README.md), before the clock or scientific calls. Its acquisition-plan byte hash disagreed with the runtime-generated canonical bytes. The attempt is terminal; no further invocation is authorized.
+
 # Coverage-first study registration and preparation
 
 The first registered development invocation [stopped during startup](startup-refusal-2026-10-11/README.md), before acquisition or any scientific calls. That stage remains terminal and its evidence is preserved. A separate startup-only amendment authorizes one newly registered development invocation after this zero-call setup failure; execution still requires fresh independent admission and phase permits.
 
-**Status: static protocol and fresh stage registrations are registered; neither
-stage is admitted or executed.** The [coverage-first approval](../../coverage-first-release-decision.md) authorizes preparation under the original gates. The separate [startup-amended registration](registered-2026-10-11-startup-amended/README.md) records the one-time development amendment. Static registration does not provide a stage invocation permit, completed experiment, or product qualification.
+**Status: the fresh development invocation terminated before acquisition; research quality is unmeasured.** The [coverage-first approval](../../coverage-first-release-decision.md) authorizes preparation under the original gates. The separate [startup-amended registration](registered-2026-10-11-startup-amended/README.md) records the one-time development amendment. Static registration does not provide a stage invocation permit, completed experiment, or product qualification.
 
 The question is whether reserving relevant leads for the caller's research needs
 helps finish research tasks compared with the configured query-only Jev ranking.

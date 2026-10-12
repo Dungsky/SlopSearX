@@ -1,0 +1,51 @@
+{
+  "schema": "coverage-startup-acquisition-pin-diagnosis/1",
+  "stage_uuid": "655d5c7a-6873-4a0d-86a7-0db1ec6ebab4",
+  "source_revision": "e3f2305ca8b52c50070bf23e8b2eec3e2e0eed37",
+  "registration_sha256": "22784e34683c590edfa130d5e33071261bfcd0c3ba057d5c07916780d6fd2585",
+  "config_sha256": "a3103299a3b6c82d1d25f6d3739f6124e51306dca3023577c6663b9fba6d94db",
+  "registered_acquisition_plan_sha256": "9c44c5f553e7e2d2924cc22ed2fcd57f30e3e85a0729983fa947bd7ff132ab55",
+  "authored_acquisition_plan_sha256": "9c44c5f553e7e2d2924cc22ed2fcd57f30e3e85a0729983fa947bd7ff132ab55",
+  "runtime_generated_acquisition_plan_sha256": "ba891f165859d7262ae3e691c8fe9512755ee06039524b5dc159c5dbd218fb51",
+  "authored_bytes": 2179,
+  "generated_bytes": 1213,
+  "parsed_objects_equal": true,
+  "working_directories_created": 0,
+  "phase_request_count": 0,
+  "phase_permit_count": 0,
+  "constructor_reinvoked": false,
+  "readonly_diagnosis": true,
+  "private_log_sha256": {
+    "operator.stdout.private.log": "42e1394aac6ffa1455207e3d1a5ffc8a3f099303174b0242a6a438fc900744bc",
+    "operator.stderr.private.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "operator-process-terminal.json": "19a3d6d74d106a5d4f0d4fa5ae7b465e6475ba15163d16671e27a4ed76debb94"
+  },
+  "reported_stdout": {
+    "error_class": "OperatorRunnerError",
+    "status": "refused-or-terminal"
+  },
+  "process_exit_code": 1,
+  "registration_commit": "a563e0b1e813fbb83cdc41b34353e12087973550",
+  "registration_merge_commit": "f1f0a95bb04deb0af6817e586bb94d101d05bd4a",
+  "supervisor_invocation_started_utc": "2026-10-12T00:49:38.192530+00:00",
+  "reported_exception_message": null,
+  "interpretation": {
+    "basis": "runtime-generated plan compared read-only with actual registered bytes; original exception message not recorded",
+    "inferred_refusal": "initial-registration-static-pin-mismatch:acquisition_plan",
+    "stage_clock_reached_by_source_path": false
+  },
+  "scientific_calls": {
+    "acquisition": 0,
+    "capture": 0,
+    "jev": 0,
+    "answerer": 0,
+    "grader": 0,
+    "basis": "no working directories or phase requests; static validation precedes stage clock and phase dispatch"
+  },
+  "disposition": {
+    "fixed_study_terminated": true,
+    "original_attempt_retained": true,
+    "retry_authorized": false,
+    "product_qualified": false
+  }
+}
