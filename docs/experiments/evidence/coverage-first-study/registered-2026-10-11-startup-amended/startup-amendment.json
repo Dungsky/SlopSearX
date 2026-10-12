@@ -1,0 +1,49 @@
+{
+  "authorization_scope": "User-approved on 2026-10-11 for one newly registered development invocation after the zero-call startup refusal and merged private-root preflight repair. No invocation is authorized until the refreshed registration is reviewed/published, the fresh stage configuration is created and externally hash-pinned, and independent stage admission plus required phase permits are valid. This amendment does not authorize a second attempt, modify the frozen study, or authorize product adoption.",
+  "basis": {
+    "failure_evidence_commit": "e3f2305ca8b52c50070bf23e8b2eec3e2e0eed37",
+    "failure_evidence_pr": 776,
+    "private_root_repair_commit": "8d5875a8d99345db598cbee54d598cc8e0207022",
+    "private_root_repair_pr": 775,
+    "startup_failure_record": "../startup-refusal-2026-10-11/result.json",
+    "startup_failure_record_sha256": "cfa9d08046cb11155ac84030fa8177b2b0ded7cd2c27b5e1c2043e2645ace488"
+  },
+  "confirmation": "Separately registered and conditional on a passing development result and valid independent confirmation authority; this amendment does not authorize confirmation execution.",
+  "execution_admission": "not-issued",
+  "failure_quality_credit": "none; setup failure is operational evidence only",
+  "fresh_private_stage_directories_status": "not-included-or-verified-by-static-registration",
+  "historical_stage_and_packet_uuids_excluded": [
+    "1c855d55-07c8-4d59-8724-3ab9c1df83a6",
+    "54c01338-df81-4053-81c2-b7f0b0d4e1a2",
+    "83d2526b-6801-4be1-9dc2-236a20b897ae",
+    "c3d638e4-8f88-41bf-b670-633d620bbe64",
+    "d25233dc-0a05-448f-bc21-4f5f25aae7f4",
+    "dbdaad5b-78ca-40ac-8e24-0dcd1b5bdc99",
+    "e61a44f5-4be7-4e89-acd7-fb1dd9d9b8bf"
+  ],
+  "invocation_prerequisites": [
+    "reviewed and published fresh registration",
+    "fresh private stage directories created and validated without reusing prior failed directories",
+    "stage-specific operator configuration externally SHA-pinned",
+    "independent admission and required phase permits verified before dispatch"
+  ],
+  "new_stage_and_packet_uuids": {
+    "confirmation_packet_stage_uuid": "303ae693-3bb5-4604-9c3c-ba1b99ec1553",
+    "confirmation_stage_uuid": "0ab9df8f-84bc-4506-83ac-505796d30e38",
+    "development_packet_stage_uuid": "6d0f0731-281c-4243-8382-b7a64bfbdc64",
+    "development_stage_uuid": "655d5c7a-6873-4a0d-86a7-0db1ec6ebab4"
+  },
+  "operator_configuration_sha256": null,
+  "operator_configuration_status": "not-included-or-externally-pinned-in-static-registration",
+  "preserved_contract": {
+    "brave_calls": "prohibited",
+    "cohorts_sha256": "36d4cbff9c93555d35d7269525616f009a21727c8d1141a8a2a61934791038f0",
+    "failed_run_directories_authority_receipts_grades_and_results": "not_reused",
+    "protocol_sha256": "0225d84114d65f943ae00bda3fe79e83698fb412271f8bd64fd176e4325d253b",
+    "quality_gates_budgets_order_and_provider_destinations": "unchanged"
+  },
+  "provider_calls_made": 0,
+  "schema": "coverage-study-startup-amendment/1",
+  "stage_permits": "not-issued",
+  "status": "approved-2026-10-11-one-fresh-development-invocation-conditional"
+}
