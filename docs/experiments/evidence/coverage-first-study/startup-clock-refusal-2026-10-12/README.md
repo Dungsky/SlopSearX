@@ -1,0 +1,9 @@
+# Development startup refused before acquisition
+
+**Outcome: the source-bound development invocation terminated during startup, before acquisition or any later scientific phase. No quality result was produced.** The static material preflight had passed. Startup output reported `OrchestrationError`; it did not report a clock-specific error code. The process exited with status 1; its standard error was empty. No stage inventory or acquisition permit request was created. Acquisition, source capture, selector/Jev execution, answer grading, and quality calculation were not invoked. Scientific provider dispatches: zero.
+
+This attempt consumed the development identity of the source-bound profile/2 static registration. Its terminal outcome is retained; do not retry it or treat it as a reusable stage. Earlier acquisition outcomes remain separate, immutable attempts, including a completed acquisition that later stopped at late-registration preflight. No pools, results, grades, or authority were carried forward.
+
+A source-level clock-construction issue was identified separately with a synthetic offline reproduction. The source computes the elapsed span and compares it with the unchanged 28,800-second stage cap. Floating-point subtraction can place a mathematically exact-cap span a few trillionths of a second over the cap, causing a startup refusal. The synthetic values and limits of this diagnosis are recorded in [clock construction diagnostic](clock-construction-diagnostic.md). They are not measurements from the terminal invocation: its exact numeric span and clock-specific refusal cause were not recorded.
+
+This is a setup refusal, not a scientific failure or result. The synthetic reproduction does not establish the cause of the specific invocation beyond the observed startup refusal. The scientific cases, thresholds, budgets, and validation cap remain unchanged.

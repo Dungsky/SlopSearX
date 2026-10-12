@@ -1,0 +1,30 @@
+{
+  "acquisition_permit_requested": false,
+  "authority": "No stage admission, phase permit, or execution authority was created.",
+  "clock_diagnostic": {
+    "actual_cause_established": false,
+    "changes_to_limit_or_gates": false,
+    "exact_terminal_elapsed_span_recorded": false,
+    "kind": "synthetic-offline-source-reproduction",
+    "stage_limit_seconds": 28800
+  },
+  "error_class": "OrchestrationError",
+  "phase_status": {
+    "acquisition": "not-invoked",
+    "answer_grading": "not-invoked",
+    "quality_calculation": "not-invoked",
+    "selector_jev": "not-invoked",
+    "source_capture": "not-invoked"
+  },
+  "process_exit_status": 1,
+  "quality_result": "none",
+  "schema": "coverage-startup-refusal-summary/1",
+  "scientific_provider_dispatches": 0,
+  "stage_inventory_created": false,
+  "standard_error_bytes": 0,
+  "static_material_preflight": "passed",
+  "status": "terminal-startup-refusal-before-acquisition",
+  "stdout_reported_fields": [
+    "error_class"
+  ]
+}
