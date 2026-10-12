@@ -1,0 +1,17 @@
+{
+  "configured_ranking_strategy": "presence",
+  "designated_source_revision": "8f3577d022e2d98fcd405d915b5c3b9b16e899bf",
+  "image_id": "sha256:dcb13d22312cf483200aaf0a5b104a4dfba549ff6b021ba250a4120e8316e575",
+  "measurement_scope": "designated experimental W0; no assertion about other deployments",
+  "model_calls": 0,
+  "provider_configured": true,
+  "schema": "coverage-designated-w0-preflight/1",
+  "search_calls": 0,
+  "source_hashes": {
+    "jev": "7bc21ab9da8b10e9d60a50d54efaa81c2c1ea9cc76042320b6108015daac1cc8",
+    "merger": "5bb1a599ed8330aad02bd6567984d12c02f4ed735059c4f50cd6dfefd21e5eda",
+    "rerank": "93ea486848ccdc7778a0ce49973773402d84fbb2ca1b9a64eaabf5f37da6e078",
+    "service": "dd690ecb2a1ce120e23255bbfb47cfbe190907155287bd73882f55f9f4badb5e"
+  },
+  "status": "designated_baseline_revalidated_no_calls"
+}
