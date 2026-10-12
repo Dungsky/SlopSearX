@@ -6,6 +6,7 @@
     "path": "../registered-2026-10-12-acquisition-v2/cohorts.json",
     "sha256": "36d4cbff9c93555d35d7269525616f009a21727c8d1141a8a2a61934791038f0"
   },
+  "dispatch_note": "Acquisition completed; capture HTTP dispatch count is unknown from retained evidence; selector, answerer and grading were not invoked.",
   "late_phase_materials": "placeholders_only",
   "protocol": {
     "path": "../registered-2026-10-12-acquisition-v2/protocol.json",
@@ -18,12 +19,13 @@
   "quality_result": "none",
   "registration_state": "registered_static_materials",
   "schema": "coverage-acquisition-v2-static-registration-status/1",
-  "scientific_provider_dispatches_under_this_registration": 0,
+  "scientific_provider_dispatches_under_this_registration": null,
   "source_revision": "952c78187bd262d0b8d162be5544db51cef4b1fb",
   "stages": {
     "confirmation": {
       "acquisition_manifest_preview_sha256": "e8a2c49094cf413dd52651d324379cfc3e82bf6c38ff2aaa51a146b0758266ea",
       "admission_status": "not_admitted",
+      "execution_outcome": "not_invoked",
       "full_static_preflight": "not_run_offline_materials_and_pins_verified",
       "navigation_target_count": 5,
       "packet_stage_uuid": "796f7dfd-4bc7-4f98-bf96-827e40f557ae",
@@ -35,7 +37,9 @@
     "development": {
       "acquisition_manifest_preview_sha256": "609a7d3398ca6384e428bed2f3e7bf214297d1208a41278db0a85af92fd25590",
       "admission_status": "not_admitted",
+      "execution_outcome": "terminal_source_capture_failure",
       "full_static_preflight": "passed_on_exact_source_and_static_materials",
+      "identity_status": "consumed_not_reusable",
       "navigation_target_count": 5,
       "packet_stage_uuid": "1759911a-8094-4983-8ab7-daa4c699f76b",
       "research_case_count": 8,
@@ -44,5 +48,5 @@
       "static_material_status": "verified"
     }
   },
-  "status": "prospective_full_static_registration_not_admitted_or_executed"
+  "status": "historical_static_registration_development_identity_consumed"
 }
