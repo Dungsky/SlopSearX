@@ -255,7 +255,7 @@ def _write_synthetic_pool_snapshots(plan: stage.StagePlan, root: Path) -> stage.
                 exchanges=(),
             )
         )
-    manifest_sha = plan.expected_acquisition_manifest_sha256
+    manifest_sha = digest(live_acquire._canonical(manifest))
     index_rows = []
     for operation in operations:
         raw = live_acquire._canonical(live_acquire._operation_snapshot(operation, manifest, manifest_sha))
@@ -463,6 +463,20 @@ def _synthetic_capture(plan, pipeline_inputs, root: Path) -> stage.CaptureEviden
 
 
 class StageOrchestrationTests(unittest.TestCase):
+    def test_stage_plan_rejects_pre_fix_compact_manifest_bytes(self):
+        plan = plan_fixture()
+        compact_manifest = canonical(json.loads(plan.acquisition_manifest_bytes))
+        self.assertNotEqual(compact_manifest, plan.acquisition_manifest_bytes)
+        compact_plan = stage.StagePlan(
+            **{
+                **plan.__dict__,
+                "acquisition_manifest_bytes": compact_manifest,
+                "expected_acquisition_manifest_sha256": digest(compact_manifest),
+            }
+        )
+        with self.assertRaisesRegex(stage.OrchestrationError, "acquisition-manifest-not-canonical"):
+            stage._validate_plan_static(compact_plan)
+
     def test_unknown_selector_usage_stops_before_downstream_phases(self):
         plan = plan_fixture()
         selector = stage.SelectorEvidence(
@@ -1010,14 +1024,15 @@ class StageOrchestrationTests(unittest.TestCase):
                         frozen_order = (
                             w0.native_ordered_ids
                             if w0.native_ordered_ids is not None
-                            else w0.ranking.ordered_ids if w0.ranking is not None else ()
+                            else w0.ranking.ordered_ids
+                            if w0.ranking is not None
+                            else ()
                         )
                         # W0's frozen 40-card request uses local cN identifiers;
                         # restore those ranks to the sealed pool IDs and append
                         # the untouched pool tail for 41–80-card tasks.
                         w0_order = tuple(
-                            task["native_order"][int(card_id.removeprefix("c"))]
-                            for card_id in frozen_order
+                            task["native_order"][int(card_id.removeprefix("c"))] for card_id in frozen_order
                         ) + tuple(task["native_order"][len(frozen_order) :])
                         research_orders[task["task_id"]] = {
                             "w0": list(w0_order),

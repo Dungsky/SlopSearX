@@ -26,7 +26,13 @@ from pathlib import Path
 from typing import Any
 
 from scripts import coverage_answer_execution as answer
-from scripts import coverage_grade_closure, coverage_jev_execution, coverage_legacy_control, coverage_selector_input_map
+from scripts import (
+    coverage_grade_closure,
+    coverage_jev_execution,
+    coverage_legacy_control,
+    coverage_live_acquire,
+    coverage_selector_input_map,
+)
 from scripts import coverage_local_authority as local_authority
 from scripts import coverage_native_grader_handoff as native_handoff
 from scripts import coverage_native_host_dispatch as native_host_dispatch
@@ -689,7 +695,7 @@ class OperatorStageRunner:
                 "task_ids": [row["task_id"] for row in cases] + [row["target_id"] for row in targets],
             }
         )
-        acquisition_manifest = _canonical(
+        acquisition_manifest = coverage_live_acquire._canonical(
             {
                 "schema": "coverage-live-acquisition-manifest/1",
                 "stage": self.config["stage_kind"],
@@ -834,6 +840,10 @@ class OperatorStageRunner:
 
     async def _acquisition_authority(self, plan):
         manifest = core._strict_json(plan.acquisition_manifest_bytes, "acquisition-manifest")
+        canonical_manifest_bytes = coverage_live_acquire._canonical(manifest)
+        if canonical_manifest_bytes != plan.acquisition_manifest_bytes:
+            raise OperatorRunnerError("acquisition-manifest-not-canonical")
+        canonical_manifest_sha256 = _sha(canonical_manifest_bytes)
         receipt, pin = await self._request(
             "acquisition",
             "permit",
@@ -845,6 +855,7 @@ class OperatorStageRunner:
                 "cohorts_sha256": _sha(plan.cohorts_bytes),
                 "input_manifest_sha256": manifest["input_manifest_sha256"],
                 "acquisition_manifest_sha256": plan.expected_acquisition_manifest_sha256,
+                "stage_manifest_sha256": canonical_manifest_sha256,
                 "acquisition_plan_sha256": _sha(plan.acquisition_plan_bytes),
             },
         )
