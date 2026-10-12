@@ -329,7 +329,8 @@ def _strict_json(raw: bytes, label: str) -> object:
         raise OrchestrationError(f"{label}-json-invalid") from exc
 
 
-def _validate_plan(plan: StagePlan) -> dict[str, object]:
+def _validate_plan_static(plan: StagePlan) -> dict[str, object]:
+    """Validate every source-bound stage-plan field without reading a clock."""
     if type(plan) is not StagePlan:
         raise OrchestrationError("preacquisition-plan-required")
     if plan.stage_kind not in {"development", "confirmation"}:
@@ -363,16 +364,6 @@ def _validate_plan(plan: StagePlan) -> dict[str, object]:
         raise OrchestrationError("packet-stage-uuid-invalid")
     if plan.packet_stage_uuid == plan.stage_uuid:
         raise OrchestrationError("packet-stage-must-be-fresh")
-    if (
-        type(plan.stage_started_monotonic) not in {int, float}
-        or type(plan.stage_deadline_monotonic) not in {int, float}
-        or plan.stage_deadline_monotonic <= plan.stage_started_monotonic
-        or plan.stage_deadline_monotonic - plan.stage_started_monotonic > MAX_STAGE_WALL_SECONDS
-    ):
-        raise OrchestrationError("stage-deadline-invalid")
-    if not plan.stage_started_monotonic <= _monotonic() < plan.stage_deadline_monotonic:
-        raise OrchestrationError("stage-deadline-inactive")
-
     protocol = _strict_json(plan.protocol_bytes, "protocol")
     cohorts = _strict_json(plan.cohorts_bytes, "cohorts")
     if type(protocol) is not dict or type(cohorts) is not dict:
@@ -462,6 +453,22 @@ def _validate_plan(plan: StagePlan) -> dict[str, object]:
         "intent_counts_by_band": intent_counts,
         "scope": "mixed-workload-only",
     }
+
+
+def _validate_plan(plan: StagePlan) -> dict[str, object]:
+    """Validate a static plan and its active runtime deadline."""
+    if type(plan) is not StagePlan:
+        raise OrchestrationError("preacquisition-plan-required")
+    if (
+        type(plan.stage_started_monotonic) not in {int, float}
+        or type(plan.stage_deadline_monotonic) not in {int, float}
+        or plan.stage_deadline_monotonic <= plan.stage_started_monotonic
+        or plan.stage_deadline_monotonic - plan.stage_started_monotonic > MAX_STAGE_WALL_SECONDS
+    ):
+        raise OrchestrationError("stage-deadline-invalid")
+    if not plan.stage_started_monotonic <= _monotonic() < plan.stage_deadline_monotonic:
+        raise OrchestrationError("stage-deadline-inactive")
+    return _validate_plan_static(plan)
 
 
 def _private_root(path: str | os.PathLike[str]) -> Path:
