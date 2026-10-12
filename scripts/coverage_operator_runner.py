@@ -659,6 +659,16 @@ class OperatorStageRunner:
             or type(identity["runtime"].get("revision")) is not str
         ):
             raise OperatorRunnerError("registered-source-materials-required")
+        try:
+            protocol, _protocol_sha256 = capture._validate_protocol(path_bytes["protocol"])
+        except capture.SourceCaptureError as exc:
+            raise OperatorRunnerError("capture-protocol-preflight-invalid") from exc
+        try:
+            identity = capture._validate_candidate_identity(
+                path_bytes["candidate_identity"], _sha(path_bytes["candidate_identity"])
+            )
+        except capture.SourceCaptureError as exc:
+            raise OperatorRunnerError("candidate-identity-preflight-invalid") from exc
         stage_row = _stage_cohort(cohorts, self.config["stage_kind"])
         cases = stage_row.get("research_cases")
         targets = stage_row.get("navigation_targets")

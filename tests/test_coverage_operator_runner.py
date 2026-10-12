@@ -168,6 +168,9 @@ class OperatorRunnerConfigTests(unittest.TestCase):
         stage_uuid = config["stage_uuid"]
         path_values = {key: Path(value) for key, value in config["paths"].items()}
         material_bytes = {key: path.read_bytes() for key, path in external_paths.items()}
+        material_bytes["candidate_identity"] = runner.capture._canonical_json(
+            runner.core._strict_json(material_bytes["candidate_identity"], "test-candidate-identity")
+        )
         for key in ("coverage_source", "production_rerank_source", "dependency_lock"):
             path_values[key] = external_paths[key]
         material_bytes["qualified_source_closure"] = runner._canonical(
@@ -348,6 +351,35 @@ class OperatorRunnerConfigTests(unittest.TestCase):
                     runner.OperatorStageRunner.from_file(config_path, digest(config_raw))
 
             self.assertTrue(all(not Path(value).exists() for value in directories.values()))
+
+    def test_static_preflight_runs_capture_protocol_and_identity_validators_before_clock(self):
+        cases = ("candidate_identity", "protocol")
+        for material_name in cases:
+            with self.subTest(material=material_name), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                config_path, pin, directories = self._registered_config(root)
+                config = json.loads(config_path.read_bytes())
+                material_path = Path(config["paths"][material_name])
+                document = json.loads(material_path.read_bytes())
+                if material_name == "candidate_identity":
+                    material_path.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
+                    expected_error = "candidate-identity-preflight-invalid"
+                else:
+                    document["capture"]["timeout_seconds"] += 1
+                    material_path.write_bytes(canonical(document))
+                    expected_error = "capture-protocol-preflight-invalid"
+
+                with (
+                    mock.patch.object(runner, "_verify_checkout_sources"),
+                    mock.patch.object(runner, "_require_source_bootstrap"),
+                    mock.patch.object(runner, "_prepare_private_directories") as prepare_roots,
+                    mock.patch.object(runner.time, "monotonic", side_effect=AssertionError("clock must not start")),
+                ):
+                    with self.assertRaisesRegex(runner.OperatorRunnerError, expected_error):
+                        runner.OperatorStageRunner.from_file(config_path, pin)
+
+                prepare_roots.assert_not_called()
+                self.assertTrue(all(not Path(value).exists() for value in directories.values()))
 
     @unittest.skipUnless(
         sys.version_info[:2] == (3, 12) and sys.prefix != sys.base_prefix,
