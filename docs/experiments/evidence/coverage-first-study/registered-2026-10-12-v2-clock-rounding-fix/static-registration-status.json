@@ -1,0 +1,48 @@
+{
+  "acquisition_manifest_schema": "coverage-live-acquisition-manifest/2",
+  "acquisition_profile": "coverage-acquisition-profile/2",
+  "authority": "No stage admission, phase permit, or execution authority is included or inferred.",
+  "cohorts": {
+    "path": "../registered-2026-10-12-acquisition-v2/cohorts.json",
+    "sha256": "36d4cbff9c93555d35d7269525616f009a21727c8d1141a8a2a61934791038f0"
+  },
+  "late_phase_materials": "placeholders_only",
+  "protocol": {
+    "path": "../registered-2026-10-12-acquisition-v2/protocol.json",
+    "sha256": "567e337d41268f380348abc70ab1bf4a0249852f237797fa361295f1e34afb06"
+  },
+  "qualified_source_closure": {
+    "path": "current-qualified-source-closure.json",
+    "sha256": "cf2470e36f1f8a5e38fe5fd0c0fe92a647e27103208552d773e5e4535793d7e8"
+  },
+  "quality_result": "none",
+  "registration_state": "registered_static_materials",
+  "schema": "coverage-acquisition-v2-static-registration-status/1",
+  "scientific_provider_dispatches_under_this_registration": 0,
+  "source_revision": "952c78187bd262d0b8d162be5544db51cef4b1fb",
+  "stages": {
+    "confirmation": {
+      "acquisition_manifest_preview_sha256": "e8a2c49094cf413dd52651d324379cfc3e82bf6c38ff2aaa51a146b0758266ea",
+      "admission_status": "not_admitted",
+      "full_static_preflight": "not_run_offline_materials_and_pins_verified",
+      "navigation_target_count": 5,
+      "packet_stage_uuid": "796f7dfd-4bc7-4f98-bf96-827e40f557ae",
+      "research_case_count": 8,
+      "selector_operation_count": 39,
+      "stage_uuid": "65988cb6-78fc-47b9-8854-516a3e9503cc",
+      "static_material_status": "verified"
+    },
+    "development": {
+      "acquisition_manifest_preview_sha256": "609a7d3398ca6384e428bed2f3e7bf214297d1208a41278db0a85af92fd25590",
+      "admission_status": "not_admitted",
+      "full_static_preflight": "passed_on_exact_source_and_static_materials",
+      "navigation_target_count": 5,
+      "packet_stage_uuid": "1759911a-8094-4983-8ab7-daa4c699f76b",
+      "research_case_count": 8,
+      "selector_operation_count": 39,
+      "stage_uuid": "74121e69-f19a-4cc5-be9a-4903aa39f9c4",
+      "static_material_status": "verified"
+    }
+  },
+  "status": "prospective_full_static_registration_not_admitted_or_executed"
+}

@@ -6,6 +6,8 @@ The [source-bound profile/2 static registration](registered-2026-10-12-v2-consum
 
 Its one development identity was then consumed by a terminal startup refusal before acquisition. The [sanitized startup outcome](startup-clock-refusal-2026-10-12/README.md) records zero scientific dispatches; a separate [synthetic clock diagnostic](startup-clock-refusal-2026-10-12/clock-construction-diagnostic.md) does not claim to reproduce the invocation’s unrecorded numeric span.
 
+The refreshed [profile/2 static registration](registered-2026-10-12-v2-clock-rounding-fix/README.md) binds the same protocol and cohorts to the repaired source revision. Its development full static preflight passed; confirmation was checked offline only. No stage was started, and neither stage is admitted or executed.
+
 The [acquisition-profile/2 registration](registered-2026-10-12-acquisition-v2/README.md) was used for the latest development attempt and is now historical. Its acquisition completed, then late-registration preflight stopped before later phases; the sanitized [terminal outcome](acquisition-v2-late-registration-terminal-2026-10-12/README.md) and [source compatibility finding](acquisition-v2-snapshot-profile-compatibility-2026-10-12.md) record that boundary. Confirmation preflight was not run and confirmation remains uninvoked.
 
 The [canonical-acquisition static bundle](registered-2026-10-12-canonical-acquisition/README.md) preserves the earlier canonicalization materials. The later acquisition-profile/2 registration supersedes those materials for its own terminal development attempt; neither bundle grants authority for another stage.
@@ -32,6 +34,7 @@ pools of 41–80 results. Confirmation has not been acquired or scored.
 | [registered-2026-10-12-canonical-acquisition/](registered-2026-10-12-canonical-acquisition/README.md) | Earlier canonicalization static bundle; superseded for the profile/2 attempt |
 | [registered-2026-10-12-acquisition-v2/](registered-2026-10-12-acquisition-v2/README.md) | Historical profile/2 static registration used by the terminal development attempt |
 | [registered-2026-10-12-v2-consumer-fix/](registered-2026-10-12-v2-consumer-fix/README.md) | Source-bound profile/2 static registration; development identity consumed by startup refusal, confirmation uninvoked, neither stage admitted or executed |
+| [registered-2026-10-12-v2-clock-rounding-fix/](registered-2026-10-12-v2-clock-rounding-fix/README.md) | Refreshed source-bound profile/2 static registration; development full preflight passed, confirmation offline-only, neither stage admitted or executed |
 | [startup-clock-refusal-2026-10-12/](startup-clock-refusal-2026-10-12/README.md) | Terminal startup refusal before acquisition; zero scientific dispatches; clock issue diagnosis uses synthetic values only |
 | [acquisition-v2-late-registration-terminal-2026-10-12/](acquisition-v2-late-registration-terminal-2026-10-12/README.md) | Acquisition completed; late-registration preflight stopped all subsequent phases |
 | [acquisition-v2-snapshot-profile-compatibility-2026-10-12.md](acquisition-v2-snapshot-profile-compatibility-2026-10-12.md) | Two snapshot consumers omitted the registered v2 profile argument |
