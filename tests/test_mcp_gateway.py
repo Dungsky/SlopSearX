@@ -335,3 +335,77 @@ class TestCatalogPagination:
         assert requests[1]["params"]["cursor"] == "opaque-next"
         await read.aclose()
         await write.aclose()
+
+
+class TestInputSchemaFidelity:
+    async def test_complete_schema_and_nested_copy(self) -> None:
+        from copy import deepcopy
+
+        schema = {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "Exact query", "minLength": 1},
+                "engines": {"type": "array", "items": {"type": "string", "enum": ["arxiv", "pubmed"]}},
+                "filters": {
+                    "anyOf": [
+                        {
+                            "type": "object",
+                            "properties": {"limit": {"type": "integer", "minimum": 1}},
+                            "additionalProperties": False,
+                        },
+                        {"type": "null"},
+                    ],
+                    "default": None,
+                },
+            },
+            "required": ["query", "engines"],
+            "additionalProperties": False,
+        }
+        expected = deepcopy(schema)
+        server = FastMCP("schema-copy")
+        _register_proxy(server, _make_proxy("remote", schema), "remote", "Description", schema)
+        tool = await server.get_tool("remote")
+        assert tool.parameters == expected
+        assert schema == expected
+        tool.parameters["properties"]["engines"]["items"]["enum"].append("changed")
+        assert schema == expected
+
+    async def test_optional_schema_keeps_direct_registration_compatible(self) -> None:
+        server = FastMCP("old-helper-call")
+        proxy = _make_proxy("simple", {"properties": {"query": {"type": "string"}}, "required": ["query"]})
+        _register_proxy(server, proxy, "simple", "Description")
+        tool = await server.get_tool("simple")
+        assert tool.parameters["properties"]["query"]["type"] == "string"
+        assert tool.parameters["required"] == ["query"]
+
+    async def test_nested_values_forwarded_unchanged(self, monkeypatch: Any) -> None:
+        import json
+
+        from mcp.types import CallToolResult, TextContent
+
+        from slopsearx.mcp import gateway
+
+        schema = {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string"},
+                "engines": {"type": "array", "items": {"type": "string"}},
+                "filters": {"anyOf": [{"type": "object"}, {"type": "null"}], "default": None},
+            },
+            "required": ["query", "engines"],
+        }
+        calls: list[tuple[str, dict[str, Any]]] = []
+
+        class Session:
+            async def call_tool(self, name: str, arguments: dict[str, Any]) -> Any:
+                calls.append((name, arguments))
+                return CallToolResult(content=[TextContent(type="text", text=json.dumps(arguments))])
+
+        monkeypatch.setattr(gateway, "_get_session", lambda: Session())
+        server = FastMCP("schema-call")
+        _register_proxy(server, _make_proxy("remote", schema), "remote", "Description", schema)
+        arguments = {"query": "offline", "engines": ["arxiv"], "filters": {"limit": 2}}
+        async with Client(server) as client:
+            result = await client.call_tool_mcp("remote", arguments)
+        assert calls == [("remote", arguments)]
+        assert gateway._field(result, "structured_content", "structuredContent") == arguments

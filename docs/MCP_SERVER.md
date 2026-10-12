@@ -445,6 +445,9 @@ mcp_servers:
   gateway's stderr (visible in Hermes' gateway logs) and opens a browser
   on the Hermes host; afterwards tokens persist in the gateway's token
   file and later runs skip re-authorization.
+- Tool discovery preserves the upstream input schema, including typed array
+  items, nullable unions, nested definitions and constraints. Invocation keeps
+  its existing argument handling; upstream validation remains authoritative.
 - The gateway preserves an upstream `structuredContent` object, including an
   empty object. Text-only tools retain their JSON/plain-text fallback, and
   remote error flags retain the existing normalized error response.
