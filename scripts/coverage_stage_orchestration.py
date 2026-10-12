@@ -414,9 +414,13 @@ def _validate_plan_static(plan: StagePlan) -> dict[str, object]:
     try:
         from scripts import coverage_live_acquire
 
-        coverage_live_acquire._validate_manifest(acquisition_manifest, plan.acquisition_plan_bytes)
+        _checked_manifest, canonical_manifest_bytes, _ids, _reserved, _limits = (
+            coverage_live_acquire._validate_manifest(acquisition_manifest, plan.acquisition_plan_bytes)
+        )
     except Exception as exc:
         raise OrchestrationError("acquisition-manifest-invalid") from exc
+    if canonical_manifest_bytes != plan.acquisition_manifest_bytes:
+        raise OrchestrationError("acquisition-manifest-not-canonical")
     expected_acquisition_identity = {
         "stage_uuid": plan.stage_uuid,
         "stage": plan.stage_kind,
@@ -712,7 +716,8 @@ def _validate_acquisition(plan: StagePlan, evidence: AcquisitionEvidence) -> Non
         raise OrchestrationError("acquisition-operation-incomplete")
     if evidence.result.physical_request_count > 53:
         raise OrchestrationError("acquisition-physical-call-cap")
-    if evidence.acquisition_manifest_sha256 != plan.expected_acquisition_manifest_sha256:
+    expected_stage_manifest_sha256 = _validate_plan_static(plan)["acquisition_manifest_sha256"]
+    if evidence.acquisition_manifest_sha256 != expected_stage_manifest_sha256:
         raise OrchestrationError("acquisition-manifest-binding-mismatch")
     if type(evidence.snapshot_index_sha256) is not str or not _SHA256.fullmatch(evidence.snapshot_index_sha256):
         raise OrchestrationError("acquisition-index-output-pin-invalid")
@@ -722,7 +727,7 @@ def _validate_acquisition(plan: StagePlan, evidence: AcquisitionEvidence) -> Non
         verified = coverage_live_acquire.verify_pool_snapshot_index(
             evidence.snapshots_directory,
             expected_index_sha256=evidence.snapshot_index_sha256,
-            expected_stage_manifest_sha256=plan.expected_acquisition_manifest_sha256,
+            expected_stage_manifest_sha256=expected_stage_manifest_sha256,
             expected_stage_uuid=plan.stage_uuid,
             expected_source_revision=plan.source_revision,
         )
@@ -1187,17 +1192,11 @@ async def coordinate_coverage_stage(
         selector_input_map_sha256: str | None = None
         selector_map_kwargs: dict[str, object] | None = None
         draft_protocol = _strict_json(plan.protocol_bytes, "selector-map-protocol")
-        map_schema = (
-            draft_protocol.get("selector_input_map_schema") if type(draft_protocol) is dict else None
-        )
-        if (
-            type(draft_protocol) is dict
-            and map_schema
-            in {
-                "coverage-selector-input-map/2-draft",
-                "coverage-selector-input-map/2-registered",
-            }
-        ):
+        map_schema = draft_protocol.get("selector_input_map_schema") if type(draft_protocol) is dict else None
+        if type(draft_protocol) is dict and map_schema in {
+            "coverage-selector-input-map/2-draft",
+            "coverage-selector-input-map/2-registered",
+        }:
             if not isinstance(executors.selectors, RegisteredSelectorStageExecutor):
                 raise OrchestrationError("registered-selector-stage-executor-required")
             # Forward-only v2 map: v1 registrations and old terminal records

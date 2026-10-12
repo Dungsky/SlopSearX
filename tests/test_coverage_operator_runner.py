@@ -19,6 +19,8 @@ from types import SimpleNamespace
 from unittest import mock
 
 from scripts import coverage_answer_execution as answer
+from scripts import coverage_live_acquire
+from scripts import coverage_local_authority as local_authority
 from scripts import coverage_operator_runner as runner
 from tests.test_coverage_answer_execution import _stage_inputs, _tasks
 from tests.test_coverage_stage_orchestration import plan_fixture
@@ -54,6 +56,58 @@ def source_bootstrap_for_test(root: Path):
 
 
 class OperatorRunnerConfigTests(unittest.TestCase):
+    def test_acquisition_authority_uses_exact_executor_stage_manifest_digest(self):
+        plan = plan_fixture()
+        manifest = json.loads(plan.acquisition_manifest_bytes)
+        captured = {}
+
+        async def request(_self, scope, request_id, bindings):
+            self.assertEqual((scope, request_id), ("acquisition", "permit"))
+            captured.update(bindings)
+            receipt_bindings = {
+                key: manifest[key]
+                for key in (
+                    "stage_uuid",
+                    "source_revision",
+                    "source_closure_sha256",
+                    "protocol_sha256",
+                    "cohorts_sha256",
+                    "input_manifest_sha256",
+                    "acquisition_plan_sha256",
+                )
+            }
+            receipt_bindings["stage_manifest_sha256"] = bindings["stage_manifest_sha256"]
+            raw = local_authority._canonical(
+                {
+                    "schema": local_authority.SCHEMA,
+                    "decision": "allow",
+                    "scope": "source-acquisition",
+                    "bindings": receipt_bindings,
+                }
+            )
+            return raw, digest(raw)
+
+        instance = object.__new__(runner.OperatorStageRunner)
+        with tempfile.TemporaryDirectory() as temporary:
+            instance.directories = {"lease_root": temporary, "stage_inventory": temporary}
+            with mock.patch.object(runner.OperatorStageRunner, "_request", new=request):
+                authority = asyncio.run(runner.OperatorStageRunner._acquisition_authority(instance, plan))
+
+        executor_digest = digest(coverage_live_acquire._canonical(manifest))
+        self.assertEqual(plan.acquisition_manifest_bytes[-1:], b"\n")
+        self.assertEqual(digest(plan.acquisition_manifest_bytes), executor_digest)
+        self.assertEqual(plan.expected_acquisition_manifest_sha256, executor_digest)
+        self.assertEqual(captured["acquisition_manifest_sha256"], executor_digest)
+        self.assertEqual(captured["stage_manifest_sha256"], executor_digest)
+        self.assertEqual(digest(plan.acquisition_manifest_bytes), captured["stage_manifest_sha256"])
+        permit = authority["permit_verifier"].verify(
+            manifest,
+            captured["stage_manifest_sha256"],
+            authority["permit_receipt_bytes"],
+            authority["expected_permit_receipt_sha256"],
+        )
+        self.assertEqual(permit.stage_manifest_sha256, executor_digest)
+
     def _config(self, root: Path, protocol: bytes) -> tuple[Path, str]:
         path_values = {key: root / f"{key}.json" for key in runner._PATH_KEYS}
         for key, path in path_values.items():
@@ -160,9 +214,7 @@ class OperatorRunnerConfigTests(unittest.TestCase):
                 "task_ids": [row["task_id"] for row in stage_row["research_cases"]]
                 + [row["target_id"] for row in stage_row["navigation_targets"]],
                 "navigation_skip_reasons": [None] * len(stage_row["navigation_targets"]),
-                "operation_ids": [
-                    call.operation_id for call in runner.core.selector_inventory([None] * 5)
-                ],
+                "operation_ids": [call.operation_id for call in runner.core.selector_inventory([None] * 5)],
             }
         )
         path_values["initial_registration"].write_bytes(registration)
@@ -287,9 +339,7 @@ class OperatorRunnerConfigTests(unittest.TestCase):
 
             self.assertEqual(exit_code, 0, output.getvalue())
             receipt = json.loads(output.getvalue())
-            self.assertEqual(
-                set(receipt), {"status", "source_revision", "config_sha256", "registration_sha256"}
-            )
+            self.assertEqual(set(receipt), {"status", "source_revision", "config_sha256", "registration_sha256"})
             self.assertEqual(receipt["status"], "static-preflight-passed")
             self.assertEqual(receipt["config_sha256"], pin)
             config_value = json.loads(config.read_bytes())
@@ -309,9 +359,9 @@ class OperatorRunnerConfigTests(unittest.TestCase):
             compact_plan = runner._build_acquisition_plan(
                 config_value["stage_uuid"], stage_row["research_cases"], stage_row["navigation_targets"]
             )
-            pretty_plan = json.dumps(
-                json.loads(compact_plan), ensure_ascii=False, sort_keys=True, indent=2
-            ).encode("utf-8")
+            pretty_plan = json.dumps(json.loads(compact_plan), ensure_ascii=False, sort_keys=True, indent=2).encode(
+                "utf-8"
+            )
             self.assertNotEqual(digest(compact_plan), digest(pretty_plan))
             registration["pins"]["acquisition_plan"] = digest(pretty_plan)
             registration_raw = canonical(registration)
