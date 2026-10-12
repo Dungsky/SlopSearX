@@ -20,6 +20,7 @@ from typing import Mapping
 from scripts import coverage_answer_execution as answer
 from scripts import coverage_live_acquire as acquisition
 from scripts import coverage_source_capture as capture
+from scripts import coverage_study_acquire
 
 SCHEMA = "coverage-operator-authority-receipt/1"
 _SHA = re.compile(r"[0-9a-f]{64}\Z")
@@ -119,12 +120,20 @@ class PinnedReceiptAuthorities:
             "acquisition_plan_sha256": manifest["acquisition_plan_sha256"],
             "stage_manifest_sha256": manifest_sha256,
         }
+        profile = coverage_study_acquire.execution_profile_from_manifest(manifest)
+        if profile is coverage_study_acquire.CONTINUE_ACQUISITION_PROFILE:
+            bindings["execution_profile"] = profile.identifier
         _pinned_document(receipt_bytes, expected_receipt_sha256, scope="source-acquisition", bindings=bindings)
         return acquisition.VerifiedAcquisitionPermit(
             status="verified",
             scope="source-acquisition",
             **bindings,
             receipt_sha256=expected_receipt_sha256,
+            **(
+                {}
+                if profile is coverage_study_acquire.CONTINUE_ACQUISITION_PROFILE
+                else {"execution_profile": profile.identifier}
+            ),
         )
 
     @staticmethod

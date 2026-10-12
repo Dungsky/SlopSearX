@@ -541,6 +541,92 @@ class StageOrchestrationTests(unittest.TestCase):
         self.assertFalse(data["product_authorized"])
         self.assertFalse(data["admission_created"])
 
+    def test_v2_sealed_inconclusive_acquisition_stops_before_capture_or_grading(self):
+        plan = plan_fixture()
+        protocol_bytes = (
+            Path(__file__).parents[1]
+            / "docs/experiments/evidence/coverage-first-study/protocol-acquisition-v2-draft.json"
+        ).read_bytes()
+        protocol = json.loads(protocol_bytes)
+        self.assertEqual(
+            protocol["acquisition"]["execution_profile"], acquisition.CONTINUE_ACQUISITION_PROFILE.identifier
+        )
+        manifest = json.loads(plan.acquisition_manifest_bytes)
+        manifest.update(
+            {
+                "schema": acquisition.CONTINUE_ACQUISITION_PROFILE.manifest_schema,
+                "execution_profile": acquisition.CONTINUE_ACQUISITION_PROFILE.identifier,
+                "protocol_sha256": digest(protocol_bytes),
+            }
+        )
+        preacquisition_input = {
+            "schema": "coverage-preacquisition-input-manifest/1",
+            "stage_uuid": plan.stage_uuid,
+            "protocol_sha256": digest(protocol_bytes),
+            "cohorts_sha256": digest(plan.cohorts_bytes),
+            "task_ids": [row["task_id"] for row in plan.research_cases]
+            + [row["target_id"] for row in plan.navigation_targets],
+        }
+        manifest["input_manifest_sha256"] = digest(canonical(preacquisition_input))
+        manifest_bytes = live_acquire._canonical(manifest)
+        plan = stage.StagePlan(
+            **{
+                **plan.__dict__,
+                "protocol_bytes": protocol_bytes,
+                "acquisition_manifest_bytes": manifest_bytes,
+                "expected_acquisition_manifest_sha256": digest(manifest_bytes),
+            }
+        )
+        calls: list[str] = []
+
+        async def inconclusive_acquisition(_plan):
+            calls.append("acquisition")
+            result = acquisition.StageAcquisition(
+                stage="development",
+                status="inconclusive",
+                operations=[],
+                exchanges=[],
+                physical_request_count=2,
+                transfer_bytes=0,
+                reserved_worst_case_requests=53,
+                failure_reasons=["request_timeout"],
+            )
+            return stage.AcquisitionEvidence(
+                result=result,
+                snapshots_directory=Path("/missing-by-design"),
+                snapshot_index_sha256=digest(b"sealed inconclusive index"),
+                acquisition_manifest_sha256=plan.expected_acquisition_manifest_sha256,
+                receipt_sha256=digest(b"sealed synthetic permit"),
+                source_bound_receipt_status="synthetic-test-only",
+            )
+
+        async def unexpected(*_args):
+            calls.append("later")
+            raise AssertionError("downstream phase must not run for an inconclusive v2 acquisition")
+
+        executors = stage.StageExecutors(
+            acquire=inconclusive_acquisition,
+            verify_acquisition=unexpected,
+            capture=unexpected,
+            prepare_after_acquisition=unexpected,
+            verify_late_preflight=unexpected,
+            grade_references=unexpected,
+            selectors=unexpected,
+            answerer=unexpected,
+            grade_answers=unexpected,
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "private"
+            root.mkdir(mode=0o700)
+            os.chmod(root, 0o700)
+            result = asyncio.run(stage.coordinate_coverage_stage(plan=plan, executors=executors, inventory_root=root))
+            inventory = json.loads(result.inventory_path.read_bytes())
+        self.assertEqual(calls, ["acquisition"])
+        self.assertEqual(result.status, "terminal-incomplete")
+        self.assertTrue(all(row["status"] == "not-invoked" for row in inventory["phases"][1:]))
+        self.assertFalse(inventory["product_authorized"])
+        self.assertFalse(inventory["admission_created"])
+
     def test_phase_failure_and_late_final_fsync_closeout_preserve_failure(self):
         plan = plan_fixture()
         calls = []

@@ -215,6 +215,7 @@ def build_pipeline_inputs(
     cohorts_sha256: str,
     candidate_identity_sha256: str,
     candidate_endpoint_sha256: str,
+    expected_execution_profile: str = "coverage-acquisition-profile/1",
 ) -> dict[str, object]:
     """Build inputs only from externally pinned, durable native-pool snapshots."""
     if type(stage_uuid) is not str:
@@ -252,6 +253,7 @@ def build_pipeline_inputs(
             expected_stage_manifest_sha256=expected_stage_manifest_sha256,
             expected_stage_uuid=stage_uuid,
             expected_source_revision=source_revision,
+            expected_execution_profile=expected_execution_profile,
         )
     except LiveAcquisitionError as exc:
         raise PipelineInputError(f"pool-snapshot-invalid:{exc}") from exc

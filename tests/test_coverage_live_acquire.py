@@ -44,6 +44,7 @@ class FakePermitVerifier:
             acquisition_plan_sha256=manifest["acquisition_plan_sha256"],
             stage_manifest_sha256=manifest_sha256,
             receipt_sha256=expected_receipt_sha256,
+            execution_profile=offline.execution_profile_from_manifest(manifest).identifier,
         )
 
 
@@ -80,7 +81,9 @@ def _pool_plan(engines: list[str], band: str | None = None) -> dict:
     return plan
 
 
-def make_manifest(*, source_revision: str = "b" * 40, include_arxiv: bool = False) -> tuple[dict, bytes]:
+def make_manifest(
+    *, source_revision: str = "b" * 40, include_arxiv: bool = False, profile: str | None = None
+) -> tuple[dict, bytes]:
     stage_uuid = str(uuid.UUID(int=98765))
     research = [
         {
@@ -103,7 +106,7 @@ def make_manifest(*, source_revision: str = "b" * 40, include_arxiv: bool = Fals
         for index in range(1, 6)
     ]
     manifest = {
-        "schema": "coverage-live-acquisition-manifest/1",
+        "schema": "coverage-live-acquisition-manifest/2" if profile else "coverage-live-acquisition-manifest/1",
         "stage": "development",
         "stage_uuid": stage_uuid,
         "source_revision": source_revision,
@@ -115,6 +118,8 @@ def make_manifest(*, source_revision: str = "b" * 40, include_arxiv: bool = Fals
         "research_cases": research,
         "navigation_targets": navigation,
     }
+    if profile:
+        manifest["execution_profile"] = profile
     rows = []
     for row in research:
         rows.append(
@@ -243,9 +248,7 @@ async def test_full_synthetic_stage_uses_pinned_scope_and_durable_private_receip
     assert len(result.stage.operations) == 13
     assert result.stage.physical_request_count == 21
     assert len(calls) == 21
-    assert pacer.sleeps == [
-        live.QUERY_PACING_SECONDS + live.OFFSET_QUANTIZATION_GUARD_SECONDS
-    ] * 12
+    assert pacer.sleeps == [live.QUERY_PACING_SECONDS + live.OFFSET_QUANTIZATION_GUARD_SECONDS] * 12
     assert [item.status for item in result.stage.operations] == ["complete"] * 13
     assert [item.band_valid for item in result.stage.operations[:8]] == [True] * 8
     assert [item.target_found_at_rank1 for item in result.stage.operations[8:]] == [True] * 5
@@ -340,9 +343,7 @@ async def test_arxiv_redirect_dispatches_are_physically_paced_within_request_dea
     assert dispatched_at[1] - dispatched_at[0] >= live.ARXIV_PHYSICAL_PACING_SECONDS
     assert dispatched_at[2] - dispatched_at[1] >= live.QUERY_PACING_SECONDS
     assert dispatched_at == pytest.approx([0.0, 3.000001, 10.000001])
-    dispatch_receipts = [
-        json.loads((sink.path / f"http-{index:04d}-final.json").read_bytes()) for index in range(1, 4)
-    ]
+    dispatch_receipts = [json.loads((sink.path / f"http-{index:04d}-final.json").read_bytes()) for index in range(1, 4)]
     offsets = [row["dispatch_offset_us"] for row in dispatch_receipts]
     assert offsets == [0, 3_000_001, 10_000_001]
 
@@ -370,6 +371,13 @@ async def test_arxiv_physical_wait_consumes_the_per_request_deadline(tmp_path, m
         sink,
         {"R01": {"arxiv": 2}},
         SlowPacer(),
+        execution_profile=offline.AcquisitionExecutionProfile(
+            identifier="test-profile",
+            manifest_schema="test",
+            request_timeout_seconds=0.05,
+            logical_query_timeout_seconds=0.05,
+            continue_after_ordinary_failure=False,
+        ),
     )
     operation = offline._CURRENT_OPERATION.set("R01")
     engines = offline._CURRENT_ENGINES.set(("arxiv",))
@@ -663,3 +671,136 @@ async def test_public_offline_entrypoint_cannot_accept_live_transport(tmp_path):
     bounded = live._BoundedTransport(httpx.MockTransport(_mock_handler()), sink, {}, FakePacer())
     with pytest.raises(TypeError, match="RecordedMockTransport"):
         await offline.acquire_coverage_stage(manifest, {}, bounded, FakePacer())
+
+
+@pytest.mark.asyncio
+async def test_v2_ordinary_timeout_retains_row_and_invokes_every_planned_operation(tmp_path):
+    manifest, plan = make_manifest(profile=offline.CONTINUE_ACQUISITION_PROFILE.identifier)
+    requests = []
+
+    async def handler(request):
+        requests.append(request)
+        if request.url.host == "api.github.com" and request.url.params.get("q") == "synthetic query 1":
+            raise httpx.ReadTimeout("synthetic ordinary request timeout", request=request)
+        return _mock_handler()(request)
+
+    receipt = b"sealed v2 fixture"
+    result = await live.acquire_live_coverage_stage(
+        stage_manifest=manifest,
+        acquisition_plan_bytes=plan,
+        permit_receipt_bytes=receipt,
+        expected_permit_receipt_sha256=sha(receipt),
+        permit_verifier=FakePermitVerifier(),
+        one_shot_lease=OneShot(),
+        receipt_directory=tmp_path / "v2-ordinary-timeout",
+        test_transport=httpx.MockTransport(handler),
+        pacer=FakePacer(),
+    )
+
+    assert result.stage.status == "inconclusive"
+    assert len(result.stage.operations) == 13
+    assert len(requests) == result.stage.physical_request_count == 21
+    assert result.stage.operations[0].status == "inconclusive"
+    assert result.stage.operations[0].canonical_response is not None
+    assert result.stage.operations[0].canonical_response.engine_outcomes[0].status == "timeout"
+    assert all(row.status == "complete" for row in result.stage.operations[1:]), [
+        (row.operation_id, row.status, row.failure_reasons, row.exception_type) for row in result.stage.operations[1:]
+    ]
+    verified = live.verify_pool_snapshot_index(
+        result.receipt_directory,
+        expected_index_sha256=result.pool_snapshot_index_sha256,
+        expected_stage_manifest_sha256=result.stage_manifest_sha256,
+        expected_stage_uuid=manifest["stage_uuid"],
+        expected_source_revision=manifest["source_revision"],
+        expected_execution_profile=offline.CONTINUE_ACQUISITION_PROFILE.identifier,
+    )
+    assert verified["index"]["status"] == "sealed-inconclusive"
+    summary = json.loads((result.receipt_directory / "stage-summary.json").read_bytes())
+    assert summary["execution_profile"] == offline.CONTINUE_ACQUISITION_PROFILE.identifier
+    controls = summary["execution_control_attestation"]
+    assert controls["request_timeout_seconds_enforced"] == 30
+    assert controls["logical_query_timeout_seconds_enforced"] == 30
+    assert controls["ordinary_failure_policy"] == "continue-planned-operations"
+
+
+@pytest.mark.asyncio
+async def test_v2_rate_limit_is_terminal_and_later_operations_remain_uninvoked(tmp_path):
+    manifest, plan = make_manifest(profile=offline.CONTINUE_ACQUISITION_PROFILE.identifier)
+    seen = []
+
+    async def handler(request):
+        seen.append(request)
+        if request.url.host == "api.github.com" and request.url.params.get("q") == "synthetic query 1":
+            return httpx.Response(403, text="API rate limit exceeded", request=request)
+        return _mock_handler()(request)
+
+    receipt = b"sealed v2 rate limit fixture"
+    result = await live.acquire_live_coverage_stage(
+        stage_manifest=manifest,
+        acquisition_plan_bytes=plan,
+        permit_receipt_bytes=receipt,
+        expected_permit_receipt_sha256=sha(receipt),
+        permit_verifier=FakePermitVerifier(),
+        one_shot_lease=OneShot(),
+        receipt_directory=tmp_path / "v2-rate-limit",
+        test_transport=httpx.MockTransport(handler),
+        pacer=FakePacer(),
+    )
+
+    assert result.stage.status == "inconclusive"
+    assert result.stage.operations[0].canonical_response.engine_outcomes[0].status == "rate_limited"
+    assert len(result.stage.operations) == 13
+    assert all(row.status == "not_invoked_after_terminal_failure" for row in result.stage.operations[1:])
+    assert len(seen) == 2  # the sibling engine in the same concurrent query was already planned
+
+
+@pytest.mark.asyncio
+async def test_v2_logical_deadline_seals_timeout_then_invokes_remaining_operations(tmp_path, monkeypatch):
+    # Keep the production control flow and owned transport, shortening only
+    # the pinned profile in this hermetic test so cancellation is deterministic.
+    profile = offline.AcquisitionExecutionProfile(
+        identifier=offline.CONTINUE_ACQUISITION_PROFILE.identifier,
+        manifest_schema=offline.CONTINUE_ACQUISITION_PROFILE.manifest_schema,
+        request_timeout_seconds=0.3,
+        logical_query_timeout_seconds=0.05,
+        continue_after_ordinary_failure=True,
+    )
+    monkeypatch.setattr(offline, "CONTINUE_ACQUISITION_PROFILE", profile)
+    monkeypatch.setitem(offline._ACQUISITION_PROFILES, profile.identifier, profile)
+    manifest, plan = make_manifest(profile=profile.identifier)
+    seen = []
+
+    async def handler(request):
+        seen.append(request)
+        if request.url.params.get("q") == "synthetic query 1":
+            await asyncio.sleep(0.3)
+        return _mock_handler()(request)
+
+    receipt = b"sealed v2 logical-timeout fixture"
+    result = await live.acquire_live_coverage_stage(
+        stage_manifest=manifest,
+        acquisition_plan_bytes=plan,
+        permit_receipt_bytes=receipt,
+        expected_permit_receipt_sha256=sha(receipt),
+        permit_verifier=FakePermitVerifier(),
+        one_shot_lease=OneShot(),
+        receipt_directory=tmp_path / "v2-logical-timeout",
+        test_transport=httpx.MockTransport(handler),
+        pacer=FakePacer(),
+    )
+
+    assert result.stage.status == "inconclusive"
+    assert len(result.stage.operations) == 13
+    first = result.stage.operations[0]
+    assert first.status == "inconclusive"
+    assert first.exception_type == "TimeoutError"
+    assert "logical_query_timeout" in first.failure_reasons
+    assert len(first.exchanges) == 2
+    assert all(
+        exchange.failure_code in {None, "request_timeout", "request_deadline_before_dispatch"}
+        for exchange in first.exchanges
+    ), [exchange.failure_code for exchange in first.exchanges]
+    assert all(row.status == "complete" for row in result.stage.operations[1:]), [
+        (row.operation_id, row.status, row.failure_reasons, row.exception_type) for row in result.stage.operations[1:]
+    ]
+    assert len(seen) > 2

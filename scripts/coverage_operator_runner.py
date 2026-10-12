@@ -32,6 +32,7 @@ from scripts import (
     coverage_legacy_control,
     coverage_live_acquire,
     coverage_selector_input_map,
+    coverage_study_acquire,
 )
 from scripts import coverage_local_authority as local_authority
 from scripts import coverage_native_grader_handoff as native_handoff
@@ -686,6 +687,10 @@ class OperatorStageRunner:
             raise OperatorRunnerError("active-environment-preflight-failed") from exc
         endpoint = self.config["candidate_base_url"]
         _health_url, _scrape_url, endpoint_sha = capture._candidate_endpoints(endpoint)
+        try:
+            execution_profile = coverage_study_acquire.execution_profile_from_protocol(protocol.get("acquisition"))
+        except ValueError as exc:
+            raise OperatorRunnerError("acquisition-execution-profile-invalid") from exc
         preacq = _canonical(
             {
                 "schema": "coverage-preacquisition-input-manifest/1",
@@ -695,21 +700,22 @@ class OperatorStageRunner:
                 "task_ids": [row["task_id"] for row in cases] + [row["target_id"] for row in targets],
             }
         )
-        acquisition_manifest = coverage_live_acquire._canonical(
-            {
-                "schema": "coverage-live-acquisition-manifest/1",
-                "stage": self.config["stage_kind"],
-                "stage_uuid": self.config["stage_uuid"],
-                "source_revision": self.config["source_revision"],
-                "source_closure_sha256": _sha(path_bytes["qualified_source_closure"]),
-                "protocol_sha256": _sha(path_bytes["protocol"]),
-                "cohorts_sha256": _sha(path_bytes["cohorts"]),
-                "input_manifest_sha256": _sha(preacq),
-                "acquisition_plan_sha256": _sha(acquisition_plan),
-                "research_cases": cases,
-                "navigation_targets": targets,
-            }
-        )
+        acquisition_manifest_doc = {
+            "schema": execution_profile.manifest_schema,
+            "stage": self.config["stage_kind"],
+            "stage_uuid": self.config["stage_uuid"],
+            "source_revision": self.config["source_revision"],
+            "source_closure_sha256": _sha(path_bytes["qualified_source_closure"]),
+            "protocol_sha256": _sha(path_bytes["protocol"]),
+            "cohorts_sha256": _sha(path_bytes["cohorts"]),
+            "input_manifest_sha256": _sha(preacq),
+            "acquisition_plan_sha256": _sha(acquisition_plan),
+            "research_cases": cases,
+            "navigation_targets": targets,
+        }
+        if execution_profile is coverage_study_acquire.CONTINUE_ACQUISITION_PROFILE:
+            acquisition_manifest_doc["execution_profile"] = execution_profile.identifier
+        acquisition_manifest = coverage_live_acquire._canonical(acquisition_manifest_doc)
         self.static_materials = {
             "protocol": path_bytes["protocol"],
             "qualified_source_closure": path_bytes["qualified_source_closure"],
@@ -857,6 +863,7 @@ class OperatorStageRunner:
                 "acquisition_manifest_sha256": plan.expected_acquisition_manifest_sha256,
                 "stage_manifest_sha256": canonical_manifest_sha256,
                 "acquisition_plan_sha256": _sha(plan.acquisition_plan_bytes),
+                **({"execution_profile": manifest["execution_profile"]} if "execution_profile" in manifest else {}),
             },
         )
         return {
