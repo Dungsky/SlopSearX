@@ -1,0 +1,41 @@
+{
+  "acquisition": {
+    "completed_operations": 13,
+    "navigation_target_counts": {
+      "D-N01": 20,
+      "D-N02": 20,
+      "D-N03": 15,
+      "D-N04": 20,
+      "D-N05": 20
+    },
+    "physical_http_dispatches": 33,
+    "planned_operations": 13,
+    "research_pool_counts": {
+      "D-R01": 21,
+      "D-R02": 40,
+      "D-R03": 40,
+      "D-R04": 32,
+      "D-R05": 47,
+      "D-R06": 71,
+      "D-R07": 61,
+      "D-R08": 61
+    },
+    "status": "complete"
+  },
+  "adoption_or_product_qualification": "not_established",
+  "capture_http_dispatches": "unknown_from_retained_evidence",
+  "capture_phase": "terminal_failure_source_capture_error",
+  "capture_receipt_files": 0,
+  "late_preflight": "passed",
+  "later_phases": {
+    "answer_assessment": "not_invoked",
+    "gate_calculation": "not_invoked",
+    "reference_packet_preparation_and_grading": "not_invoked",
+    "selector_or_jev": "not_invoked"
+  },
+  "quality_result": "none",
+  "retry_or_reuse": "prohibited_for_this_terminal_stage",
+  "schema": "coverage-study-terminal-phase-outcome/1",
+  "stage_kind": "development",
+  "status": "terminal_source_capture_failure"
+}
