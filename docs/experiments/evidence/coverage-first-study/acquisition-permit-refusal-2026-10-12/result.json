@@ -1,0 +1,16 @@
+{
+  "schema": "coverage-first-acquisition-setup-finding/1",
+  "status": "unqualified",
+  "classification": "setup-only-canonical-manifest-binding-mismatch",
+  "source_revision": "7a79ab510d4d931ac1f0fa84c79df409dc1ca035",
+  "finding": "The operator runner serializes its derived acquisition manifest without a trailing newline, while the acquisition executor canonicalizes with a trailing newline before strict permit verification. These representations produce different manifest digests.",
+  "validation": "Offline reproduction with the production validator and pinned receipt verifier rejects the mismatched binding before lease consumption or source transport.",
+  "research_quality_measured": false,
+  "product_authorized": false,
+  "remediation": "Generate the derived manifest in the executor canonical format, retain strict byte verification, and cover the actual authority seam with a no-provider regression.",
+  "privacy": {
+    "operational_metadata_included": false,
+    "permit_metadata_or_hashes_included": false,
+    "raw_artifacts_included": false
+  }
+}
