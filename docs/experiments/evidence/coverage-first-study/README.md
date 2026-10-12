@@ -1,10 +1,8 @@
-The approved fresh development invocation [also refused during static preflight](startup-refusal-amended-2026-10-11/README.md), before the clock or scientific calls. Its acquisition-plan byte hash disagreed with the runtime-generated canonical bytes. The attempt is terminal; no further invocation is authorized.
-
 # Coverage-first study registration and preparation
 
-The first registered development invocation [stopped during startup](startup-refusal-2026-10-11/README.md), before acquisition or any scientific calls. That stage remains terminal and its evidence is preserved. A separate startup-only amendment authorizes one newly registered development invocation after this zero-call setup failure; execution still requires fresh independent admission and phase permits.
+**Status: a fresh development attempt is authorized and statically registered, but is not admitted or invoked. Research quality remains unmeasured.** The first registered development invocation [stopped during startup](startup-refusal-2026-10-11/README.md). A later amended attempt [refused during static preflight](startup-refusal-amended-2026-10-11/README.md) because its acquisition-plan bytes differed from the runtime builder. Both terminal setup records remain preserved and their stage identities are excluded. The [current setup-retry registration](registered-2026-10-11-setup-retry/README.md) uses fresh identities, the repaired source, and runtime-generated canonical plan bytes. Its development `--preflight-only` check passed without starting the stage. Stage admission and phase permits are still required before dispatch.
 
-**Status: the fresh development invocation terminated before acquisition; research quality is unmeasured.** The [coverage-first approval](../../coverage-first-release-decision.md) authorizes preparation under the original gates. The separate [startup-amended registration](registered-2026-10-11-startup-amended/README.md) records the one-time development amendment. Static registration does not provide a stage invocation permit, completed experiment, or product qualification.
+The [coverage-first approval](../../coverage-first-release-decision.md) preserves the original gates. Standing authorization covers setup-only recovery without repeated prompts; scientific failure or inconclusive outcomes are retained without rescue, regrading, or tuning. Static registration does not itself provide stage admission, phase permits, completed results, or product qualification.
 
 The question is whether reserving relevant leads for the caller's research needs
 helps finish research tasks compared with the configured query-only Jev ranking.
@@ -18,10 +16,12 @@ pools of 41–80 results. Confirmation has not been acquired or scored.
 | [cohorts.json](cohorts.json) | Proposed tasks, caller facets, queries, explicit scopes and navigation targets |
 | [cohort-overlap-check.json](cohort-overlap-check.json) | Input-bound metadata comparison against prior declared cases; not proof of corpus independence |
 | [protocol.json](protocol.json) | Base draft protocol, retained for history; the registered static protocol is in the dated bundle below |
-| [registered-2026-10-11/](registered-2026-10-11/README.md) | Preserved prior static registration; startup failure and prior stage identities remain historical |
-| [registered-2026-10-11-startup-amended/](registered-2026-10-11-startup-amended/README.md) | Fresh static registrations with new stage/packet UUIDs and repaired-source pins; no late inputs, private config, admission, or permits |
+| [registered-2026-10-11/](registered-2026-10-11/README.md) | Preserved original static registration; its startup failure and identities remain historical |
+| [registered-2026-10-11-startup-amended/](registered-2026-10-11-startup-amended/README.md) | Preserved intermediate registration; its canonical-plan static-preflight refusal is terminal and not reused |
+| [registered-2026-10-11-setup-retry/](registered-2026-10-11-setup-retry/README.md) | Current authorized static registration for a fresh development attempt; canonical plans and development static preflight are verified, but no stage admission or phase permits are present |
 | [registered-2026-10-11/target-host-preflight.json](registered-2026-10-11/target-host-preflight.json) | Sanitized Linux source/environment preflight; no stage started and no scientific provider dispatches |
 | [registered-2026-10-11-startup-amended/target-host-preflight.json](registered-2026-10-11-startup-amended/target-host-preflight.json) | Refreshed sanitized Linux preflight for the repaired source revision; no stage started and no scientific provider dispatches |
+| [registered-2026-10-11-setup-retry/full-static-preflight-observation.json](registered-2026-10-11-setup-retry/full-static-preflight-observation.json) | Source/configuration/registration-bound development `--preflight-only` pass; no working directories, marker, stage invocation, or provider dispatch |
 | [registered-2026-10-11/designated-w0-preflight.json](registered-2026-10-11/designated-w0-preflight.json) | Separate designated W0 identity preflight; outside the 11 registration pins |
 | [observed-control-baseline.json](observed-control-baseline.json) | Sanitized read-only source/configuration observations; no inference or quality probe |
 | [control-source-parity.json](control-source-parity.json) | Source comparison identifying the deployed V1 parser and unchanged projection helpers |

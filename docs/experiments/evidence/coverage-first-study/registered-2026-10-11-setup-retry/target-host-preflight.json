@@ -1,0 +1,679 @@
+{
+  "catalog_metadata_transport": "not_metered_unknown",
+  "dependency_lock_sha256": "8ecfcd029d2461631d44a2910ef5cfaa23a436da9cbc9a96ed0302e1d96861d0",
+  "environment": {
+    "distributions": [
+      {
+        "name": "aiofile",
+        "version": "3.12.3"
+      },
+      {
+        "name": "annotated-doc",
+        "version": "0.0.4"
+      },
+      {
+        "name": "annotated-types",
+        "version": "0.7.0"
+      },
+      {
+        "name": "anyio",
+        "version": "4.13.0"
+      },
+      {
+        "name": "ast-serialize",
+        "version": "0.5.0"
+      },
+      {
+        "name": "attrs",
+        "version": "26.1.0"
+      },
+      {
+        "name": "authlib",
+        "version": "1.8.0"
+      },
+      {
+        "name": "beartype",
+        "version": "0.22.9"
+      },
+      {
+        "name": "boolean-py",
+        "version": "5.0"
+      },
+      {
+        "name": "build",
+        "version": "1.5.0"
+      },
+      {
+        "name": "cachecontrol",
+        "version": "0.14.4"
+      },
+      {
+        "name": "cachetools",
+        "version": "7.2.1"
+      },
+      {
+        "name": "caio",
+        "version": "0.12.9"
+      },
+      {
+        "name": "certifi",
+        "version": "2026.5.20"
+      },
+      {
+        "name": "cffi",
+        "version": "2.1.1"
+      },
+      {
+        "name": "cfgv",
+        "version": "3.5.0"
+      },
+      {
+        "name": "charset-normalizer",
+        "version": "3.5.2"
+      },
+      {
+        "name": "click",
+        "version": "8.4.1"
+      },
+      {
+        "name": "colorama",
+        "version": "0.4.6"
+      },
+      {
+        "name": "coverage",
+        "version": "7.14.1"
+      },
+      {
+        "name": "cryptography",
+        "version": "50.0.2"
+      },
+      {
+        "name": "cssselect",
+        "version": "1.4.0"
+      },
+      {
+        "name": "cyclonedx-python-lib",
+        "version": "11.12.0"
+      },
+      {
+        "name": "cyclopts",
+        "version": "5.2.0"
+      },
+      {
+        "name": "defusedxml",
+        "version": "0.7.1"
+      },
+      {
+        "name": "deptry",
+        "version": "0.25.1"
+      },
+      {
+        "name": "distlib",
+        "version": "0.4.3"
+      },
+      {
+        "name": "dnspython",
+        "version": "2.9.0"
+      },
+      {
+        "name": "docstring-parser",
+        "version": "0.18.0"
+      },
+      {
+        "name": "email-validator",
+        "version": "2.3.0"
+      },
+      {
+        "name": "exceptiongroup",
+        "version": "1.3.1"
+      },
+      {
+        "name": "fastapi",
+        "version": "0.136.3"
+      },
+      {
+        "name": "fastmcp",
+        "version": "4.0.11"
+      },
+      {
+        "name": "fastmcp-slim",
+        "version": "4.0.11"
+      },
+      {
+        "name": "filelock",
+        "version": "4.1.0"
+      },
+      {
+        "name": "griffelib",
+        "version": "2.3.2"
+      },
+      {
+        "name": "grimp",
+        "version": "3.17"
+      },
+      {
+        "name": "h11",
+        "version": "0.16.0"
+      },
+      {
+        "name": "httpcore",
+        "version": "1.0.9"
+      },
+      {
+        "name": "httpcore2",
+        "version": "2.13.1"
+      },
+      {
+        "name": "httptools",
+        "version": "0.8.0"
+      },
+      {
+        "name": "httpx",
+        "version": "0.28.1"
+      },
+      {
+        "name": "httpx2",
+        "version": "2.13.1"
+      },
+      {
+        "name": "identify",
+        "version": "2.6.20"
+      },
+      {
+        "name": "idna",
+        "version": "3.18"
+      },
+      {
+        "name": "import-linter",
+        "version": "2.15"
+      },
+      {
+        "name": "iniconfig",
+        "version": "2.3.0"
+      },
+      {
+        "name": "jaraco-classes",
+        "version": "3.4.0"
+      },
+      {
+        "name": "jaraco-context",
+        "version": "6.1.2"
+      },
+      {
+        "name": "jaraco-functools",
+        "version": "4.6.0"
+      },
+      {
+        "name": "jeepney",
+        "version": "0.9.0"
+      },
+      {
+        "name": "joserfc",
+        "version": "1.7.5"
+      },
+      {
+        "name": "jsonref",
+        "version": "1.1.0"
+      },
+      {
+        "name": "jsonschema",
+        "version": "4.26.0"
+      },
+      {
+        "name": "jsonschema-path",
+        "version": "0.5.0"
+      },
+      {
+        "name": "jsonschema-specifications",
+        "version": "2025.9.1"
+      },
+      {
+        "name": "keyring",
+        "version": "25.7.0"
+      },
+      {
+        "name": "librt",
+        "version": "0.11.0"
+      },
+      {
+        "name": "license-expression",
+        "version": "30.4.4"
+      },
+      {
+        "name": "lxml",
+        "version": "6.1.1"
+      },
+      {
+        "name": "mando",
+        "version": "0.7.1"
+      },
+      {
+        "name": "markdown-it-py",
+        "version": "4.2.0"
+      },
+      {
+        "name": "mcp",
+        "version": "2.3.0"
+      },
+      {
+        "name": "mcp-types",
+        "version": "2.3.0"
+      },
+      {
+        "name": "mdurl",
+        "version": "0.1.2"
+      },
+      {
+        "name": "more-itertools",
+        "version": "11.1.0"
+      },
+      {
+        "name": "msgpack",
+        "version": "1.2.3"
+      },
+      {
+        "name": "mypy",
+        "version": "2.1.0"
+      },
+      {
+        "name": "mypy-extensions",
+        "version": "1.1.0"
+      },
+      {
+        "name": "nodeenv",
+        "version": "1.11.0"
+      },
+      {
+        "name": "openapi-pydantic",
+        "version": "0.6.0"
+      },
+      {
+        "name": "opentelemetry-api",
+        "version": "1.45.1"
+      },
+      {
+        "name": "packageurl-python",
+        "version": "0.17.6"
+      },
+      {
+        "name": "packaging",
+        "version": "26.2"
+      },
+      {
+        "name": "pathable",
+        "version": "0.6.0"
+      },
+      {
+        "name": "pathspec",
+        "version": "1.1.1"
+      },
+      {
+        "name": "pip",
+        "version": "26.1.2"
+      },
+      {
+        "name": "pip-api",
+        "version": "0.0.35"
+      },
+      {
+        "name": "pip-audit",
+        "version": "2.10.1"
+      },
+      {
+        "name": "pip-requirements-parser",
+        "version": "32.0.1"
+      },
+      {
+        "name": "pip-tools",
+        "version": "7.5.3"
+      },
+      {
+        "name": "platformdirs",
+        "version": "4.12.4"
+      },
+      {
+        "name": "pluggy",
+        "version": "1.6.0"
+      },
+      {
+        "name": "pre-commit",
+        "version": "4.6.2"
+      },
+      {
+        "name": "prometheus-client",
+        "version": "0.26.0"
+      },
+      {
+        "name": "py-key-value-aio",
+        "version": "0.4.6"
+      },
+      {
+        "name": "py-serializable",
+        "version": "2.1.0"
+      },
+      {
+        "name": "pycparser",
+        "version": "3.11"
+      },
+      {
+        "name": "pydantic",
+        "version": "2.13.4"
+      },
+      {
+        "name": "pydantic-core",
+        "version": "2.46.4"
+      },
+      {
+        "name": "pydantic-settings",
+        "version": "2.15.0"
+      },
+      {
+        "name": "pygments",
+        "version": "2.20.0"
+      },
+      {
+        "name": "pyjwt",
+        "version": "2.15.1"
+      },
+      {
+        "name": "pyparsing",
+        "version": "3.3.3"
+      },
+      {
+        "name": "pyperclip",
+        "version": "1.11.0"
+      },
+      {
+        "name": "pyproject-hooks",
+        "version": "1.2.0"
+      },
+      {
+        "name": "pytest",
+        "version": "9.0.3"
+      },
+      {
+        "name": "pytest-asyncio",
+        "version": "1.4.0"
+      },
+      {
+        "name": "pytest-cov",
+        "version": "7.1.0"
+      },
+      {
+        "name": "python-discovery",
+        "version": "1.6.2"
+      },
+      {
+        "name": "python-dotenv",
+        "version": "1.2.2"
+      },
+      {
+        "name": "python-multipart",
+        "version": "0.0.32"
+      },
+      {
+        "name": "pyyaml",
+        "version": "6.0.3"
+      },
+      {
+        "name": "radon",
+        "version": "6.0.1"
+      },
+      {
+        "name": "referencing",
+        "version": "0.37.0"
+      },
+      {
+        "name": "requests",
+        "version": "2.34.2"
+      },
+      {
+        "name": "requirements-parser",
+        "version": "0.13.1"
+      },
+      {
+        "name": "rich",
+        "version": "15.0.0"
+      },
+      {
+        "name": "rich-rst",
+        "version": "2.2.0"
+      },
+      {
+        "name": "rpds-py",
+        "version": "2026.9.1"
+      },
+      {
+        "name": "ruff",
+        "version": "0.15.16"
+      },
+      {
+        "name": "secretstorage",
+        "version": "3.5.0"
+      },
+      {
+        "name": "sentry-sdk",
+        "version": "2.71.0"
+      },
+      {
+        "name": "setuptools",
+        "version": "82.0.1"
+      },
+      {
+        "name": "six",
+        "version": "1.17.0"
+      },
+      {
+        "name": "slopsearx",
+        "version": "0.6.0"
+      },
+      {
+        "name": "sortedcontainers",
+        "version": "2.4.0"
+      },
+      {
+        "name": "sse-starlette",
+        "version": "3.5.0"
+      },
+      {
+        "name": "starlette",
+        "version": "1.2.1"
+      },
+      {
+        "name": "structlog",
+        "version": "26.1.0"
+      },
+      {
+        "name": "tomli",
+        "version": "2.5.0"
+      },
+      {
+        "name": "tomli-w",
+        "version": "1.2.0"
+      },
+      {
+        "name": "truststore",
+        "version": "0.10.4"
+      },
+      {
+        "name": "typing-extensions",
+        "version": "4.15.0"
+      },
+      {
+        "name": "typing-inspection",
+        "version": "0.4.2"
+      },
+      {
+        "name": "uncalled-for",
+        "version": "0.4.1"
+      },
+      {
+        "name": "urllib3",
+        "version": "2.8.0"
+      },
+      {
+        "name": "uvicorn",
+        "version": "0.49.0"
+      },
+      {
+        "name": "uvloop",
+        "version": "0.22.1"
+      },
+      {
+        "name": "valkey",
+        "version": "6.1.1"
+      },
+      {
+        "name": "virtualenv",
+        "version": "21.14.5"
+      },
+      {
+        "name": "vulture",
+        "version": "2.16"
+      },
+      {
+        "name": "watchfiles",
+        "version": "1.2.0"
+      },
+      {
+        "name": "websockets",
+        "version": "16.0"
+      },
+      {
+        "name": "wheel",
+        "version": "0.47.0"
+      }
+    ],
+    "platform": {
+      "machine": "x86_64",
+      "sys_platform": "linux",
+      "system": "Linux"
+    },
+    "python_implementation": "cpython",
+    "python_version": "3.12.3",
+    "schema": "coverage-active-python-environment/1"
+  },
+  "loaded_project_module_sha256": {
+    "engines/__init__.py": "d12a68413dd5b674e4fef9ca78192f654442f27a97aaba71916cce9ab70726a3",
+    "engines/abuseipdb.py": "2b48ec5b688a9cc6fb1aa50e5e82a655681b0a760f19e1310952ccaa04828eff",
+    "engines/arxiv.py": "4e174dc8af03bafc662b4ccadd724d4727ec63a1ea02579de27af5fe9fa2f408",
+    "engines/ashby.py": "f1b0bb6f524c626a82b6414fd282485d1ca834b291b86709c1afb01d62135278",
+    "engines/brave.py": "a37c499cd64d5484bee627fb392232c3bf3c9daf04a178b26e758f62f49de95a",
+    "engines/censys.py": "7bd028ed435dd26fec42a42e83064db0d46e676dc9b2531ff5f8b3b3c8f4024b",
+    "engines/clinicaltrials.py": "28d1981607b05988a264c0950bd3b151608c7992d7fa0d543421a8577a2295c7",
+    "engines/crates.py": "0dafea2ca44d45cf2d57a3efda27ac51124cbe563177840c28b5b79bc36a48d4",
+    "engines/crtsh.py": "2291458551dc91f81eaf0472802fae84e10479a4095b43309dcc68ef0b6e8f76",
+    "engines/cve.py": "b2e4f7177a3b09758305ef3c89c80e205e2d5551ca07c786ef3c8234988a8851",
+    "engines/dehashed.py": "0af39ca824817ce1bf065c72fbf463e64ef604a68ef5780292328de335d2eeba",
+    "engines/dockerhub.py": "4915cf45ba079dc47f776f03884c678ee8cc824f94a551ee80057d8c9a5bcbb9",
+    "engines/duckduckgo.py": "e3203f5d4a39546df743a415609d45ec15a92eb2ebfb3f62b19324861cb74bd0",
+    "engines/edgar.py": "906a493921b8300421432180314ce4e0707871aa9bd73c9a5b9670347ee67d42",
+    "engines/epss.py": "e6df882daf4f6324dac834289c7c12358d38ab1e729cd695aca6b6676a364f04",
+    "engines/europepmc.py": "c8811e83b2117eb53011e96a8e9462a30462da43bebb6a8cea6cb7a8dc702dbf",
+    "engines/exploitdb.py": "69f1502ba59882e962230a052a87a15f24034eb0d678ae6f9755acb0b53aa26b",
+    "engines/fred.py": "f4e1d1a58a52f5f2df62869b8a27d5f973d4d6b30b3792df939583bc145b4d7e",
+    "engines/github.py": "4b66aa998dcff010c9f14d2d8f195482d583a0e6b9f858467ee98be8751881c7",
+    "engines/google.py": "8fea6f735ecb1d3ee6e6e19b694869ac67337a9a88e0cc2631502f281587c272",
+    "engines/greenhouse.py": "eec36d8753f9079aa473188eede2f86e8c98b591cc25a58b797f9c2441507dc8",
+    "engines/greynoise.py": "53c810ca4b9ea38567ca19e1494f1997381bf16120be2fce62f3a1aa977cea6a",
+    "engines/hackernews.py": "2829378c8fe6370738677c5f9e962b9c8a9cda0c64869e9ba06cf4cf9e6c60ba",
+    "engines/hibp.py": "4e886c3069755d8d5c7e516b19034a11afb62568ae671e8d911594b616178897",
+    "engines/huggingface.py": "657ea8405dddade884c725b689a1ae4162c9efa893b9bca5dca70d700a1315cb",
+    "engines/intelx.py": "33cc32df8fc257ce3053c3c785633bc8504e95e5213071676d9cd51ae7b07fd9",
+    "engines/internetarchive.py": "6a4a0cdc10f2bc206380e3b67cbd82cbb329d02f9bbe0e5471ea483bdc44c4b4",
+    "engines/lever.py": "550f55ba19ce35e62c61e6814e264250e0d920cfaa887e8b848bf99b87f1d155",
+    "engines/mitreattack.py": "f0c2dd0735b5392aa84e4a6e252542b441d6b6954442860e42d86bfdb55d96c4",
+    "engines/musicbrainz.py": "63cac10045fcd77406a43c1011ae6542e5091d582cee94a4a11232ef4ee2f062",
+    "engines/nominatim.py": "e2abcb603545e4fefedd3aa26f8daea122707a6c698200a430cbf9231112d632",
+    "engines/npm.py": "e21b0f33b719f94382845cac953b2599fef1ac3bfded18a90d2ea63c49c78134",
+    "engines/nvd.py": "ef465e8decab33aa61e8e7ec1ea5c9b6352a33a803d6c43694600b39a37bc64d",
+    "engines/openalex.py": "537f1da9deda5f75ffde429167620c0006d93c485d0e5e8723b5c39f6c102e59",
+    "engines/openfda.py": "5ac12009c87125758fe4322ce5aee0c5405c8531e037c7c465283afa5ee25221",
+    "engines/openlibrary.py": "feeb75a9de3c2474304b04bfa45b635cbf1d6066f64e5b8eec036a056c41c6c6",
+    "engines/otx.py": "4d2e242594689530b1e615cee83181505834e13d289cb83746ca7b7fe4129b79",
+    "engines/oyez.py": "8e82628c96ab964d99d0f01b73d4fbc8345c77149569f3fff2a57995aa67bb19",
+    "engines/pubchem.py": "aa57ea70db504d260ef3d295fafc344e8d911341bbb1bbe3bee5f1880aa2b0c1",
+    "engines/pubmed.py": "ac7b78c12f890ac5bcb9360cfc0c7059377b680b77902e016181ba70ae0f688c",
+    "engines/pypi.py": "16b09518585f440ddb20ecdd7bcf398d93004813a4d1e916afc83e18081b9590",
+    "engines/reddit.py": "a9c5e347c727c03f0ea42b00883f1aa9b20416daa4ecf9d69c1d53d98fd708b7",
+    "engines/rubygems.py": "29c00458aaf2804872565acaa19df9f447463509b3cc0f4869959c33d82e7849",
+    "engines/semanticscholar.py": "4a5daf809e77ff7001f9ba2b92f3d035eec507a7e3c199d2180582de3d4b8b8c",
+    "engines/shodan.py": "c135651afdb68707bfc5d9728e2b857ffe484d5b927dd41a448e78eec58c78f3",
+    "engines/stackexchange.py": "0fb6e82464a055f1988abc4e075397f6ce70b5af3bd9a613a9380db1d5375606",
+    "engines/tmdb.py": "72155872efdef1916ee4c37ef4046588c619940bd3e50d3dae20957d133a4a18",
+    "engines/uniprot.py": "03887fe7af9da041cb2185e7c21d85d57adc8acd343629af613191b36e55944c",
+    "engines/urlhaus.py": "71fae6869a6487c3aeb0c7f9f7cc68ca9a2883ec4bce2e647499028f913f36ac",
+    "engines/virustotal.py": "7cd801a42eaf8ae21b5fb35d2b7dfe97938398db1399fd3264521dcc7cd5924e",
+    "engines/vulncheck.py": "9ee7454c77ecb110a4c7ab27e3249eeca794eef409dc9bf5e3ca9aa01a7ab46a",
+    "engines/wikipedia.py": "45c3edbcb4578eec201ae9f69e8e27407ad7154cbf061547b7d783db6b1180e3",
+    "scripts/coverage_answer_execution.py": "7ba670f9465a1dc892f979437bb3f5ac0f2f5785108947133c65e544e55858a3",
+    "scripts/coverage_assessment_packets.py": "8dfbe0f97666387da455eb9e9a9d88895f13ab5b83a28f7eaf4d3478b47bc3b5",
+    "scripts/coverage_consumer_inputs.py": "310c532eb90e3fe41b29bd16af9f35a3008e69dfd0ae384077c0ad5a5ad8dae9",
+    "scripts/coverage_execution_controls.py": "15436d0598927ad56f99b9271218e56219a8985c8d41acc7bdfba7112c8b456f",
+    "scripts/coverage_grade_closure.py": "2b08dd8da7a002a5a991615cd437aa34b85781549836e652f5ef6372df37bea7",
+    "scripts/coverage_jev_execution.py": "6424ade5127fc7f5afdb24e0f93473cb59df80d3163e8e071f0d27575b9a4079",
+    "scripts/coverage_late_registration.py": "46faf61dcc46a384c706fa5ad05d942ce9675cf61bd27bb54a07a4a592944c2e",
+    "scripts/coverage_legacy_control.py": "f5e75bb87925bfc128885ac88021dd3c367ec893c13cc48eeee9454408600d0b",
+    "scripts/coverage_live_acquire.py": "fc47f0e5b2fa866940f7d969a2fc0a6aa0343535a0c2d2a8146ae81c10c60ed3",
+    "scripts/coverage_local_authority.py": "8d8bfadb0cb21e0beee47c08eb6504b34936ae198e8686d3128f5e873e5e5513",
+    "scripts/coverage_native_grader_handoff.py": "e7aba70d6e645a58d81532dee9619e2ae86af94ee038a44ac07200345255c528",
+    "scripts/coverage_native_host_dispatch.py": "cee85930408ad2409ed6a60c90434b9cbf976f493ca56939ec3db09a2c89f99e",
+    "scripts/coverage_operator_handoff.py": "7b0273cdf96676a3566362a3c6dc9da6a9290851330c90490648f24a613d1e57",
+    "scripts/coverage_operator_launcher.py": "e477259f15257c24caa26b7e221afeaf0ffc9a0929ffac7d4e4fdf8d0691c832",
+    "scripts/coverage_operator_runner.py": "f651f17131592574063ee796a06f472ab74076d5a257d060374293a6273e3d34",
+    "scripts/coverage_pipeline_inputs.py": "3b2a7bc1161791dbec9d7f20037595fa09de261634ba8dd99f2a64eb63c95c8b",
+    "scripts/coverage_resource_evidence.py": "0ccee3708237f86c9e8da38223275fa914ee8b95228b25fa57ffa78105b14d90",
+    "scripts/coverage_runtime_environment.py": "74c3dbe0ae4bbaf160eaec9dc0355b6a1e894655eaaf585d448c1127df8a5a32",
+    "scripts/coverage_selector_admission.py": "e2bdac62ac2dadc47a62c82c8c316701922e17f5a983fc4fefcb2c739c39ae0c",
+    "scripts/coverage_selector_input_map.py": "dd9cf45b7bd5b7af492f5d14d3795a3d80c79b9bae222e393cea71f141474573",
+    "scripts/coverage_source_capture.py": "a3aa05578c593965d7fb5bd7791d882a111b0385c7cf7312151be74e0cef7b69",
+    "scripts/coverage_stage_orchestration.py": "b33f0e634c1da9508098e122f3b4320796d8f40b68829c1890d78d2f970862c2",
+    "scripts/coverage_stage_runtime.py": "be0164e5d6f481f1bdae804c501fa417b9b7095ead2caeeaa5b8c14983c8f18e",
+    "scripts/coverage_study_acquire.py": "912d663a33147cb449e0f8ee04db48113c5e5876863a2e501d3d0bc1168df751",
+    "scripts/coverage_study_core.py": "de9c2387e82a11cdf01ca12963d6e159b8d114b09b8f0378e23639ae62ddf196",
+    "scripts/intent_ranking_coverage.py": "806746b4fa5c497f269933008db76650e2c1113dbd35a08b011d86c4d81f11ca",
+    "scripts/intent_ranking_receipts.py": "3aa43da78719596424387339a8202b03699f840264ca83b12efc91b56e580df9",
+    "slopsearx/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "slopsearx/adapter.py": "5883a35c48d0dad1077306fbda21997ee1d32116a8c03633a6b762de0c26d6f3",
+    "slopsearx/audit.py": "11896df807d77088ae4985540936705a8c27a463cd1aa4f7ecca5bbd4a1f5c32",
+    "slopsearx/cache.py": "88155d2060f19bcb7740c9498f8f82378e26c4c60ac4d013bee9913eb333c089",
+    "slopsearx/capabilities.py": "ed4e332a4df1de32d83b9dd2b62dddb622082ab4c236c0c9cef8d8d23336fd6f",
+    "slopsearx/config.py": "1cf76b8732439782342a9d217fb2f7c423f688533f287dbf78729a1defc5236e",
+    "slopsearx/filters.py": "f0edd2f633cc9a42c49660ca74b225732cbc82937a15ad58a5b0dbeb76e103a9",
+    "slopsearx/jev.py": "abdf250eda6018155b700b2cc4d22fe57ec1ae39c148c1f942082540d34cfe03",
+    "slopsearx/jobs_utils.py": "7de11b7051954829993b90c042a1dffd05785dbddd8aa7b5ca717891d66452d8",
+    "slopsearx/logging.py": "b4208d3c051914bea94404de16248959abee4ca61dffcaa641cc5b2e4d18652e",
+    "slopsearx/merger.py": "5bb1a599ed8330aad02bd6567984d12c02f4ed735059c4f50cd6dfefd21e5eda",
+    "slopsearx/metrics.py": "2df238e07c692be05f73bdc3b1e7896dbae576df1d5128a445e6a9fe196c0edc",
+    "slopsearx/payload.py": "a44a95655566f9fadaf62da1bab8c975f71f3ead6c3cc57f48c411a9c093c40d",
+    "slopsearx/publication_metadata.py": "0096ba4a3e8f24a1880fcde6d3aa91b9c88d318e3591c9dbe3071aad911ee323",
+    "slopsearx/ratelimit.py": "3f2a281ec40bb6b7639556e14ab394c10a9da20c6c215bdc1e07a188f397f751",
+    "slopsearx/rerank.py": "df518bac899fa457e713201192a65f8ee0c3599419382e5be221d5ac366b479e",
+    "slopsearx/router.py": "ef06ec73b7a94e8ae7880127d2974fc52050741e3a140d0407070d17cc925065",
+    "slopsearx/routing.py": "8a6abc8189ba7351274a55018575879d36d66d7a9685ed65201d60c3e1bc9e9f",
+    "slopsearx/scholarly.py": "cfa7ab4c0326b0a3c3da97e527766a65c657a9865897193d3ae59964779b77d5",
+    "slopsearx/service.py": "aed455ccbefcfee5ffcf099876dc7230cead27527313269edc0f69b504c20922",
+    "slopsearx/stats.py": "04dd73d675394d3d0cea39a9841db4fad19d9de16515236d227c00bbc12d1169",
+    "slopsearx/suggest.py": "52da46168fa09208bba88a8e414e878ce9d2b6260b2aadea2306ff3e1e8b3dc1"
+  },
+  "native_cli": {
+    "binary_sha256": "628e35487d888a28f0427fc37501da529dd3d81fcbad7a2c3421c1e8670d92e1",
+    "binary_unchanged_since_metadata_observation": true,
+    "catalog_contains_requested_model": true,
+    "catalog_response_sha256": "9a7727c0ba2fb1ece091f07792b2f8610751edfb2a2ae2a000a737e7c5fff3b9",
+    "catalog_row_sha256": "40ce3747b1ab30214a5c50e0b860e1330ddb485c3688e36e56ef13a8ba20f96e",
+    "configured_mcp_count": 0,
+    "metadata_observed_under_source_revision": "a3e2b81724e462fe72606e715112ede587cb07a2",
+    "requested_model": "gpt-6.1-sol",
+    "route_qualification": "not_established_by_metadata",
+    "stable_environment_tools_effective": false,
+    "version": "codex-cli 0.162.1"
+  },
+  "original_private_environment_receipt_sha256": "ba72b3a4b386e06148845c94ed023669e1cc8936beea78e8a792a14c23d6df36",
+  "schema": "coverage-study-target-host-preflight/1",
+  "scientific_evaluation_calls": 0,
+  "scientific_provider_dispatches": 0,
+  "source_bootstrap": "coverage-source-bootstrap/1",
+  "source_revision": "7a79ab510d4d931ac1f0fa84c79df409dc1ca035",
+  "status": "source_and_environment_verified_no_stage_started"
+}

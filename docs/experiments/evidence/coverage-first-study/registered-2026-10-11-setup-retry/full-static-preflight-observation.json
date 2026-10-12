@@ -1,0 +1,13 @@
+{
+  "basis": "actual --preflight-only launcher in locked Linux Python 3.12.3 environment; configured roots and launch marker inspected after exit",
+  "config_sha256": "5e3dc1bc24a9d90d4e59022ebb09ab0e98196a64eb167eec945b27cbdc3be3f2",
+  "configured_working_directories_present": 0,
+  "exit_code": 0,
+  "invocation_authorized": false,
+  "launch_marker_present": false,
+  "registration_sha256": "fd8215a11676f6cd2501ea8610b501693930d5a10d54e8f3162a5ff61e68402c",
+  "schema": "coverage-proposal-static-preflight-observation/1",
+  "source_revision": "7a79ab510d4d931ac1f0fa84c79df409dc1ca035",
+  "stage_invocation": false,
+  "status": "static-preflight-passed"
+}
