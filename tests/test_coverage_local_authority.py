@@ -12,6 +12,7 @@ from scripts import coverage_answer_execution as answer
 from scripts import coverage_live_acquire as acquisition
 from scripts import coverage_local_authority as authority
 from scripts import coverage_source_capture as capture
+from scripts import coverage_study_acquire
 
 
 def canonical(value: object) -> bytes:
@@ -60,6 +61,37 @@ class PinnedReceiptAuthorityTests(unittest.TestCase):
             authority.PinnedReceiptAuthorities.acquisition(manifest, manifest_sha, changed_raw, digest(changed_raw))
         with self.assertRaisesRegex(authority.LocalAuthorityError, "receipt-pin-or-binding-invalid"):
             authority.PinnedReceiptAuthorities.acquisition(manifest, manifest_sha, raw, "0" * 64)
+
+    def test_v2_acquisition_permit_binds_fixed_execution_profile(self):
+        manifest = {
+            "schema": "coverage-live-acquisition-manifest/2",
+            "execution_profile": coverage_study_acquire.CONTINUE_ACQUISITION_PROFILE.identifier,
+            "stage_uuid": str(uuid.UUID(int=1009)),
+            "source_revision": "a" * 40,
+            "source_closure_sha256": "1" * 64,
+            "protocol_sha256": "2" * 64,
+            "cohorts_sha256": "3" * 64,
+            "input_manifest_sha256": "4" * 64,
+            "acquisition_plan_sha256": "5" * 64,
+        }
+        stage_sha = "6" * 64
+        bindings = {
+            **{
+                key: value
+                for key, value in manifest.items()
+                if key.endswith("_sha256") or key in {"stage_uuid", "source_revision"}
+            },
+            "stage_manifest_sha256": stage_sha,
+            "execution_profile": manifest["execution_profile"],
+        }
+        raw = receipt("source-acquisition", bindings)
+        permit = authority.PinnedReceiptAuthorities.acquisition(manifest, stage_sha, raw, digest(raw))
+        self.assertEqual(permit.execution_profile, manifest["execution_profile"])
+        legacy_receipt = receipt(
+            "source-acquisition", {key: value for key, value in bindings.items() if key != "execution_profile"}
+        )
+        with self.assertRaisesRegex(authority.LocalAuthorityError, "receipt-claims-mismatch"):
+            authority.PinnedReceiptAuthorities.acquisition(manifest, stage_sha, legacy_receipt, digest(legacy_receipt))
 
     def test_capture_receipt_matches_manifest_and_frozen_limits(self):
         manifest = {

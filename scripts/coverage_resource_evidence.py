@@ -848,8 +848,7 @@ def _selector_observations(
                 "builder_source_sha256",
                 "operations",
             }
-            or input_map.get("schema")
-            != (expected_selector_input_map_schema or "coverage-selector-input-map/2-draft")
+            or input_map.get("schema") != (expected_selector_input_map_schema or "coverage-selector-input-map/2-draft")
             or input_map.get("status")
             != (
                 "complete-awaiting-external-admission"
@@ -1289,10 +1288,22 @@ def collect_acquisition_observations(
     source_closure_sha256: str,
     acquisition_plan_sha256: str,
     configured_timeout_seconds: int | float,
+    expected_execution_profile: str = offline_acquisition.LEGACY_ACQUISITION_PROFILE.identifier,
     configured_query_pacing_seconds: int | float | None = None,
     configured_arxiv_pacing_seconds: int | float | None = None,
     deadline_monotonic: float | None = None,
 ) -> dict[str, object]:
+    if _sha(acquisition_manifest_bytes) != expected_manifest_sha256:
+        raise ResourceEvidenceError("acquisition-manifest-pin-mismatch")
+    manifest = _strict_json(acquisition_manifest_bytes, "acquisition-manifest")
+    try:
+        profile = offline_acquisition.execution_profile_from_manifest(manifest)
+    except Exception as exc:
+        raise ResourceEvidenceError("acquisition-profile-invalid") from exc
+    if float(configured_timeout_seconds) != profile.request_timeout_seconds:
+        raise ResourceEvidenceError("acquisition-profile-timeout-mismatch")
+    if profile.identifier != expected_execution_profile:
+        raise ResourceEvidenceError("acquisition-profile-protocol-mismatch")
     try:
         verified = coverage_live_acquire.verify_pool_snapshot_index(
             snapshots_directory,
@@ -1300,6 +1311,7 @@ def collect_acquisition_observations(
             expected_stage_manifest_sha256=expected_manifest_sha256,
             expected_stage_uuid=stage_uuid,
             expected_source_revision=source_revision,
+            expected_execution_profile=profile.identifier,
             deadline_monotonic=deadline_monotonic,
         )
     except Exception as exc:
@@ -1313,9 +1325,6 @@ def collect_acquisition_observations(
     }
     if any(index.get(key) != value for key, value in expected.items()):
         raise ResourceEvidenceError("acquisition-stage-binding-mismatch")
-    if _sha(acquisition_manifest_bytes) != expected_manifest_sha256:
-        raise ResourceEvidenceError("acquisition-manifest-pin-mismatch")
-    manifest = _strict_json(acquisition_manifest_bytes, "acquisition-manifest")
     try:
         checked_manifest, _raw, _ids, _reserved, _limits = coverage_live_acquire._validate_manifest(
             manifest, acquisition_plan_bytes
@@ -1448,11 +1457,22 @@ def collect_acquisition_observations(
         response_total += response_bytes
         max_response = max(max_response, response_bytes)
     summary = inventory.get("stage-summary.json")
+    allowed_statuses = {"complete"}
+    if profile is offline_acquisition.CONTINUE_ACQUISITION_PROFILE:
+        allowed_statuses.add("inconclusive")
     if (
         type(summary) is not dict
         or summary.get("stage") != manifest.get("stage")
-        or summary.get("status") != "complete"
+        or summary.get("status") not in allowed_statuses
         or summary.get("physical_request_count") != physical_calls
+        or (
+            profile is offline_acquisition.CONTINUE_ACQUISITION_PROFILE
+            and (
+                summary.get("schema") != "coverage-live-acquisition-summary/2"
+                or summary.get("execution_profile") != profile.identifier
+                or index.get("status") != ("complete" if summary.get("status") == "complete" else "sealed-inconclusive")
+            )
+        )
     ):
         raise ResourceEvidenceError("acquisition-stage-summary-binding")
     controls = summary.get("execution_control_attestation")
@@ -1477,6 +1497,15 @@ def collect_acquisition_observations(
             "offset_quantization_guard_seconds": coverage_live_acquire.OFFSET_QUANTIZATION_GUARD_SECONDS,
             "application_retry_policy": "one-search-invocation-per-planned-operation",
         }
+        if profile is offline_acquisition.CONTINUE_ACQUISITION_PROFILE:
+            expected_control_bindings.update(
+                {
+                    "execution_profile": profile.identifier,
+                    "request_timeout_seconds_enforced": profile.request_timeout_seconds,
+                    "logical_query_timeout_seconds_enforced": profile.logical_query_timeout_seconds,
+                    "ordinary_failure_policy": "continue-planned-operations",
+                }
+            )
         control_keys = {
             *expected_control_bindings,
             "pacer_identity",
@@ -1521,18 +1550,16 @@ def collect_acquisition_observations(
         else:
             raise ResourceEvidenceError("acquisition-control-retry-policy-invalid")
 
-        expected_ids = [
-            row.get("task_id") for row in manifest["research_cases"]
-        ] + [row.get("target_id") for row in manifest["navigation_targets"]]
+        expected_ids = [row.get("task_id") for row in manifest["research_cases"]] + [
+            row.get("target_id") for row in manifest["navigation_targets"]
+        ]
         invocations = controls.get("operation_invocations")
         if type(invocations) is not list or len(invocations) != len(expected_ids):
             raise ResourceEvidenceError("acquisition-operation-invocation-inventory")
         invoked_rows: list[dict[str, object]] = []
         stopped = False
         for index, (operation_id, row) in enumerate(zip(expected_ids, invocations, strict=True), start=1):
-            if type(row) is not dict or set(row) != {
-                "operation_id", "sequence", "start_offset_us", "end_offset_us"
-            }:
+            if type(row) is not dict or set(row) != {"operation_id", "sequence", "start_offset_us", "end_offset_us"}:
                 raise ResourceEvidenceError("acquisition-operation-invocation-shape")
             if row.get("operation_id") != operation_id or row.get("sequence") != index:
                 raise ResourceEvidenceError("acquisition-operation-invocation-order")
@@ -1552,6 +1579,12 @@ def collect_acquisition_observations(
             invoked_rows.append(row)
         if summary.get("status") == "complete" and len(invoked_rows) != len(expected_ids):
             raise ResourceEvidenceError("acquisition-operation-invocation-incomplete")
+        if (
+            profile is offline_acquisition.CONTINUE_ACQUISITION_PROFILE
+            and summary.get("status") == "inconclusive"
+            and len(invoked_rows) != len(expected_ids)
+        ):
+            raise ResourceEvidenceError("acquisition-v2-planned-operation-not-invoked")
         if production_transport and len(invoked_rows) >= 2:
             raw_idle_gaps = [
                 int(next_row["start_offset_us"]) - int(previous_row["end_offset_us"])
@@ -1574,16 +1607,11 @@ def collect_acquisition_observations(
             )
 
         dispatch_offsets = controls.get("physical_dispatch_offsets_us")
-        if (
-            type(dispatch_offsets) is not list
-            or dispatch_offsets != dispatched_receipt_offsets
-        ):
+        if type(dispatch_offsets) is not list or dispatch_offsets != dispatched_receipt_offsets:
             raise ResourceEvidenceError("acquisition-dispatch-offset-receipt-mismatch")
         arxiv_offsets = []
         for row in dispatch_offsets:
-            if type(row) is not dict or set(row) != {
-                "sequence", "operation_id", "engine", "dispatch_offset_us"
-            }:
+            if type(row) is not dict or set(row) != {"sequence", "operation_id", "engine", "dispatch_offset_us"}:
                 raise ResourceEvidenceError("acquisition-dispatch-offset-shape")
             offset = row.get("dispatch_offset_us")
             if type(offset) is not int or offset < 0:
@@ -1700,6 +1728,10 @@ def collect_resource_evidence(**kwargs) -> ResourceEvidenceReport:
             raise ResourceEvidenceError("protocol-cohort-binding")
         protocol_sha256 = _sha(protocol_bytes)
         cohorts_sha256 = _sha(cohorts_bytes)
+        try:
+            acquisition_profile = offline_acquisition.execution_profile_from_protocol(protocol.get("acquisition"))
+        except Exception as exc:
+            raise ResourceEvidenceError("protocol-acquisition-profile-invalid") from exc
         acquisition_plan_bytes = kwargs["acquisition_plan_bytes"]
         acq = collect_acquisition_observations(
             snapshots_directory=kwargs["snapshots_directory"],
@@ -1716,6 +1748,7 @@ def collect_resource_evidence(**kwargs) -> ResourceEvidenceReport:
             source_closure_sha256=kwargs["source_closure_sha256"],
             acquisition_plan_sha256=_sha(acquisition_plan_bytes),
             configured_timeout_seconds=protocol["acquisition"]["timeout_seconds"],
+            expected_execution_profile=acquisition_profile.identifier,
             configured_query_pacing_seconds=protocol["acquisition"]["pacing_seconds"],
             configured_arxiv_pacing_seconds=protocol["acquisition"]["arxiv_physical_pacing_seconds"],
             deadline_monotonic=deadline,

@@ -11,6 +11,7 @@ from engines.arxiv import ArxivAdapter
 from engines.github import GitHubAdapter
 from engines.openalex import OpenAlexAdapter
 from engines.wikipedia import WikipediaAdapter
+from scripts import coverage_study_acquire as acquisition
 from scripts.coverage_study_acquire import (
     ENGINE_TIMEOUT_MS,
     MAX_RESULTS_PER_ENGINE,
@@ -29,6 +30,45 @@ class FakeClock:
 
     async def sleep(self, seconds: float) -> None:
         self.sleeps.append(seconds)
+
+
+def test_v2_execution_profile_is_closed_and_preserves_v1_timeout():
+    assert (
+        acquisition.execution_profile_from_protocol({"timeout_seconds": 10}) is acquisition.LEGACY_ACQUISITION_PROFILE
+    )
+    proposed = {
+        "execution_profile": acquisition.CONTINUE_ACQUISITION_PROFILE.identifier,
+        "timeout_seconds": 30,
+        "logical_query_timeout_seconds": 30,
+        "ordinary_failure_policy": "continue-planned-operations",
+        "pool_failure": (
+            "retain empty, failed, wrong-band and overflow outcomes; "
+            "stage inconclusive, no replacement/concatenation/trimming"
+        ),
+        "retries": 0,
+        "max_physical_http_calls": 53,
+        "per_engine_results": 20,
+        "response_bytes": 2_000_000,
+        "pacing_seconds": 7,
+        "arxiv_physical_pacing_seconds": 3,
+        "brave_calls": 0,
+        "brave_remaining_reserved": 2,
+        "engines": ["arxiv", "openalex", "github", "wikipedia"],
+        "categories": ["reference"],
+        "adapter_calls_maximum": {"arxiv": 2, "github": 1, "openalex": 1, "wikipedia": 2},
+        "credentials": "keyless public acquisition; no provider key loaded before admitted model phase",
+    }
+    assert acquisition.execution_profile_from_protocol(proposed) is acquisition.CONTINUE_ACQUISITION_PROFILE
+    for field, value in (("timeout_seconds", 31), ("logical_query_timeout_seconds", 70), ("retries", 1)):
+        invalid = {**proposed, field: value}
+        with pytest.raises(ValueError):
+            acquisition.execution_profile_from_protocol(invalid)
+    for invalid in (
+        {**proposed, "timeout_retry": 1},
+        {key: value for key, value in proposed.items() if key != "pool_failure"},
+    ):
+        with pytest.raises(ValueError):
+            acquisition.execution_profile_from_protocol(invalid)
 
 
 def _adapter_configs(engines: tuple[str, ...]) -> dict[str, EngineAdapter]:

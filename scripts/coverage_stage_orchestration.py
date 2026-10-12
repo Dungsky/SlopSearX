@@ -421,6 +421,15 @@ def _validate_plan_static(plan: StagePlan) -> dict[str, object]:
         raise OrchestrationError("acquisition-manifest-invalid") from exc
     if canonical_manifest_bytes != plan.acquisition_manifest_bytes:
         raise OrchestrationError("acquisition-manifest-not-canonical")
+    try:
+        profile = acquisition.execution_profile_from_protocol(
+            _strict_json(plan.protocol_bytes, "protocol").get("acquisition")
+        )
+        manifest_profile = acquisition.execution_profile_from_manifest(acquisition_manifest)
+    except Exception as exc:
+        raise OrchestrationError("acquisition-profile-binding-invalid") from exc
+    if profile != manifest_profile:
+        raise OrchestrationError("acquisition-profile-protocol-mismatch")
     expected_acquisition_identity = {
         "stage_uuid": plan.stage_uuid,
         "stage": plan.stage_kind,
@@ -730,6 +739,9 @@ def _validate_acquisition(plan: StagePlan, evidence: AcquisitionEvidence) -> Non
             expected_stage_manifest_sha256=expected_stage_manifest_sha256,
             expected_stage_uuid=plan.stage_uuid,
             expected_source_revision=plan.source_revision,
+            expected_execution_profile=acquisition.execution_profile_from_manifest(
+                _strict_json(plan.acquisition_manifest_bytes, "acquisition-manifest")
+            ).identifier,
         )
     except Exception as exc:
         raise OrchestrationError("acquisition-snapshot-not-durable-or-bound") from exc
@@ -899,6 +911,9 @@ def _sealed_navigation_observations(
             expected_stage_manifest_sha256=evidence.acquisition_manifest_sha256,
             expected_stage_uuid=plan.stage_uuid,
             expected_source_revision=plan.source_revision,
+            expected_execution_profile=acquisition.execution_profile_from_manifest(
+                _strict_json(plan.acquisition_manifest_bytes, "acquisition-manifest")
+            ).identifier,
         )
         operations = verified["operations"]
         result: dict[str, dict[str, object]] = {}
@@ -1118,6 +1133,9 @@ async def coordinate_coverage_stage(
                 cohorts_sha256=identity["cohorts_sha256"],
                 candidate_identity_sha256=identity["candidate_identity_sha256"],
                 candidate_endpoint_sha256=identity["candidate_endpoint_sha256"],
+                expected_execution_profile=acquisition.execution_profile_from_manifest(
+                    _strict_json(plan.acquisition_manifest_bytes, "acquisition-manifest")
+                ).identifier,
             ),
             lambda value: _pipeline_receipt(value, plan.stage_uuid),
         )

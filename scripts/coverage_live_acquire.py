@@ -41,6 +41,8 @@ MAX_REQUEST_MATERIAL_BYTES = core.MAX_MATERIAL_BYTES
 MAX_STAGE_TRANSFER_BYTES = MAX_PHYSICAL_REQUESTS * (MAX_RESPONSE_BYTES + MAX_REQUEST_MATERIAL_BYTES)
 MAX_POOL_SNAPSHOT_BYTES = core.MAX_MATERIAL_BYTES
 POOL_INDEX_SCHEMA = "coverage-native-pool-snapshot-index/1"
+POOL_INDEX_SCHEMA_V2 = "coverage-native-pool-snapshot-index/2"
+# Keep this legacy constant unchanged for /1 replay and compatibility.
 REQUEST_TIMEOUT_SECONDS = 10.0
 QUERY_PACING_SECONDS = 7.0
 ARXIV_PHYSICAL_PACING_SECONDS = 3.0
@@ -50,7 +52,7 @@ ARXIV_PHYSICAL_PACING_SECONDS = 3.0
 OFFSET_QUANTIZATION_GUARD_SECONDS = 0.000001
 _SHA256 = re.compile(r"[0-9a-f]{64}\Z")
 _SOURCE_REVISION = re.compile(r"[0-9a-f]{40}\Z")
-_MANIFEST_KEYS = {
+_BASE_MANIFEST_KEYS = {
     "schema",
     "stage",
     "stage_uuid",
@@ -84,6 +86,7 @@ class VerifiedAcquisitionPermit:
     acquisition_plan_sha256: str
     stage_manifest_sha256: str
     receipt_sha256: str
+    execution_profile: str = offline.LEGACY_ACQUISITION_PROFILE.identifier
 
 
 class PermitVerifier(Protocol):
@@ -180,9 +183,18 @@ def _valid_sha(value: object, label: str) -> str:
 def _validate_manifest(
     manifest: Mapping[str, object], acquisition_plan_bytes: bytes
 ) -> tuple[dict, bytes, tuple[str, ...], int, dict[str, dict[str, int]]]:
-    if type(manifest) is not dict or set(manifest) != _MANIFEST_KEYS:
+    if type(manifest) is not dict:
         raise LiveAcquisitionError("acquisition-manifest-schema")
-    if manifest["schema"] != "coverage-live-acquisition-manifest/1":
+    try:
+        profile = offline.execution_profile_from_manifest(manifest)
+    except ValueError as exc:
+        raise LiveAcquisitionError("acquisition-manifest-version-or-profile") from exc
+    expected_keys = _BASE_MANIFEST_KEYS | (
+        {"execution_profile"} if profile is offline.CONTINUE_ACQUISITION_PROFILE else set()
+    )
+    if set(manifest) != expected_keys:
+        raise LiveAcquisitionError("acquisition-manifest-schema")
+    if manifest["schema"] != profile.manifest_schema:
         raise LiveAcquisitionError("acquisition-manifest-version")
     if type(manifest["stage"]) is not str or not manifest["stage"]:
         raise LiveAcquisitionError("acquisition-stage-invalid")
@@ -303,6 +315,7 @@ def _verify_permit(
         "acquisition_plan_sha256": manifest["acquisition_plan_sha256"],
         "stage_manifest_sha256": manifest_sha256,
         "receipt_sha256": expected,
+        "execution_profile": offline.execution_profile_from_manifest(manifest).identifier,
     }
     if permit.__dict__ != expected_fields:
         raise LiveAcquisitionError("external-permit-binding-mismatch")
@@ -399,8 +412,12 @@ def _operation_snapshot(operation: object, manifest: Mapping[str, object], manif
         "failure_reasons": list(operation.failure_reasons),
         "exception_type": operation.exception_type,
     }
-    return {
-        "schema": "coverage-native-pool-snapshot/1",
+    artifact = {
+        "schema": (
+            "coverage-native-pool-snapshot/2"
+            if manifest.get("schema") == offline.CONTINUE_ACQUISITION_PROFILE.manifest_schema
+            else "coverage-native-pool-snapshot/1"
+        ),
         "stage": manifest["stage"],
         "stage_uuid": manifest["stage_uuid"],
         "source_revision": manifest["source_revision"],
@@ -414,6 +431,9 @@ def _operation_snapshot(operation: object, manifest: Mapping[str, object], manif
         "native_order": native_order,
         "operation": operation_record,
     }
+    if manifest.get("schema") == offline.CONTINUE_ACQUISITION_PROFILE.manifest_schema:
+        artifact["execution_profile"] = offline.CONTINUE_ACQUISITION_PROFILE.identifier
+    return artifact
 
 
 def _read_canonical_artifact(
@@ -471,6 +491,7 @@ def verify_pool_snapshot_index(
     expected_stage_manifest_sha256: str,
     expected_stage_uuid: str,
     expected_source_revision: str,
+    expected_execution_profile: str = offline.LEGACY_ACQUISITION_PROFILE.identifier,
     deadline_monotonic: float | None = None,
 ) -> dict[str, object]:
     """Verify a complete durable pool index against externally supplied pins."""
@@ -495,9 +516,15 @@ def verify_pool_snapshot_index(
     check_deadline()
     if index_digest != _valid_sha(expected_index_sha256, "pool-snapshot-index"):
         raise LiveAcquisitionError("pool-snapshot-index-digest-mismatch")
-    if index.get("schema") != POOL_INDEX_SCHEMA or index.get("status") != "complete":
+    profile = offline._ACQUISITION_PROFILES.get(expected_execution_profile)
+    if profile is None:
+        raise LiveAcquisitionError("pool-snapshot-execution-profile-invalid")
+    v2 = profile is offline.CONTINUE_ACQUISITION_PROFILE
+    expected_index_schema = POOL_INDEX_SCHEMA_V2 if v2 else POOL_INDEX_SCHEMA
+    allowed_index_statuses = {"complete", "sealed-inconclusive"} if v2 else {"complete"}
+    if index.get("schema") != expected_index_schema or index.get("status") not in allowed_index_statuses:
         raise LiveAcquisitionError("pool-snapshot-index-incomplete")
-    if set(index) != {
+    expected_index_keys = {
         "schema",
         "stage",
         "stage_uuid",
@@ -510,8 +537,13 @@ def verify_pool_snapshot_index(
         "stage_manifest_sha256",
         "status",
         "operations",
-    }:
+    }
+    if v2:
+        expected_index_keys.add("execution_profile")
+    if set(index) != expected_index_keys:
         raise LiveAcquisitionError("pool-snapshot-index-schema")
+    if v2 and index.get("execution_profile") != profile.identifier:
+        raise LiveAcquisitionError("pool-snapshot-index-profile-mismatch")
     expected = {
         "stage_manifest_sha256": _valid_sha(expected_stage_manifest_sha256, "stage-manifest"),
         "stage_uuid": expected_stage_uuid,
@@ -524,14 +556,17 @@ def verify_pool_snapshot_index(
         raise LiveAcquisitionError("pool-snapshot-index-inventory-invalid")
     ids: set[str] = set()
     loaded: dict[str, object] = {}
+    saw_inconclusive = False
     for row in rows:
         check_deadline()
         if (
             type(row) is not dict
             or set(row) != {"operation_id", "kind", "status", "file", "sha256", "bytes", "card_count"}
-            or row.get("status") != "complete"
+            or row.get("status") not in ({"complete", "inconclusive"} if v2 else {"complete"})
         ):
             raise LiveAcquisitionError("pool-snapshot-operation-incomplete")
+        if row["status"] == "inconclusive":
+            saw_inconclusive = True
         operation_id = row.get("operation_id")
         if type(operation_id) is not str or operation_id in ids:
             raise LiveAcquisitionError("pool-snapshot-operation-identity-invalid")
@@ -551,26 +586,28 @@ def verify_pool_snapshot_index(
         check_deadline()
         if artifact_digest != row.get("sha256") or len(raw) != row.get("bytes"):
             raise LiveAcquisitionError("pool-snapshot-operation-digest-mismatch")
-        if (
-            set(artifact)
-            != {
-                "schema",
-                "stage",
-                "stage_uuid",
-                "source_revision",
-                "source_closure_sha256",
-                "protocol_sha256",
-                "cohorts_sha256",
-                "input_manifest_sha256",
-                "acquisition_plan_sha256",
-                "stage_manifest_sha256",
-                "task_plan",
-                "native_order",
-                "operation",
-            }
-            or artifact.get("schema") != "coverage-native-pool-snapshot/1"
-        ):
+        expected_artifact_keys = {
+            "schema",
+            "stage",
+            "stage_uuid",
+            "source_revision",
+            "source_closure_sha256",
+            "protocol_sha256",
+            "cohorts_sha256",
+            "input_manifest_sha256",
+            "acquisition_plan_sha256",
+            "stage_manifest_sha256",
+            "task_plan",
+            "native_order",
+            "operation",
+        }
+        if v2:
+            expected_artifact_keys.add("execution_profile")
+        expected_artifact_schema = "coverage-native-pool-snapshot/2" if v2 else "coverage-native-pool-snapshot/1"
+        if set(artifact) != expected_artifact_keys or artifact.get("schema") != expected_artifact_schema:
             raise LiveAcquisitionError("pool-snapshot-artifact-schema")
+        if v2 and artifact.get("execution_profile") != profile.identifier:
+            raise LiveAcquisitionError("pool-snapshot-artifact-profile-mismatch")
         for field in (
             "stage_uuid",
             "source_revision",
@@ -588,13 +625,21 @@ def verify_pool_snapshot_index(
         operation = artifact.get("operation")
         if type(operation) is not dict or operation.get("operation_id") != operation_id:
             raise LiveAcquisitionError("pool-snapshot-operation-shape-invalid")
-        if operation.get("status") != "complete":
+        if operation.get("status") != row.get("status"):
             raise LiveAcquisitionError("pool-snapshot-operation-incomplete")
         if operation.get("kind") != row.get("kind") or operation.get("pool_count") != row.get("card_count"):
             raise LiveAcquisitionError("pool-snapshot-operation-row-mismatch")
         response = operation.get("canonical_response")
         native_order = artifact.get("native_order")
-        if (
+        if response is None and v2 and operation.get("status") == "inconclusive":
+            if (
+                operation.get("exception_type") != "TimeoutError"
+                or "logical_query_timeout" not in operation.get("failure_reasons", [])
+                or row.get("card_count") is not None
+                or native_order != []
+            ):
+                raise LiveAcquisitionError("pool-snapshot-missing-response-unjustified")
+        elif (
             type(response) is not dict
             or type(response.get("results")) is not list
             or type(native_order) is not list
@@ -604,7 +649,7 @@ def verify_pool_snapshot_index(
             raise LiveAcquisitionError("pool-snapshot-native-order-invalid")
         loaded[operation_id] = artifact
     check_deadline()
-    if len(ids) != 13:
+    if len(ids) != 13 or (index.get("status") == "sealed-inconclusive") != saw_inconclusive:
         raise LiveAcquisitionError("pool-snapshot-index-inventory-invalid")
     return {"index": index, "operations": loaded}
 
@@ -621,6 +666,7 @@ class _BoundedTransport(httpx.AsyncBaseTransport):
         monotonic: Callable[[], float] = time.monotonic,
         expected_operation_ids: tuple[str, ...] = (),
         source_bindings: Mapping[str, str] | None = None,
+        execution_profile: offline.AcquisitionExecutionProfile = offline.LEGACY_ACQUISITION_PROFILE,
         owned_pacer: bool = True,
         owned_transport: bool = True,
     ) -> None:
@@ -638,6 +684,7 @@ class _BoundedTransport(httpx.AsyncBaseTransport):
         self._stage_started_at = self._monotonic()
         self._expected_operation_ids = tuple(expected_operation_ids)
         self._source_bindings = dict(source_bindings or {})
+        self.execution_profile = execution_profile
         self._owned_pacer = owned_pacer
         self._owned_transport = owned_transport
         self._pacer_identity = "owned-asyncio-sleep" if owned_pacer else "injected-mock-only"
@@ -695,7 +742,7 @@ class _BoundedTransport(httpx.AsyncBaseTransport):
                     "end_offset_us": None,
                 }
             )
-        return {
+        attestation = {
             "schema": "coverage-acquisition-execution-controls/1",
             **self._source_bindings,
             "stage_manifest_sha256": stage_manifest_sha256,
@@ -708,15 +755,23 @@ class _BoundedTransport(httpx.AsyncBaseTransport):
             "arxiv_physical_pacing_seconds_enforced": ARXIV_PHYSICAL_PACING_SECONDS,
             "offset_quantization_guard_seconds": OFFSET_QUANTIZATION_GUARD_SECONDS,
             "transport_retry_policy": (
-                "configured-zero-owned-httpx-transport"
-                if self._owned_transport
-                else "mock-transport-single-dispatch"
+                "configured-zero-owned-httpx-transport" if self._owned_transport else "mock-transport-single-dispatch"
             ),
             "transport_retries_configured": 0,
             "application_retry_policy": "one-search-invocation-per-planned-operation",
             "operation_invocations": rows,
             "physical_dispatch_offsets_us": [dict(row) for row in self._physical_dispatch_offsets],
         }
+        if self.execution_profile is offline.CONTINUE_ACQUISITION_PROFILE:
+            attestation.update(
+                {
+                    "execution_profile": self.execution_profile.identifier,
+                    "request_timeout_seconds_enforced": self.execution_profile.request_timeout_seconds,
+                    "logical_query_timeout_seconds_enforced": self.execution_profile.logical_query_timeout_seconds,
+                    "ordinary_failure_policy": "continue-planned-operations",
+                }
+            )
+        return attestation
 
     @property
     def transfer_bytes(self) -> int:
@@ -758,7 +813,7 @@ class _BoundedTransport(httpx.AsyncBaseTransport):
             failure = "unexpected_endpoint"
         elif request.method.upper() != "GET":
             failure = "unexpected_method"
-        elif timeout_s is None or timeout_s > REQUEST_TIMEOUT_SECONDS:
+        elif timeout_s is None or timeout_s > self.execution_profile.request_timeout_seconds:
             failure = "request_timeout_exceeded"
         elif any(name.lower() in {b"authorization", b"x-api-key", b"api-key"} for name, _ in request.headers.raw):
             failure = "credential_header_forbidden"
@@ -815,14 +870,10 @@ class _BoundedTransport(httpx.AsyncBaseTransport):
         dispatched = False
         dispatch_offset_us: int | None = None
         try:
-            async with asyncio.timeout(REQUEST_TIMEOUT_SECONDS):
+            async with asyncio.timeout(self.execution_profile.request_timeout_seconds):
                 if engine == "arxiv" and self._last_arxiv_dispatch is not None:
                     elapsed = self._monotonic() - self._last_arxiv_dispatch
-                    remaining = (
-                        ARXIV_PHYSICAL_PACING_SECONDS
-                        + OFFSET_QUANTIZATION_GUARD_SECONDS
-                        - elapsed
-                    )
+                    remaining = ARXIV_PHYSICAL_PACING_SECONDS + OFFSET_QUANTIZATION_GUARD_SECONDS - elapsed
                     if remaining > 0:
                         await self._pacer.sleep(remaining)
                 dispatch_at = self._monotonic()
@@ -918,11 +969,18 @@ class _BoundedTransport(httpx.AsyncBaseTransport):
             if response_complete is False and response_body:
                 response_digest = _sha(bytes(response_body)) if response_body else None
             if failure is None:
+                logical_timeout = offline._CURRENT_LOGICAL_TIMEOUT.get()  # noqa: SLF001
+                deadline_cancelled = bool(
+                    isinstance(exc, asyncio.CancelledError)
+                    and callable(getattr(logical_timeout, "expired", None))
+                    and logical_timeout.expired()
+                )
                 failure = (
                     "request_deadline_before_dispatch"
-                    if not dispatched and isinstance(exc, TimeoutError)
+                    if not dispatched
+                    and (isinstance(exc, (TimeoutError, httpx.TimeoutException)) or deadline_cancelled)
                     else "request_timeout"
-                    if dispatched and isinstance(exc, TimeoutError)
+                    if dispatched and (isinstance(exc, (TimeoutError, httpx.TimeoutException)) or deadline_cancelled)
                     else "transport_or_partial_response"
                     if dispatched
                     else "pacing_or_dispatch_failure"
@@ -972,7 +1030,10 @@ class _BoundedTransport(httpx.AsyncBaseTransport):
         await self.inner.aclose()
 
 
-def _build_adapters(transport: httpx.AsyncBaseTransport) -> dict[str, EngineAdapter]:
+def _build_adapters(
+    transport: httpx.AsyncBaseTransport,
+    execution_profile: offline.AcquisitionExecutionProfile = offline.LEGACY_ACQUISITION_PROFILE,
+) -> dict[str, EngineAdapter]:
     classes = {
         "arxiv": ArxivAdapter,
         "github": GitHubAdapter,
@@ -992,7 +1053,7 @@ def _build_adapters(transport: httpx.AsyncBaseTransport) -> dict[str, EngineAdap
                 "base_url": bases[engine],
                 "api_key": "",
                 "max_results": 20,
-                "timeout_ms": int(REQUEST_TIMEOUT_SECONDS * 1000),
+                "timeout_ms": int(execution_profile.request_timeout_seconds * 1000),
             },
             rate_limiter=None,
         )
@@ -1001,9 +1062,18 @@ def _build_adapters(transport: httpx.AsyncBaseTransport) -> dict[str, EngineAdap
     return adapters
 
 
-def _summary(stage: StageAcquisition, transport: _BoundedTransport, manifest_sha256: str) -> dict:
-    return {
-        "schema": "coverage-live-acquisition-summary/1",
+def _summary(
+    stage: StageAcquisition,
+    transport: _BoundedTransport,
+    manifest_sha256: str,
+) -> dict:
+    profile = transport.execution_profile
+    summary = {
+        "schema": (
+            "coverage-live-acquisition-summary/2"
+            if profile is offline.CONTINUE_ACQUISITION_PROFILE
+            else "coverage-live-acquisition-summary/1"
+        ),
         "stage": stage.stage,
         "status": stage.status,
         "physical_request_count": stage.physical_request_count,
@@ -1027,6 +1097,9 @@ def _summary(stage: StageAcquisition, transport: _BoundedTransport, manifest_sha
         "replacement_or_rescue": False,
         "execution_control_attestation": transport.execution_control_attestation(manifest_sha256),
     }
+    if profile is offline.CONTINUE_ACQUISITION_PROFILE:
+        summary["execution_profile"] = profile.identifier
+    return summary
 
 
 async def acquire_live_coverage_stage(
@@ -1051,6 +1124,7 @@ async def acquire_live_coverage_stage(
     manifest, manifest_raw, _ids, _reserved, operation_limits = _validate_manifest(
         stage_manifest, acquisition_plan_bytes
     )
+    profile = offline.execution_profile_from_manifest(manifest)
     manifest_sha = _sha(manifest_raw)
     permit = _verify_permit(
         manifest, manifest_sha, permit_receipt_bytes, expected_permit_receipt_sha256, permit_verifier
@@ -1111,10 +1185,11 @@ async def acquire_live_coverage_stage(
         monotonic=monotonic,
         expected_operation_ids=operation_ids,
         source_bindings=source_bindings,
+        execution_profile=profile,
         owned_pacer=pacer is None,
         owned_transport=owned_transport,
     )
-    adapters = _build_adapters(transport)
+    adapters = _build_adapters(transport, profile)
     snapshot_rows: dict[str, dict[str, object]] = {}
 
     def persist_operation(operation: object) -> None:
@@ -1143,6 +1218,7 @@ async def acquire_live_coverage_stage(
             pacing,
             _live_token=offline._LIVE_ACQUISITION_TOKEN,
             on_operation_complete=persist_operation,
+            _execution_profile=profile,
         )
         ordered_ids = [
             *(_row["task_id"] for _row in manifest["research_cases"]),
@@ -1163,8 +1239,14 @@ async def acquire_live_coverage_stage(
             )
             for index, operation_id in enumerate(ordered_ids)
         ]
+        snapshot_statuses_complete = len(snapshot_rows) == 13 and all(
+            row["status"] == "complete" for row in snapshot_rows.values()
+        )
+        snapshot_statuses_sealed = len(snapshot_rows) == 13 and all(
+            row["status"] in {"complete", "inconclusive"} for row in snapshot_rows.values()
+        )
         index_doc = {
-            "schema": POOL_INDEX_SCHEMA,
+            "schema": POOL_INDEX_SCHEMA_V2 if profile is offline.CONTINUE_ACQUISITION_PROFILE else POOL_INDEX_SCHEMA,
             "stage": manifest["stage"],
             "stage_uuid": manifest["stage_uuid"],
             "source_revision": manifest["source_revision"],
@@ -1174,11 +1256,17 @@ async def acquire_live_coverage_stage(
             "input_manifest_sha256": manifest["input_manifest_sha256"],
             "acquisition_plan_sha256": manifest["acquisition_plan_sha256"],
             "stage_manifest_sha256": manifest_sha,
-            "status": "complete"
-            if stage.status == "complete" and all(row["status"] == "complete" for row in index_rows)
-            else "incomplete",
+            "status": (
+                "complete"
+                if stage.status == "complete" and snapshot_statuses_complete
+                else "sealed-inconclusive"
+                if profile is offline.CONTINUE_ACQUISITION_PROFILE and snapshot_statuses_sealed
+                else "incomplete"
+            ),
             "operations": index_rows,
         }
+        if profile is offline.CONTINUE_ACQUISITION_PROFILE:
+            index_doc["execution_profile"] = profile.identifier
         index_sha = sink.write_once("pool-snapshot-index.json", index_doc)
         sink.write_once("stage-summary.json", _summary(stage, transport, manifest_sha))
         return LiveAcquisitionResult(
@@ -1192,7 +1280,11 @@ async def acquire_live_coverage_stage(
             sink.write_once(
                 "stage-summary.json",
                 {
-                    "schema": "coverage-live-acquisition-summary/1",
+                    "schema": (
+                        "coverage-live-acquisition-summary/2"
+                        if profile is offline.CONTINUE_ACQUISITION_PROFILE
+                        else "coverage-live-acquisition-summary/1"
+                    ),
                     "stage": manifest["stage"],
                     "stage_uuid": manifest["stage_uuid"],
                     "status": "terminal-incomplete",
@@ -1201,6 +1293,11 @@ async def acquire_live_coverage_stage(
                     "transfer_bytes": transport.transfer_bytes,
                     "quality_credit": False,
                     "execution_control_attestation": transport.execution_control_attestation(manifest_sha),
+                    **(
+                        {"execution_profile": profile.identifier}
+                        if profile is offline.CONTINUE_ACQUISITION_PROFILE
+                        else {}
+                    ),
                 },
             )
         except LiveAcquisitionError:

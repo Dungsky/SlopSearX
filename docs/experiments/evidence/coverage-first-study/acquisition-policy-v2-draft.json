@@ -1,0 +1,60 @@
+{
+  "schema": "coverage-first-acquisition-policy-draft/1",
+  "status": "draft-not-registered-not-admitted",
+  "profile": "coverage-acquisition-profile/2",
+  "baseline_protocol_sha256": "0225d84114d65f943ae00bda3fe79e83698fb412271f8bd64fd176e4325d253b",
+  "supersedes_for-new-stages_only": "coverage-acquisition-profile/1",
+  "purpose": "Separate ordinary upstream timeouts and empty or out-of-band results from whole-stage setup failure while retaining every preplanned acquisition slot and outcome. This is an acquisition-method amendment only; it does not claim quality or qualify the current candidate.",
+  "execution": {
+    "manifest_schema": "coverage-live-acquisition-manifest/2",
+    "summary_schema": "coverage-live-acquisition-summary/2",
+    "snapshot_index_schema": "coverage-native-pool-snapshot-index/2",
+    "snapshot_schema": "coverage-native-pool-snapshot/2",
+    "timeout_seconds": 30,
+    "logical_query_timeout_seconds": 30,
+    "ordinary_failure_policy": "continue every already-planned operation exactly once after a sealed request timeout, empty pool, wrong natural-size band, or navigation target miss; seal each outcome and the complete 13-operation inventory; the stage remains inconclusive and is ineligible for capture, grading, or a quality decision",
+    "pool_failure": "retain empty, failed, wrong-band and overflow outcomes; stage inconclusive, no replacement/concatenation/trimming",
+    "timeout_scope": "The supported shared SearchService request deadline is 30 seconds. Redirects and all engines for a query share that logical deadline; this profile does not promise two full 30-second physical requests within one query.",
+    "hard_stop": [
+      "stage deadline or configured stage budget",
+      "physical call, request material, response body, aggregate transfer, or result-count cap",
+      "provider rate limit, access denial, blocked or unavailable provider, or non-timeout provider error",
+      "unexpected endpoint, redirect, credential, scope, parser/control identity, or operation binding",
+      "lease, receipt, snapshot, filesystem, serialization, or fsync failure"
+    ],
+    "existing_resource_limits": {
+      "max_physical_http_calls": 53,
+      "per_engine_results": 20,
+      "adapter_calls_maximum": {
+        "arxiv": 2,
+        "github": 1,
+        "openalex": 1,
+        "wikipedia": 2
+      },
+      "engines": ["arxiv", "openalex", "github", "wikipedia"],
+      "categories": ["reference"],
+      "response_bytes": 2000000,
+      "retries": 0,
+      "query_pacing_seconds": 7,
+      "arxiv_physical_pacing_seconds": 3,
+      "brave_calls": 0,
+      "brave_remaining_reserved": 2,
+      "credentials": "keyless public acquisition"
+    }
+  },
+  "unchanged_study_contract": {
+    "cohorts": "The same full 8 research cases, balanced four per natural-size band, plus five exact navigation targets per stage.",
+    "search_plan": "Preserve exact task queries, engine mixes, complete naturally observed pools, no trim, split, replacement, concatenation, or rescue.",
+    "gates": "All registered source, ranking, usefulness, task-use, stability, navigation, resource, and 8-hour stage gates remain unchanged. Every required case must be complete; invoked-but-inconclusive cases are retained and do not qualify for grading.",
+    "legacy_v1": "Existing coverage-live-acquisition-manifest/1 remains 10-second fail-fast with its existing byte format and interpretation. This draft does not reinterpret, replay, repair, or rescue any terminal v1 stage.",
+    "previous_attempts": "The terminal 2026-10-12 acquisition attempt remains preserved and is not reused, retried, regraded, or upgraded by this draft. Any new stage requires a separately reviewed and registered protocol, source closure, cohort/protocol pins, fresh stage identity, and new one-shot permits before calls."
+  },
+  "registration_requirements": [
+    "Version and pin the amended protocol and executable source closure before any new stage.",
+    "Bind this exact profile id and all fixed values into the acquisition manifest, external permit receipt, execution-control attestation, snapshot artifacts, resource collector, and stage registration.",
+    "Retain all 13 operation rows and all physical exchange receipts. Ordinary failures may continue only into already planned operations; no retries or new query plans are created.",
+    "The unchanged coordinator must refuse downstream capture and grading unless the entire acquisition is complete and all existing admission conditions pass.",
+    "A sealed inconclusive stage is evidence of execution only and cannot count toward the quality or adoption decision."
+  ],
+  "qualification": "Not registered, not admitted, not executed, and not a quality result. No provider calls were made while preparing this draft."
+}

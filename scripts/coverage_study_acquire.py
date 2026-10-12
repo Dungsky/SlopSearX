@@ -15,6 +15,7 @@ comparing it with the coverage candidate.
 
 from __future__ import annotations
 
+import asyncio
 import contextvars
 import hashlib
 from collections import Counter
@@ -58,11 +59,106 @@ QUERY_PACING_SECONDS = 7.0
 OFFSET_QUANTIZATION_GUARD_SECONDS = 0.000001
 REFERENCE_CATEGORY = "reference"
 
+
+@dataclass(frozen=True)
+class AcquisitionExecutionProfile:
+    """A closed, versioned acquisition policy selected by a pinned manifest."""
+
+    identifier: str
+    manifest_schema: str
+    request_timeout_seconds: float
+    logical_query_timeout_seconds: float
+    continue_after_ordinary_failure: bool
+
+
+LEGACY_ACQUISITION_PROFILE = AcquisitionExecutionProfile(
+    identifier="coverage-acquisition-profile/1",
+    manifest_schema="coverage-live-acquisition-manifest/1",
+    request_timeout_seconds=10.0,
+    logical_query_timeout_seconds=10.0,
+    continue_after_ordinary_failure=False,
+)
+CONTINUE_ACQUISITION_PROFILE = AcquisitionExecutionProfile(
+    identifier="coverage-acquisition-profile/2",
+    manifest_schema="coverage-live-acquisition-manifest/2",
+    request_timeout_seconds=30.0,
+    logical_query_timeout_seconds=30.0,
+    continue_after_ordinary_failure=True,
+)
+_ACQUISITION_PROFILES = {
+    LEGACY_ACQUISITION_PROFILE.identifier: LEGACY_ACQUISITION_PROFILE,
+    CONTINUE_ACQUISITION_PROFILE.identifier: CONTINUE_ACQUISITION_PROFILE,
+}
+
+
+def execution_profile_from_protocol(acquisition: object) -> AcquisitionExecutionProfile:
+    """Resolve only the registered legacy policy or the exact prospective v2 policy."""
+    if type(acquisition) is not dict:
+        raise ValueError("acquisition policy must be an object")
+    profile_id = acquisition.get("execution_profile")
+    if profile_id is None:
+        if acquisition.get("timeout_seconds") != LEGACY_ACQUISITION_PROFILE.request_timeout_seconds:
+            raise ValueError("legacy acquisition timeout is fixed at ten seconds")
+        return LEGACY_ACQUISITION_PROFILE
+    profile = _ACQUISITION_PROFILES.get(profile_id)
+    if profile is not CONTINUE_ACQUISITION_PROFILE:
+        raise ValueError("unsupported acquisition execution profile")
+    expected = {
+        "execution_profile": profile.identifier,
+        "timeout_seconds": profile.request_timeout_seconds,
+        "logical_query_timeout_seconds": profile.logical_query_timeout_seconds,
+        "ordinary_failure_policy": "continue-planned-operations",
+        "pool_failure": (
+            "retain empty, failed, wrong-band and overflow outcomes; "
+            "stage inconclusive, no replacement/concatenation/trimming"
+        ),
+        "retries": 0,
+        "max_physical_http_calls": MAX_PHYSICAL_REQUESTS_PER_STAGE,
+        "per_engine_results": MAX_RESULTS_PER_ENGINE,
+        "response_bytes": 2_000_000,
+        "pacing_seconds": QUERY_PACING_SECONDS,
+        "arxiv_physical_pacing_seconds": 3,
+        "brave_calls": 0,
+        "brave_remaining_reserved": 2,
+        "engines": ["arxiv", "openalex", "github", "wikipedia"],
+        "categories": [REFERENCE_CATEGORY],
+        "adapter_calls_maximum": MAX_PHYSICAL_REQUESTS_PER_ENGINE,
+        "credentials": "keyless public acquisition; no provider key loaded before admitted model phase",
+    }
+    if set(acquisition) != set(expected) or any(acquisition.get(key) != value for key, value in expected.items()):
+        raise ValueError("versioned acquisition policy values do not match the fixed profile")
+    return profile
+
+
+def execution_profile_from_manifest(manifest: Mapping[str, object]) -> AcquisitionExecutionProfile:
+    """Select an acquisition profile from a strict manifest schema and closed profile id."""
+    if type(manifest) is not dict:
+        raise ValueError("acquisition manifest must be an object")
+    schema = manifest.get("schema")
+    if schema is None and "execution_profile" not in manifest:
+        # The mock-only public helper historically accepted small schema-less
+        # fixtures. Production admission still requires the live manifest schema.
+        return LEGACY_ACQUISITION_PROFILE
+    if schema == LEGACY_ACQUISITION_PROFILE.manifest_schema:
+        if "execution_profile" in manifest:
+            raise ValueError("legacy acquisition manifest cannot select a profile")
+        return LEGACY_ACQUISITION_PROFILE
+    if (
+        schema == CONTINUE_ACQUISITION_PROFILE.manifest_schema
+        and manifest.get("execution_profile") == CONTINUE_ACQUISITION_PROFILE.identifier
+    ):
+        return CONTINUE_ACQUISITION_PROFILE
+    raise ValueError("unsupported or unbound acquisition manifest profile")
+
+
 _CURRENT_OPERATION: contextvars.ContextVar[str | None] = contextvars.ContextVar(
     "coverage_acquire_operation", default=None
 )
 _CURRENT_ENGINES: contextvars.ContextVar[tuple[str, ...]] = contextvars.ContextVar(
     "coverage_acquire_engines", default=()
+)
+_CURRENT_LOGICAL_TIMEOUT: contextvars.ContextVar[object | None] = contextvars.ContextVar(
+    "coverage_acquire_logical_timeout", default=None
 )
 _LIVE_ACQUISITION_TOKEN = object()
 
@@ -110,7 +206,18 @@ class PhysicalExchange:
 class RecordedMockTransport(httpx.MockTransport):
     """A hermetic HTTPX transport backed only by static injected fixtures."""
 
-    def __init__(self, fixtures: Sequence[MockResponseFixture]) -> None:
+    def __init__(
+        self,
+        fixtures: Sequence[MockResponseFixture],
+        *,
+        request_timeout_seconds: float = LEGACY_ACQUISITION_PROFILE.request_timeout_seconds,
+    ) -> None:
+        if request_timeout_seconds not in {
+            LEGACY_ACQUISITION_PROFILE.request_timeout_seconds,
+            CONTINUE_ACQUISITION_PROFILE.request_timeout_seconds,
+        }:
+            raise ValueError("mock acquisition transport accepts only a closed execution-profile timeout")
+        self.request_timeout_seconds = request_timeout_seconds
         self.fixtures = tuple(fixtures)
         self.exchanges: list[PhysicalExchange] = []
         self._fixture_uses: Counter[str] = Counter()
@@ -195,7 +302,7 @@ class RecordedMockTransport(httpx.MockTransport):
                 )
             )
             raise httpx.ConnectError("offline fixture rejected a non-GET request", request=request)
-        if timeout_s is None or timeout_s > ENGINE_TIMEOUT_MS / 1000:
+        if timeout_s is None or timeout_s > self.request_timeout_seconds:
             failure_code = "request_timeout_exceeded"
             self._append_exchange(
                 PhysicalExchange(
@@ -214,7 +321,7 @@ class RecordedMockTransport(httpx.MockTransport):
                     failure_code,
                 )
             )
-            raise httpx.ConnectError("offline request timeout exceeds the fixed 10-second cap", request=request)
+            raise httpx.ConnectError("offline request timeout exceeds the fixed acquisition profile", request=request)
         if any(name.lower() in {b"authorization", b"x-api-key", b"api-key"} for name, _ in request.headers.raw):
             failure_code = "credential_header_forbidden"
             self._append_exchange(
@@ -440,7 +547,10 @@ async def acquire_coverage_stage(
     """
     if type(transport) is not RecordedMockTransport:
         raise TypeError("a caller-injected RecordedMockTransport is required")
-    return await _acquire_coverage_stage(stage_manifest, adapters, transport, clock)
+    profile = execution_profile_from_manifest(stage_manifest)
+    if transport.request_timeout_seconds != profile.request_timeout_seconds:
+        raise ValueError("mock transport timeout must match the pinned acquisition profile")
+    return await _acquire_coverage_stage(stage_manifest, adapters, transport, clock, _execution_profile=profile)
 
 
 async def _acquire_coverage_stage(
@@ -450,6 +560,7 @@ async def _acquire_coverage_stage(
     clock: OfflineClock,
     *,
     _live_token: object | None = None,
+    _execution_profile: AcquisitionExecutionProfile | None = None,
     on_operation_complete: Callable[[AcquisitionOperation], None] | None = None,
 ) -> StageAcquisition:
     stage_name = stage_manifest.get("stage")
@@ -462,11 +573,14 @@ async def _acquire_coverage_stage(
         _live_token is not _LIVE_ACQUISITION_TOKEN or getattr(transport, "_coverage_live_transport", False) is not True
     ):
         raise TypeError("authorized coverage live transport required")
+    profile = _execution_profile or execution_profile_from_manifest(stage_manifest)
+    if profile != execution_profile_from_manifest(stage_manifest):
+        raise ValueError("acquisition execution profile does not match its pinned manifest")
     if on_operation_complete is not None and _live_token is not _LIVE_ACQUISITION_TOKEN:
         raise TypeError("operation snapshots require authorized coverage live transport")
     if transport.exchanges or transport.transfer_bytes:
         raise ValueError("each stage requires a fresh mock transport and empty receipt ledger")
-    _validate_adapters(adapters, transport)
+    _validate_adapters(adapters, transport, profile)
 
     research = stage_manifest.get("research_cases")
     navigation = stage_manifest.get("navigation_targets")
@@ -519,9 +633,10 @@ async def _acquire_coverage_stage(
     start_exchange_index = len(transport.exchanges)
     results: list[AcquisitionOperation] = []
     stage_failures: list[str] = []
+    terminal_failure_seen = False
 
     for index, (operation_id, kind, query, engines, band, target_url) in enumerate(operations):
-        if _live_token is _LIVE_ACQUISITION_TOKEN and stage_failures:
+        if _live_token is _LIVE_ACQUISITION_TOKEN and terminal_failure_seen:
             results.append(
                 AcquisitionOperation(
                     operation_id=operation_id,
@@ -542,10 +657,7 @@ async def _acquire_coverage_stage(
             )
             continue
         if index:
-            await clock.sleep(
-                QUERY_PACING_SECONDS
-                + OFFSET_QUANTIZATION_GUARD_SECONDS
-            )
+            await clock.sleep(QUERY_PACING_SECONDS + OFFSET_QUANTIZATION_GUARD_SECONDS)
         if _live_token is _LIVE_ACQUISITION_TOKEN:
             # The admitted producer transport owns this one-shot operation
             # ledger. Mock-only/offline acquisition stays independent of it.
@@ -566,10 +678,19 @@ async def _acquire_coverage_stage(
                 categories=[REFERENCE_CATEGORY],
                 max_results=None,
                 freshness="prefer_fresh",
-                interactive_timeout_ms=ENGINE_TIMEOUT_MS,
+                interactive_timeout_ms=int(profile.logical_query_timeout_seconds * 1000),
                 generate_suggestions=False,
             )
-            response = await service.search(request)
+            if profile is CONTINUE_ACQUISITION_PROFILE:
+                timeout_context = asyncio.timeout(profile.logical_query_timeout_seconds)
+                timeout_token = _CURRENT_LOGICAL_TIMEOUT.set(timeout_context)
+                try:
+                    async with timeout_context:
+                        response = await service.search(request)
+                finally:
+                    _CURRENT_LOGICAL_TIMEOUT.reset(timeout_token)
+            else:
+                response = await service.search(request)
             if response.scope.selected_engines != list(engines):
                 reasons.append("scope_mismatch")
             if response.ranking_explanation != "tier_then_cross_engine_presence":
@@ -583,7 +704,10 @@ async def _acquire_coverage_stage(
                 reasons.append("exchange_operation_mismatch")
         except Exception as exc:  # preserve every task failure; never retry or rescue
             exception_type = type(exc).__name__
-            reasons.append("search_exception")
+            if profile is CONTINUE_ACQUISITION_PROFILE and isinstance(exc, TimeoutError):
+                reasons.append("logical_query_timeout")
+            else:
+                reasons.append("search_exception")
         finally:
             _CURRENT_ENGINES.reset(engines_token)
             _CURRENT_OPERATION.reset(context_token)
@@ -651,6 +775,10 @@ async def _acquire_coverage_stage(
         results.append(operation_result)
         if operation_result.status != "complete":
             stage_failures.append(operation_id)
+            if _live_token is _LIVE_ACQUISITION_TOKEN and (
+                not profile.continue_after_ordinary_failure or not _may_continue_after_failure(operation_result)
+            ):
+                terminal_failure_seen = True
 
     stage_exchanges = transport.exchanges[start_exchange_index:]
     if len(stage_exchanges) > MAX_PHYSICAL_REQUESTS_PER_STAGE:
@@ -672,7 +800,9 @@ async def _acquire_coverage_stage(
     )
 
 
-def _validate_adapters(adapters: Mapping[str, EngineAdapter], transport: RecordedMockTransport) -> None:
+def _validate_adapters(
+    adapters: Mapping[str, EngineAdapter], transport: RecordedMockTransport, profile: AcquisitionExecutionProfile
+) -> None:
     if not adapters or set(adapters) - ALLOWED_ENGINES:
         raise ValueError("only the four fixed public engines are allowed")
     expected_types = {
@@ -692,14 +822,98 @@ def _validate_adapters(adapters: Mapping[str, EngineAdapter], transport: Recorde
             raise TypeError(f"{name}: the actual supported adapter class is required")
         if adapter.config.get("max_results") != MAX_RESULTS_PER_ENGINE:
             raise ValueError(f"{name}: max_results must be fixed at 20")
-        if adapter.config.get("timeout_ms") != ENGINE_TIMEOUT_MS:
-            raise ValueError(f"{name}: timeout_ms must be fixed at 10000")
+        expected_timeout_ms = int(profile.request_timeout_seconds * 1000)
+        if adapter.config.get("timeout_ms") != expected_timeout_ms:
+            raise ValueError(f"{name}: timeout_ms does not match the pinned acquisition profile")
         if adapter.config.get("base_url", expected_base[name]) != expected_base[name]:
             raise ValueError(f"{name}: only the fixed public HTTPS endpoint is allowed")
         if adapter._http_transport is not transport:  # noqa: SLF001 - enforce mock-only seam
             raise ValueError(f"{name}: adapter must use the supplied mock transport")
         if name == "github" and adapter.config.get("api_key"):
             raise ValueError("GitHub acquisition is keyless only")
+
+
+_HARD_TRANSPORT_FAILURES = frozenset(
+    {
+        "unexpected_engine_or_operation",
+        "request_material_cap",
+        "unexpected_endpoint",
+        "unexpected_method",
+        "request_timeout_exceeded",
+        "credential_header_forbidden",
+        "per_engine_request_cap",
+        "stage_request_cap",
+        "response_body_cap",
+        "stage_transfer_byte_cap",
+        "redirect_not_allowed",
+    }
+)
+_HARD_ENGINE_STATUSES = frozenset({"rate_limited", "blocked", "auth_required", "error", "unavailable"})
+_ORDINARY_TRANSPORT_FAILURES = frozenset({"request_timeout", "request_deadline_before_dispatch"})
+
+
+def _may_continue_after_failure(operation: AcquisitionOperation) -> bool:
+    """Only ordinary timeout/empty/band/target outcomes may consume later planned slots."""
+    if operation.status == "pool_snapshot_write_failure":
+        return False
+    if operation.exception_type is not None:
+        ordinary_after_timeout = {
+            "logical_query_timeout",
+            "pool_unavailable",
+            "natural_pool_band_mismatch",
+            "exact_target_not_rank1",
+        }
+        return bool(
+            operation.exception_type == "TimeoutError"
+            and "logical_query_timeout" in operation.failure_reasons
+            and all(
+                reason in ordinary_after_timeout
+                or reason in {f"transport:{code}" for code in _ORDINARY_TRANSPORT_FAILURES}
+                for reason in operation.failure_reasons
+            )
+            and all(
+                exchange.failure_code in {None, "timeout", *_ORDINARY_TRANSPORT_FAILURES}
+                for exchange in operation.exchanges
+            )
+        )
+    if any(
+        reason
+        in {
+            "scope_mismatch",
+            "unexpected_ranking_path",
+            "exchange_operation_mismatch",
+            "pool_snapshot_write_failure",
+        }
+        for reason in operation.failure_reasons
+    ):
+        return False
+    if operation.canonical_response is None:
+        return False
+    allowed_reasons = {
+        "pool_unavailable",
+        "natural_pool_band_mismatch",
+        "exact_target_not_rank1",
+        "search_deadline_exceeded",
+    }
+    if any(
+        reason not in allowed_reasons
+        and not reason.startswith("engine_failures:")
+        and reason not in {f"transport:{code}" for code in _ORDINARY_TRANSPORT_FAILURES}
+        for reason in operation.failure_reasons
+    ):
+        return False
+    outcomes = operation.canonical_response.engine_outcomes
+    if "search_deadline_exceeded" in operation.failure_reasons and not any(
+        outcome.status == "timeout" for outcome in outcomes
+    ):
+        return False
+    if any(outcome.status in _HARD_ENGINE_STATUSES for outcome in outcomes):
+        return False
+    if any(outcome.status not in {"ok", "timeout"} for outcome in outcomes):
+        return False
+    if any(exchange.failure_code in _HARD_TRANSPORT_FAILURES for exchange in operation.exchanges):
+        return False
+    return True
 
 
 def _validate_plan(plan: Mapping[str, object], *, navigation: bool) -> tuple[str, ...]:
