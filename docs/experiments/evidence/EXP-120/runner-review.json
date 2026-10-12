@@ -18,5 +18,8 @@
     "Legacy helper invocation without explicit schema remains supported; original bundled API branch unchanged. Current normal CI must confirm library compatibility.",
     "Portal API/HTML unaffected; targeted/browser and normal portal gate evidence required.",
     "Local full validation: eleven transport modules pass, remainder2798 pass/58skip/44subtests with two unchanged-baseline environment failures. Not counted as passing full validation."
-  ]
+  ],
+  "superseded_for_delivery": true,
+  "current_delivery_status": "inconclusive: final catalog-description guard unclosed",
+  "superseded_reason": "Final Droid feedback and failed metadata guard invalidate treating the earlier provisional runner review as delivery approval."
 }
