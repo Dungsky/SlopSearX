@@ -1,0 +1,23 @@
+{
+  "schema": "coverage-static-registration-proposal/1",
+  "status": "proposed_static_registration_not_admitted",
+  "source_revision": "30693c99d9b69d9c75931d15b0da9c536432f31a",
+  "source_change_pr": 789,
+  "stage_uuids": {
+    "development": "5b69ae4a-2006-46c5-97f6-75c09987bd7a",
+    "confirmation": "14184264-04bb-4f12-a62b-be506c7932a9"
+  },
+  "packet_stage_uuids": {
+    "development": "160c81af-3265-437c-96e1-2d2546188d47",
+    "confirmation": "251150f4-ed04-4a8d-a83a-33454623bf5f"
+  },
+  "development_status": "planned_not_invoked_not_admitted",
+  "confirmation_status": "not_admitted_not_invoked",
+  "static_preflight": {
+    "development": "passed_on_exact_source_and_static_materials",
+    "confirmation": "not_run_offline_typed_materials_and_pins_verified"
+  },
+  "protocol_and_cohorts_changed": false,
+  "provider_calls_made_for_this_proposal": 0,
+  "private_configuration_or_operational_receipts_included": false
+}
