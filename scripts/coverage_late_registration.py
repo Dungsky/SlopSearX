@@ -15,6 +15,7 @@ from typing import Mapping
 
 from scripts import coverage_live_acquire
 from scripts import coverage_pipeline_inputs as pipeline
+from scripts import coverage_study_acquire as acquisition
 from scripts import coverage_study_core as core
 from scripts.intent_ranking_coverage import compile_request
 
@@ -60,12 +61,24 @@ def build_postacquisition_materials(
         raise LateRegistrationError("postacquisition-material-input-invalid")
     index = core._sha256(acquisition_evidence.snapshot_index_sha256, "acquisition-index")
     try:
+        protocol = core._strict_json(plan.protocol_bytes, "protocol")
+        manifest = core._strict_json(plan.acquisition_manifest_bytes, "acquisition-manifest")
+        if type(protocol) is not dict or type(manifest) is not dict:
+            raise ValueError("protocol or manifest is not an object")
+        profile = acquisition.execution_profile_from_protocol(protocol.get("acquisition"))
+        manifest_profile = acquisition.execution_profile_from_manifest(manifest)
+        if profile != manifest_profile:
+            raise ValueError("acquisition profile does not match the pinned protocol")
+    except Exception as exc:
+        raise LateRegistrationError("postacquisition-profile-binding-invalid") from exc
+    try:
         verified = coverage_live_acquire.verify_pool_snapshot_index(
             acquisition_evidence.snapshots_directory,
             expected_index_sha256=index,
             expected_stage_manifest_sha256=plan.expected_acquisition_manifest_sha256,
             expected_stage_uuid=plan.stage_uuid,
             expected_source_revision=plan.source_revision,
+            expected_execution_profile=profile.identifier,
         )
     except Exception as exc:
         raise LateRegistrationError("postacquisition-snapshot-invalid") from exc
