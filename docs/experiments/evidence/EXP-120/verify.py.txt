@@ -1,0 +1,43 @@
+"""Apply frozen EXP-120 gates to retained output; never rerun acquisition."""
+import json
+import sys
+from pathlib import Path
+
+PRIMARY = {"slopsearx_search_targeted", "slopsearx_search_science", "slopsearx_plan_research"}
+CONTROLS = {"slopsearx_list_capabilities", "slopsearx_search"}
+
+
+def require(condition, reason):
+    if not condition:
+        raise ValueError(reason)
+
+
+def verify(data, baseline):
+    rows = data["rows"]
+    controls = data["controls"]
+    require(len(rows) == 38 and len({r["name"] for r in rows}) == 38, "catalog membership")
+    require({r["name"] for r in rows if r["primary"]} == PRIMARY, "primary membership")
+    require({r["name"] for r in controls} == CONTROLS and len(controls) == 2, "control membership")
+    for row in rows:
+        require(isinstance(row["upstream"], dict) and row["gateway"] == row["upstream"], "schema equality")
+        require(row["equal"] is True, "reported schema equality")
+    baseline_controls = {row["name"]: row for row in baseline["controls"]}
+    for row in controls:
+        prior = baseline_controls[row["name"]]
+        require(row["upstream"] == prior["upstream"], "full upstream control unchanged")
+        require(row["gateway"] == prior["gateway"], "full gateway control unchanged")
+        direct = row["upstream"].get("structuredContent")
+        gateway = row["gateway"].get("structuredContent")
+        require(isinstance(direct, dict) and direct == gateway, "control equality")
+        require(row["equal"] is True, "reported control equality")
+    require(data["primary_passed"] == data["primary_total"] == 3, "primary count")
+    require(data["catalog_equal"] == data["catalog_total"] == 38, "catalog count")
+    require(data["provider_calls"] == 0, "provider budget")
+
+
+if __name__ == "__main__":
+    verify(
+        json.loads(Path(sys.argv[1]).read_text()),
+        json.loads(Path(__file__).with_name("baseline.json").read_text()),
+    )
+    print("EXP-120 frozen gates passed")
