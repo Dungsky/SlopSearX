@@ -1,0 +1,22 @@
+{
+  "candidate_sha": "68ca36d6ac8043b57da99f1c4d155171cea5159c",
+  "reviewer": "current-cycle runner",
+  "reason": "Droid and automated review concerns on earlier SHA were resolved; final-head positive review still pending. Substantive current-candidate runner fallback retained.",
+  "outcome": "positive; no actionable findings, conditional on all exact-head CI passing",
+  "scope": [
+    "gateway registration/lifespan",
+    "schema/immutability/invocation tests",
+    "frozen worker and offline verifier",
+    "MCP discovery docs"
+  ],
+  "reasoning": [
+    "FunctionTool.from_function uses the same generated callable metadata as normal callable registration. Deep-copying parameters changes advertised schema only; invocation TypeAdapter and result conversion unchanged (installed API source inspected).",
+    "All three actual primary and all38 input schemas exactly match direct HTTP discovery. Nested nullable fields, array item types and constraints preserved; source schema isolated from mutation.",
+    "Same authenticated ClientSession and upstream policy path used; no additional dispatch or schema-based authorization. Pagination and wrong-token regressions pass.",
+    "Successful capability and invalid-intent controls fully equal across retained baseline/candidate raw objects; text and isError unchanged, not just structured data.",
+    "Verifier evaluates original frozen counts/membership/schema/control gates; explicit ValueError remains active under -O. Baseline fails; candidate passes; nine mutants fail. No threshold, original worker or primary acquisition changed.",
+    "Legacy helper invocation without explicit schema remains supported; original bundled API branch unchanged. Current normal CI must confirm library compatibility.",
+    "Portal API/HTML unaffected; targeted/browser and normal portal gate evidence required.",
+    "Local full validation: eleven transport modules pass, remainder2798 pass/58skip/44subtests with two unchanged-baseline environment failures. Not counted as passing full validation."
+  ]
+}

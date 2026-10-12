@@ -1,0 +1,37 @@
+"""Offline verifier regression; these are not new primary observations."""
+import copy
+import json
+import runpy
+import sys
+from pathlib import Path
+
+verify = runpy.run_path(str(Path(__file__).with_name("verify.py.txt")))["verify"]
+data = json.loads(Path(sys.argv[1]).read_text())
+baseline = json.loads(Path(__file__).with_name("baseline.json").read_text())
+verify(data, baseline)
+for fault in ("schema", "control", "missing", "primary", "calls", "count", "flag", "text", "error_flag"):
+    broken = copy.deepcopy(data)
+    if fault == "schema":
+        broken["rows"][0]["gateway"] = {}
+    elif fault == "control":
+        broken["controls"][0]["gateway"]["structuredContent"] = {"changed": True}
+    elif fault == "missing":
+        broken["rows"].pop()
+    elif fault == "primary":
+        broken["rows"][0]["primary"] = not broken["rows"][0]["primary"]
+    elif fault == "calls":
+        broken["provider_calls"] = 1
+    elif fault == "count":
+        broken["primary_passed"] = 0
+    elif fault == "flag":
+        broken["rows"][0]["equal"] = False
+    elif fault == "text":
+        broken["controls"][0]["gateway"]["content"][0]["text"] = "changed"
+    elif fault == "error_flag":
+        broken["controls"][0]["gateway"]["isError"] = True
+    try:
+        verify(broken, baseline)
+    except ValueError:
+        continue
+    raise AssertionError("verifier accepted " + fault)
+print("one valid record accepted; nine deliberate corruptions rejected")

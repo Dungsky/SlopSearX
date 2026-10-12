@@ -1,0 +1,12 @@
+[
+  {
+    "arm": "baseline",
+    "exit": 1,
+    "output": "Traceback (most recent call last):\n  File \"/private/tmp/slopsearx-daily-20261012/docs/experiments/evidence/EXP-120/verify.py.txt\", line 30, in <module>\n    verify(json.loads(Path(sys.argv[1]).read_text()))\n  File \"/private/tmp/slopsearx-daily-20261012/docs/experiments/evidence/EXP-120/verify.py.txt\", line 17, in verify\n    assert isinstance(row[\"upstream\"], dict) and row[\"gateway\"] == row[\"upstream\"], \"schema equality\"\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: schema equality\n"
+  },
+  {
+    "arm": "candidate",
+    "exit": 0,
+    "output": "EXP-120 frozen gates passed\n"
+  }
+]
