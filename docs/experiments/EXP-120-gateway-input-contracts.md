@@ -39,3 +39,11 @@ failure. It accepts the original candidate record and rejects seven deliberately
 corrupted records under `verify-tests.py.txt`. These are analyzer regressions,
 not new primary observations. No worker, corpus, threshold, outcome or primary
 replay was changed or repeated. Reproduction must run both collector and verifier.
+
+Droid additionally requested full control checks beyond structured content.
+Offline comparison of the already-retained baseline/candidate records shows
+both upstream and gateway responses exactly equal for both controls, including
+text and error flags. The verifier enforces that full equality and rejects nine
+mutants, including text/error-flag changes. Explicit ValueError checks retain
+enforcement under Python optimization. No new primary acquisition or threshold
+change occurred.

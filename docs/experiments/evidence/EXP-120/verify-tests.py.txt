@@ -7,8 +7,9 @@ from pathlib import Path
 
 verify = runpy.run_path(str(Path(__file__).with_name("verify.py.txt")))["verify"]
 data = json.loads(Path(sys.argv[1]).read_text())
-verify(data)
-for fault in ("schema", "control", "missing", "primary", "calls", "count", "flag"):
+baseline = json.loads(Path(__file__).with_name("baseline.json").read_text())
+verify(data, baseline)
+for fault in ("schema", "control", "missing", "primary", "calls", "count", "flag", "text", "error_flag"):
     broken = copy.deepcopy(data)
     if fault == "schema":
         broken["rows"][0]["gateway"] = {}
@@ -24,9 +25,13 @@ for fault in ("schema", "control", "missing", "primary", "calls", "count", "flag
         broken["primary_passed"] = 0
     elif fault == "flag":
         broken["rows"][0]["equal"] = False
+    elif fault == "text":
+        broken["controls"][0]["gateway"]["content"][0]["text"] = "changed"
+    elif fault == "error_flag":
+        broken["controls"][0]["gateway"]["isError"] = True
     try:
-        verify(broken)
-    except AssertionError:
+        verify(broken, baseline)
+    except ValueError:
         continue
     raise AssertionError("verifier accepted " + fault)
-print("one valid record accepted; seven deliberate corruptions rejected")
+print("one valid record accepted; nine deliberate corruptions rejected")
