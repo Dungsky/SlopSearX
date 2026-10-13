@@ -10,6 +10,10 @@ and packet identities. Development was invoked once but collection admission
 was refused; confirmation remains uninvoked. No scientific provider call has
 occurred. The approved candidate and thresholds are unchanged.
 
+## Prepared replacement admission, awaiting decision
+
+The [replacement proposal](evidence/coverage-first-study/proposed-repaired-admission-2026-10-13/README.md) preserves the same candidate, cases, thresholds and budgets and uses four fresh identities disjoint from all 59 retired identities. It is offline preparation only. The actual external-file issuer correction is retained in PR #834; the prior failed attempt is not restarted. Automatic approval review rejected creating new private configs without explicit authorization for this post-terminal run. No new config or scientific call is claimed.
+
 ## Why the execution method changes
 
 The [v3 development result](evidence/coverage-first-study/completed-2026-10-13-v3/README.md)
