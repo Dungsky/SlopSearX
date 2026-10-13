@@ -40,8 +40,16 @@
     "health_http_status": 200,
     "scrape_contexts_created": 0,
     "diagnosis": {
-      "status": "confirmed",
-      "summary": "Fixed DNS-control endpoint addresses were reused by dynamically assigned clients; public DNS lookup then failed with EAI_AGAIN, and the scraper private-address guard rejected the URLs.",
+      "status": "observations_confirmed_causal_connection_unestablished",
+      "confirmed_observations": [
+        "stopped fixed-address HTTP proxy gateways overlapped dynamically assigned clients during concurrent operation",
+        "the gateways are HTTP proxies, not DNS controls",
+        "public DNS lookups failed with EAI_AGAIN and the scraper private-address guard rejected scrape requests",
+        "after the gateway repair, public getaddrinfo lookups for example.com and github.com still returned EAI_AGAIN"
+      ],
+      "causal_connection_established": false,
+      "repair_restored_public_dns": false,
+      "unconfirmed_hypothesis": "Internal network clients use the Docker embedded resolver, which may not be forwarding public names; this requires further investigation.",
       "private_addresses_or_hosts_published": false
     }
   },
