@@ -16,6 +16,7 @@ from unittest import mock
 import httpx
 
 from scripts import coverage_answer_execution as answer_execution
+from scripts import coverage_band_companion as companion
 from scripts import (
     coverage_jev_execution,
     coverage_resource_evidence,
@@ -67,13 +68,28 @@ def _source_materials(*, registered: bool = False) -> dict[str, bytes]:
     }
 
 
-def _source_closure_bytes(source_revision: str, *, registered: bool = False) -> bytes:
+def _source_closure_bytes(
+    source_revision: str, *, registered: bool = False, band_companion_bytes: bytes | None = None
+) -> bytes:
     materials = _source_materials(registered=registered)
+    material_pins = {key: digest(value) for key, value in materials.items()}
+    if band_companion_bytes is None:
+        return canonical(
+            {
+                "schema": "coverage-study-qualified-source-closure/1",
+                "source_revision": source_revision,
+                "material_pins": material_pins,
+            }
+        )
+    material_pins["band_companion"] = digest(band_companion_bytes)
+    source_path = Path(__file__).parents[1] / "scripts/coverage_band_companion.py"
+    source_pins = {"coverage_band_companion": digest(source_path.read_bytes())}
     return canonical(
         {
-            "schema": "coverage-study-qualified-source-closure/1",
+            "schema": "coverage-study-qualified-source-closure/2",
             "source_revision": source_revision,
-            "material_pins": {key: digest(value) for key, value in materials.items()},
+            "material_pins": material_pins,
+            "source_pins": source_pins,
         }
     )
 
@@ -88,9 +104,19 @@ def plan_fixture(*, selector_map_registered: bool = False, pool_input_mode: str 
         )
         protocol_bytes = (fresh_material_dir / "protocol.json").read_bytes()
         cohorts_bytes = (fresh_material_dir / "cohorts.json").read_bytes()
+        band_companion_bytes = (fresh_material_dir / "band-companion-contract.json").read_bytes()
+        band_companion_sha256 = digest(band_companion_bytes)
+        band_companion_source_pins = {
+            "coverage_band_companion": digest(
+                (Path(__file__).parents[1] / "scripts/coverage_band_companion.py").read_bytes()
+            )
+        }
     else:
         protocol_bytes = (evidence_dir / "protocol.json").read_bytes()
         cohorts_bytes = (evidence_dir / "cohorts.json").read_bytes()
+        band_companion_bytes = None
+        band_companion_sha256 = None
+        band_companion_source_pins = None
     if selector_map_registered and pool_input_mode is None:
         protocol_value = json.loads(protocol_bytes)
         protocol_value["selector_input_map_schema"] = "coverage-selector-input-map/2-registered"
@@ -128,7 +154,30 @@ def plan_fixture(*, selector_map_registered: bool = False, pool_input_mode: str 
             ],
         }
     )
-    source_closure_sha = digest(_source_closure_bytes("a" * 40, registered=selector_map_registered))
+    source_closure_sha = digest(
+        _source_closure_bytes(
+            "a" * 40,
+            registered=selector_map_registered or pool_input_mode is not None,
+            band_companion_bytes=band_companion_bytes,
+        )
+    )
+    initial_registration_bytes = None
+    initial_registration_sha256 = None
+    if band_companion_bytes is not None:
+        initial_registration_bytes = canonical(
+            {
+                "schema": core.REGISTRATION_SCHEMA,
+                "stage_uuid": stage_id,
+                "stage_kind": "development",
+                "source_revision": "a" * 40,
+                "pins": {"protocol": digest(protocol_bytes)},
+                "operation_ids": [],
+                "navigation_skip_reasons": [],
+                "task_ids": [],
+                "band_companion_sha256": band_companion_sha256,
+            }
+        )
+        initial_registration_sha256 = digest(initial_registration_bytes)
     preacquisition_input_sha = digest(
         canonical(
             {
@@ -137,6 +186,14 @@ def plan_fixture(*, selector_map_registered: bool = False, pool_input_mode: str 
                 "protocol_sha256": digest(protocol_bytes),
                 "cohorts_sha256": digest(cohorts_bytes),
                 "task_ids": [r["task_id"] for r in cases] + [r["target_id"] for r in navigation],
+                **(
+                    {
+                        "band_companion_sha256": band_companion_sha256,
+                        "initial_registration_sha256": initial_registration_sha256,
+                    }
+                    if band_companion_sha256 is not None
+                    else {}
+                ),
             }
         )
     )
@@ -178,6 +235,11 @@ def plan_fixture(*, selector_map_registered: bool = False, pool_input_mode: str 
         stage_deadline_monotonic=now + 300,
         expected_acquisition_manifest_sha256=digest(acquisition_manifest_bytes),
         pool_input_mode=pool_input_mode or "live-acquisition/1",
+        band_companion_bytes=band_companion_bytes,
+        band_companion_sha256=band_companion_sha256,
+        initial_registration_bytes=initial_registration_bytes,
+        initial_registration_sha256=initial_registration_sha256,
+        band_companion_source_pins=band_companion_source_pins,
     )
 
 
@@ -369,7 +431,11 @@ def _late_preflight(plan: stage.StagePlan, evidence, pipeline_inputs):
     registered = json.loads(plan.protocol_bytes).get("selector_input_map_schema") == (
         "coverage-selector-input-map/2-registered"
     )
-    source_closure = _source_closure_bytes(plan.source_revision, registered=registered)
+    source_closure = _source_closure_bytes(
+        plan.source_revision,
+        registered=registered or plan.band_companion_bytes is not None,
+        band_companion_bytes=plan.band_companion_bytes,
+    )
     source_materials = _source_materials(registered=registered)
     capture_manifest = pipeline_inputs["capture_manifest_bytes"]
     materials = {
@@ -398,18 +464,19 @@ def _late_preflight(plan: stage.StagePlan, evidence, pipeline_inputs):
     skips = (None,) * 5
     operation_ids = [row.operation_id for row in core.selector_inventory(skips)]
     task_ids = plan_ids(plan)
-    registration = canonical(
-        {
-            "schema": core.REGISTRATION_SCHEMA,
-            "stage_uuid": plan.stage_uuid,
-            "stage_kind": plan.stage_kind,
-            "source_revision": plan.source_revision,
-            "pins": pins,
-            "operation_ids": operation_ids,
-            "navigation_skip_reasons": list(skips),
-            "task_ids": task_ids,
-        }
-    )
+    registration_document = {
+        "schema": core.REGISTRATION_SCHEMA,
+        "stage_uuid": plan.stage_uuid,
+        "stage_kind": plan.stage_kind,
+        "source_revision": plan.source_revision,
+        "pins": pins,
+        "operation_ids": operation_ids,
+        "navigation_skip_reasons": list(skips),
+        "task_ids": task_ids,
+    }
+    if plan.band_companion_sha256 is not None:
+        registration_document["band_companion_sha256"] = plan.band_companion_sha256
+    registration = canonical(registration_document)
     prepared = core.preflight_stage(
         registration_bytes=registration,
         expected_registration_sha256=digest(registration),
@@ -423,6 +490,9 @@ def _late_preflight(plan: stage.StagePlan, evidence, pipeline_inputs):
         capture_plan_bytes=materials["capture_plan"],
         task_ids=tuple(task_ids),
         navigation_skip_reasons=skips,
+        band_companion_bytes=plan.band_companion_bytes,
+        expected_band_companion_sha256=plan.band_companion_sha256,
+        expected_source_pins=plan.band_companion_source_pins,
     )
     return stage.LatePreparationEvidence(prepared, input_bytes, digest(registration))
 
@@ -806,6 +876,14 @@ class StageOrchestrationTests(unittest.TestCase):
                         "cohorts_sha256": digest(plan.cohorts_bytes),
                         "task_ids": [row["task_id"] for row in plan.research_cases]
                         + [row["target_id"] for row in plan.navigation_targets],
+                        **(
+                            {
+                                "band_companion_sha256": plan.band_companion_sha256,
+                                "initial_registration_sha256": plan.initial_registration_sha256,
+                            }
+                            if plan.band_companion_sha256 is not None
+                            else {}
+                        ),
                     }
                 )
             )
@@ -1423,18 +1501,54 @@ class StageOrchestrationTests(unittest.TestCase):
                     stage.coordinate_coverage_stage(plan=plan, executors=executors, inventory_root=inventory_root)
                 )
             inventory = json.loads(result.inventory_path.read_bytes())
-            self.assertNotIn("band_companion_sha256", inventory)
-            self.assertNotIn("initial_registration_sha256", inventory)
-            self.assertNotIn("band_companion_status", inventory)
-            self.assertNotIn("release_qualification_status", inventory)
+            if frozen_mode:
+                self.assertEqual(inventory["band_companion_sha256"], plan.band_companion_sha256)
+                self.assertEqual(inventory["initial_registration_sha256"], plan.initial_registration_sha256)
+                self.assertIn(inventory["band_companion_status"], {"pass", "fail", "inconclusive"})
+            else:
+                self.assertNotIn("band_companion_sha256", inventory)
+                self.assertNotIn("initial_registration_sha256", inventory)
+                self.assertNotIn("band_companion_status", inventory)
+            if frozen_mode:
+                self.assertIn(inventory["release_qualification_status"], {"pass", "fail", "inconclusive"})
+            else:
+                self.assertNotIn("release_qualification_status", inventory)
             if "gate_metrics" in inventory:
-                self.assertNotIn("band_companion", inventory["gate_metrics"])
+                if frozen_mode:
+                    companion_metrics = inventory["gate_metrics"]["band_companion"]
+                    self.assertEqual(
+                        set(companion_metrics["groups"]["research_le_40"]["task_ids"]),
+                        set(companion.FROZEN_GROUPS["research_le_40"][plan.stage_kind]),
+                    )
+                    self.assertEqual(
+                        set(companion_metrics["groups"]["research_41_80"]["task_ids"]),
+                        set(companion.FROZEN_GROUPS["research_41_80"][plan.stage_kind]),
+                    )
+                    self.assertEqual(
+                        set(companion_metrics["gates"]),
+                        {
+                            f"band_{band}_{assessor}_ranking"
+                            for band in ("research_le_40", "research_41_80")
+                            for assessor in ("A", "B")
+                        }
+                        | {
+                            f"band_{band}_{assessor}_task_use"
+                            for band in ("research_le_40", "research_41_80")
+                            for assessor in ("R1", "R2")
+                        },
+                    )
+                else:
+                    self.assertNotIn("band_companion", inventory["gate_metrics"])
             if "gate_input_manifest_file" in inventory:
                 gate_input = json.loads(
                     (result.inventory_path.parent / inventory["gate_input_manifest_file"]).read_bytes()
                 )
-                self.assertNotIn("band_companion_sha256", gate_input)
-                self.assertNotIn("initial_registration_sha256", gate_input)
+                if frozen_mode:
+                    self.assertEqual(gate_input["band_companion_sha256"], plan.band_companion_sha256)
+                    self.assertEqual(gate_input["initial_registration_sha256"], plan.initial_registration_sha256)
+                else:
+                    self.assertNotIn("band_companion_sha256", gate_input)
+                    self.assertNotIn("initial_registration_sha256", gate_input)
             closeout = resource_evidence.verify_stage_closeout(
                 inventory_path=result.inventory_path,
                 expected_inventory_sha256=result.inventory_sha256,
@@ -1492,6 +1606,7 @@ class StageOrchestrationTests(unittest.TestCase):
                     cohorts_bytes=plan.cohorts_bytes,
                     expected_protocol_sha256=digest(plan.protocol_bytes),
                     expected_cohorts_sha256=digest(plan.cohorts_bytes),
+                    expected_band_companion_sha256=plan.band_companion_sha256,
                 )
                 self.assertEqual(finalization.status, "gates-inconclusive")
                 self.assertFalse(finalization.eligible_for_independent_decision)
