@@ -10,11 +10,14 @@ required development-to-confirmation lineage. The operator still validates
 that the actual run is one of those two stage kinds and fails closed if any
 binding is absent or does not match.
 
-The gate calculator accepts the original frozen execution-contract digest and
-one additional exact digest for the registered acquisition-v2 protocol. That
-exception is bound to the pinned registered protocol and cohort hashes and the
-`coverage-acquisition-profile/2` schema; acquisition budgets and thresholds
-remain the values in those pinned files.
+The prior `development-contract.json` and `confirmation-contract.json` remain
+bound to the archived v3 material. The fresh frozen-input method has its own
+shared contract at
+`../frozen-input-method-materials/band-companion-contract.json`, pinned by
+that directory's material lock. It binds the unchanged per-band gates to
+`D26-R01`–`D26-R08` and `C26-R01`–`C26-R08` under the exact fresh protocol and
+cohort hashes. The gate accepts only those two exact material pairs; it does
+not generalize acceptance to other protocol or cohort bytes.
 
 For each exact four-task band, the existing A/B ranking calculation and R1/R2
 task-use calculation run again over the same closed grades. The same thresholds

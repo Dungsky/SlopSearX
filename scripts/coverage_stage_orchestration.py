@@ -457,6 +457,17 @@ def _validate_plan_static(plan: StagePlan) -> dict[str, object]:
         raise OrchestrationError("pool-input-mode-invalid")
     if plan.pool_input_mode != protocol_pool_mode:
         raise OrchestrationError("pool-input-mode-protocol-mismatch")
+    if protocol_pool_mode == "frozen-pool/1":
+        from scripts import coverage_band_companion as band_companion
+
+        if plan.band_companion_bytes is None:
+            raise OrchestrationError("frozen-pool-band-companion-required")
+        if plan.band_companion_sha256 != band_companion.FROZEN_CONTRACT_SHA256:
+            raise OrchestrationError("frozen-pool-band-companion-pin-invalid")
+        if plan.initial_registration_bytes is None or plan.initial_registration_sha256 is None:
+            raise OrchestrationError("frozen-pool-initial-registration-required")
+        if plan.band_companion_source_pins is None:
+            raise OrchestrationError("frozen-pool-band-companion-source-pins-required")
     if protocol.get("selector_input_map_schema") == "coverage-selector-input-map/2-registered":
         if protocol.get("selector_input_map_status") != "registered":
             raise OrchestrationError("selector-map-registration-status-required")

@@ -685,6 +685,13 @@ class OperatorStageRunner:
         if protocol.get("cohorts_sha256") != _sha(path_bytes["cohorts"]):
             raise OperatorRunnerError("protocol-cohort-pin-mismatch")
         companion_sha = _sha(path_bytes["band_companion"]) if "band_companion" in path_bytes else None
+        if protocol.get("pool_input_mode") == "frozen-pool/1":
+            from scripts import coverage_band_companion as band_companion
+
+            if closure.get("schema") != "coverage-study-qualified-source-closure/2":
+                raise OperatorRunnerError("frozen-pool-source-closure-v2-required")
+            if companion_sha != band_companion.FROZEN_CONTRACT_SHA256:
+                raise OperatorRunnerError("frozen-pool-band-companion-required")
         initial_registration_sha256 = _sha(path_bytes["initial_registration"])
         if initial_registration_sha256 != self.config["initial_registration_sha256"]:
             raise OperatorRunnerError("initial-registration-config-pin-mismatch")
@@ -815,6 +822,8 @@ class OperatorStageRunner:
         companion_sha = _sha(path_bytes["band_companion"]) if "band_companion" in path_bytes else None
         if self.initial_doc.get("band_companion_sha256") != companion_sha:
             raise OperatorRunnerError("initial-registration-companion-binding-mismatch")
+        if protocol.get("pool_input_mode") == "frozen-pool/1" and companion_sha is None:
+            raise OperatorRunnerError("initial-registration-frozen-companion-required")
         try:
             # The initial registration declares the navigation skip decisions;
             # validate their fixed inventory and the corresponding selector

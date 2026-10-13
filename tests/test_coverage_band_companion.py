@@ -18,6 +18,9 @@ CONTRACT_PATH = (
     Path(__file__).parents[1]
     / "docs/experiments/evidence/coverage-first-study/band-companion/development-contract.json"
 )
+FRESH_MATERIAL_DIR = (
+    Path(__file__).parents[1] / "docs/experiments/evidence/coverage-first-study/frozen-input-method-materials"
+)
 
 
 def _inputs():
@@ -103,6 +106,68 @@ def test_standalone_calculator_rejects_altered_frozen_recipe():
             records_by_task={},
             answer_scores=None,
             prepared_assessments=None,
+        )
+
+
+def test_fresh_frozen_contract_uses_only_locked_d26_c26_groups():
+    contract_bytes = (FRESH_MATERIAL_DIR / "band-companion-contract.json").read_bytes()
+    contract = json.loads(contract_bytes)
+    protocol_bytes = (FRESH_MATERIAL_DIR / "protocol.json").read_bytes()
+    cohorts_bytes = (FRESH_MATERIAL_DIR / "cohorts.json").read_bytes()
+    protocol_sha = hashlib.sha256(protocol_bytes).hexdigest()
+    cohorts_sha = hashlib.sha256(cohorts_bytes).hexdigest()
+    lock = json.loads((FRESH_MATERIAL_DIR / "material-lock.json").read_bytes())
+    assert hashlib.sha256(contract_bytes).hexdigest() == lock["band_companion_sha256"]
+    validated = companion.validate_contract(
+        contract,
+        stage_kind="development",
+        protocol_sha256=protocol_sha,
+        cohorts_sha256=cohorts_sha,
+    )
+    assert validated["groups"] == companion.FROZEN_GROUPS
+    assert validated["groups"] is not companion.ARCHIVAL_GROUPS
+    confirmation = companion.validate_contract(
+        contract,
+        stage_kind="confirmation",
+        protocol_sha256=protocol_sha,
+        cohorts_sha256=cohorts_sha,
+    )
+    assert confirmation["groups"]["research_le_40"]["confirmation"] == [
+        "C26-R01",
+        "C26-R02",
+        "C26-R03",
+        "C26-R04",
+    ]
+
+    protocol = json.loads(protocol_bytes)
+    inputs = _fixture()
+    task_ids = [row["task_id"] for row in inputs["task_inputs"]]
+    remap = {task_id: f"D26-R{index:02d}" for index, task_id in enumerate(task_ids, 1)}
+    result = companion.calculate(
+        contract=contract,
+        stage_kind="development",
+        protocol_sha256=protocol_sha,
+        cohorts_sha256=cohorts_sha,
+        quality=protocol["quality"],
+        task_use=protocol["task_use"],
+        protocol=protocol,
+        task_inputs=[{**row, "task_id": remap[row["task_id"]]} for row in inputs["task_inputs"]],
+        orders={},
+        records_by_task={},
+        answer_scores=None,
+        prepared_assessments=None,
+    )
+    assert result.groups["research_le_40"]["task_ids"] == companion.FROZEN_GROUPS["research_le_40"]["development"]
+    assert result.groups["research_41_80"]["task_ids"] == companion.FROZEN_GROUPS["research_41_80"]["development"]
+
+    wrong_groups = copy.deepcopy(contract)
+    wrong_groups["groups"] = companion.ARCHIVAL_GROUPS
+    with pytest.raises(companion.BandCompanionError, match="group-inventory-mismatch"):
+        companion.validate_contract(
+            wrong_groups,
+            stage_kind="development",
+            protocol_sha256=protocol_sha,
+            cohorts_sha256=cohorts_sha,
         )
 
 

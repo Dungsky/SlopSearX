@@ -14,6 +14,8 @@ scientific calls have been made with these materials, and neither stage is
 admitted by this commit. The failed v3 study remains terminal; its cases and
 identities are not reused.
 
-`material-lock.json` pins the exact protocol, cohort and execution-contract
-bytes. Both fresh cohorts are fixed together. Confirmation acquisition remains
-conditional on an independently verified complete development pass.
+`band-companion-contract.json` binds the same four-per-band ranking and task-use
+gates to the fresh `D26-R` and `C26-R` cohort IDs. `material-lock.json` pins the
+exact protocol, cohort, execution-contract and companion bytes. Both fresh
+cohorts are fixed together. Confirmation acquisition remains conditional on an
+independently verified complete development pass.

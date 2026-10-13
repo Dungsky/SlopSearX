@@ -22,9 +22,15 @@ from scripts.coverage_gate_calculation import (
 )
 
 SCHEMA = "coverage-first-band-companion/1"
-PROTOCOL_SHA256 = "567e337d41268f380348abc70ab1bf4a0249852f237797fa361295f1e34afb06"
-COHORTS_SHA256 = "36d4cbff9c93555d35d7269525616f009a21727c8d1141a8a2a61934791038f0"
-GROUPS = {
+ARCHIVAL_PROTOCOL_SHA256 = "567e337d41268f380348abc70ab1bf4a0249852f237797fa361295f1e34afb06"
+ARCHIVAL_COHORTS_SHA256 = "36d4cbff9c93555d35d7269525616f009a21727c8d1141a8a2a61934791038f0"
+# Preserve the established names for the retained archival contract.
+PROTOCOL_SHA256 = ARCHIVAL_PROTOCOL_SHA256
+COHORTS_SHA256 = ARCHIVAL_COHORTS_SHA256
+FROZEN_PROTOCOL_SHA256 = "e4f7a7eaf7b78c9e662e02b48f9672eac368db7bef2992fe4e4c11443500b604"
+FROZEN_COHORTS_SHA256 = "377450c59f2b8498c8a7f923bb7b6d05a0b780300467cc9b9f8ef0bd69522595"
+FROZEN_CONTRACT_SHA256 = "359f0899a2afcec711352fa5bc673de6cb94d308cf69e013347e24aebb4814e7"
+ARCHIVAL_GROUPS = {
     "research_le_40": {
         "development": ["D-R01", "D-R02", "D-R03", "D-R04"],
         "confirmation": ["C-R01", "C-R02", "C-R03", "C-R04"],
@@ -34,6 +40,18 @@ GROUPS = {
         "confirmation": ["C-R05", "C-R06", "C-R07", "C-R08"],
     },
 }
+FROZEN_GROUPS = {
+    "research_le_40": {
+        "development": ["D26-R01", "D26-R02", "D26-R03", "D26-R04"],
+        "confirmation": ["C26-R01", "C26-R02", "C26-R03", "C26-R04"],
+    },
+    "research_41_80": {
+        "development": ["D26-R05", "D26-R06", "D26-R07", "D26-R08"],
+        "confirmation": ["C26-R05", "C26-R06", "C26-R07", "C26-R08"],
+    },
+}
+# Backward-compatible name for archived-contract tests and consumers.
+GROUPS = ARCHIVAL_GROUPS
 
 
 class BandCompanionError(ValueError):
@@ -61,11 +79,19 @@ def validate_contract(contract: object, *, stage_kind: str, protocol_sha256: str
         raise BandCompanionError("companion-contract-shape")
     if contract["schema"] != SCHEMA or contract["stage_kind"] != "development_and_confirmation":
         raise BandCompanionError("companion-contract-identity")
-    if contract["protocol_sha256"] != PROTOCOL_SHA256 or protocol_sha256 != PROTOCOL_SHA256:
-        raise BandCompanionError("companion-protocol-pin-mismatch")
-    if contract["cohorts_sha256"] != COHORTS_SHA256 or cohorts_sha256 != COHORTS_SHA256:
-        raise BandCompanionError("companion-cohort-pin-mismatch")
-    if contract["groups"] != GROUPS:
+    if (contract["protocol_sha256"], contract["cohorts_sha256"]) == (
+        ARCHIVAL_PROTOCOL_SHA256,
+        ARCHIVAL_COHORTS_SHA256,
+    ) and (protocol_sha256, cohorts_sha256) == (ARCHIVAL_PROTOCOL_SHA256, ARCHIVAL_COHORTS_SHA256):
+        expected_groups = ARCHIVAL_GROUPS
+    elif (contract["protocol_sha256"], contract["cohorts_sha256"]) == (
+        FROZEN_PROTOCOL_SHA256,
+        FROZEN_COHORTS_SHA256,
+    ) and (protocol_sha256, cohorts_sha256) == (FROZEN_PROTOCOL_SHA256, FROZEN_COHORTS_SHA256):
+        expected_groups = FROZEN_GROUPS
+    else:
+        raise BandCompanionError("companion-material-pin-mismatch")
+    if contract["groups"] != expected_groups:
         raise BandCompanionError("companion-group-inventory-mismatch")
     if contract["claim_scope"] != "fixed-frozen-cases-only; no population or causal-depth claim":
         raise BandCompanionError("companion-claim-scope-invalid")
@@ -103,14 +129,14 @@ def calculate(
     prepared_assessments: object,
 ) -> BandCompanionResult:
     _validate_frozen_recipes(quality, task_use)
-    validate_contract(
+    validated_contract = validate_contract(
         dict(contract), stage_kind=stage_kind, protocol_sha256=protocol_sha256, cohorts_sha256=cohorts_sha256
     )
     groups: dict[str, object] = {}
     gates: dict[str, bool | None] = {}
     observed = {row.get("task_id"): row for row in task_inputs if type(row) is dict}
     catalog = getattr(prepared_assessments, "task_catalogs", None)
-    for band, stage_ids in GROUPS.items():
+    for band, stage_ids in validated_contract["groups"].items():
         task_ids = stage_ids[stage_kind]
         rows = [observed.get(task_id) for task_id in task_ids]
         valid = (

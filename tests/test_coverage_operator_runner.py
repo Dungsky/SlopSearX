@@ -439,6 +439,28 @@ class OperatorRunnerConfigTests(unittest.TestCase):
                 with self.assertRaisesRegex(runner.OperatorRunnerError, "source-closure-companion-path-mismatch"):
                     runner.OperatorStageRunner.preflight_from_file(config_path, digest(raw_config))
 
+    def test_frozen_pool_operator_rejects_closure_v1_without_companion(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            config_path, _pin, _directories = self._registered_config(root)
+            config = json.loads(config_path.read_bytes())
+            frozen_materials = (
+                Path(__file__).parents[1]
+                / "docs/experiments/evidence/coverage-first-study/frozen-input-method-materials"
+            )
+            Path(config["paths"]["protocol"]).write_bytes((frozen_materials / "protocol.json").read_bytes())
+            Path(config["paths"]["cohorts"]).write_bytes((frozen_materials / "cohorts.json").read_bytes())
+            raw_config = canonical(config)
+            config_path.write_bytes(raw_config)
+            config_path.chmod(0o600)
+
+            with (
+                mock.patch.object(runner, "_verify_checkout_sources"),
+                mock.patch.object(runner, "_require_source_bootstrap"),
+            ):
+                with self.assertRaisesRegex(runner.OperatorRunnerError, "frozen-pool-source-closure-v2-required"):
+                    runner.OperatorStageRunner.preflight_from_file(config_path, digest(raw_config))
+
     def test_registered_config_creates_all_private_roots_before_clock(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
