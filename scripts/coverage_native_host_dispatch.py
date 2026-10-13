@@ -51,7 +51,6 @@ DISABLED_FEATURES = (
     "remote_plugin",
     "shell_snapshot",
     "shell_tool",
-    "stable_environment_tools",
     "skill_mcp_dependency_install",
     "skill_search",
     "tool_call_mcp_elicitation",
@@ -697,7 +696,7 @@ async def _run_mcp_list(
     remaining = deadline - time.monotonic()
     if remaining <= 0:
         raise NativeHostError("native-stage-deadline-expired")
-    command = [codex_executable, "mcp", "list"]
+    command = [codex_executable, "mcp", "list", "--json"]
     for feature in DISABLED_FEATURES:
         command.extend(("--disable", feature))
     command.extend(("-c", 'web_search="disabled"', "-c", "tools.view_image=false"))
@@ -722,27 +721,36 @@ async def _run_mcp_list(
         raise NativeHostError("native-mcp-inventory-unavailable") from exc
     if process.returncode != 0 or len(stdout) > 1_000_000:
         raise NativeHostError("native-mcp-inventory-unavailable")
+
+    def unique_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
+        result: dict[str, object] = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError("duplicate-key")
+            result[key] = value
+        return result
+
     try:
-        lines = stdout.decode("utf-8", "strict").splitlines()
-    except UnicodeDecodeError as exc:
+        inventory = json.loads(
+            stdout.decode("utf-8", "strict"),
+            object_pairs_hook=unique_object,
+            parse_constant=lambda _value: (_ for _ in ()).throw(ValueError("invalid-constant")),
+        )
+    except (UnicodeDecodeError, ValueError, RecursionError) as exc:
         raise NativeHostError("native-mcp-inventory-format-invalid") from exc
-    if not lines:
+    if type(inventory) is not list:
         raise NativeHostError("native-mcp-inventory-format-invalid")
-    if lines[0].startswith("No MCP servers configured yet."):
-        return {}, _sha(stdout)
-    if not lines[0].split() or lines[0].split()[0] != "Name":
-        raise NativeHostError("native-mcp-inventory-format-invalid")
-    rows = {}
-    for line in lines[1:]:
-        if not line.strip():
-            continue
-        columns = line.split()
-        name = columns[0]
-        if not _MCP_ID.fullmatch(name) or len(columns) < 3 or columns[-2] not in {"enabled", "disabled"}:
-            raise NativeHostError("native-mcp-server-id-unsupported")
-        rows[name] = columns[-2]
-    if len(rows) != sum(1 for line in lines[1:] if line.strip()):
-        raise NativeHostError("native-mcp-inventory-duplicate")
+    rows: dict[str, str] = {}
+    for row in inventory:
+        if type(row) is not dict:
+            raise NativeHostError("native-mcp-inventory-format-invalid")
+        name = row.get("name")
+        enabled = row.get("enabled")
+        if type(name) is not str or not _MCP_ID.fullmatch(name) or type(enabled) is not bool:
+            raise NativeHostError("native-mcp-inventory-format-invalid")
+        if name in rows:
+            raise NativeHostError("native-mcp-inventory-duplicate")
+        rows[name] = "enabled" if enabled else "disabled"
     return rows, _sha(stdout)
 
 

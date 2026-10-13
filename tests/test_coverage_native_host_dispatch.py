@@ -174,12 +174,19 @@ def fake_codex(tmp_path: Path) -> tuple[Path, str]:
                 print("codex-cli synthetic-test")
                 raise SystemExit(0)
             if sys.argv[1:3] == ["mcp", "list"]:
-                inventory = os.environ.get("FAKE_MCP_LIST", "No MCP servers configured yet.")
+                if "--json" not in sys.argv:
+                    raise SystemExit(3)
+                inventory = os.environ.get("FAKE_MCP_LIST", "[]")
+                try:
+                    rows = json.loads(inventory)
+                except json.JSONDecodeError:
+                    print(inventory)
+                    raise SystemExit(0)
                 if any(arg.endswith(".enabled=false") for arg in sys.argv) and not os.environ.get(
                     "FAKE_MCP_IGNORE_DISABLE"
                 ):
-                    inventory = inventory.replace(" enabled  ", " disabled  ")
-                print(inventory)
+                    rows = [{**row, "enabled": False} for row in rows]
+                print(json.dumps(rows, separators=(",", ":")))
                 raise SystemExit(0)
             if sys.argv[1:3] != ["app-server", "--listen"]:
                 raise SystemExit(2)
@@ -552,9 +559,13 @@ async def test_dispatch_disables_builtin_tools_and_each_configured_mcp_before_tu
     scope, stage_uuid, packet_ids = write_scope(tmp_path)
     codex, digest = fake_codex(tmp_path)
     args_log = tmp_path / "app-server-argv.json"
+    inventory = [
+        {"name": "fixture_stdio", "enabled": True, "transport": {"type": "stdio"}},
+        {"name": "fixture_http", "enabled": True, "transport": {"type": "http"}},
+    ]
     monkeypatch.setenv(
         "FAKE_MCP_LIST",
-        "Name  Command  Args  Env  Cwd  Status  Auth\nfixture_mcp  /bin/echo  -  -  -  enabled  Unsupported",
+        json.dumps(inventory),
     )
     monkeypatch.setenv("FAKE_CODEX_ARGS_LOG", str(args_log))
     await native.dispatch_handoff_scope(
@@ -569,14 +580,19 @@ async def test_dispatch_disables_builtin_tools_and_each_configured_mcp_before_tu
     assert command[:4] == ["app-server", "--listen", "stdio://", "--disable"]
     disabled = [command[index + 1] for index, value in enumerate(command[:-1]) if value == "--disable"]
     assert disabled == list(native.DISABLED_FEATURES)
-    assert "stable_environment_tools" in disabled
-    assert "stable_environment_tools" in native._tool_policy(["fixture_mcp"])["disabled_features"]
+    assert "stable_environment_tools" not in disabled
+    assert "stable_environment_tools" not in native._tool_policy(["fixture_stdio", "fixture_http"])["disabled_features"]
     assert command[command.index("-c") + 1] == 'web_search="disabled"'
     assert command[command.index("tools.view_image=false") - 1] == "-c"
-    assert command[-2:] == ["-c", "mcp_servers.fixture_mcp.enabled=false"]
+    assert command[-4:] == [
+        "-c",
+        "mcp_servers.fixture_http.enabled=false",
+        "-c",
+        "mcp_servers.fixture_stdio.enabled=false",
+    ]
     transcript = json.loads(next((scope / "native-host" / "transcripts").glob("*.json")).read_bytes())
     assert transcript["packet_id"] in packet_ids
-    assert transcript["tool_policy"] == native._tool_policy(["fixture_mcp"])
+    assert transcript["tool_policy"] == native._tool_policy(["fixture_http", "fixture_stdio"])
 
 
 @pytest.mark.asyncio
@@ -633,6 +649,28 @@ async def test_unrecognized_mcp_inventory_fails_before_catalog_or_turn(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "inventory",
+    [
+        '{"name":"fixture_mcp","enabled":true}',
+        '[{"name":"fixture_mcp","enabled":"true"}]',
+        '[{"name":"fixture_mcp","enabled":true},{"name":"fixture_mcp","enabled":false}]',
+        '[{"name":"fixture mcp","enabled":true}]',
+        '[{"name":"fixture_mcp","enabled":NaN}]',
+    ],
+)
+async def test_mcp_json_inventory_requires_unique_names_and_boolean_status(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, inventory: str
+) -> None:
+    codex, _digest = fake_codex(tmp_path)
+    monkeypatch.setenv("FAKE_MCP_LIST", inventory)
+    monkeypatch.setenv("FAKE_MCP_IGNORE_DISABLE", "1")
+
+    with pytest.raises(native.NativeHostError, match="mcp-inventory-(format-invalid|duplicate)"):
+        await native._run_mcp_list(str(codex), deadline=time.monotonic() + 30)
+
+
+@pytest.mark.asyncio
 async def test_mcp_server_still_enabled_after_override_fails_before_catalog(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -640,7 +678,7 @@ async def test_mcp_server_still_enabled_after_override_fails_before_catalog(
     codex, digest = fake_codex(tmp_path)
     monkeypatch.setenv(
         "FAKE_MCP_LIST",
-        "Name  Command  Args  Env  Cwd  Status  Auth\nfixture_mcp  /bin/echo  -  -  -  enabled  Unsupported",
+        json.dumps([{"name": "fixture_mcp", "enabled": True, "transport": {"type": "stdio"}}]),
     )
     monkeypatch.setenv("FAKE_MCP_IGNORE_DISABLE", "1")
     catalog_called = False

@@ -27,9 +27,11 @@ original stage deadline. The dispatcher checks that binding and clamps the
 requested remaining duration to it; invoking this command cannot start a fresh
 eight-hour allowance. A bound failed dispatch summary stops collection promptly.
 
-Before any turn, the dispatcher disables supported tools and configured MCP
-servers, including stable environment-tool advertisement, verifies the effective
-MCP inventory, and saves private sanitized `tool-policy-evidence.json`. The
+Before any turn, the dispatcher disables currently supported built-in tool
+features, web search, image viewing, and every configured MCP server. It reads
+the CLI's JSON MCP inventory, validates server names and boolean enabled states,
+and saves only sanitized names, states, and digests in private
+`tool-policy-evidence.json`. The
 handoff checks its hash and stage, phase and CLI bindings alongside the transcript
 tool policy before accepting a grade.
 
