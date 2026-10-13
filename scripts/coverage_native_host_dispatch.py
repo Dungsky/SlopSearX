@@ -935,17 +935,25 @@ def _read_phase_deadline(scope: Path, *, stage_uuid: str, phase: str) -> float:
     value = _strict(raw, maximum=16_384)
     if (
         type(value) is not dict
-        or set(value) != {"schema", "stage_uuid", "phase", "deadline_monotonic"}
+        or set(value) != {"schema", "stage_uuid", "phase", "created_at_utc", "deadline_at_utc"}
         or _canonical(value) != raw
-        or value.get("schema") != "coverage-native-phase-deadline/1"
+        or value.get("schema") != "coverage-native-phase-deadline/2"
         or value.get("stage_uuid") != stage_uuid
         or value.get("phase") != phase
-        or type(value.get("deadline_monotonic")) not in {int, float}
-        or not math.isfinite(value["deadline_monotonic"])
-        or value["deadline_monotonic"] <= 0
+        or type(value.get("created_at_utc")) not in {int, float}
+        or not math.isfinite(value["created_at_utc"])
+        or value["created_at_utc"] <= 0
+        or type(value.get("deadline_at_utc")) not in {int, float}
+        or not math.isfinite(value["deadline_at_utc"])
+        or value["deadline_at_utc"] <= value["created_at_utc"]
+        or value["deadline_at_utc"] - value["created_at_utc"] > 8 * 60 * 60
     ):
         raise NativeHostError("native-phase-deadline-binding-invalid")
-    return float(value["deadline_monotonic"])
+    wall_now = time.time()
+    if wall_now < value["created_at_utc"]:
+        raise NativeHostError("native-phase-deadline-clock-invalid")
+    remaining = max(0.0, float(value["deadline_at_utc"] - wall_now))
+    return time.monotonic() + remaining
 
 
 def _load_scope(

@@ -29,7 +29,8 @@ _SHA256 = re.compile(r"[0-9a-f]{64}\Z")
 _PACKET_ID = re.compile(r"[0-9a-f]{64}\Z")
 _MCP_SERVER_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,127}\Z")
 _PHASE = {"references": "reference", "answers": "answer"}
-PHASE_DEADLINE_SCHEMA = "coverage-native-phase-deadline/1"
+PHASE_DEADLINE_SCHEMA = "coverage-native-phase-deadline/2"
+MAX_PHASE_DEADLINE_SECONDS = 8 * 60 * 60
 
 
 class NativeHandoffError(RuntimeError):
@@ -368,6 +369,10 @@ class NativeGraderHandoff:
         except FileExistsError as exc:
             raise NativeHandoffError("grader-handoff-already-created-no-resume") from exc
         os.chmod(scope, 0o700)
+        receipt_created_utc = time.time()
+        receipt_remaining = max(0.0, float(deadline_monotonic) - time.monotonic())
+        if receipt_remaining <= 0 or receipt_remaining > MAX_PHASE_DEADLINE_SECONDS:
+            raise NativeHandoffError("grader-deadline-invalid")
         _write_new(
             scope / "phase-deadline.json",
             _canonical(
@@ -375,7 +380,8 @@ class NativeGraderHandoff:
                     "schema": PHASE_DEADLINE_SCHEMA,
                     "stage_uuid": stage_uuid,
                     "phase": phase,
-                    "deadline_monotonic": float(deadline_monotonic),
+                    "created_at_utc": receipt_created_utc,
+                    "deadline_at_utc": receipt_created_utc + receipt_remaining,
                 }
             ),
         )

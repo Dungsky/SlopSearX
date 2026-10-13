@@ -35,13 +35,22 @@ def packet(packet_id: str, *, task_id: str = "D1E0001") -> bytes:
 
 def write_phase_deadline(scope: Path, stage_uuid: str, phase: str, deadline: float) -> None:
     path = scope / "phase-deadline.json"
+    now_mono = time.monotonic()
+    now_utc = time.time()
+    if deadline > now_mono:
+        created_at_utc = now_utc
+        deadline_at_utc = now_utc + deadline - now_mono
+    else:
+        created_at_utc = now_utc - 2
+        deadline_at_utc = now_utc - 1
     path.write_bytes(
         canonical(
             {
-                "schema": "coverage-native-phase-deadline/1",
+                "schema": "coverage-native-phase-deadline/2",
                 "stage_uuid": stage_uuid,
                 "phase": phase,
-                "deadline_monotonic": deadline,
+                "created_at_utc": created_at_utc,
+                "deadline_at_utc": deadline_at_utc,
             }
         )
     )
@@ -873,6 +882,53 @@ async def test_expired_registered_phase_deadline_blocks_even_with_fresh_cli_budg
     assert not catalog_called
     assert not (scope / "native-host").exists()
     assert not list((scope / "results").glob("*.result.json"))
+
+
+def test_phase_deadline_translates_between_host_monotonic_origins(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    scope, stage_uuid, _ = write_scope(tmp_path)
+    now_utc = time.time()
+    created_at_utc = now_utc - 120
+    deadline_at_utc = now_utc + 600
+    path = scope / "phase-deadline.json"
+    path.write_bytes(
+        canonical(
+            {
+                "schema": "coverage-native-phase-deadline/2",
+                "stage_uuid": stage_uuid,
+                "phase": "references",
+                "created_at_utc": created_at_utc,
+                "deadline_at_utc": deadline_at_utc,
+            }
+        )
+    )
+    path.chmod(0o600)
+    local_monotonic_origin = 9_000_000.0
+    monkeypatch.setattr(native.time, "monotonic", lambda: local_monotonic_origin)
+    translated = native._read_phase_deadline(scope, stage_uuid=stage_uuid, phase="references")
+    assert translated == pytest.approx(local_monotonic_origin + deadline_at_utc - now_utc)
+
+
+def test_phase_deadline_rejects_future_creation_and_overlong_deadline(tmp_path: Path) -> None:
+    scope, stage_uuid, _ = write_scope(tmp_path)
+    receipt = {
+        "schema": "coverage-native-phase-deadline/2",
+        "stage_uuid": stage_uuid,
+        "phase": "references",
+        "created_at_utc": time.time() + 60,
+        "deadline_at_utc": time.time() + 120,
+    }
+    path = scope / "phase-deadline.json"
+    path.write_bytes(canonical(receipt))
+    path.chmod(0o600)
+    with pytest.raises(native.NativeHostError, match="native-phase-deadline-clock-invalid"):
+        native._read_phase_deadline(scope, stage_uuid=stage_uuid, phase="references")
+    receipt["created_at_utc"] = time.time() - 1
+    receipt["deadline_at_utc"] = receipt["created_at_utc"] + 28_801
+    path.write_bytes(canonical(receipt))
+    with pytest.raises(native.NativeHostError, match="native-phase-deadline-binding-invalid"):
+        native._read_phase_deadline(scope, stage_uuid=stage_uuid, phase="references")
 
 
 @pytest.mark.asyncio

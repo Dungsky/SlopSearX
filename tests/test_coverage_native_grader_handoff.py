@@ -469,6 +469,10 @@ def test_required_host_transcripts_bind_complete_fake_protocol_before_submission
         submissions = asyncio.run(run())
         assert len(submissions) == 1
         assert submissions[0].response_bytes == b'{"synthetic":"grade"}'
+        deadline_receipt = json.loads((scope / "phase-deadline.json").read_bytes())
+        assert deadline_receipt["schema"] == "coverage-native-phase-deadline/2"
+        assert deadline_receipt["deadline_at_utc"] > deadline_receipt["created_at_utc"]
+        assert deadline_receipt["deadline_at_utc"] - deadline_receipt["created_at_utc"] <= 8 * 60 * 60
         closed = json.loads((scope / "results-closed.json").read_bytes())
         assert closed["native_host_transcript_schema"] == "coverage-native-host-transcript/3"
         assert set(closed["native_host_transcript_sha256"]) == {row["packet_id"]}

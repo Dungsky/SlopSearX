@@ -22,10 +22,13 @@ python -m scripts.coverage_native_host_dispatch \
   --deadline-seconds REMAINING_REGISTERED_STAGE_SECONDS
 ```
 
-The collector writes an exclusive `phase-deadline.json` receipt containing the
-original stage deadline. The dispatcher checks that binding and clamps the
-requested remaining duration to it; invoking this command cannot start a fresh
-eight-hour allowance. A bound failed dispatch summary stops collection promptly.
+The collector writes an exclusive `phase-deadline.json` receipt with UTC creation
+and expiry timestamps derived from the remaining stage monotonic budget. The
+dispatcher validates the stage/phase and eight-hour ceiling, translates the
+remaining UTC duration into its own monotonic clock, and clamps the requested
+remaining duration to it. This works across the Linux operator and Mac grader
+hosts; invoking this command cannot start a fresh eight-hour allowance. A bound
+failed dispatch summary stops collection promptly.
 
 Before any turn, the dispatcher disables currently supported built-in tool
 features, web search, image viewing, and every configured MCP server. It reads
