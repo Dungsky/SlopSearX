@@ -37,7 +37,13 @@
     },
     "internal_scraper_fanout": "unknown",
     "scrape_error_text": "Private or internal URL",
-    "health_http_status": 200
+    "health_http_status": 200,
+    "scrape_contexts_created": 0,
+    "diagnosis": {
+      "status": "confirmed",
+      "summary": "Fixed DNS-control endpoint addresses were reused by dynamically assigned clients; public DNS lookup then failed with EAI_AGAIN, and the scraper private-address guard rejected the URLs.",
+      "private_addresses_or_hosts_published": false
+    }
   },
   "reference_packet_preparation": "complete",
   "reference_grading": {
@@ -58,5 +64,11 @@
     "causality_established": false
   },
   "quality_or_product_qualification": "none",
-  "lab_observation": "application_healthy; some_egress_control_containers_exited; capture_failure_cause_unconfirmed"
+  "lab_observation": "application_healthy; some egress_control_containers_exited",
+  "execution_counts": {
+    "jev_calls": 0,
+    "native_grader_handoff_calls": 0,
+    "answerer_calls": 0,
+    "scrape_contexts_created": 0
+  }
 }
