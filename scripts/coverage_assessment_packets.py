@@ -510,6 +510,7 @@ def prepare_assessment_packets(
                 "task": {"query": task.get("query"), "purpose": task.get("purpose")},
                 "cards": card_rows,
                 "facets": facets,
+                "model_call_required": True,
             }
             packets.append(
                 _packet(
