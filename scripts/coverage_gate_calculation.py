@@ -25,6 +25,9 @@ FROZEN_QUALITY_TASK_USE_SHA256 = "b6353b480fd88543da530ef6b03129d26743f8f273e8a8
 FROZEN_EXECUTION_CONTRACT_SHA256 = "44cee41bc453581d4d0e00e9d3081332dc0467d64a73b9fd70a1ef3515548858"
 REGISTERED_V2_PROTOCOL_SHA256 = "567e337d41268f380348abc70ab1bf4a0249852f237797fa361295f1e34afb06"
 REGISTERED_V2_COHORTS_SHA256 = "36d4cbff9c93555d35d7269525616f009a21727c8d1141a8a2a61934791038f0"
+REGISTERED_FROZEN_POOL_PROTOCOL_SHA256 = "e4f7a7eaf7b78c9e662e02b48f9672eac368db7bef2992fe4e4c11443500b604"
+REGISTERED_FROZEN_POOL_COHORTS_SHA256 = "377450c59f2b8498c8a7f923bb7b6d05a0b780300467cc9b9f8ef0bd69522595"
+REGISTERED_FROZEN_POOL_EXECUTION_CONTRACT_SHA256 = "f00916c32a52ded954967db15f82427dfbaffa57f5c8a24416408885a31ad3ff"
 REGISTERED_V2_EXECUTION_CONTRACT_SHA256 = "e114b172d4eba352897ea8dfe3fc83568097bf154425aaecfaa6690f6c3e8bf3"
 GATE_NAMES = frozenset(
     {
@@ -683,7 +686,18 @@ def calculate_coverage_gate_report(
             and type(protocol.get("acquisition")) is dict
             and protocol["acquisition"].get("execution_profile") == "coverage-acquisition-profile/2"
         )
-        if not registered_v2_allowed:
+        registered_frozen_pool_allowed = (
+            execution_contract_sha256 == REGISTERED_FROZEN_POOL_EXECUTION_CONTRACT_SHA256
+            and protocol_sha256 == REGISTERED_FROZEN_POOL_PROTOCOL_SHA256
+            and cohorts_sha256 == REGISTERED_FROZEN_POOL_COHORTS_SHA256
+            and protocol.get("schema") == "coverage-first-study-protocol/2"
+            and protocol.get("status") == "registered"
+            and protocol.get("cohorts_sha256") == REGISTERED_FROZEN_POOL_COHORTS_SHA256
+            and protocol.get("pool_input_mode") == "frozen-pool/1"
+            and type(protocol.get("acquisition")) is dict
+            and protocol["acquisition"].get("execution_profile") == "coverage-acquisition-profile/2"
+        )
+        if not (registered_v2_allowed or registered_frozen_pool_allowed):
             raise GateCalculationError("frozen-execution-contract-mismatch")
     refs, answers = _closed_outputs(reference_closure, answer_closure)
     source_stage_uuid = getattr(prepared_assessments, "source_stage_uuid", None)

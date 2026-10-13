@@ -697,6 +697,13 @@ class OperatorStageRunner:
                     "coverage_stage_orchestration": "scripts/coverage_stage_orchestration.py",
                     "coverage_stage_finalization": "scripts/coverage_stage_finalization.py",
                     "coverage_operator_runner": "scripts/coverage_operator_runner.py",
+                    "coverage_stage_runtime": "scripts/coverage_stage_runtime.py",
+                    "coverage_local_authority": "scripts/coverage_local_authority.py",
+                    "coverage_frozen_pool_inputs": "scripts/coverage_frozen_pool_inputs.py",
+                    "coverage_frozen_pool_collect": "scripts/coverage_frozen_pool_collect.py",
+                    "coverage_resource_evidence": "scripts/coverage_resource_evidence.py",
+                    "coverage_pipeline_inputs": "scripts/coverage_pipeline_inputs.py",
+                    "coverage_selector_input_map": "scripts/coverage_selector_input_map.py",
                     "coverage_band_companion": "scripts/coverage_band_companion.py",
                     "coverage_late_registration": "scripts/coverage_late_registration.py",
                 }
@@ -729,7 +736,10 @@ class OperatorStageRunner:
         endpoint = self.config["candidate_base_url"]
         _health_url, _scrape_url, endpoint_sha = capture._candidate_endpoints(endpoint)
         try:
-            execution_profile = coverage_study_acquire.execution_profile_from_protocol(protocol.get("acquisition"))
+            execution_profile = coverage_study_acquire.execution_profile_from_protocol(
+                protocol.get("acquisition"),
+                pool_input_mode=protocol.get("pool_input_mode", "live-acquisition/1"),
+            )
         except ValueError as exc:
             raise OperatorRunnerError("acquisition-execution-profile-invalid") from exc
         preacquisition_input = {
@@ -845,6 +855,7 @@ class OperatorStageRunner:
                 stage_started_monotonic=0.0,
                 stage_deadline_monotonic=0.0,
                 expected_acquisition_manifest_sha256=_sha(acquisition_manifest),
+                pool_input_mode=protocol.get("pool_input_mode", "live-acquisition/1"),
                 band_companion_bytes=path_bytes.get("band_companion"),
                 band_companion_sha256=companion_sha,
                 initial_registration_bytes=self.initial_registration if companion_sha is not None else None,
@@ -881,6 +892,7 @@ class OperatorStageRunner:
             stage_started_monotonic=self.started_monotonic,
             stage_deadline_monotonic=self.deadline_monotonic,
             expected_acquisition_manifest_sha256=_sha(acquisition_manifest),
+            pool_input_mode=protocol.get("pool_input_mode", "live-acquisition/1"),
             band_companion_bytes=path_bytes.get("band_companion"),
             band_companion_sha256=companion_sha,
             initial_registration_bytes=self.initial_registration if companion_sha is not None else None,
@@ -933,6 +945,59 @@ class OperatorStageRunner:
             "permit_verifier": local_authority.AcquisitionReceiptVerifier(),
             "one_shot_lease": local_authority.FileOneShotLease(self.directories["lease_root"], scope="acquisition"),
             "receipt_directory": str(Path(self.directories["stage_inventory"]) / plan.stage_uuid / "acquisition"),
+        }
+
+    async def _frozen_pool_collection_authority(self, plan):
+        if plan.pool_input_mode != "frozen-pool/1":
+            raise OperatorRunnerError("frozen-pool-mode-not-registered")
+        from scripts import coverage_frozen_pool_collect
+
+        origin_sha = coverage_frozen_pool_collect._local_clock_origin_sha256()
+        stage_clock = coverage_frozen_pool_collect.FrozenCollectionStageClock(
+            stage_started_monotonic=plan.stage_started_monotonic,
+            stage_deadline_monotonic=plan.stage_deadline_monotonic,
+            stage_started_utc=self.started_utc.isoformat().replace("+00:00", "Z"),
+            stage_deadline_utc=self.deadline_utc.isoformat().replace("+00:00", "Z"),
+            clock_origin_sha256=origin_sha,
+        )
+        clock_doc = coverage_frozen_pool_collect._validate_clock(stage_clock, test_mode=False, test_pacer=None)
+        stage_clock_sha256 = _sha(coverage_frozen_pool_collect._canonical(clock_doc))
+        manifest = core._strict_json(plan.acquisition_manifest_bytes, "frozen-pool-acquisition-manifest")
+        if type(manifest) is not dict or coverage_live_acquire._canonical(manifest) != plan.acquisition_manifest_bytes:
+            raise OperatorRunnerError("frozen-pool-acquisition-manifest-invalid")
+        candidate_identity_sha256 = _sha(plan.candidate_identity_bytes)
+        bindings = {
+            "stage_uuid": plan.stage_uuid,
+            "stage_kind": plan.stage_kind,
+            "source_revision": plan.source_revision,
+            "source_closure_sha256": plan.source_closure_sha256,
+            "protocol_sha256": _sha(plan.protocol_bytes),
+            "cohorts_sha256": _sha(plan.cohorts_bytes),
+            "input_manifest_sha256": manifest["input_manifest_sha256"],
+            "acquisition_plan_sha256": _sha(plan.acquisition_plan_bytes),
+            "legacy_manifest_sha256": plan.expected_acquisition_manifest_sha256,
+            "pool_input_mode": plan.pool_input_mode,
+            "stage_clock_sha256": stage_clock_sha256,
+            "candidate_identity_sha256": candidate_identity_sha256,
+            "candidate_endpoint_sha256": plan.candidate_endpoint_sha256,
+        }
+        receipt, pin = await self._request("frozen-pool-collection", "permit", bindings)
+        return {
+            "stage_clock": stage_clock,
+            "candidate_identity_sha256": candidate_identity_sha256,
+            "candidate_endpoint_sha256": plan.candidate_endpoint_sha256,
+            "permit_receipt_bytes": receipt,
+            "expected_permit_receipt_sha256": pin,
+            "permit_verifier": local_authority.FrozenPoolCollectionReceiptVerifier(
+                pool_input_mode=plan.pool_input_mode,
+                stage_clock_sha256=stage_clock_sha256,
+                candidate_identity_sha256=candidate_identity_sha256,
+                candidate_endpoint_sha256=plan.candidate_endpoint_sha256,
+            ),
+            "one_shot_lease": local_authority.FileOneShotLease(
+                self.directories["lease_root"], scope="frozen-pool-collection"
+            ),
+            "stage_inventory_directory": str(Path(self.directories["stage_inventory"]) / plan.stage_uuid),
         }
 
     async def _verify_acquisition(self, _plan, evidence):
@@ -1000,6 +1065,24 @@ class OperatorStageRunner:
             exchange=self.handoff,
             plan=plan,
             acquisition_evidence=acquisition_evidence,
+            pipeline_inputs=pipeline_inputs,
+            static_materials=self.static_materials,
+            initial_registration_bytes=self.initial_registration,
+            expected_initial_registration_sha256=self.initial_registration_sha256,
+            forbidden_stage_uuids=tuple(self.config["forbidden_stage_uuids"]),
+            task_ids=tuple(row["task_id"] for row in plan.research_cases)
+            + tuple(row["target_id"] for row in plan.navigation_targets),
+            navigation_skip_reasons=tuple(row.get("skip_reason") for row in plan.navigation_targets),
+        )
+
+    async def _prepare_after_frozen_pool(self, plan, frozen_evidence, pipeline_inputs):
+        if type(frozen_evidence) is not orchestration.FrozenPoolStageEvidence:
+            raise OperatorRunnerError("frozen-pool-late-preflight-context-invalid")
+        return await request_late_registration(
+            exchange=self.handoff,
+            plan=plan,
+            acquisition_evidence=None,
+            verified_pool_source=frozen_evidence.phase_result.verified,
             pipeline_inputs=pipeline_inputs,
             static_materials=self.static_materials,
             initial_registration_bytes=self.initial_registration,
@@ -1221,6 +1304,8 @@ class OperatorStageRunner:
             native_handoff=native_handoff.NativeGraderHandoff(
                 self.directories["grader_handoff"], require_native_host_transcripts=True
             ),
+            frozen_pool_collection_authority=self._frozen_pool_collection_authority,
+            prepare_after_frozen_pool=self._prepare_after_frozen_pool,
         )
 
     async def run(self) -> orchestration.StageResult:

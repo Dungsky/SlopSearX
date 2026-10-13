@@ -73,7 +73,9 @@ class FrozenPoolPhaseResult:
 
 
 @dataclass(frozen=True)
-class VerifiedFrozenPoolEvidence:
+class VerifiedPoolSnapshotSource:
+    """Common, source-bound view consumed by pool-derived downstream phases."""
+
     snapshots_directory: Path
     snapshot_index_sha256: str
     pool_manifest_sha256: str
@@ -85,6 +87,9 @@ class VerifiedFrozenPoolEvidence:
     execution_profile: str
     proof_sha256: str
     _seal: object
+
+
+VerifiedFrozenPoolEvidence = VerifiedPoolSnapshotSource
 
 
 def _sha(raw: bytes) -> str:
@@ -233,6 +238,7 @@ def verify_frozen_pool_evidence(
         "collector_receipt_sha256",
         "collection_started_monotonic",
         "collection_completed_monotonic",
+        "stage_deadline_monotonic",
         "collection_started_utc",
         "collection_completed_utc",
         "quality_credit",
@@ -263,6 +269,8 @@ def verify_frozen_pool_evidence(
         or type(completed) not in (int, float)
         or not math.isfinite(started)
         or not math.isfinite(completed)
+        or type(doc.get("stage_deadline_monotonic")) not in (int, float)
+        or doc["stage_deadline_monotonic"] != stage_deadline_monotonic
         or not stage_started_monotonic <= started <= completed <= now_monotonic < stage_deadline_monotonic
     ):
         raise FrozenPoolError("frozen-pool-collection-outside-stage")
@@ -299,13 +307,57 @@ def verify_frozen_pool_evidence(
         "availability_sha256": evidence.expected_availability_sha256,
         "collection_started_monotonic": started,
         "collection_completed_monotonic": completed,
+        "stage_deadline_monotonic": stage_deadline_monotonic,
         "collection_started_utc": doc["collection_started_utc"],
         "collection_completed_utc": doc["collection_completed_utc"],
     }
+    component_names = {
+        "admission_sha256": "admission.json",
+        "transport_control_sha256": "transport-control.json",
+        "request_ledger_index_sha256": "request-ledger-index.json",
+        "collection_summary_sha256": "collection-summary.json",
+    }
+    components: dict[str, dict[str, object]] = {}
+    for key, filename in component_names.items():
+        component_raw = _read_private_regular(root, filename, "frozen-pool-collector-component")
+        components[filename] = _strict(component_raw, filename)
+        digest = _sha(component_raw)
+        if receipt.get(key) != digest:
+            raise FrozenPoolError("frozen-pool-collector-component-pin-mismatch")
+        receipt_bindings[key] = digest
     if set(receipt) != set(receipt_bindings) or any(
         receipt.get(key) != value for key, value in receipt_bindings.items()
     ):
         raise FrozenPoolError("frozen-pool-collector-receipt-binding-mismatch")
+    admission = components["admission.json"]
+    admission_bindings = {
+        "schema": "coverage-frozen-collection-admission/1",
+        "pool_input_mode": "frozen-pool/1",
+        "stage_clock_sha256": admission.get("stage_clock_sha256"),
+        "clock_origin_sha256": admission.get("clock_origin_sha256"),
+        "stage_uuid": expected_stage_uuid,
+        "stage": expected_stage_kind,
+        "source_revision": expected_source_revision,
+        "source_closure_sha256": expected_source_closure_sha256,
+        "protocol_sha256": expected_protocol_sha256,
+        "cohorts_sha256": expected_cohorts_sha256,
+        "input_manifest_sha256": manifest.get("input_manifest_sha256"),
+        "acquisition_plan_sha256": expected_acquisition_plan_sha256,
+        "candidate_identity_sha256": expected_candidate_identity_sha256,
+        "candidate_endpoint_sha256": expected_candidate_endpoint_sha256,
+        "stage_manifest_sha256": doc["pool_manifest_sha256"],
+        "permit_sha256": admission.get("permit_sha256"),
+        "lease_sha256": admission.get("lease_sha256"),
+    }
+    if (
+        set(admission) != set(admission_bindings)
+        or any(admission.get(key) != value for key, value in admission_bindings.items())
+        or any(
+            type(admission.get(key)) is not str or not _SHA.fullmatch(admission[key])
+            for key in ("stage_clock_sha256", "clock_origin_sha256", "permit_sha256", "lease_sha256")
+        )
+    ):
+        raise FrozenPoolError("frozen-pool-admission-binding-mismatch")
     manifest_bindings = {
         "stage": expected_stage_kind,
         "stage_uuid": expected_stage_uuid,
@@ -477,6 +529,77 @@ def verify_frozen_pool_evidence(
         if seen != set(operation.get("engines", [])):
             raise FrozenPoolError("frozen-pool-engine-outcome-membership-mismatch")
 
+    summary = components["collection-summary.json"]
+    status_rows = summary.get("operation_statuses")
+    pool_rows = index.get("operations")
+    expected_summary_keys = {
+        "schema",
+        "stage_uuid",
+        "stage_manifest_sha256",
+        "pool_input_mode",
+        "status",
+        "physical_request_count",
+        "transfer_bytes",
+        "operation_statuses",
+        "pool_eligibility",
+        "fatal_uninvoked_slots",
+        "collection_started_monotonic",
+        "collection_completed_monotonic",
+        "stage_deadline_monotonic",
+        "collection_started_utc",
+        "collection_completed_utc",
+        "stage_deadline_utc",
+        "quality_credit",
+    }
+    eligibility_rows = summary.get("pool_eligibility")
+    if (
+        set(summary) != expected_summary_keys
+        or type(status_rows) is not list
+        or len(status_rows) != len(expected_ids)
+        or type(pool_rows) is not list
+        or len(pool_rows) != len(expected_ids)
+        or summary.get("schema") != "coverage-frozen-collection-summary/1"
+        or summary.get("stage_uuid") != expected_stage_uuid
+        or summary.get("stage_manifest_sha256") != doc["pool_manifest_sha256"]
+        or summary.get("pool_input_mode") != "frozen-pool/1"
+        or summary.get("status") != "complete"
+        or summary.get("quality_credit") is not False
+        or summary.get("stage_deadline_monotonic") != stage_deadline_monotonic
+        or summary.get("collection_started_monotonic") != started
+        or summary.get("collection_completed_monotonic") != completed
+        or summary.get("collection_started_utc") != doc["collection_started_utc"]
+        or summary.get("collection_completed_utc") != doc["collection_completed_utc"]
+        or type(summary.get("stage_deadline_utc")) is not str
+        or _utc(summary["stage_deadline_utc"], "collection-stage-deadline-utc")
+        <= _utc(doc["collection_completed_utc"], "collection-completed-utc")
+        or type(summary.get("physical_request_count")) is not int
+        or not 0 <= summary["physical_request_count"] <= 53
+        or type(summary.get("transfer_bytes")) is not int
+        or summary["transfer_bytes"] < 0
+        or type(summary.get("fatal_uninvoked_slots")) is not list
+        or summary["fatal_uninvoked_slots"]
+        or type(eligibility_rows) is not list
+        or len(eligibility_rows) != len(expected_ids)
+    ):
+        raise FrozenPoolError("frozen-pool-collection-summary-inventory")
+    for operation_id, status_row, pool_row, eligibility in zip(
+        expected_ids, status_rows, pool_rows, eligibility_rows, strict=True
+    ):
+        operation = operations[operation_id]["operation"]
+        if (
+            type(status_row) is not dict
+            or status_row.get("operation_id") != operation_id
+            or status_row.get("status") != operation.get("status")
+            or status_row.get("failure_reasons") != operation.get("failure_reasons", [])
+            or pool_row.get("acquisition_status") != operation.get("status")
+            or pool_row.get("pool_status") != "complete"
+            or type(eligibility) is not dict
+            or set(eligibility) != {"operation_id", "pool_status"}
+            or eligibility.get("operation_id") != operation_id
+            or eligibility.get("pool_status") != pool_row.get("pool_status")
+        ):
+            raise FrozenPoolError("frozen-pool-collection-summary-status-mismatch")
+
     return VerifiedFrozenPoolEvidence(
         snapshots_directory=root,
         snapshot_index_sha256=doc["pool_snapshot_index_sha256"],
@@ -492,12 +615,15 @@ def verify_frozen_pool_evidence(
     )
 
 
-def is_verified_pool_evidence(value: object) -> bool:
+def is_verified_pool_snapshot_source(value: object) -> bool:
     return (
-        type(value) is VerifiedFrozenPoolEvidence
+        type(value) is VerifiedPoolSnapshotSource
         and value._seal is _VERIFIED_SEAL
         and value.proof_sha256 == _sha(_canonical({"index": value.pool_index, "operations": value.operations}))
     )
+
+
+is_verified_pool_evidence = is_verified_pool_snapshot_source
 
 
 def build_pipeline_inputs_from_frozen(

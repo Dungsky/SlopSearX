@@ -239,6 +239,61 @@ class PinnedReceiptAuthorities:
             receipt_sha256=expected_receipt_sha256,
         )
 
+    @staticmethod
+    def frozen_pool_collection(
+        manifest: Mapping[str, object],
+        *,
+        legacy_manifest_sha256: str,
+        pool_input_mode: str,
+        stage_clock_sha256: str,
+        candidate_identity_sha256: str,
+        candidate_endpoint_sha256: str,
+        receipt_bytes: bytes,
+        expected_receipt_sha256: str,
+    ):
+        stage = manifest.get("stage")
+        bindings = {
+            "stage_uuid": manifest.get("stage_uuid"),
+            "stage_kind": stage,
+            "source_revision": manifest.get("source_revision"),
+            "source_closure_sha256": manifest.get("source_closure_sha256"),
+            "protocol_sha256": manifest.get("protocol_sha256"),
+            "cohorts_sha256": manifest.get("cohorts_sha256"),
+            "input_manifest_sha256": manifest.get("input_manifest_sha256"),
+            "acquisition_plan_sha256": manifest.get("acquisition_plan_sha256"),
+            "legacy_manifest_sha256": legacy_manifest_sha256,
+            "pool_input_mode": pool_input_mode,
+            "stage_clock_sha256": stage_clock_sha256,
+            "candidate_identity_sha256": candidate_identity_sha256,
+            "candidate_endpoint_sha256": candidate_endpoint_sha256,
+        }
+        _pinned_document(
+            receipt_bytes,
+            expected_receipt_sha256,
+            scope="frozen-pool-collection",
+            bindings=bindings,
+        )
+        from scripts import coverage_frozen_pool_collect
+
+        return coverage_frozen_pool_collect.VerifiedFrozenCollectionPermit(
+            status="verified",
+            scope="frozen-pool-collection",
+            stage_uuid=bindings["stage_uuid"],
+            stage_kind=stage,
+            source_revision=bindings["source_revision"],
+            source_closure_sha256=bindings["source_closure_sha256"],
+            protocol_sha256=bindings["protocol_sha256"],
+            cohorts_sha256=bindings["cohorts_sha256"],
+            input_manifest_sha256=bindings["input_manifest_sha256"],
+            acquisition_plan_sha256=bindings["acquisition_plan_sha256"],
+            legacy_manifest_sha256=legacy_manifest_sha256,
+            pool_input_mode=pool_input_mode,
+            stage_clock_sha256=stage_clock_sha256,
+            candidate_identity_sha256=candidate_identity_sha256,
+            candidate_endpoint_sha256=candidate_endpoint_sha256,
+            receipt_sha256=expected_receipt_sha256,
+        )
+
 
 class AcquisitionReceiptVerifier:
     """Fixed verifier adapter accepted by the acquisition executor."""
@@ -272,6 +327,59 @@ class AnswerReceiptVerifier:
 
     def verify(self, receipt_bytes, expected_receipt_sha256, bindings):
         return PinnedReceiptAuthorities.answer(receipt_bytes, expected_receipt_sha256, bindings)
+
+
+class FrozenPoolCollectionReceiptVerifier:
+    """Fixed adapter for a separately pinned, one-shot frozen-pool permit."""
+
+    def __init__(
+        self,
+        *,
+        pool_input_mode: str,
+        stage_clock_sha256: str,
+        candidate_identity_sha256: str,
+        candidate_endpoint_sha256: str,
+    ) -> None:
+        self.pool_input_mode = pool_input_mode
+        self.stage_clock_sha256 = stage_clock_sha256
+        self.candidate_identity_sha256 = candidate_identity_sha256
+        self.candidate_endpoint_sha256 = candidate_endpoint_sha256
+
+    def verify_collection(
+        self,
+        manifest,
+        manifest_sha256,
+        pool_input_mode,
+        stage_clock_sha256,
+        candidate_identity_sha256,
+        candidate_endpoint_sha256,
+        receipt_bytes,
+        expected_receipt_sha256,
+    ):
+        expected = (
+            self.pool_input_mode,
+            self.stage_clock_sha256,
+            self.candidate_identity_sha256,
+            self.candidate_endpoint_sha256,
+        )
+        actual = (
+            pool_input_mode,
+            stage_clock_sha256,
+            candidate_identity_sha256,
+            candidate_endpoint_sha256,
+        )
+        if actual != expected or pool_input_mode != "frozen-pool/1":
+            raise LocalAuthorityError("frozen-collection-context-mismatch")
+        return PinnedReceiptAuthorities.frozen_pool_collection(
+            manifest,
+            legacy_manifest_sha256=manifest_sha256,
+            pool_input_mode=pool_input_mode,
+            stage_clock_sha256=stage_clock_sha256,
+            candidate_identity_sha256=candidate_identity_sha256,
+            candidate_endpoint_sha256=candidate_endpoint_sha256,
+            receipt_bytes=receipt_bytes,
+            expected_receipt_sha256=expected_receipt_sha256,
+        )
 
 
 class FileOneShotLease:

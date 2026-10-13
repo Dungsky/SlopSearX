@@ -25,6 +25,7 @@ from typing import Any, Awaitable, Callable, Mapping, Sequence
 from scripts import coverage_answer_execution as answer_execution
 from scripts import coverage_assessment_packets as packets
 from scripts import coverage_consumer_inputs as consumer
+from scripts import coverage_frozen_pool_inputs as frozen_pool
 from scripts import coverage_live_acquire, coverage_resource_evidence
 from scripts import coverage_pipeline_inputs as pipeline
 from scripts import coverage_source_capture as source_capture
@@ -79,6 +80,7 @@ class StagePlan:
     stage_started_monotonic: float
     stage_deadline_monotonic: float
     expected_acquisition_manifest_sha256: str
+    pool_input_mode: str = "live-acquisition/1"
     band_companion_bytes: bytes | None = None
     band_companion_sha256: str | None = None
     initial_registration_bytes: bytes | None = None
@@ -94,6 +96,35 @@ class AcquisitionEvidence:
     acquisition_manifest_sha256: str
     receipt_sha256: str
     source_bound_receipt_status: str
+
+
+@dataclass(frozen=True)
+class FrozenPoolCollectionEvidence:
+    """Externally admitted files returned by the registered frozen collector."""
+
+    evidence: frozen_pool.FrozenPoolEvidence
+    registration: frozen_pool.FrozenPoolRegistrationContext
+    receipt_directory: Path
+    receipt_inventory_sha256: str
+    collector_status: str
+
+
+@dataclass(frozen=True)
+class FrozenPoolStageEvidence:
+    collection: FrozenPoolCollectionEvidence
+    phase_result: frozen_pool.FrozenPoolPhaseResult
+
+    @property
+    def snapshots_directory(self) -> Path:
+        return self.collection.evidence.snapshots_directory
+
+    @property
+    def snapshot_index_sha256(self) -> str:
+        return self.phase_result.verified.snapshot_index_sha256
+
+    @property
+    def acquisition_manifest_sha256(self) -> str:
+        return self.phase_result.verified.pool_manifest_sha256
 
 
 @dataclass(frozen=True)
@@ -277,6 +308,11 @@ class StageExecutors:
     # The issuer/verifier is external and must validate its sealed receipt
     # against current source, registration, protocol, and post-acquisition map.
     verify_selector_admission: Callable[..., Awaitable[VerifiedSelectorAdmission]] | None = None
+    collect_frozen_pool: Callable[[StagePlan], Awaitable[FrozenPoolCollectionEvidence]] | None = None
+    verify_frozen_pool: Callable[[StagePlan, FrozenPoolCollectionEvidence], Awaitable[bool]] | None = None
+    prepare_after_frozen_pool: (
+        Callable[[StagePlan, FrozenPoolStageEvidence, Mapping[str, object]], Awaitable[LatePreparationEvidence]] | None
+    ) = None
 
 
 @dataclass(frozen=True)
@@ -416,6 +452,11 @@ def _validate_plan_static(plan: StagePlan) -> dict[str, object]:
     cohorts = _strict_json(plan.cohorts_bytes, "cohorts")
     if type(protocol) is not dict or type(cohorts) is not dict:
         raise OrchestrationError("study-material-shape")
+    protocol_pool_mode = protocol.get("pool_input_mode", "live-acquisition/1")
+    if protocol_pool_mode not in {"live-acquisition/1", "frozen-pool/1"}:
+        raise OrchestrationError("pool-input-mode-invalid")
+    if plan.pool_input_mode != protocol_pool_mode:
+        raise OrchestrationError("pool-input-mode-protocol-mismatch")
     if protocol.get("selector_input_map_schema") == "coverage-selector-input-map/2-registered":
         if protocol.get("selector_input_map_status") != "registered":
             raise OrchestrationError("selector-map-registration-status-required")
@@ -486,7 +527,8 @@ def _validate_plan_static(plan: StagePlan) -> dict[str, object]:
         raise OrchestrationError("acquisition-manifest-not-canonical")
     try:
         profile = acquisition.execution_profile_from_protocol(
-            _strict_json(plan.protocol_bytes, "protocol").get("acquisition")
+            _strict_json(plan.protocol_bytes, "protocol").get("acquisition"),
+            pool_input_mode=protocol_pool_mode,
         )
         manifest_profile = acquisition.execution_profile_from_manifest(acquisition_manifest)
     except Exception as exc:
@@ -834,6 +876,39 @@ def _validate_acquisition(plan: StagePlan, evidence: AcquisitionEvidence) -> Non
         raise OrchestrationError("acquisition-receipt-invalid")
 
 
+def _validate_frozen_pool_collection(
+    plan: StagePlan, collection: FrozenPoolCollectionEvidence, stage_dir: Path
+) -> FrozenPoolStageEvidence:
+    if type(collection) is not FrozenPoolCollectionEvidence:
+        raise OrchestrationError("frozen-pool-collection-evidence-type")
+    expected_root = stage_dir / "collection"
+    if (
+        collection.evidence.snapshots_directory != expected_root
+        or collection.receipt_directory != expected_root
+        or collection.collector_status != "complete"
+        or type(collection.receipt_inventory_sha256) is not str
+        or not _SHA256.fullmatch(collection.receipt_inventory_sha256)
+    ):
+        raise OrchestrationError("frozen-pool-collection-path-or-pin-invalid")
+    try:
+        actual_receipt_inventory = coverage_resource_evidence.receipt_inventory_sha256(expected_root)
+        if actual_receipt_inventory != collection.receipt_inventory_sha256:
+            raise ValueError("receipt inventory pin mismatch")
+        phase_result = frozen_pool.run_frozen_pool_input_phase(
+            list(plan.research_cases),
+            evidence=collection.evidence,
+            registration=collection.registration,
+            stage_started_monotonic=plan.stage_started_monotonic,
+            stage_deadline_monotonic=plan.stage_deadline_monotonic,
+            now_monotonic=_monotonic(),
+        )
+    except Exception as exc:
+        raise OrchestrationError("frozen-pool-verification-failed") from exc
+    if phase_result.verified.snapshots_directory != expected_root:
+        raise OrchestrationError("frozen-pool-snapshot-root-mismatch")
+    return FrozenPoolStageEvidence(collection=collection, phase_result=phase_result)
+
+
 def _validate_late_preparation(
     plan: StagePlan, evidence: LatePreparationEvidence, pipeline_inputs: Mapping[str, object]
 ) -> None:
@@ -971,20 +1046,25 @@ def _check_selector(
 
 
 def _sealed_navigation_observations(
-    plan: StagePlan, evidence: AcquisitionEvidence, selector: SelectorEvidence
+    plan: StagePlan, evidence: AcquisitionEvidence | FrozenPoolStageEvidence, selector: SelectorEvidence
 ) -> dict[str, dict[str, object]]:
     """Re-read navigation URLs only from the pinned complete snapshot artifacts."""
     try:
-        verified = coverage_live_acquire.verify_pool_snapshot_index(
-            evidence.snapshots_directory,
-            expected_index_sha256=evidence.snapshot_index_sha256,
-            expected_stage_manifest_sha256=evidence.acquisition_manifest_sha256,
-            expected_stage_uuid=plan.stage_uuid,
-            expected_source_revision=plan.source_revision,
-            expected_execution_profile=acquisition.execution_profile_from_manifest(
-                _strict_json(plan.acquisition_manifest_bytes, "acquisition-manifest")
-            ).identifier,
-        )
+        if type(evidence) is FrozenPoolStageEvidence:
+            verified = {
+                "operations": evidence.phase_result.verified.operations,
+            }
+        else:
+            verified = coverage_live_acquire.verify_pool_snapshot_index(
+                evidence.snapshots_directory,
+                expected_index_sha256=evidence.snapshot_index_sha256,
+                expected_stage_manifest_sha256=evidence.acquisition_manifest_sha256,
+                expected_stage_uuid=plan.stage_uuid,
+                expected_source_revision=plan.source_revision,
+                expected_execution_profile=acquisition.execution_profile_from_manifest(
+                    _strict_json(plan.acquisition_manifest_bytes, "acquisition-manifest")
+                ).identifier,
+            )
         operations = verified["operations"]
         result: dict[str, dict[str, object]] = {}
         for target in plan.navigation_targets:
@@ -1096,7 +1176,10 @@ async def coordinate_coverage_stage(
     except OSError as exc:
         raise OrchestrationError("stage-inventory-directory-create-failed") from exc
 
-    phase_rows = [{"phase": name, "status": "not-invoked"} for name in PHASES]
+    phase_names = list(PHASES)
+    if plan.pool_input_mode == "frozen-pool/1":
+        phase_names[0] = "frozen_pool_input"
+    phase_rows = [{"phase": name, "status": "not-invoked"} for name in phase_names]
     inventory: dict[str, object] = {
         "schema": SCHEMA,
         "stage_uuid": plan.stage_uuid,
@@ -1143,6 +1226,8 @@ async def coordinate_coverage_stage(
         "gate_result_authoritative": False,
         "phases": phase_rows,
     }
+    if plan.pool_input_mode != "live-acquisition/1":
+        inventory["pool_input_mode"] = plan.pool_input_mode
     if plan.band_companion_sha256 is not None:
         inventory["band_companion_sha256"] = identity["band_companion_sha256"]
         inventory["initial_registration_sha256"] = identity["initial_registration_sha256"]
@@ -1174,55 +1259,92 @@ async def coordinate_coverage_stage(
             raise
 
     try:
+        if plan.pool_input_mode == "live-acquisition/1":
 
-        async def acquire_and_verify() -> AcquisitionEvidence:
-            evidence = await executors.acquire(plan)
-            _validate_acquisition(plan, evidence)
-            if await _await(executors.verify_acquisition(plan, evidence)) is not True:
-                raise OrchestrationError("acquisition-source-bound-receipt-unverified")
-            from scripts.coverage_resource_evidence import receipt_inventory_sha256
+            async def acquire_and_verify() -> AcquisitionEvidence:
+                evidence = await executors.acquire(plan)
+                _validate_acquisition(plan, evidence)
+                if await _await(executors.verify_acquisition(plan, evidence)) is not True:
+                    raise OrchestrationError("acquisition-source-bound-receipt-unverified")
+                from scripts.coverage_resource_evidence import receipt_inventory_sha256
 
-            # Seal at acquisition completion, before capture/grading can run.
-            # A freshly recomputed expected pin during collection would accept
-            # receipt replacement between those two phase boundaries.
-            sealed_inventory = receipt_inventory_sha256(evidence.snapshots_directory)
-            artifacts["acquisition_receipt_inventory_sha256"] = sealed_inventory
-            inventory["acquisition_receipt_inventory_sha256"] = sealed_inventory
-            return evidence
+                sealed_inventory = receipt_inventory_sha256(evidence.snapshots_directory)
+                artifacts["acquisition_receipt_inventory_sha256"] = sealed_inventory
+                inventory["acquisition_receipt_inventory_sha256"] = sealed_inventory
+                return evidence
 
-        acq = await phase(
-            0,
-            "acquisition",
-            acquire_and_verify,
-            lambda value: _phase_digest(
-                value.receipt_sha256,
-                value.snapshot_index_sha256,
-                artifacts["acquisition_receipt_inventory_sha256"],
-            ),
-        )
-        pipeline_inputs = await phase(
-            1,
-            "pipeline_inputs",
-            lambda: pipeline.build_pipeline_inputs(
-                list(plan.research_cases),
-                snapshots_directory=acq.snapshots_directory,
-                expected_snapshot_index_sha256=acq.snapshot_index_sha256,
-                expected_stage_manifest_sha256=acq.acquisition_manifest_sha256,
-                stage_uuid=plan.stage_uuid,
-                source_revision=plan.source_revision,
-                protocol_sha256=identity["protocol_sha256"],
-                cohorts_sha256=identity["cohorts_sha256"],
-                candidate_identity_sha256=identity["candidate_identity_sha256"],
-                candidate_endpoint_sha256=identity["candidate_endpoint_sha256"],
-                expected_execution_profile=acquisition.execution_profile_from_manifest(
-                    _strict_json(plan.acquisition_manifest_bytes, "acquisition-manifest")
-                ).identifier,
-            ),
-            lambda value: _pipeline_receipt(value, plan.stage_uuid),
-        )
+            acq = await phase(
+                0,
+                "acquisition",
+                acquire_and_verify,
+                lambda value: _phase_digest(
+                    value.receipt_sha256,
+                    value.snapshot_index_sha256,
+                    artifacts["acquisition_receipt_inventory_sha256"],
+                ),
+            )
+            pipeline_inputs = await phase(
+                1,
+                "pipeline_inputs",
+                lambda: pipeline.build_pipeline_inputs(
+                    list(plan.research_cases),
+                    snapshots_directory=acq.snapshots_directory,
+                    expected_snapshot_index_sha256=acq.snapshot_index_sha256,
+                    expected_stage_manifest_sha256=acq.acquisition_manifest_sha256,
+                    stage_uuid=plan.stage_uuid,
+                    source_revision=plan.source_revision,
+                    protocol_sha256=identity["protocol_sha256"],
+                    cohorts_sha256=identity["cohorts_sha256"],
+                    candidate_identity_sha256=identity["candidate_identity_sha256"],
+                    candidate_endpoint_sha256=identity["candidate_endpoint_sha256"],
+                    expected_execution_profile=acquisition.execution_profile_from_manifest(
+                        _strict_json(plan.acquisition_manifest_bytes, "acquisition-manifest")
+                    ).identifier,
+                ),
+                lambda value: _pipeline_receipt(value, plan.stage_uuid),
+            )
+        else:
+            if not callable(executors.collect_frozen_pool) or not callable(executors.verify_frozen_pool):
+                raise OrchestrationError("frozen-pool-collector-executor-required")
+
+            async def collect_and_verify_frozen() -> FrozenPoolStageEvidence:
+                collection = await executors.collect_frozen_pool(plan)
+                if await _await(executors.verify_frozen_pool(plan, collection)) is not True:
+                    raise OrchestrationError("frozen-pool-external-admission-unverified")
+                stage_evidence = _validate_frozen_pool_collection(plan, collection, stage_dir)
+                artifacts["acquisition_receipt_inventory_sha256"] = collection.receipt_inventory_sha256
+                inventory["acquisition_receipt_inventory_sha256"] = collection.receipt_inventory_sha256
+                inventory["frozen_pool_evidence_sha256"] = collection.registration.evidence_sha256
+                inventory["frozen_pool_collector_receipt_sha256"] = collection.registration.collector_receipt_sha256
+                inventory["frozen_pool_availability_sha256"] = collection.registration.availability_sha256
+                _write_inventory(inventory_path, inventory)
+                return stage_evidence
+
+            acq = await phase(
+                0,
+                "frozen_pool_input",
+                collect_and_verify_frozen,
+                lambda value: _phase_digest(
+                    value.phase_result.verified.evidence_sha256,
+                    value.phase_result.verified.snapshot_index_sha256,
+                    value.phase_result.verified.collector_receipt_sha256,
+                    artifacts["acquisition_receipt_inventory_sha256"],
+                ),
+            )
+            pipeline_inputs = await phase(
+                1,
+                "pipeline_inputs",
+                lambda: acq.phase_result.pipeline_inputs,
+                lambda value: _pipeline_receipt(value, plan.stage_uuid),
+            )
 
         async def late_prepare_and_verify() -> LatePreparationEvidence:
-            evidence = await executors.prepare_after_acquisition(plan, acq, pipeline_inputs)
+            if plan.pool_input_mode == "frozen-pool/1":
+                if not callable(executors.prepare_after_frozen_pool):
+                    raise OrchestrationError("frozen-pool-late-preflight-executor-required")
+                evidence = await executors.prepare_after_frozen_pool(plan, acq, pipeline_inputs)
+            else:
+                evidence = await executors.prepare_after_acquisition(plan, acq, pipeline_inputs)
             _validate_late_preparation(plan, evidence, pipeline_inputs)
             if await _await(executors.verify_late_preflight(plan, evidence)) is not True:
                 raise OrchestrationError("late-preflight-external-binding-unverified")
@@ -1313,6 +1435,7 @@ async def coordinate_coverage_stage(
                 "acquisition_snapshot_index_sha256": acq.snapshot_index_sha256,
                 "acquisition_manifest_bytes": plan.acquisition_manifest_bytes,
                 "acquisition_manifest_sha256": acq.acquisition_manifest_sha256,
+                "verified_pool_source": (acq.phase_result.verified if type(acq) is FrozenPoolStageEvidence else None),
                 "neutral_fixture_bytes": (
                     repository_root
                     / "docs/experiments/evidence/coverage-first-study/draft-v2/selector-readiness-inputs.json"
@@ -1525,6 +1648,7 @@ async def coordinate_coverage_stage(
                 expected_selector_input_map_sha256=(
                     selector_input_map_sha256 if verified_selector_map is not None else None
                 ),
+                verified_pool_source=(acq.phase_result.verified if type(acq) is FrozenPoolStageEvidence else None),
             )
             collector_receipt_bytes = _canonical(
                 {

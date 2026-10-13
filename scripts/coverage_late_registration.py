@@ -41,6 +41,7 @@ def build_postacquisition_materials(
     acquisition_evidence: object,
     pipeline_inputs: Mapping[str, object],
     static_materials: Mapping[str, bytes],
+    verified_pool_source: object | None = None,
 ) -> dict[str, bytes]:
     """Rebuild the exact late core materials from verified pool snapshots.
 
@@ -49,9 +50,11 @@ def build_postacquisition_materials(
     """
     from scripts import coverage_stage_orchestration as orchestration
 
+    frozen_source = verified_pool_source is not None
     if (
         type(plan) is not orchestration.StagePlan
-        or type(acquisition_evidence) is not orchestration.AcquisitionEvidence
+        or (type(acquisition_evidence) is not orchestration.AcquisitionEvidence and not frozen_source)
+        or (frozen_source and acquisition_evidence is not None)
         or type(pipeline_inputs) is not dict
         or type(static_materials) is not dict
         or set(static_materials) != set(core.PIN_NAMES) - _LATE_MATERIALS
@@ -59,27 +62,45 @@ def build_postacquisition_materials(
         or type(pipeline_inputs.get("capture_manifest_bytes")) is not bytes
     ):
         raise LateRegistrationError("postacquisition-material-input-invalid")
-    index = core._sha256(acquisition_evidence.snapshot_index_sha256, "acquisition-index")
     try:
         protocol = core._strict_json(plan.protocol_bytes, "protocol")
         manifest = core._strict_json(plan.acquisition_manifest_bytes, "acquisition-manifest")
         if type(protocol) is not dict or type(manifest) is not dict:
             raise ValueError("protocol or manifest is not an object")
-        profile = acquisition.execution_profile_from_protocol(protocol.get("acquisition"))
+        profile = acquisition.execution_profile_from_protocol(
+            protocol.get("acquisition"), pool_input_mode=protocol.get("pool_input_mode", "live-acquisition/1")
+        )
         manifest_profile = acquisition.execution_profile_from_manifest(manifest)
         if profile != manifest_profile:
             raise ValueError("acquisition profile does not match the pinned protocol")
     except Exception as exc:
         raise LateRegistrationError("postacquisition-profile-binding-invalid") from exc
     try:
-        verified = coverage_live_acquire.verify_pool_snapshot_index(
-            acquisition_evidence.snapshots_directory,
-            expected_index_sha256=index,
-            expected_stage_manifest_sha256=plan.expected_acquisition_manifest_sha256,
-            expected_stage_uuid=plan.stage_uuid,
-            expected_source_revision=plan.source_revision,
-            expected_execution_profile=profile.identifier,
-        )
+        if frozen_source:
+            from scripts.coverage_frozen_pool_inputs import is_verified_pool_snapshot_source
+
+            if not is_verified_pool_snapshot_source(verified_pool_source):
+                raise ValueError("unverified frozen pool source")
+            if (
+                verified_pool_source.pool_manifest_sha256 != plan.expected_acquisition_manifest_sha256
+                or verified_pool_source.pool_index.get("stage_uuid") != plan.stage_uuid
+                or verified_pool_source.pool_index.get("source_revision") != plan.source_revision
+                or verified_pool_source.pool_index.get("source_closure_sha256") != plan.source_closure_sha256
+                or verified_pool_source.pool_index.get("protocol_sha256") != _sha(plan.protocol_bytes)
+                or verified_pool_source.pool_index.get("cohorts_sha256") != _sha(plan.cohorts_bytes)
+            ):
+                raise ValueError("frozen pool source binding mismatch")
+            verified = {"operations": verified_pool_source.operations}
+        else:
+            index = core._sha256(acquisition_evidence.snapshot_index_sha256, "acquisition-index")
+            verified = coverage_live_acquire.verify_pool_snapshot_index(
+                acquisition_evidence.snapshots_directory,
+                expected_index_sha256=index,
+                expected_stage_manifest_sha256=plan.expected_acquisition_manifest_sha256,
+                expected_stage_uuid=plan.stage_uuid,
+                expected_source_revision=plan.source_revision,
+                expected_execution_profile=profile.identifier,
+            )
     except Exception as exc:
         raise LateRegistrationError("postacquisition-snapshot-invalid") from exc
     tasks = pipeline_inputs.get("tasks")
@@ -273,7 +294,7 @@ async def request_late_registration(
     *,
     exchange: object,
     plan: object,
-    acquisition_evidence: object,
+    acquisition_evidence: object | None,
     pipeline_inputs: Mapping[str, object],
     static_materials: Mapping[str, bytes],
     initial_registration_bytes: bytes,
@@ -281,6 +302,7 @@ async def request_late_registration(
     forbidden_stage_uuids: tuple[str, ...],
     task_ids: tuple[str, ...],
     navigation_skip_reasons: tuple[str | None, ...],
+    verified_pool_source: object | None = None,
 ) -> object:
     """Wait for an external late registration, then run core preflight.
 
@@ -293,15 +315,30 @@ async def request_late_registration(
 
     if type(exchange) is not coverage_operator_handoff.OperatorReceiptHandoff:
         raise LateRegistrationError("late-registration-operator-exchange-required")
-    if type(plan) is not orchestration.StagePlan or type(acquisition_evidence) is not orchestration.AcquisitionEvidence:
+    if (
+        type(plan) is not orchestration.StagePlan
+        or (type(acquisition_evidence) is not orchestration.AcquisitionEvidence and verified_pool_source is None)
+        or (verified_pool_source is not None and acquisition_evidence is not None)
+    ):
         raise LateRegistrationError("late-registration-stage-context-invalid")
     materials = build_postacquisition_materials(
         plan=plan,
         acquisition_evidence=acquisition_evidence,
         pipeline_inputs=pipeline_inputs,
         static_materials=static_materials,
+        verified_pool_source=verified_pool_source,
     )
     immutable = _registration(initial_registration_bytes, expected_initial_registration_sha256)
+    source_index_sha = (
+        verified_pool_source.snapshot_index_sha256
+        if verified_pool_source is not None
+        else acquisition_evidence.snapshot_index_sha256
+    )
+    source_manifest_sha = (
+        verified_pool_source.pool_manifest_sha256
+        if verified_pool_source is not None
+        else acquisition_evidence.acquisition_manifest_sha256
+    )
     request_bindings = {
         "initial_registration_sha256": expected_initial_registration_sha256,
         "stage_uuid": plan.stage_uuid,
@@ -310,8 +347,8 @@ async def request_late_registration(
         "protocol_sha256": _sha(plan.protocol_bytes),
         "cohorts_sha256": _sha(plan.cohorts_bytes),
         "acquisition_plan_sha256": _sha(plan.acquisition_plan_bytes),
-        "acquisition_manifest_sha256": acquisition_evidence.acquisition_manifest_sha256,
-        "snapshot_index_sha256": acquisition_evidence.snapshot_index_sha256,
+        "acquisition_manifest_sha256": source_manifest_sha,
+        "snapshot_index_sha256": source_index_sha,
         "task_ids": list(task_ids),
         "operation_ids": immutable.get("operation_ids"),
         "navigation_skip_reasons": list(navigation_skip_reasons),

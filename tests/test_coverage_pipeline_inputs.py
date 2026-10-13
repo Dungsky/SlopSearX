@@ -134,7 +134,7 @@ def write_snapshot(stage: StageAcquisition, cases: list[dict], root) -> tuple[st
     pins = {
         "protocol_sha256": "1" * 64,
         "cohorts_sha256": "2" * 64,
-        "input_manifest_sha256": "3" * 64,
+        "input_manifest_sha256": "6" * 64,
         "acquisition_plan_sha256": "4" * 64,
         "source_closure_sha256": "5" * 64,
     }
@@ -498,10 +498,72 @@ def _fresh_frozen_evidence(root, stage, cases):
         "collector_receipt_sha256": "0" * 64,
         "collection_started_monotonic": 200.0,
         "collection_completed_monotonic": 300.0,
+        "stage_deadline_monotonic": 10_000.0,
         "collection_started_utc": "2026-10-13T12:00:00Z",
         "collection_completed_utc": "2026-10-13T12:01:40Z",
         "quality_credit": False,
     }
+    operation_statuses = []
+    for row in frozen_rows:
+        artifact = json.loads((root / row["file"]).read_bytes())
+        operation = artifact["operation"]
+        operation_statuses.append(
+            {
+                "operation_id": row["operation_id"],
+                "status": operation["status"],
+                "failure_reasons": operation.get("failure_reasons", []),
+            }
+        )
+    component_docs = {
+        "admission.json": {
+            "schema": "coverage-frozen-collection-admission/1",
+            "pool_input_mode": "frozen-pool/1",
+            "stage_clock_sha256": "9" * 64,
+            "clock_origin_sha256": "a" * 64,
+            "stage_uuid": str(uuid.UUID(int=123)),
+            "stage": stage.stage,
+            "source_revision": "a" * 40,
+            "source_closure_sha256": "5" * 64,
+            "protocol_sha256": "1" * 64,
+            "cohorts_sha256": "2" * 64,
+            "input_manifest_sha256": "6" * 64,
+            "acquisition_plan_sha256": "4" * 64,
+            "candidate_identity_sha256": "3" * 64,
+            "candidate_endpoint_sha256": "4" * 64,
+            "stage_manifest_sha256": manifest_sha,
+            "permit_sha256": "7" * 64,
+            "lease_sha256": "8" * 64,
+        },
+        "transport-control.json": {"schema": "coverage-acquisition-execution-controls/1"},
+        "request-ledger-index.json": {"schema": "coverage-http-request-ledger-index/1"},
+        "collection-summary.json": {
+            "schema": "coverage-frozen-collection-summary/1",
+            "stage_uuid": str(uuid.UUID(int=123)),
+            "stage_manifest_sha256": manifest_sha,
+            "pool_input_mode": "frozen-pool/1",
+            "status": "complete",
+            "physical_request_count": 13,
+            "transfer_bytes": 1000,
+            "collection_started_monotonic": 200.0,
+            "collection_completed_monotonic": 300.0,
+            "stage_deadline_monotonic": 10_000.0,
+            "collection_started_utc": "2026-10-13T12:00:00Z",
+            "collection_completed_utc": "2026-10-13T12:01:40Z",
+            "stage_deadline_utc": "2026-10-13T20:00:00Z",
+            "quality_credit": False,
+            "fatal_uninvoked_slots": [],
+            "operation_statuses": operation_statuses,
+            "pool_eligibility": [
+                {"operation_id": row["operation_id"], "pool_status": "complete"} for row in frozen_rows
+            ],
+        },
+    }
+    component_hashes = {}
+    for name, value in component_docs.items():
+        component_raw = pipeline._canonical(value)
+        (root / name).write_bytes(component_raw)
+        os.chmod(root / name, 0o600)
+        component_hashes[name] = sha(component_raw)
     receipt_doc = {
         "schema": frozen.COLLECTION_RECEIPT_SCHEMA,
         "scope": "registered-frozen-pool-collection",
@@ -520,8 +582,13 @@ def _fresh_frozen_evidence(root, stage, cases):
         "availability_sha256": availability_sha,
         "collection_started_monotonic": 200.0,
         "collection_completed_monotonic": 300.0,
+        "stage_deadline_monotonic": 10_000.0,
         "collection_started_utc": "2026-10-13T12:00:00Z",
         "collection_completed_utc": "2026-10-13T12:01:40Z",
+        "admission_sha256": component_hashes["admission.json"],
+        "transport_control_sha256": component_hashes["transport-control.json"],
+        "request_ledger_index_sha256": component_hashes["request-ledger-index.json"],
+        "collection_summary_sha256": component_hashes["collection-summary.json"],
     }
     receipt_raw = pipeline._canonical(receipt_doc)
     evidence_doc["collector_receipt_sha256"] = sha(receipt_raw)
@@ -615,8 +682,16 @@ def _reseal_frozen_evidence(root, evidence, *, availability_changed=False):
     (root / "frozen-pool-index.json").write_bytes(index_raw)
     os.chmod(root / "frozen-pool-index.json", 0o600)
     index_sha = sha(index_raw)
+    summary_path = root / "collection-summary.json"
+    summary = json.loads(summary_path.read_bytes())
+    summary["pool_snapshot_index_sha256"] = index_sha
+    summary["availability_sha256"] = evidence.expected_availability_sha256
+    summary_raw = pipeline._canonical(summary)
+    summary_path.write_bytes(summary_raw)
+    os.chmod(summary_path, 0o600)
     receipt["pool_snapshot_index_sha256"] = index_sha
     receipt["availability_sha256"] = evidence.expected_availability_sha256
+    receipt["collection_summary_sha256"] = sha(summary_raw)
     receipt_raw = pipeline._canonical(receipt)
     doc["pool_snapshot_index_sha256"] = index_sha
     doc["availability_sha256"] = evidence.expected_availability_sha256

@@ -154,6 +154,7 @@ def build_selector_input_map(
     current_service_source_bytes: bytes,
     expected_builder_source_sha256: str,
     operation_materials: dict[str, dict[str, object]] | None = None,
+    verified_pool_source: object | None = None,
 ) -> bytes:
     """Rebuild every registered request input from pinned stage material.
 
@@ -186,17 +187,28 @@ def build_selector_input_map(
         execution_profile = acquisition.execution_profile_from_manifest(acquisition_manifest)
     except Exception as exc:
         raise SelectorInputMapError("acquisition-manifest-profile-invalid") from exc
-    try:
-        verified_snapshot = coverage_live_acquire.verify_pool_snapshot_index(
-            snapshots_directory,
-            expected_index_sha256=acquisition_snapshot_index_sha256,
-            expected_stage_manifest_sha256=acquisition_manifest_sha256,
-            expected_stage_uuid=prepared.stage_uuid,
-            expected_source_revision=prepared.source_revision,
-            expected_execution_profile=execution_profile.identifier,
-        )
-    except Exception as exc:
-        raise SelectorInputMapError("acquisition-snapshot-verification-failed") from exc
+    if verified_pool_source is not None:
+        from scripts.coverage_frozen_pool_inputs import is_verified_pool_snapshot_source
+
+        if not is_verified_pool_snapshot_source(verified_pool_source) or (
+            verified_pool_source.snapshots_directory != Path(snapshots_directory)
+            or verified_pool_source.snapshot_index_sha256 != acquisition_snapshot_index_sha256
+            or verified_pool_source.pool_manifest_sha256 != acquisition_manifest_sha256
+        ):
+            raise SelectorInputMapError("frozen-pool-source-verification-failed")
+        verified_snapshot = {"index": verified_pool_source.pool_index, "operations": verified_pool_source.operations}
+    else:
+        try:
+            verified_snapshot = coverage_live_acquire.verify_pool_snapshot_index(
+                snapshots_directory,
+                expected_index_sha256=acquisition_snapshot_index_sha256,
+                expected_stage_manifest_sha256=acquisition_manifest_sha256,
+                expected_stage_uuid=prepared.stage_uuid,
+                expected_source_revision=prepared.source_revision,
+                expected_execution_profile=execution_profile.identifier,
+            )
+        except Exception as exc:
+            raise SelectorInputMapError("acquisition-snapshot-verification-failed") from exc
     index = verified_snapshot["index"]
     if (
         index.get("source_closure_sha256") != prepared.pins.get("qualified_source_closure")

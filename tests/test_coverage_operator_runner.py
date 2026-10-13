@@ -276,6 +276,13 @@ class OperatorRunnerConfigTests(unittest.TestCase):
             "coverage_stage_orchestration": "scripts/coverage_stage_orchestration.py",
             "coverage_stage_finalization": "scripts/coverage_stage_finalization.py",
             "coverage_operator_runner": "scripts/coverage_operator_runner.py",
+            "coverage_stage_runtime": "scripts/coverage_stage_runtime.py",
+            "coverage_local_authority": "scripts/coverage_local_authority.py",
+            "coverage_frozen_pool_inputs": "scripts/coverage_frozen_pool_inputs.py",
+            "coverage_frozen_pool_collect": "scripts/coverage_frozen_pool_collect.py",
+            "coverage_resource_evidence": "scripts/coverage_resource_evidence.py",
+            "coverage_pipeline_inputs": "scripts/coverage_pipeline_inputs.py",
+            "coverage_selector_input_map": "scripts/coverage_selector_input_map.py",
             "coverage_band_companion": "scripts/coverage_band_companion.py",
             "coverage_late_registration": "scripts/coverage_late_registration.py",
         }

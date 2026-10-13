@@ -18,7 +18,12 @@ from pathlib import Path
 from typing import Any, Awaitable, Callable, Mapping
 
 from scripts import coverage_answer_execution as answer_execution
-from scripts import coverage_live_acquire, coverage_native_grader_handoff, coverage_source_capture
+from scripts import (
+    coverage_live_acquire,
+    coverage_native_grader_handoff,
+    coverage_resource_evidence,
+    coverage_source_capture,
+)
 from scripts import coverage_stage_orchestration as orchestration
 
 
@@ -94,6 +99,16 @@ class RuntimeBindings:
     selector_archive_root: str | os.PathLike[str]
     selector_result_root: str | os.PathLike[str]
     native_handoff: coverage_native_grader_handoff.NativeGraderHandoff
+    frozen_pool_collection_authority: (
+        Callable[[orchestration.StagePlan], Mapping[str, object] | Awaitable[Mapping[str, object]]] | None
+    ) = None
+    prepare_after_frozen_pool: (
+        Callable[
+            [orchestration.StagePlan, orchestration.FrozenPoolStageEvidence, Mapping[str, object]],
+            Awaitable[orchestration.LatePreparationEvidence],
+        ]
+        | None
+    ) = None
 
 
 def build_stage_executors(plan: orchestration.StagePlan, bindings: RuntimeBindings) -> orchestration.StageExecutors:
@@ -116,6 +131,10 @@ def build_stage_executors(plan: orchestration.StagePlan, bindings: RuntimeBindin
         or not bindings.native_handoff.require_native_host_transcripts
     ):
         raise RuntimeWiringError("runtime-binding-member-invalid")
+    if plan.pool_input_mode == "frozen-pool/1" and (
+        not callable(bindings.frozen_pool_collection_authority) or not callable(bindings.prepare_after_frozen_pool)
+    ):
+        raise RuntimeWiringError("frozen-pool-runtime-binding-required")
 
     async def acquire(plan: orchestration.StagePlan) -> orchestration.AcquisitionEvidence:
         authority = _authority(
@@ -150,6 +169,101 @@ def build_stage_executors(plan: orchestration.StagePlan, bindings: RuntimeBindin
         )
         orchestration._validate_acquisition(plan, evidence)
         return evidence
+
+    async def collect_frozen_pool(plan: orchestration.StagePlan) -> orchestration.FrozenPoolCollectionEvidence:
+        if plan.pool_input_mode != "frozen-pool/1" or not callable(bindings.frozen_pool_collection_authority):
+            raise RuntimeWiringError("frozen-pool-mode-not-registered")
+        from scripts import coverage_frozen_pool_collect, coverage_frozen_pool_inputs
+
+        authority = _authority(
+            await _await(bindings.frozen_pool_collection_authority(plan)),
+            {
+                "stage_clock",
+                "candidate_identity_sha256",
+                "candidate_endpoint_sha256",
+                "permit_receipt_bytes",
+                "expected_permit_receipt_sha256",
+                "permit_verifier",
+                "one_shot_lease",
+                "stage_inventory_directory",
+            },
+            set(),
+            "frozen-pool-collection",
+        )
+        result = await coverage_frozen_pool_collect.collect_frozen_pool_stage(
+            stage_manifest_bytes=plan.acquisition_manifest_bytes,
+            acquisition_plan_bytes=plan.acquisition_plan_bytes,
+            stage_clock=authority["stage_clock"],
+            candidate_identity_sha256=authority["candidate_identity_sha256"],
+            candidate_endpoint_sha256=authority["candidate_endpoint_sha256"],
+            permit_receipt_bytes=authority["permit_receipt_bytes"],
+            expected_permit_receipt_sha256=authority["expected_permit_receipt_sha256"],
+            permit_verifier=authority["permit_verifier"],
+            one_shot_lease=authority["one_shot_lease"],
+            stage_inventory_directory=authority["stage_inventory_directory"],
+        )
+        if type(result) is not coverage_frozen_pool_collect.FrozenCollectionResult:
+            raise RuntimeWiringError("frozen-pool-collector-result-invalid")
+        root = Path(result.collection_directory)
+        evidence_bytes = coverage_frozen_pool_inputs._read_private_regular(
+            root, "frozen-pool-evidence.json", "frozen-pool-evidence"
+        )
+        availability_bytes = coverage_frozen_pool_inputs._read_private_regular(
+            root, "engine-availability.json", "engine-availability"
+        )
+        receipt_bytes = coverage_frozen_pool_inputs._read_private_regular(
+            root, "collector-receipt.json", "collector-receipt"
+        )
+        evidence = coverage_frozen_pool_inputs.FrozenPoolEvidence(
+            root,
+            evidence_bytes,
+            result.evidence_sha256,
+            receipt_bytes,
+            result.collector_receipt_sha256,
+            availability_bytes,
+            result.availability_sha256,
+        )
+        registration = coverage_frozen_pool_inputs.FrozenPoolRegistrationContext(
+            stage_uuid=plan.stage_uuid,
+            stage_kind=plan.stage_kind,
+            source_revision=plan.source_revision,
+            source_closure_sha256=plan.source_closure_sha256,
+            protocol_sha256=_sha(plan.protocol_bytes),
+            cohorts_sha256=_sha(plan.cohorts_bytes),
+            candidate_identity_sha256=_sha(plan.candidate_identity_bytes),
+            candidate_endpoint_sha256=plan.candidate_endpoint_sha256,
+            acquisition_plan_sha256=_sha(plan.acquisition_plan_bytes),
+            task_ids=tuple(row["task_id"] for row in plan.research_cases),
+            navigation_ids=tuple(row["target_id"] for row in plan.navigation_targets),
+            evidence_sha256=result.evidence_sha256,
+            collector_receipt_sha256=result.collector_receipt_sha256,
+            availability_sha256=result.availability_sha256,
+        )
+        inventory_sha = coverage_resource_evidence.receipt_inventory_sha256(root)
+        return orchestration.FrozenPoolCollectionEvidence(
+            evidence=evidence,
+            registration=registration,
+            receipt_directory=root,
+            receipt_inventory_sha256=inventory_sha,
+            collector_status=result.status,
+        )
+
+    async def verify_frozen_pool(
+        plan: orchestration.StagePlan, collection: orchestration.FrozenPoolCollectionEvidence
+    ) -> bool:
+        return (
+            type(collection) is orchestration.FrozenPoolCollectionEvidence
+            and collection.collector_status == "complete"
+            and collection.registration.stage_uuid == plan.stage_uuid
+            and collection.registration.stage_kind == plan.stage_kind
+            and collection.registration.source_revision == plan.source_revision
+            and collection.registration.source_closure_sha256 == plan.source_closure_sha256
+            and collection.registration.protocol_sha256 == _sha(plan.protocol_bytes)
+            and collection.registration.cohorts_sha256 == _sha(plan.cohorts_bytes)
+            and collection.registration.candidate_identity_sha256 == _sha(plan.candidate_identity_bytes)
+            and collection.registration.candidate_endpoint_sha256 == plan.candidate_endpoint_sha256
+            and collection.registration.acquisition_plan_sha256 == _sha(plan.acquisition_plan_bytes)
+        )
 
     async def capture(
         plan: orchestration.StagePlan, pipeline_inputs: Mapping[str, object]
@@ -320,4 +434,9 @@ def build_stage_executors(plan: orchestration.StagePlan, bindings: RuntimeBindin
         answerer=answerer,
         grade_answers=grade_answers,
         verify_selector_admission=bindings.selector_admission_verifier,
+        collect_frozen_pool=collect_frozen_pool if plan.pool_input_mode == "frozen-pool/1" else None,
+        verify_frozen_pool=verify_frozen_pool if plan.pool_input_mode == "frozen-pool/1" else None,
+        prepare_after_frozen_pool=(
+            bindings.prepare_after_frozen_pool if plan.pool_input_mode == "frozen-pool/1" else None
+        ),
     )
