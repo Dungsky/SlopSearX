@@ -1,0 +1,13 @@
+# Development capture completed; reference grading stopped
+
+**Outcome: source capture completed with source failures; reference grading stopped before any grader handoff. No selector, Jev, answer assessment, gate calculation, research-quality gate, or product qualification ran.** The development registration is historical and consumed. Its single-use terminal stage and captured material cannot be resumed, repaired, retried, or reused. Confirmation remains uninvoked.
+
+The registered acquisition completed all 13 operations with 33 HTTP requests. The eight research pools contained 21, 40, 40, 32, 47, 71, 61, and 61 source rows, respectively. All five navigation targets completed. Pipeline inputs and late preflight completed.
+
+Source capture completed with source failures. It produced 373 source rows. Of these, 370 scrape requests and one health request were owned HTTP operations; three duplicate URLs were not attempted. All 370 scrape requests returned HTTP 502 and were classified `SCRAPE_FAILED` with error text `Private or internal URL`. The single health request returned HTTP 200 and reported `healthy_runtime_match`. The application was healthy, while some egress-control containers were exited. The confirmed cause was DNS-control endpoint address reuse by dynamically assigned clients: public DNS lookup then failed with `EAI_AGAIN`, and the scraper private-address guard rejected the URLs. No private addresses or host details are included. No scrape contexts or successful scrape content were captured. Internal scraper fan-out is unknown and is not counted as zero.
+
+Reference-packet preparation completed. Reference grading then terminated with a native handoff error before any grader handoff files were written or any grader handoff calls were made. The exact grading error code and exception text are not observed in the public record. No Jev, native grader handoff, or answerer calls ran. Later selector/Jev, answerer, grader, and gate phases were not invoked; none is qualified.
+
+These results establish execution boundaries and the source-capture failure mechanism only. They do not establish reference quality, research quality, candidate uplift, adoption, or product qualification. A separate card-packet source audit found that the producer does not emit the required boolean `model_call_required` field consumed by native handoff. This packet-contract defect is distinct from the scrape failures; it does not establish the exact grading error or cause of the uniform HTTP 502 responses.
+
+The machine-readable [outcome](result.json) contains only aggregate public operational facts. Private identifiers, timestamps, runtime hashes, host details, paths, credentials, raw responses, and the unarchived exception text are omitted.

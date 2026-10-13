@@ -12,12 +12,13 @@
     "path": "../registered-2026-10-12-acquisition-v2/protocol.json",
     "sha256": "567e337d41268f380348abc70ab1bf4a0249852f237797fa361295f1e34afb06"
   },
+  "provider_dispatch_count_scope": "Jev, native grader handoff, and answerer calls only; source acquisition and scrape HTTP operations are reported separately.",
   "qualified_source_closure": {
     "path": "current-qualified-source-closure.json",
     "sha256": "78bc585b3144934b96e5d2b7d54c81f336c37285933e0f7d99cbaa335b99d93c"
   },
   "quality_result": "none",
-  "registration_state": "registered_static_materials",
+  "registration_state": "development_consumed_terminal_confirmation_uninvoked",
   "schema": "coverage-acquisition-v2-static-registration-status/1",
   "scientific_provider_dispatches_under_this_registration": 0,
   "source_revision": "8d3d05ef2869837b2727bdefdff631bc882c0dff",
@@ -36,8 +37,8 @@
     },
     "development": {
       "acquisition_manifest_preview_sha256": "c43a7f136067b4abb78ecd96f38136484433c136091766a8f7d1f3cf21be748a",
-      "admission_status": "not_admitted",
-      "execution_outcome": "not_executed",
+      "admission_status": "consumed_by_terminal_invocation",
+      "execution_outcome": "terminal_capture_failures_then_reference_grading_handoff_error",
       "full_static_preflight": "passed_on_exact_source_and_static_materials",
       "navigation_target_count": 5,
       "packet_stage_uuid": "06c806d6-7c25-4bb0-911c-f99ffce08ceb",
@@ -47,5 +48,23 @@
       "static_material_status": "verified"
     }
   },
-  "status": "registered_static_materials_not_admitted_or_executed"
+  "status": "development_terminal_capture_and_reference_grading_failure_confirmation_uninvoked",
+  "terminal_execution": {
+    "confirmation": "uninvoked",
+    "development": {
+      "acquisition_http_requests": 33,
+      "acquisition_operations_completed": 13,
+      "answerer_calls": 0,
+      "duplicate_urls_not_attempted": 3,
+      "health_http_200": 1,
+      "jev_calls": 0,
+      "native_grader_handoff_calls": 0,
+      "outcome": "terminal_after_reference_packet_preparation_before_grader_handoff",
+      "quality_or_product_qualification": "none",
+      "reference_grader_handoff_files_written": 0,
+      "scrape_contexts_created": 0,
+      "scrape_http_502": 370,
+      "source_rows": 373
+    }
+  }
 }

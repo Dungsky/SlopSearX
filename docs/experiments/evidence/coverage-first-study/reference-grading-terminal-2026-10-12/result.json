@@ -1,0 +1,74 @@
+{
+  "status": "terminal",
+  "stage": "development",
+  "acquisition": {
+    "status": "complete",
+    "operations": 13,
+    "http_requests": 33,
+    "research_pool_rows": [
+      21,
+      40,
+      40,
+      32,
+      47,
+      71,
+      61,
+      61
+    ],
+    "navigation_targets_completed": 5,
+    "navigation_target_total": 5,
+    "pipeline_inputs": "complete",
+    "late_preflight": "complete"
+  },
+  "source_capture": {
+    "status": "complete_with_source_failures",
+    "source_rows": 373,
+    "owned_http_operations": 371,
+    "scrape_http_requests": 370,
+    "health_http_requests": 1,
+    "duplicate_urls_not_attempted": 3,
+    "health": "healthy_runtime_match",
+    "scrape_outcomes": {
+      "http_502": 370,
+      "status": "SCRAPE_FAILED",
+      "successful_content": 0,
+      "error_text": "Private or internal URL",
+      "health_http_status": 200
+    },
+    "internal_scraper_fanout": "unknown",
+    "scrape_error_text": "Private or internal URL",
+    "health_http_status": 200,
+    "scrape_contexts_created": 0,
+    "diagnosis": {
+      "status": "confirmed",
+      "summary": "Fixed DNS-control endpoint addresses were reused by dynamically assigned clients; public DNS lookup then failed with EAI_AGAIN, and the scraper private-address guard rejected the URLs.",
+      "private_addresses_or_hosts_published": false
+    }
+  },
+  "reference_packet_preparation": "complete",
+  "reference_grading": {
+    "status": "terminal_native_handoff_error",
+    "grader_handoff_files_written": 0,
+    "grader_handoff_calls": 0,
+    "exact_error_code_observed": false
+  },
+  "later_phases": {
+    "selector_jev": "not_invoked",
+    "answerer": "not_invoked",
+    "grader": "not_invoked",
+    "gate_calculation": "not_invoked"
+  },
+  "static_source_audit": {
+    "finding": "card producer does not emit required boolean model_call_required field for native handoff",
+    "applies_to": "grader packet handoff",
+    "causality_established": false
+  },
+  "quality_or_product_qualification": "none",
+  "lab_observation": "application_healthy; some egress_control_containers_exited",
+  "execution_counts": {
+    "jev_calls": 0,
+    "native_grader_handoff_calls": 0,
+    "answerer_calls": 0,
+    "scrape_contexts_created": 0
+  }
+}
