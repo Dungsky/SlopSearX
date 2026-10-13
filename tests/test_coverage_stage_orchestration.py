@@ -560,6 +560,21 @@ class StageOrchestrationTests(unittest.TestCase):
         with self.assertRaisesRegex(stage.OrchestrationError, "pool-input-mode-protocol-mismatch"):
             stage._validate_plan_static(mismatch)
 
+    def test_frozen_pool_rejects_missing_companion_and_initial_registration(self):
+        plan = plan_fixture(pool_input_mode="frozen-pool/1")
+        missing = stage.StagePlan(
+            **{
+                **plan.__dict__,
+                "band_companion_bytes": None,
+                "band_companion_sha256": None,
+                "band_companion_source_pins": None,
+                "initial_registration_bytes": None,
+                "initial_registration_sha256": None,
+            }
+        )
+        with self.assertRaisesRegex(stage.OrchestrationError, "frozen-pool-band-companion-required"):
+            stage._validate_plan_static(missing)
+
     def test_stage_plan_rejects_pre_fix_compact_manifest_bytes(self):
         plan = plan_fixture()
         compact_manifest = canonical(json.loads(plan.acquisition_manifest_bytes))

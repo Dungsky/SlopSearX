@@ -99,21 +99,17 @@ harness merge.
 
 ## Delivery order and stopping decisions
 
-The current work item is the complete collection-to-verification runner, not
-another standalone helper. Its completion requires one composed deterministic
-test that invokes collection, verifies the frozen inputs, and reaches the
-existing capture, reference, ranking, answer, assessment and finalization
-interfaces. Adversarial tests must reject altered membership, invented provider
-success, expired clocks, mismatched permits and unaccounted HTTP dispatches.
-
-After source review and required checks, publish the method amendment and both
-fresh cohorts with exact source pins. Issue a new acquisition admission and
-execute development once. Record the terminal result and apply the registered
-pass rules without reinterpretation. If development passes, execute the
-separately admitted confirmation stage once. If either stage fails or is
-inconclusive, publish the failed criteria and close this candidate's release
-decision as unqualified; do not silently begin another study or add a new
-candidate to extend this delivery.
+The frozen-input runner was delivered in PR #829 (merge `7c2dd2e`). PR #830
+adds the mandatory fresh-cohort band companion binding; frozen mode must use
+the exact companion, qualified source-closure v2 and initial-registration pin.
+After that correction is reviewed and merged, prepare a clean source closure
+and both static registrations, then pass both static preflights before issuing
+one development admission. Run development once and record its terminal result
+against the registered gates. Only a separately verified complete development
+pass permits the already registered confirmation stage to be admitted and run
+once. If either stage fails or is inconclusive, publish the failed criteria
+and close this candidate's release decision as unqualified; do not silently
+begin another study or add a new candidate to extend this delivery.
 
 Only a complete development and confirmation pass opens product implementation.
 Implement the shared SlopSearX behavior and GroktoCrawl X propagation against the
