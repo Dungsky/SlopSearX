@@ -17,3 +17,9 @@
 - Portal: gateway discovery only, no portal wire/result/config change; deterministic API and browser regression retained.
 - Decision: supported only if primary and every exact guard pass; invalid measurement inconclusive; failed effect not-supported; inaccessible dependency blocked. Nonzero explicit verifier also checked under python -O with deliberate guard mutations.
 - Retention: docs/experiments/evidence/EXP-121; all logs, raw catalog, verifier and candidate patch retained. No deployment. Standing author/CI/substantive review and protection rules apply.
+
+## Readout
+
+- Registration 9d0cd3d5; supported normal-path contract correction: 0/38→38/38 (+38 tools; designated 0/3→3/3). No statistical population claim. Every non-input-schema gateway field, complete upstream catalog and both full response controls identical. Verifier accepts originals and rejects ten deliberate corruptions with/without optimization. Zero provider calls/cost; subscription usage unknown.
+- Initial regression slice 141 passed (includes three browser cases), mypy121 source files clean. Permanent full-catalog HTTP regression added; initial missing helper import retained/fixed, final gateway24 passed. Changed-file hooks pass. All-file hooks formatted four unrelated files; patch retained and restored. AST update passed. Full suite and exact-head CI/review pending.
+- Portal result/wire behavior unchanged. Deep copy isolates nested metadata; upstream validation and generated proxy invocation unchanged. Tests cover nested invocation. No deployment or task-success/relevance uplift claimed.

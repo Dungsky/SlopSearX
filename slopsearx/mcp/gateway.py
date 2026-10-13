@@ -21,11 +21,13 @@ import inspect
 import json
 import logging
 from contextlib import asynccontextmanager
+from copy import deepcopy
 from dataclasses import dataclass
 from importlib import import_module
 from typing import Any, AsyncIterator, Awaitable, Callable, cast
 
 from fastmcp import FastMCP
+from fastmcp.tools import FunctionTool
 from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
 from mcp.types import CallToolResult, PaginatedRequestParams
@@ -188,8 +190,8 @@ def _make_proxy(tool_name: str, input_schema: dict[str, Any]) -> Callable[..., A
     """Build a callable that forwards one tool call to the remote server.
 
     The returned function carries a ``__signature__`` derived from the
-    remote tool's input schema, so the gateway's advertised tool schema
-    matches the remote's.
+    remote tool's input schema for invocation. Registration separately
+    preserves the complete remote discovery schema.
     """
     properties = input_schema.get("properties") or {}
     required = set(input_schema.get("required") or [])
@@ -225,7 +227,13 @@ def _make_proxy(tool_name: str, input_schema: dict[str, Any]) -> Callable[..., A
     return proxy
 
 
-def _register_proxy(server: FastMCP, proxy: Callable[..., Awaitable[Any]], tool_name: str, description: str) -> None:
+def _register_proxy(
+    server: FastMCP,
+    proxy: Callable[..., Awaitable[Any]],
+    tool_name: str,
+    description: str,
+    input_schema: dict[str, Any] | None = None,
+) -> None:
     """Register a proxy with both the bundled and standalone FastMCP APIs.
 
     FastMCP 3/4 derive the tool name and description from the callable and
@@ -240,7 +248,13 @@ def _register_proxy(server: FastMCP, proxy: Callable[..., Awaitable[Any]], tool_
     if "name" in add_tool_parameters:
         server.add_tool(proxy, name=tool_name, description=description)  # type: ignore[call-arg]
     else:
-        server.add_tool(proxy)
+        tool = FunctionTool.from_function(proxy)
+        if input_schema is not None:
+            # Python signatures cannot express all remote JSON Schema details.
+            # Preserve discovery independently of the existing callable's
+            # argument handling; upstream validation remains authoritative.
+            tool.parameters = deepcopy(input_schema)
+        server.add_tool(tool)
 
 
 # ---------------------------------------------------------------------------
@@ -438,7 +452,9 @@ async def _gateway_lifespan(
 
                 for tool in tools:
                     input_schema = _field(tool, "input_schema", "inputSchema") or {}
-                    _register_proxy(server, _make_proxy(tool.name, input_schema), tool.name, tool.description or "")
+                    _register_proxy(
+                        server, _make_proxy(tool.name, input_schema), tool.name, tool.description or "", input_schema
+                    )
                 logger.info(
                     "Remote gateway connected to %s (%d tools registered)",
                     remote_url,
