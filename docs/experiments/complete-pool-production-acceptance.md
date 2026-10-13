@@ -1,5 +1,7 @@
 # Production acceptance checklist: explicit-purpose complete-pool Jev selection
 
+Current outcome: the fresh development invocation ended at collection admission with a controller working-directory setup failure; zero scientific calls and no quality credit. Confirmation remains uninvoked. See [terminal evidence](evidence/coverage-first-study/completed-2026-10-13-frozen-admission/README.md). The execution sequence below remains the release requirement, not a completed qualification.
+
 Implementation acceptance plan inspected against SlopSearX `3d5e8bac38b619aec1bd7a679f1a7667f1fc1abf` and experimental GroktoCrawl X `3612affba3b51e7240a0e60d079499739052c0b1`. This is a checklist of required work, not a claim of delivery. EXP-050 is bounded identifier-based source-information capture, not source-quality measurement or selector qualification. The production selector still requires a separately qualified, frozen candidate and fresh confirmation. Metadata presence or richer cards alone cannot satisfy either gate.
 
 The cross-service boundary follows accepted X ADR-0082: GroktoCrawl owns the caller's question, constraints, evidence sufficiency and completion; SlopSearX owns bounded search dispatch, merge/ranking and immutable result snapshots. Keep the SlopSearX ordinary HTTP behavior unchanged when the option is absent. The proposed ADR-0093 provenance work is not an accepted substitute for candidate quality evidence.
@@ -14,14 +16,15 @@ PRs #829 and #830 merged the fresh frozen-input runner and companion binding.
 PR #831 completed actual file-based issuer reconstruction, including the
 protected capture entrypoint, full selector replay and answer catalogs.
 Both [fresh static preflights](evidence/coverage-first-study/frozen-input-static-registration-2026-10-13/README.md)
-passed against the exact merge source. Neither stage is admitted or invoked;
-no fresh development or confirmation quality result exists yet.
+passed against the exact merge source. Registration PR #832 merged before the
+once-only development invocation. Its collection admission was refused by the
+active-environment guard; zero scientific calls occurred and confirmation
+remains uninvoked. No fresh development or confirmation quality result exists.
 
-Publish the locked fresh stage registrations, run development once, and admit
-confirmation only after every development gate
-passes. Both stages must qualify before implementing the entire checklist
-below. A failed or inconclusive stage closes this candidate as unqualified;
-it does not start another study automatically. The earlier records that follow
+The attempt is terminal and unqualified. Any future qualification requires a
+separate prospective administrative decision; the current stage cannot be
+restarted. Both stages must qualify before implementing the entire checklist
+below. An inconclusive stage does not start another study automatically. The earlier records that follow
 are historical evidence and provide no current-stage adoption credit.
 
 ## Retained evidence and next action at 2026-10-07
