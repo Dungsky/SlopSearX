@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -69,6 +70,30 @@ def test_v2_execution_profile_is_closed_and_preserves_v1_timeout():
     ):
         with pytest.raises(ValueError):
             acquisition.execution_profile_from_protocol(invalid)
+
+
+def test_frozen_pool_profile_accepts_only_locked_operational_descriptor():
+    material_dir = (
+        Path(__file__).parents[1] / "docs/experiments/evidence/coverage-first-study/frozen-input-method-materials"
+    )
+    protocol = json.loads((material_dir / "protocol.json").read_bytes())
+    assert protocol["pool_input_mode"] == "frozen-pool/1"
+    assert (
+        acquisition.execution_profile_from_protocol(
+            protocol["acquisition"], pool_input_mode=protocol["pool_input_mode"]
+        )
+        is acquisition.CONTINUE_ACQUISITION_PROFILE
+    )
+    for field, value in (
+        ("pacing_seconds", 6),
+        ("max_physical_http_calls", 54),
+        ("finalization_reserve_seconds", 301),
+    ):
+        invalid = {**protocol["acquisition"], field: value}
+        with pytest.raises(ValueError):
+            acquisition.execution_profile_from_protocol(invalid, pool_input_mode="frozen-pool/1")
+    with pytest.raises(ValueError):
+        acquisition.execution_profile_from_protocol(protocol["acquisition"], pool_input_mode="unregistered-mode")
 
 
 def _adapter_configs(engines: tuple[str, ...]) -> dict[str, EngineAdapter]:

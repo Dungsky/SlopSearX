@@ -87,3 +87,22 @@ scientific phases and untouched confirmation remained uninvoked. This ends
 the registered v3 study under the stop rule above. Coverage-first remains
 unqualified for product implementation; existing production ranking is retained.
 This is an availability result, not a negative ranking-quality finding.
+
+
+## Current delivery plan: frozen-input method amendment
+
+The v3 acquisition result remains terminal and unqualified. The maintainer has
+requested a concrete amended plan and end-to-end delivery. The
+[frozen-input execution amendment](coverage-frozen-input-execution-plan.md)
+is the current execution plan in preparation: complete the actual collector
+and runner together, preserve provider availability separately from corpus
+eligibility, then register and execute fresh development and confirmation
+stages under the unchanged quality bar. No new scientific invocation or
+production qualification is implied by this planning update.
+
+A complete pass of both stages leads to the full
+[production acceptance checklist](complete-pool-production-acceptance.md),
+including SlopSearX API/MCP/portal/cache/fallback behavior and GroktoCrawl X
+propagation. An unsuccessful or inconclusive stage receives a published
+terminal decision; it does not silently extend into another study. Reviewed
+infrastructure alone is not production readiness.

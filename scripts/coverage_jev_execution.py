@@ -414,8 +414,7 @@ def _verify_registered_operation_input(
     if type(document) is not dict or set(document) != map_fields or type(document.get("operations")) is not list:
         raise JevExecutionError("selector-input-map-binding")
     if (
-        document.get("schema")
-        != (prepared.selector_input_map_schema or "coverage-selector-input-map/2-draft")
+        document.get("schema") != (prepared.selector_input_map_schema or "coverage-selector-input-map/2-draft")
         or document.get("status")
         != (
             "complete-awaiting-external-admission"

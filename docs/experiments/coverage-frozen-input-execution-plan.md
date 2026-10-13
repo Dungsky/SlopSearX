@@ -1,0 +1,124 @@
+# Coverage-first delivery: frozen-input execution amendment
+
+Status: prospective method amendment in preparation, following the maintainer's
+instruction to amend the plan and finish delivery. No new study is registered
+or invoked by this document. This preserves the approved coverage-first
+candidate; it does not approve a new ranking algorithm.
+
+## Why the execution method changes
+
+The [v3 development result](evidence/coverage-first-study/completed-2026-10-13-v3/README.md)
+ended after arXiv returned HTTP 429. Its three completed pools and fourth
+partial pool are historical evidence, not inputs for this next study. Capture
+lab qualification is complete, but no ranking or task-use comparison ran.
+
+The next study separates two facts: what the search providers returned, and
+whether the ranking improves research on that returned corpus. An unavailable
+engine must remain unavailable in its receipt. It must never be represented as
+a successful live acquisition to satisfy an old schema.
+
+## Fixed scope
+
+1. Author and preregister eight new development tasks and eight distinct
+   confirmation tasks together, including five exact navigation targets per
+   stage. Each research stage has four natural 1–40 pools and four natural
+   41–80 pools, with two evidence-seeking and two discovery tasks in each band.
+2. Collect each declared pool once under a new, bounded collector admission.
+   Retain every provider outcome and full untrimmed canonical pool. Do not
+   change queries, replace engines/cases, combine extra searches, pad, trim,
+   rescue, retry, or select cases using ranking results. No Brave calls.
+3. Independently seal the fresh complete corpus, source provenance and
+   availability sidecar before any task reference grade or Jev transaction.
+   Partial provider availability is reported separately; incomplete membership,
+   empty/wrong-band/overflow pools, missing exact targets or unverifiable
+   provenance make corpus admission inconclusive. Availability metadata cannot
+   change the corpus or conceal a failure.
+4. Feed identical frozen cards, native order, source openings and budgets to
+   the original production W0 and the unchanged coverage-first candidate.
+   Preserve fresh blind references, all-or-nothing fallback and the original
+   V1 control parser. Historical snapshots, grades and consumed identities are
+   excluded.
+5. Run development once. Only a separately verified complete pass of all
+   mixed-workload and per-band gates permits collecting and freezing the
+   already preregistered untouched confirmation corpus. Run confirmation once
+   without tuning the candidate. Any terminal outcome is published; neither
+   stage can be restarted or credited to v3.
+
+This changes the acquisition-method contract prospectively. Numerical ranking,
+task-use, navigation, stability, membership and resource thresholds stay fixed.
+The conditional claim is research usefulness on the declared freshly frozen
+corpus, not improved provider availability or general-population benefit.
+
+## Execution and evidence
+
+| Required outcome | Evidence that must exist before the next step |
+| --- | --- |
+| Frozen-input runner ready | Separate typed evidence/validator/phase; composed tests; independently reconstructed pool and late-registration bytes; reviewed source merged with exact-head checks |
+| Fresh corpus acquired honestly | Actual once-only collector and acquisition admission, whole-pool/provenance hashes, all provider receipts including denials, all declared slots, independent corpus seal |
+| Development qualifies | Closed independent references and answers, archived/replayed provider responses, mixed and both size-band calculators, actual-elapsed/resource verifier and independent pass decision |
+| Confirmation qualifies | Fresh untouched corpus and independent stage admission; same full gates and verifiers; no candidate tuning or artifact carry |
+| SlopSearX feature complete | Shared optional purpose/facets path across API, MCP and portal; full-order snapshots; context/policy/provider-aware cache and singleflight; complete incumbent fallback; legacy/SearXNG and sensitive-policy parity |
+| GroktoCrawl X integration complete | Context preserved through search, agent/answer sync and SSE, rich/deep follow-ups, hybrid retrieval, workers and replay; isolated fingerprints; no duplicate reranker; legacy request when disabled |
+| Delivered | Published outcomes, user docs and rollout/rollback, resolved review findings, required exact-head CI, merged implementation PRs in both repositories |
+
+The producer and external admission/seal are required deliverables. A consumer
+validator alone is not a working collector or a qualified scientific run.
+
+## Unchanged release bar and bounds
+
+Use the approved release decision and band companion as authoritative recipes:
+for A and B, mean nDCG@10 gain at least .02, strictly positive paired 95% bootstrap
+lower bound (10,000 draws, seed 7701), each case delta at least −.03, and no
+useful-count/facet loss. Preserve complete permutation, all five exact targets
+at rank one, and top-ten stability at least .8. For R1 and R2 separately,
+require at least two additional completed tasks, no lost incumbent completion,
+and no unsupported claims, omitted critical contradictions, target/version
+errors or unearned completion. Missing evidence is inconclusive, not a pass.
+Apply the same registered recipes to both size bands without averaging away
+assessor disagreement.
+
+Preserve `free` for answers and `gpt-6.1-sol` for scientific assessment, serial
+Jev calls, assessor concurrency at most two, 39 planned Jev calls within the
+44-call ceiling, 18 answer calls, at most 112 grader submissions and 130 combined
+logical submissions, original token/byte ceilings, one-second selector phases,
+and the 28,800-second whole-stage deadline through final inventory fsync.
+Fresh collection and capture are inside that deadline; freezing must not
+exclude their elapsed time. Capture remains once per distinct public URL,
+at most 640 scrapes plus one health request. Acquisition retains its declared
+physical-call ceiling. Unknown usage and integrity/security failures stop the
+study. Eight of ten campaign Brave attempts are used; two remain reserved.
+
+## Shipping decision
+
+Both stages passing supports implementation of the entire acceptance checklist,
+not a narrower compatible interface. Failed/inconclusive stages do not qualify
+coverage-first for production and do not automatically authorize another
+candidate. Keep the existing query-only default until reviewed feature delivery.
+No deployment or replacement-readiness claim follows from a documentation or
+harness merge.
+
+## Delivery order and stopping decisions
+
+The current work item is the complete collection-to-verification runner, not
+another standalone helper. Its completion requires one composed deterministic
+test that invokes collection, verifies the frozen inputs, and reaches the
+existing capture, reference, ranking, answer, assessment and finalization
+interfaces. Adversarial tests must reject altered membership, invented provider
+success, expired clocks, mismatched permits and unaccounted HTTP dispatches.
+
+After source review and required checks, publish the method amendment and both
+fresh cohorts with exact source pins. Issue a new acquisition admission and
+execute development once. Record the terminal result and apply the registered
+pass rules without reinterpretation. If development passes, execute the
+separately admitted confirmation stage once. If either stage fails or is
+inconclusive, publish the failed criteria and close this candidate's release
+decision as unqualified; do not silently begin another study or add a new
+candidate to extend this delivery.
+
+Only a complete development and confirmation pass opens product implementation.
+Implement the shared SlopSearX behavior and GroktoCrawl X propagation against the
+existing production acceptance checklist, then run compatibility and composed
+user-path checks, address one substantive review, and merge on the exact tested
+heads. Publish what shipped, how to enable it, and how to return to the incumbent
+behavior. Production readiness is the resulting reviewed feature and verified
+user outcome; an infrastructure PR is not the shipping milestone.

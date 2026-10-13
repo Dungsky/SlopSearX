@@ -8,6 +8,8 @@ import tempfile
 import time
 import unittest
 import uuid
+from dataclasses import replace
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest import mock
 
@@ -76,17 +78,24 @@ def _source_closure_bytes(source_revision: str, *, registered: bool = False) -> 
     )
 
 
-def plan_fixture(*, selector_map_registered: bool = False) -> stage.StagePlan:
+def plan_fixture(*, selector_map_registered: bool = False, pool_input_mode: str | None = None) -> stage.StagePlan:
     stage_id = str(uuid.UUID(int=8001))
     packet_id = str(uuid.UUID(int=8002))
     evidence_dir = Path(__file__).parents[1] / "docs/experiments/evidence/coverage-first-study"
-    protocol_bytes = (evidence_dir / "protocol.json").read_bytes()
-    if selector_map_registered:
+    if pool_input_mode is not None:
+        fresh_material_dir = (
+            Path(__file__).parents[1] / "docs/experiments/evidence/coverage-first-study/frozen-input-method-materials"
+        )
+        protocol_bytes = (fresh_material_dir / "protocol.json").read_bytes()
+        cohorts_bytes = (fresh_material_dir / "cohorts.json").read_bytes()
+    else:
+        protocol_bytes = (evidence_dir / "protocol.json").read_bytes()
+        cohorts_bytes = (evidence_dir / "cohorts.json").read_bytes()
+    if selector_map_registered and pool_input_mode is None:
         protocol_value = json.loads(protocol_bytes)
         protocol_value["selector_input_map_schema"] = "coverage-selector-input-map/2-registered"
         protocol_value["selector_input_map_status"] = "registered"
         protocol_bytes = canonical(protocol_value)
-    cohorts_bytes = (evidence_dir / "cohorts.json").read_bytes()
     cohort_doc = json.loads(cohorts_bytes)
     dev = next(row for row in cohort_doc["stages"] if row["stage"] == "development")
     cases, navigation = dev["research_cases"], dev["navigation_targets"]
@@ -144,6 +153,9 @@ def plan_fixture(*, selector_map_registered: bool = False) -> stage.StagePlan:
         "research_cases": cases,
         "navigation_targets": navigation,
     }
+    if pool_input_mode is not None:
+        acq_manifest["schema"] = acquisition.CONTINUE_ACQUISITION_PROFILE.manifest_schema
+        acq_manifest["execution_profile"] = acquisition.CONTINUE_ACQUISITION_PROFILE.identifier
     acquisition_manifest_bytes = live_acquire._canonical(acq_manifest)
     now = time.monotonic()
     return stage.StagePlan(
@@ -165,6 +177,7 @@ def plan_fixture(*, selector_map_registered: bool = False) -> stage.StagePlan:
         stage_started_monotonic=now - 0.1,
         stage_deadline_monotonic=now + 300,
         expected_acquisition_manifest_sha256=digest(acquisition_manifest_bytes),
+        pool_input_mode=pool_input_mode or "live-acquisition/1",
     )
 
 
@@ -303,7 +316,7 @@ def _write_synthetic_pool_snapshots(plan: stage.StagePlan, root: Path) -> stage.
     )
 
 
-def _late_preflight(plan: stage.StagePlan, evidence: stage.AcquisitionEvidence, pipeline_inputs):
+def _late_preflight(plan: stage.StagePlan, evidence, pipeline_inputs):
     task_rows = []
     for task in pipeline_inputs["tasks"]:
         compiled = core.coverage.compile_request(
@@ -324,11 +337,18 @@ def _late_preflight(plan: stage.StagePlan, evidence: stage.AcquisitionEvidence, 
                 "compiled_request_sha256": digest(compiled.body),
             }
         )
-    operations = {row.operation_id: row for row in evidence.result.operations}
+    if isinstance(evidence, stage.FrozenPoolStageEvidence):
+        operations = {
+            operation_id: artifact["operation"]
+            for operation_id, artifact in evidence.phase_result.verified.operations.items()
+        }
+    else:
+        operations = {row.operation_id: row for row in evidence.result.operations}
     navigation_rows = []
     for target in plan.navigation_targets:
         operation = operations[target["target_id"]]
-        pool = [f"c{index}" for index in range(operation.pool_count)]
+        pool_count = operation["pool_count"] if type(operation) is dict else operation.pool_count
+        pool = [f"c{index}" for index in range(pool_count)]
         navigation_rows.append(
             {
                 "task_id": target["target_id"],
@@ -463,6 +483,13 @@ def _synthetic_capture(plan, pipeline_inputs, root: Path) -> stage.CaptureEviden
 
 
 class StageOrchestrationTests(unittest.TestCase):
+    def test_frozen_pool_mode_must_be_explicitly_bound_by_protocol(self):
+        plan = plan_fixture(pool_input_mode="frozen-pool/1")
+        stage._validate_plan_static(plan)
+        mismatch = stage.StagePlan(**{**plan.__dict__, "pool_input_mode": "live-acquisition/1"})
+        with self.assertRaisesRegex(stage.OrchestrationError, "pool-input-mode-protocol-mismatch"):
+            stage._validate_plan_static(mismatch)
+
     def test_stage_plan_rejects_pre_fix_compact_manifest_bytes(self):
         plan = plan_fixture()
         compact_manifest = canonical(json.loads(plan.acquisition_manifest_bytes))
@@ -734,6 +761,13 @@ class StageOrchestrationTests(unittest.TestCase):
     def test_integrated_synthetic_stage_completes_inconclusive_without_live_authority(self):
         self._run_integrated_synthetic_stage(deadline_cross=False)
 
+    def test_frozen_pool_partial_availability_reaches_same_downstream_chain(self):
+        self._run_integrated_synthetic_stage(
+            deadline_cross=False,
+            frozen_mode=True,
+            selector_map_registered=True,
+        )
+
     def test_acquisition_receipts_replaced_after_phase_seal_stop_collection(self):
         self._run_integrated_synthetic_stage(deadline_cross=False, poison_receipts=True)
 
@@ -751,8 +785,39 @@ class StageOrchestrationTests(unittest.TestCase):
         tamper_closeout: bool = False,
         selector_map_registered: bool = False,
         admission_mode: str = "valid",
+        frozen_mode: bool = False,
     ):
-        plan = plan_fixture(selector_map_registered=selector_map_registered)
+        plan = plan_fixture(
+            selector_map_registered=selector_map_registered,
+            pool_input_mode="frozen-pool/1" if frozen_mode else None,
+        )
+        if frozen_mode:
+            protocol_bytes = plan.protocol_bytes
+            manifest = json.loads(plan.acquisition_manifest_bytes)
+            manifest["schema"] = acquisition.CONTINUE_ACQUISITION_PROFILE.manifest_schema
+            manifest["execution_profile"] = acquisition.CONTINUE_ACQUISITION_PROFILE.identifier
+            manifest["protocol_sha256"] = digest(protocol_bytes)
+            manifest["input_manifest_sha256"] = digest(
+                canonical(
+                    {
+                        "schema": "coverage-preacquisition-input-manifest/1",
+                        "stage_uuid": plan.stage_uuid,
+                        "protocol_sha256": digest(protocol_bytes),
+                        "cohorts_sha256": digest(plan.cohorts_bytes),
+                        "task_ids": [row["task_id"] for row in plan.research_cases]
+                        + [row["target_id"] for row in plan.navigation_targets],
+                    }
+                )
+            )
+            frozen_start_monotonic = time.monotonic()
+            plan = replace(
+                plan,
+                protocol_bytes=protocol_bytes,
+                acquisition_manifest_bytes=live_acquire._canonical(manifest),
+                expected_acquisition_manifest_sha256=digest(live_acquire._canonical(manifest)),
+                stage_started_monotonic=frozen_start_monotonic,
+                stage_deadline_monotonic=frozen_start_monotonic + 28_800.0,
+            )
         with tempfile.TemporaryDirectory() as temporary:
             base = Path(temporary)
             inventory_root = base / "inventory"
@@ -761,6 +826,7 @@ class StageOrchestrationTests(unittest.TestCase):
             snapshot_root = base / "snapshots"
             capture_root = base / "capture"
             calls: list[str] = []
+            fake_now = [plan.stage_started_monotonic + 1]
 
             async def acquire(_plan):
                 calls.append("acquisition")
@@ -888,6 +954,142 @@ class StageOrchestrationTests(unittest.TestCase):
             async def verify_acquisition(_plan, evidence):
                 calls.append("verify_acquisition")
                 return evidence.source_bound_receipt_status == "synthetic-test-only"
+
+            async def collect_frozen_pool(_plan):
+                from scripts import coverage_frozen_pool_collect as frozen_collector
+                from scripts import coverage_frozen_pool_inputs as frozen_inputs
+                from tests.test_coverage_frozen_pool_collect import _handler as collector_handler
+                from tests.test_coverage_frozen_pool_collect import _Lease as FrozenLease
+                from tests.test_coverage_frozen_pool_collect import _Pacer as FrozenPacer
+                from tests.test_coverage_frozen_pool_collect import _PermitVerifier as FrozenPermitVerifier
+
+                calls.append("frozen_collection")
+                pacer = FrozenPacer()
+                pacer.elapsed = plan.stage_started_monotonic
+                nav_by_query = {row["search_query"]: row["target_url"] for row in plan.navigation_targets}
+                research_by_query = {row["search_query"]: row for row in plan.research_cases}
+                throttled_query = plan.research_cases[4]["search_query"]
+                normal_handler = collector_handler([])
+
+                def handler(request):
+                    params = dict(request.url.params)
+                    query = params.get("q", params.get("search", ""))
+                    if request.url.host == "api.github.com" and query in nav_by_query:
+                        target = nav_by_query[query]
+                        name = target.removeprefix("https://github.com/")
+                        items = [
+                            {
+                                "full_name": name,
+                                "html_url": target,
+                                "description": "Synthetic target repository",
+                                "stargazers_count": 100,
+                                "language": "Python",
+                            },
+                            *[
+                                {
+                                    "full_name": f"synthetic/navigation-{index}",
+                                    "html_url": f"https://github.com/synthetic/navigation-{index}",
+                                    "description": "Synthetic navigation distractor",
+                                    "stargazers_count": 10 + index,
+                                    "language": "Python",
+                                }
+                                for index in range(1, 20)
+                            ],
+                        ]
+                        return httpx.Response(200, json={"total_count": len(items), "items": items}, request=request)
+                    if request.url.host == "api.openalex.org" and query == throttled_query:
+                        return httpx.Response(429, content=b"rate limited", request=request)
+                    if (
+                        request.url.host == "api.github.com"
+                        and query in research_by_query
+                        and research_by_query[query]["pool_plan"]["band"] == "research_41_80"
+                    ):
+                        response = normal_handler(request)
+                        payload = response.json()
+                        payload["items"] = payload["items"][:19]
+                        payload["total_count"] = len(payload["items"])
+                        return httpx.Response(200, json=payload, request=request)
+                    return normal_handler(request)
+
+                start_utc = datetime.now(timezone.utc)
+                clock = frozen_collector.FrozenCollectionStageClock(
+                    stage_started_monotonic=plan.stage_started_monotonic,
+                    stage_deadline_monotonic=plan.stage_deadline_monotonic,
+                    stage_started_utc=(start_utc - timedelta(seconds=time.monotonic() - plan.stage_started_monotonic))
+                    .isoformat()
+                    .replace("+00:00", "Z"),
+                    stage_deadline_utc=(
+                        start_utc
+                        - timedelta(seconds=time.monotonic() - plan.stage_started_monotonic)
+                        + timedelta(seconds=28_800)
+                    )
+                    .isoformat()
+                    .replace("+00:00", "Z"),
+                    clock_origin_sha256=digest(b"test-only-clock-origin"),
+                )
+                permit_bytes = b"synthetic frozen collection permit"
+                result = await frozen_collector.collect_frozen_pool_stage(
+                    stage_manifest_bytes=plan.acquisition_manifest_bytes,
+                    acquisition_plan_bytes=plan.acquisition_plan_bytes,
+                    stage_clock=clock,
+                    candidate_identity_sha256=digest(plan.candidate_identity_bytes),
+                    candidate_endpoint_sha256=plan.candidate_endpoint_sha256,
+                    permit_receipt_bytes=permit_bytes,
+                    expected_permit_receipt_sha256=digest(permit_bytes),
+                    permit_verifier=FrozenPermitVerifier(),
+                    one_shot_lease=FrozenLease(),
+                    stage_inventory_directory=inventory_root / plan.stage_uuid,
+                    test_transport=httpx.MockTransport(handler),
+                    pacer=pacer,
+                )
+                root = result.collection_directory
+                collection_summary = json.loads((root / "collection-summary.json").read_bytes())
+                self.assertTrue(
+                    any(row["status"] == "inconclusive" for row in collection_summary["operation_statuses"])
+                )
+                self.assertTrue(all(row["pool_status"] == "complete" for row in collection_summary["pool_eligibility"]))
+                evidence_bytes = (root / "frozen-pool-evidence.json").read_bytes()
+                receipt_bytes = (root / "collector-receipt.json").read_bytes()
+                availability_bytes = (root / "engine-availability.json").read_bytes()
+                evidence = frozen_inputs.FrozenPoolEvidence(
+                    root,
+                    evidence_bytes,
+                    result.evidence_sha256,
+                    receipt_bytes,
+                    result.collector_receipt_sha256,
+                    availability_bytes,
+                    result.availability_sha256,
+                )
+                registration = frozen_inputs.FrozenPoolRegistrationContext(
+                    stage_uuid=plan.stage_uuid,
+                    stage_kind=plan.stage_kind,
+                    source_revision=plan.source_revision,
+                    source_closure_sha256=plan.source_closure_sha256,
+                    protocol_sha256=digest(plan.protocol_bytes),
+                    cohorts_sha256=digest(plan.cohorts_bytes),
+                    candidate_identity_sha256=digest(plan.candidate_identity_bytes),
+                    candidate_endpoint_sha256=plan.candidate_endpoint_sha256,
+                    acquisition_plan_sha256=digest(plan.acquisition_plan_bytes),
+                    task_ids=tuple(row["task_id"] for row in plan.research_cases),
+                    navigation_ids=tuple(row["target_id"] for row in plan.navigation_targets),
+                    evidence_sha256=result.evidence_sha256,
+                    collector_receipt_sha256=result.collector_receipt_sha256,
+                    availability_sha256=result.availability_sha256,
+                )
+                fake_now[0] = pacer.monotonic() + 1
+                return stage.FrozenPoolCollectionEvidence(
+                    evidence=evidence,
+                    registration=registration,
+                    receipt_directory=root,
+                    receipt_inventory_sha256=resource_evidence.receipt_inventory_sha256(root),
+                    collector_status=result.status,
+                )
+
+            async def verify_frozen_pool(_plan, collection):
+                calls.append("verify_frozen_pool")
+                return (
+                    type(collection) is stage.FrozenPoolCollectionEvidence and collection.collector_status == "complete"
+                )
 
             async def prepare_after_acquisition(_plan, evidence, pipeline_inputs):
                 calls.append("late_preflight")
@@ -1201,8 +1403,10 @@ class StageOrchestrationTests(unittest.TestCase):
                 answerer=answerer,
                 grade_answers=grade_answers,
                 verify_selector_admission=verify_admission,
+                collect_frozen_pool=collect_frozen_pool if frozen_mode else None,
+                verify_frozen_pool=verify_frozen_pool if frozen_mode else None,
+                prepare_after_frozen_pool=prepare_after_acquisition if frozen_mode else None,
             )
-            fake_now = [plan.stage_started_monotonic + 1]
             original_write_inventory = stage._write_inventory
 
             def write_inventory(path, value):
@@ -1250,6 +1454,15 @@ class StageOrchestrationTests(unittest.TestCase):
             closeout_document = json.loads(closeout_bytes)
             self.assertEqual(closeout_document["final_inventory_sha256"], result.inventory_sha256)
             self.assertIn("closeout receipt fsync excluded", closeout_document["measurement_basis"])
+            if frozen_mode:
+                self.assertIn("gate_calculation_receipt_file", inventory)
+                self.assertEqual(result.status, "pending-independent-closeout")
+                self.assertEqual(inventory["terminal_reason"], "gate-inconclusive")
+                self.assertEqual([row["status"] for row in inventory["phases"]], ["complete"] * 16)
+                self.assertNotIn("acquisition", calls)
+                self.assertIn("selector", calls)
+                self.assertIn("answerer", calls)
+                self.assertIn("answer_grading", calls)
             if selector_map_registered and admission_mode != "valid":
                 self.assertEqual(result.status, "terminal-incomplete", inventory)
                 self.assertEqual(inventory["phases"][7]["status"], "not-invoked")
@@ -1345,7 +1558,10 @@ class StageOrchestrationTests(unittest.TestCase):
         self.assertEqual([row["status"] for row in inventory["phases"]], ["complete"] * 16)
         self.assertEqual(inventory["per_band_qualification"], "diagnostic-only")
         self.assertEqual(len(calls), 10 if selector_map_registered else 9)
-        self.assertEqual(inventory["gate_metrics"]["navigation"], {f"D-N0{i}": True for i in range(1, 6)})
+        self.assertEqual(
+            inventory["gate_metrics"]["navigation"],
+            {row["target_id"]: True for row in plan.navigation_targets},
+        )
         self.assertIsNone(inventory["gate_metrics"]["resources"].get("pass"))
         self.assertEqual(digest(receipt_bytes), inventory["gate_calculation_receipt_sha256"])
         self.assertEqual(json.loads(receipt_bytes)["status"], "inconclusive")
