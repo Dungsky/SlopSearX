@@ -81,6 +81,7 @@ _PATH_KEYS = {
     "candidate_identity",
     "initial_registration",
 }
+_OPTIONAL_PATH_KEYS = {"band_companion"}
 _PRIVATE_PATH_KEYS = {"candidate_operator_token", "selector_api_key", "answer_api_key"}
 _OPTIONAL_PRIVATE_PATH_KEYS = {"capture_ca_bundle"}
 _DIRECTORY_KEYS = {
@@ -270,7 +271,8 @@ def _load_config(path: str | os.PathLike[str], expected_sha256: str) -> dict[str
     ):
         raise OperatorRunnerError("config-schema-invalid")
     if (
-        set(value["paths"]) != _PATH_KEYS
+        not _PATH_KEYS <= set(value["paths"])
+        or set(value["paths"]) - _PATH_KEYS - _OPTIONAL_PATH_KEYS
         or not _PRIVATE_PATH_KEYS <= set(value["private_paths"])
         or set(value["private_paths"]) - _PRIVATE_PATH_KEYS - _OPTIONAL_PRIVATE_PATH_KEYS
         or set(value["directories"]) != _DIRECTORY_KEYS
@@ -278,15 +280,15 @@ def _load_config(path: str | os.PathLike[str], expected_sha256: str) -> dict[str
         raise OperatorRunnerError("config-path-inventory-invalid")
     if "allow_trusted_private_http" in value and type(value["allow_trusted_private_http"]) is not bool:
         raise OperatorRunnerError("config-private-http-option-invalid")
-    for key in (*_PATH_KEYS, *_PRIVATE_PATH_KEYS, *_OPTIONAL_PRIVATE_PATH_KEYS, *_DIRECTORY_KEYS):
+    for key in (*_PATH_KEYS, *_OPTIONAL_PATH_KEYS, *_PRIVATE_PATH_KEYS, *_OPTIONAL_PRIVATE_PATH_KEYS, *_DIRECTORY_KEYS):
         collection = (
             value["paths"]
-            if key in _PATH_KEYS
+            if key in _PATH_KEYS or key in _OPTIONAL_PATH_KEYS
             else value["private_paths"]
             if key in _PRIVATE_PATH_KEYS or key in _OPTIONAL_PRIVATE_PATH_KEYS
             else value["directories"]
         )
-        if key in _OPTIONAL_PRIVATE_PATH_KEYS and key not in collection:
+        if key in (_OPTIONAL_PRIVATE_PATH_KEYS | _OPTIONAL_PATH_KEYS) and key not in collection:
             continue
         if type(collection[key]) is not str or not collection[key]:
             raise OperatorRunnerError("config-path-invalid")
@@ -654,11 +656,16 @@ class OperatorStageRunner:
             protocol.get("selector_input_map_schema") != "coverage-selector-input-map/2-registered"
             or protocol.get("selector_input_map_status") != "registered"
             or closure.get("source_revision") != self.config["source_revision"]
-            or closure.get("schema") != "coverage-study-qualified-source-closure/1"
+            or closure.get("schema")
+            not in {"coverage-study-qualified-source-closure/1", "coverage-study-qualified-source-closure/2"}
             or type(identity.get("runtime")) is not dict
             or type(identity["runtime"].get("revision")) is not str
         ):
             raise OperatorRunnerError("registered-source-materials-required")
+        companion_path_supplied = "band_companion" in path_bytes
+        companion_closure_enabled = closure.get("schema") == "coverage-study-qualified-source-closure/2"
+        if companion_path_supplied != companion_closure_enabled:
+            raise OperatorRunnerError("source-closure-companion-path-mismatch")
         try:
             protocol, _protocol_sha256 = capture._validate_protocol(path_bytes["protocol"])
         except capture.SourceCaptureError as exc:
@@ -678,6 +685,19 @@ class OperatorStageRunner:
         if protocol.get("cohorts_sha256") != _sha(path_bytes["cohorts"]):
             raise OperatorRunnerError("protocol-cohort-pin-mismatch")
         try:
+            source_pins = None
+            if closure.get("schema") == "coverage-study-qualified-source-closure/2":
+                source_names = {
+                    "coverage_study_core": "scripts/coverage_study_core.py",
+                    "coverage_gate_calculation": "scripts/coverage_gate_calculation.py",
+                    "coverage_stage_orchestration": "scripts/coverage_stage_orchestration.py",
+                    "coverage_stage_finalization": "scripts/coverage_stage_finalization.py",
+                    "coverage_operator_runner": "scripts/coverage_operator_runner.py",
+                    "coverage_band_companion": "scripts/coverage_band_companion.py",
+                    "coverage_late_registration": "scripts/coverage_late_registration.py",
+                }
+                root = Path(__file__).resolve().parents[1]
+                source_pins = {name: _sha((root / relative).read_bytes()) for name, relative in source_names.items()}
             core._verify_qualified_source_closure(
                 path_bytes["qualified_source_closure"],
                 expected_revision=self.config["source_revision"],
@@ -685,10 +705,15 @@ class OperatorStageRunner:
                     "coverage_source": _sha(path_bytes["coverage_source"]),
                     "production_rerank_source": _sha(path_bytes["production_rerank_source"]),
                     "dependency_lock": _sha(path_bytes["dependency_lock"]),
+                    **(
+                        {"band_companion": _sha(path_bytes["band_companion"])} if "band_companion" in path_bytes else {}
+                    ),
                 },
+                expected_source_pins=source_pins,
             )
         except Exception as exc:
             raise OperatorRunnerError("source-closure-preflight-failed") from exc
+        self.band_companion_source_pins = source_pins
         try:
             self.active_environment_receipt_bytes = runtime_environment.verify_active_environment(
                 path_bytes["dependency_lock"],
@@ -709,6 +734,11 @@ class OperatorStageRunner:
                 "protocol_sha256": _sha(path_bytes["protocol"]),
                 "cohorts_sha256": _sha(path_bytes["cohorts"]),
                 "task_ids": [row["task_id"] for row in cases] + [row["target_id"] for row in targets],
+                **(
+                    {"band_companion_sha256": _sha(path_bytes["band_companion"])}
+                    if "band_companion" in path_bytes
+                    else {}
+                ),
             }
         )
         acquisition_manifest_doc = {
@@ -768,6 +798,9 @@ class OperatorStageRunner:
         pins = self.initial_doc.get("pins")
         if type(pins) is not dict or set(pins) != set(core.PIN_NAMES):
             raise OperatorRunnerError("initial-registration-pin-inventory-invalid")
+        companion_sha = _sha(path_bytes["band_companion"]) if "band_companion" in path_bytes else None
+        if self.initial_doc.get("band_companion_sha256") != companion_sha:
+            raise OperatorRunnerError("initial-registration-companion-binding-mismatch")
         try:
             # The initial registration declares the navigation skip decisions;
             # validate their fixed inventory and the corresponding selector
@@ -808,6 +841,9 @@ class OperatorStageRunner:
                 stage_started_monotonic=0.0,
                 stage_deadline_monotonic=0.0,
                 expected_acquisition_manifest_sha256=_sha(acquisition_manifest),
+                band_companion_bytes=path_bytes.get("band_companion"),
+                band_companion_sha256=companion_sha,
+                band_companion_source_pins=self.band_companion_source_pins,
             )
             self.preflight_validation = orchestration._validate_plan_static(self.plan)
             return
@@ -839,6 +875,9 @@ class OperatorStageRunner:
             stage_started_monotonic=self.started_monotonic,
             stage_deadline_monotonic=self.deadline_monotonic,
             expected_acquisition_manifest_sha256=_sha(acquisition_manifest),
+            band_companion_bytes=path_bytes.get("band_companion"),
+            band_companion_sha256=companion_sha,
+            band_companion_source_pins=self.band_companion_source_pins,
         )
         orchestration._validate_plan(self.plan)
 

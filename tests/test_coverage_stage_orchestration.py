@@ -1219,6 +1219,18 @@ class StageOrchestrationTests(unittest.TestCase):
                     stage.coordinate_coverage_stage(plan=plan, executors=executors, inventory_root=inventory_root)
                 )
             inventory = json.loads(result.inventory_path.read_bytes())
+            self.assertNotIn("band_companion_sha256", inventory)
+            self.assertNotIn("initial_registration_sha256", inventory)
+            self.assertNotIn("band_companion_status", inventory)
+            self.assertNotIn("release_qualification_status", inventory)
+            if "gate_metrics" in inventory:
+                self.assertNotIn("band_companion", inventory["gate_metrics"])
+            if "gate_input_manifest_file" in inventory:
+                gate_input = json.loads(
+                    (result.inventory_path.parent / inventory["gate_input_manifest_file"]).read_bytes()
+                )
+                self.assertNotIn("band_companion_sha256", gate_input)
+                self.assertNotIn("initial_registration_sha256", gate_input)
             closeout = resource_evidence.verify_stage_closeout(
                 inventory_path=result.inventory_path,
                 expected_inventory_sha256=result.inventory_sha256,

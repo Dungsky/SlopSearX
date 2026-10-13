@@ -3,10 +3,11 @@ from __future__ import annotations
 import hashlib
 import json
 import unittest
+from pathlib import Path
 
 from scripts import coverage_late_registration as late
 from scripts import coverage_study_core as core
-from tests.test_coverage_study_core import OLD_STAGE, SOURCE_REVISION, TASKS, make_fixture, reseal_fixture
+from tests.test_coverage_study_core import OLD_STAGE, SOURCE_REVISION, TASKS, canonical, make_fixture, reseal_fixture
 
 
 def digest(raw: bytes) -> str:
@@ -14,6 +15,89 @@ def digest(raw: bytes) -> str:
 
 
 class LateRegistrationTests(unittest.TestCase):
+    def test_composed_v2_initial_to_late_preflight_preserves_companion_and_source_pins(self):
+        args, materials, _pins, _legacy_registration = make_fixture()
+        evidence_dir = Path(__file__).parents[1] / "docs/experiments/evidence/coverage-first-study"
+        registered_dir = evidence_dir / "registered-2026-10-12-acquisition-v2"
+        materials["protocol"] = (registered_dir / "protocol.json").read_bytes()
+        companion_bytes = (evidence_dir / "band-companion/development-contract.json").read_bytes()
+        companion_sha = digest(companion_bytes)
+        source_files = {
+            "coverage_study_core": "scripts/coverage_study_core.py",
+            "coverage_gate_calculation": "scripts/coverage_gate_calculation.py",
+            "coverage_stage_orchestration": "scripts/coverage_stage_orchestration.py",
+            "coverage_stage_finalization": "scripts/coverage_stage_finalization.py",
+            "coverage_operator_runner": "scripts/coverage_operator_runner.py",
+            "coverage_band_companion": "scripts/coverage_band_companion.py",
+            "coverage_late_registration": "scripts/coverage_late_registration.py",
+        }
+        root = Path(__file__).parents[1]
+        source_pins = {name: digest((root / path).read_bytes()) for name, path in source_files.items()}
+        materials["qualified_source_closure"] = canonical(
+            {
+                "schema": "coverage-study-qualified-source-closure/2",
+                "source_revision": SOURCE_REVISION,
+                "material_pins": {
+                    "coverage_source": digest(materials["coverage_source"]),
+                    "production_rerank_source": digest(materials["production_rerank_source"]),
+                    "dependency_lock": digest(materials["dependency_lock"]),
+                    "band_companion": companion_sha,
+                },
+                "source_pins": source_pins,
+            }
+        )
+        reseal_fixture(args, materials)
+        initial_doc = json.loads(args["registration_bytes"])
+        initial_doc["band_companion_sha256"] = companion_sha
+        initial = canonical(initial_doc)
+
+        late_materials = dict(materials)
+        late_materials["source_capture_manifest"] = canonical(
+            {
+                "schema": "coverage-source-capture-manifest/1",
+                "stage_uuid": args["expected_stage_uuid"],
+                "sources": [],
+            }
+        )
+        reseal_fixture(args, late_materials)
+        late_doc = json.loads(args["registration_bytes"])
+        late_doc["band_companion_sha256"] = companion_sha
+        late_registration = canonical(late_doc)
+
+        verified = late.verify_late_registration(
+            initial_registration_bytes=initial,
+            expected_initial_registration_sha256=digest(initial),
+            late_registration_bytes=late_registration,
+            expected_late_registration_sha256=digest(late_registration),
+            materials=late_materials,
+            expected_source_revision=SOURCE_REVISION,
+            expected_stage_uuid=args["expected_stage_uuid"],
+            forbidden_stage_uuids=(OLD_STAGE,),
+            task_ids=TASKS,
+            navigation_skip_reasons=args["navigation_skip_reasons"],
+            band_companion_bytes=companion_bytes,
+            expected_band_companion_sha256=companion_sha,
+            expected_source_pins=source_pins,
+        )
+        self.assertIsInstance(verified.prepared, core.PreparedStage)
+        self.assertEqual(verified.source_capture_manifest_bytes, late_materials["source_capture_manifest"])
+        with self.assertRaisesRegex(late.LateRegistrationError, "core-preflight-failed"):
+            late.verify_late_registration(
+                initial_registration_bytes=initial,
+                expected_initial_registration_sha256=digest(initial),
+                late_registration_bytes=late_registration,
+                expected_late_registration_sha256=digest(late_registration),
+                materials=late_materials,
+                expected_source_revision=SOURCE_REVISION,
+                expected_stage_uuid=args["expected_stage_uuid"],
+                forbidden_stage_uuids=(OLD_STAGE,),
+                task_ids=TASKS,
+                navigation_skip_reasons=args["navigation_skip_reasons"],
+                band_companion_bytes=companion_bytes,
+                expected_band_companion_sha256=companion_sha,
+                expected_source_pins={**source_pins, "coverage_study_core": "0" * 64},
+            )
+
     def test_external_late_registration_may_bind_pool_derived_capture_material(self):
         args, materials, _pins, initial = make_fixture()
         changed_capture = json.dumps(

@@ -79,6 +79,11 @@ class StagePlan:
     stage_started_monotonic: float
     stage_deadline_monotonic: float
     expected_acquisition_manifest_sha256: str
+    band_companion_bytes: bytes | None = None
+    band_companion_sha256: str | None = None
+    initial_registration_bytes: bytes | None = None
+    initial_registration_sha256: str | None = None
+    band_companion_source_pins: Mapping[str, str] | None = None
 
 
 @dataclass(frozen=True)
@@ -252,6 +257,8 @@ class GateEvaluation:
     band_diagnostics: Mapping[str, object]
     metrics_sha256: str
     calculation_receipt_sha256: str
+    companion_status: str | None = None
+    companion_sha256: str | None = None
 
 
 @dataclass(frozen=True)
@@ -358,6 +365,47 @@ def _validate_plan_static(plan: StagePlan) -> dict[str, object]:
         raise OrchestrationError("acquisition-manifest-pin-invalid")
     if _sha(plan.acquisition_manifest_bytes) != plan.expected_acquisition_manifest_sha256:
         raise OrchestrationError("acquisition-manifest-pin-mismatch")
+    if (plan.band_companion_bytes is None) != (plan.band_companion_sha256 is None):
+        raise OrchestrationError("band-companion-binding-incomplete")
+    if (plan.band_companion_bytes is None) != (plan.initial_registration_bytes is None):
+        raise OrchestrationError("band-companion-registration-binding-incomplete")
+    if (plan.band_companion_bytes is None) != (plan.band_companion_source_pins is None):
+        raise OrchestrationError("band-companion-source-pins-incomplete")
+    if plan.band_companion_source_pins is not None and (
+        type(plan.band_companion_source_pins) is not dict
+        or not plan.band_companion_source_pins
+        or any(
+            type(name) is not str or type(value) is not str or not _SHA256.fullmatch(value)
+            for name, value in plan.band_companion_source_pins.items()
+        )
+    ):
+        raise OrchestrationError("band-companion-source-pins-invalid")
+    if (plan.initial_registration_bytes is None) != (plan.initial_registration_sha256 is None):
+        raise OrchestrationError("initial-registration-binding-incomplete")
+    if (
+        plan.initial_registration_bytes is not None
+        and _sha(plan.initial_registration_bytes) != plan.initial_registration_sha256
+    ):
+        raise OrchestrationError("initial-registration-pin-mismatch")
+    if plan.band_companion_bytes is not None:
+        if type(plan.band_companion_bytes) is not bytes or not plan.band_companion_bytes:
+            raise OrchestrationError("band-companion-bytes-invalid")
+        if type(plan.band_companion_sha256) is not str or not _SHA256.fullmatch(plan.band_companion_sha256):
+            raise OrchestrationError("band-companion-pin-invalid")
+        if _sha(plan.band_companion_bytes) != plan.band_companion_sha256:
+            raise OrchestrationError("band-companion-pin-mismatch")
+        try:
+            registration = core._parse_registration(plan.initial_registration_bytes)
+        except Exception as exc:
+            raise OrchestrationError("band-companion-registration-invalid") from exc
+        if (
+            registration.get("stage_uuid") != plan.stage_uuid
+            or registration.get("stage_kind") != plan.stage_kind
+            or registration.get("source_revision") != plan.source_revision
+            or registration.get("pins", {}).get("protocol") != protocol_sha
+            or registration.get("band_companion_sha256") != plan.band_companion_sha256
+        ):
+            raise OrchestrationError("band-companion-registration-binding-mismatch")
     if type(plan.source_closure_sha256) is not str or not _SHA256.fullmatch(plan.source_closure_sha256):
         raise OrchestrationError("source-closure-pin-invalid")
     if type(plan.packet_stage_uuid) is not str or str(uuid.UUID(plan.packet_stage_uuid)) != plan.packet_stage_uuid:
@@ -408,6 +456,21 @@ def _validate_plan_static(plan: StagePlan) -> dict[str, object]:
     }
     if any(count != 2 for counts in intent_counts.values() for count in counts.values()):
         raise OrchestrationError("mixed-workload-intent-balance")
+    if plan.band_companion_bytes is not None:
+        try:
+            companion_doc = _strict_json(plan.band_companion_bytes, "band-companion")
+            from scripts.coverage_band_companion import validate_contract
+
+            validate_contract(
+                companion_doc,
+                stage_kind=plan.stage_kind,
+                protocol_sha256=protocol_sha,
+                cohorts_sha256=cohorts_sha,
+            )
+            if _canonical(companion_doc) != plan.band_companion_bytes:
+                raise ValueError("noncanonical-companion")
+        except Exception as exc:
+            raise OrchestrationError("band-companion-contract-invalid") from exc
     acquisition_manifest = _strict_json(plan.acquisition_manifest_bytes, "acquisition-manifest")
     if type(acquisition_manifest) is not dict:
         raise OrchestrationError("acquisition-manifest-shape")
@@ -450,9 +513,12 @@ def _validate_plan_static(plan: StagePlan) -> dict[str, object]:
         "cohorts_sha256": cohorts_sha,
         "task_ids": research_ids + navigation_ids,
     }
+    if plan.band_companion_sha256 is not None:
+        preacquisition_input["band_companion_sha256"] = plan.band_companion_sha256
+        preacquisition_input["initial_registration_sha256"] = plan.initial_registration_sha256
     if acquisition_manifest.get("input_manifest_sha256") != _sha(_canonical(preacquisition_input)):
         raise OrchestrationError("preacquisition-input-manifest-binding-mismatch")
-    return {
+    identity = {
         "protocol_sha256": protocol_sha,
         "cohorts_sha256": cohorts_sha,
         "task_ids": research_ids + navigation_ids,
@@ -466,6 +532,10 @@ def _validate_plan_static(plan: StagePlan) -> dict[str, object]:
         "intent_counts_by_band": intent_counts,
         "scope": "mixed-workload-only",
     }
+    if plan.band_companion_sha256 is not None:
+        identity["band_companion_sha256"] = plan.band_companion_sha256
+        identity["initial_registration_sha256"] = plan.initial_registration_sha256
+    return identity
 
 
 def _validate_plan(plan: StagePlan) -> dict[str, object]:
@@ -1042,6 +1112,14 @@ async def coordinate_coverage_stage(
                     "acquisition_plan_sha256": identity["acquisition_plan_sha256"],
                     "task_ids": identity["task_ids"],
                     "source_closure_sha256": identity["source_closure_sha256"],
+                    **(
+                        {
+                            "band_companion_sha256": identity["band_companion_sha256"],
+                            "initial_registration_sha256": identity["initial_registration_sha256"],
+                        }
+                        if plan.band_companion_sha256 is not None
+                        else {}
+                    ),
                 }
             )
         ),
@@ -1065,6 +1143,9 @@ async def coordinate_coverage_stage(
         "gate_result_authoritative": False,
         "phases": phase_rows,
     }
+    if plan.band_companion_sha256 is not None:
+        inventory["band_companion_sha256"] = identity["band_companion_sha256"]
+        inventory["initial_registration_sha256"] = identity["initial_registration_sha256"]
     inventory_path = stage_dir / "inventory.json"
     _write_new(inventory_path, _canonical(inventory))
     artifacts: dict[str, object] = {}
@@ -1547,6 +1628,9 @@ async def coordinate_coverage_stage(
             "resource_evidence_receipt_sha256": artifacts["resource_evidence_receipt_sha256"],
             "pending_time_receipt_sha256": pending_time_sha,
         }
+        if plan.band_companion_sha256 is not None:
+            gate_inputs["band_companion_sha256"] = identity["band_companion_sha256"]
+            gate_inputs["initial_registration_sha256"] = identity["initial_registration_sha256"]
         gate_input_bytes = _canonical(gate_inputs)
         gate_input_sha = _sha(gate_input_bytes)
         inventory["gate_input_manifest_sha256"] = gate_input_sha
@@ -1574,6 +1658,10 @@ async def coordinate_coverage_stage(
                 navigation_observations=navigation_observations,
                 resource_evidence=resource_evidence,
                 input_manifest_sha256=gate_input_sha,
+                band_companion_bytes=plan.band_companion_bytes,
+                stage_kind=plan.stage_kind,
+                cohorts_sha256=identity["cohorts_sha256"],
+                protocol_sha256=identity["protocol_sha256"],
             )
             receipt_path = stage_dir / "gate-calculation-receipt.json"
             _write_new(receipt_path, report.receipt_bytes)
@@ -1592,8 +1680,20 @@ async def coordinate_coverage_stage(
             ),
         )
         inventory["status"] = "pending-independent-closeout"
-        inventory["terminal_reason"] = None if gates.status == "pass" else f"gate-{gates.status}"
         inventory["gate_status"] = gates.status
+        if gates.companion_status is None:
+            inventory["terminal_reason"] = None if gates.status == "pass" else f"gate-{gates.status}"
+        else:
+            inventory["band_companion_status"] = gates.companion_status
+            inventory["release_qualification_status"] = (
+                "inconclusive"
+                if gates.status == "inconclusive" or gates.companion_status == "inconclusive"
+                else "fail"
+                if gates.status == "fail" or gates.companion_status == "fail"
+                else "pass"
+            )
+            qualification_status = inventory["release_qualification_status"]
+            inventory["terminal_reason"] = None if qualification_status == "pass" else f"gate-{qualification_status}"
         inventory["gate_result_authoritative"] = False
         inventory["gate_scope"] = gates.scope
         inventory["band_diagnostics_sha256"] = _sha(_canonical(gates.band_diagnostics))

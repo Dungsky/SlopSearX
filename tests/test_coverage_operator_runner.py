@@ -251,6 +251,45 @@ class OperatorRunnerConfigTests(unittest.TestCase):
             configured_directories = json.loads(config.read_bytes())["directories"].values()
             self.assertTrue(all(not Path(path).exists() for path in configured_directories))
 
+    def test_source_closure_companion_registration_cannot_be_omitted_or_invented(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            config_path, _pin, _directories = self._registered_config(root)
+            config = json.loads(config_path.read_bytes())
+            closure_path = Path(config["paths"]["qualified_source_closure"])
+            closure = json.loads(closure_path.read_bytes())
+            closure["schema"] = "coverage-study-qualified-source-closure/2"
+            closure["source_pins"] = {}
+            closure_path.write_bytes(canonical(closure))
+            raw_config = canonical(config)
+            config_path.write_bytes(raw_config)
+            config_path.chmod(0o600)
+
+            with (
+                mock.patch.object(runner, "_verify_checkout_sources"),
+                mock.patch.object(runner, "_require_source_bootstrap"),
+            ):
+                with self.assertRaisesRegex(runner.OperatorRunnerError, "source-closure-companion-path-mismatch"):
+                    runner.OperatorStageRunner.preflight_from_file(config_path, digest(raw_config))
+
+            config = json.loads(config_path.read_bytes())
+            closure = json.loads(closure_path.read_bytes())
+            closure["schema"] = "coverage-study-qualified-source-closure/1"
+            closure.pop("source_pins")
+            closure_path.write_bytes(canonical(closure))
+            companion_path = root / "band-companion.json"
+            companion_path.write_bytes(b"{}")
+            config["paths"]["band_companion"] = str(companion_path)
+            raw_config = canonical(config)
+            config_path.write_bytes(raw_config)
+            config_path.chmod(0o600)
+            with (
+                mock.patch.object(runner, "_verify_checkout_sources"),
+                mock.patch.object(runner, "_require_source_bootstrap"),
+            ):
+                with self.assertRaisesRegex(runner.OperatorRunnerError, "source-closure-companion-path-mismatch"):
+                    runner.OperatorStageRunner.preflight_from_file(config_path, digest(raw_config))
+
     def test_registered_config_creates_all_private_roots_before_clock(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

@@ -127,6 +127,7 @@ def verify_stage_finalization(
     cohorts_bytes: bytes,
     expected_protocol_sha256: str,
     expected_cohorts_sha256: str,
+    expected_band_companion_sha256: str | None = None,
 ) -> FinalizationResult:
     """Join all v2 pins and return eligibility only after actual end-time proof.
 
@@ -148,6 +149,8 @@ def verify_stage_finalization(
         )
     ):
         raise StageFinalizationError("finalization-pin-invalid")
+    if expected_band_companion_sha256 is not None and not _SHA.fullmatch(expected_band_companion_sha256):
+        raise StageFinalizationError("finalization-companion-pin-invalid")
     if _sha(protocol_bytes) != expected_protocol_sha256 or _sha(cohorts_bytes) != expected_cohorts_sha256:
         raise StageFinalizationError("finalization-source-pin-mismatch")
     try:
@@ -281,6 +284,65 @@ def verify_stage_finalization(
         raise StageFinalizationError("finalization-gates-invalid")
     if gate.get("status") != expected_gate_status:
         raise StageFinalizationError("finalization-gate-status-mismatch")
+    companion_sha = gate.get("band_companion_sha256")
+    companion_status = gate.get("band_companion_status")
+    companion_gates = gate.get("band_companion_gates")
+    if expected_band_companion_sha256 is None:
+        if (
+            any(key in gate for key in ("band_companion_sha256", "band_companion_status", "band_companion_gates"))
+            or companion_status is not None
+            or companion_gates is not None
+            or any(
+                key in inventory
+                for key in ("band_companion_sha256", "band_companion_status", "release_qualification_status")
+            )
+            or "band_companion_sha256" in gate_input
+        ):
+            raise StageFinalizationError("finalization-companion-registration-required")
+    else:
+        expected_companion_gates = {
+            f"band_{band}_{assessor}_{kind}"
+            for band in ("research_le_40", "research_41_80")
+            for assessor in ("A", "B")
+            for kind in ("ranking",)
+        } | {
+            f"band_{band}_{assessor}_task_use"
+            for band in ("research_le_40", "research_41_80")
+            for assessor in ("R1", "R2")
+        }
+        if (
+            companion_sha != expected_band_companion_sha256
+            or inventory.get("band_companion_sha256") != expected_band_companion_sha256
+            or gate_input.get("band_companion_sha256") != expected_band_companion_sha256
+            or companion_status not in {"pass", "fail", "inconclusive"}
+            or inventory.get("band_companion_status") != companion_status
+            or type(companion_gates) is not dict
+            or set(companion_gates) != expected_companion_gates
+            or any(type(value) is not bool and value is not None for value in companion_gates.values())
+        ):
+            raise StageFinalizationError("finalization-companion-binding-mismatch")
+        expected_companion_status = (
+            "inconclusive"
+            if any(value is None for value in companion_gates.values())
+            else "fail"
+            if any(value is False for value in companion_gates.values())
+            else "pass"
+        )
+        if companion_status != expected_companion_status:
+            raise StageFinalizationError("finalization-companion-status-mismatch")
+    qualification_status = expected_gate_status
+    if expected_band_companion_sha256 is not None:
+        if "release_qualification_status" not in inventory:
+            raise StageFinalizationError("finalization-combined-qualification-missing")
+        qualification_status = (
+            "inconclusive"
+            if expected_gate_status == "inconclusive" or companion_status == "inconclusive"
+            else "fail"
+            if expected_gate_status == "fail" or companion_status == "fail"
+            else "pass"
+        )
+    if inventory.get("release_qualification_status", expected_gate_status) != qualification_status:
+        raise StageFinalizationError("finalization-combined-qualification-mismatch")
     metrics = inventory.get("gate_metrics")
     if (
         type(metrics) is not dict
@@ -294,6 +356,32 @@ def verify_stage_finalization(
         or gate.get("admission_created") is not False
     ):
         raise StageFinalizationError("finalization-gate-metrics-binding-mismatch")
+    metrics_companion = metrics.get("band_companion")
+    if expected_band_companion_sha256 is None:
+        if "band_companion" in metrics:
+            raise StageFinalizationError("finalization-companion-registration-required")
+    else:
+        if (
+            type(metrics_companion) is not dict
+            or metrics_companion.get("status") != companion_status
+            or metrics_companion.get("gates") != companion_gates
+            or type(metrics_companion.get("groups")) is not dict
+            or set(metrics_companion["groups"]) != {"research_le_40", "research_41_80"}
+        ):
+            raise StageFinalizationError("finalization-companion-metrics-mismatch")
+        for band, group in metrics_companion["groups"].items():
+            values = [companion_gates[f"band_{band}_{assessor}_ranking"] for assessor in ("A", "B")] + [
+                companion_gates[f"band_{band}_{assessor}_task_use"] for assessor in ("R1", "R2")
+            ]
+            group_status = (
+                "inconclusive"
+                if any(value is None for value in values)
+                else "fail"
+                if any(value is False for value in values)
+                else "pass"
+            )
+            if type(group) is not dict or group.get("status") != group_status:
+                raise StageFinalizationError("finalization-companion-group-status-mismatch")
     input_resources = gate_input.get("resource_evidence")
     if (
         gate_input.get("stage_uuid") != expected_stage_uuid
@@ -379,13 +467,13 @@ def verify_stage_finalization(
         or inventory.get("gate_result_authoritative") is not False
     ):
         raise StageFinalizationError("finalization-inventory-not-pending")
-    expected_reason = None if expected_gate_status == "pass" else f"gate-{expected_gate_status}"
+    expected_reason = None if qualification_status == "pass" else f"gate-{qualification_status}"
     if inventory.get("terminal_reason") != expected_reason:
         raise StageFinalizationError("finalization-terminal-reason-mismatch")
-    if gate.get("status") == "pass" and all(value is True for value in gates.values()):
+    if qualification_status == "pass" and all(value is True for value in gates.values()):
         status = "gates-pass-awaiting-independent-decision"
         eligible = True
-    elif gate.get("status") == "fail" and any(value is False for value in gates.values()):
+    elif qualification_status == "fail":
         status = "gates-failed"
         eligible = False
     else:
@@ -410,6 +498,15 @@ def verify_stage_finalization(
         "product_authorized": False,
         "admission_created": False,
     }
+    if expected_band_companion_sha256 is not None:
+        receipt.update(
+            {
+                "band_companion_sha256": expected_band_companion_sha256,
+                "band_companion_status": companion_status,
+                "band_companion_gates": companion_gates,
+                "release_qualification_status": qualification_status,
+            }
+        )
     receipt_bytes = json.dumps(receipt, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
     return FinalizationResult(
         status=status,
