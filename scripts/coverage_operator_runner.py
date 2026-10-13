@@ -181,6 +181,48 @@ def _canonical(value: object) -> bytes:
     return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8")
 
 
+def _artifact_json(value: object) -> object:
+    """Convert checked JSON-like selector control data without string fallbacks."""
+    if type(value) is dict:
+        if any(type(key) is not str for key in value):
+            raise OperatorRunnerError("phase-artifact-json-key-invalid")
+        return {key: _artifact_json(child) for key, child in value.items()}
+    if type(value) in {list, tuple}:
+        return [_artifact_json(child) for child in value]
+    if type(value) is set:
+        return sorted(_artifact_json(child) for child in value)
+    if value is None or type(value) in {str, int, float, bool}:
+        return value
+    raise OperatorRunnerError("phase-artifact-json-value-invalid")
+
+
+def _answer_task_artifact_bytes(stage_uuid: str, tasks: tuple[object, ...]) -> bytes:
+    rows = []
+    for task in tasks:
+        rows.append(
+            {
+                "task_id": task.task_id,
+                "kind": task.kind,
+                "query": task.query,
+                "purpose": task.purpose,
+                "critical_checks": _artifact_json(task.critical_checks),
+                "answers": [
+                    {
+                        "arm": item.arm,
+                        "body_base64": base64.b64encode(item.body).decode("ascii"),
+                        "body_sha256": item.body_sha256,
+                        "delivered_source_ids": list(item.delivered_source_ids),
+                        "delivered_evidence_ids": list(item.delivered_evidence_ids),
+                    }
+                    for item in task.answers
+                ],
+                "catalog_base64": base64.b64encode(task.catalog_bytes).decode("ascii"),
+                "catalog_sha256": task.catalog_sha256,
+            }
+        )
+    return _canonical({"schema": "coverage-answer-task-material/1", "stage_uuid": stage_uuid, "tasks": rows})
+
+
 def _source_bootstrap_ready() -> bool:
     marker = getattr(sys, "_coverage_operator_source_bootstrap", None)
     prefix = getattr(sys, "pycache_prefix", None)
@@ -365,6 +407,18 @@ def _verify_checkout_sources(
         try:
             configured_path = Path(paths[name]).resolve(strict=True)
             actual_path = expected_path.resolve(strict=True)
+            if name == "production_rerank_source":
+                protocol_raw = material_bytes.get("protocol")
+                protocol = core._strict_json(protocol_raw, "checkout-protocol") if type(protocol_raw) is bytes else None
+                frozen_v1_path = (
+                    _REPOSITORY_ROOT / "docs/experiments/evidence/coverage-first-study/w0-rerank-v1.py.txt"
+                ).resolve(strict=True)
+                if (
+                    type(protocol) is dict
+                    and protocol.get("pool_input_mode") == "frozen-pool/1"
+                    and configured_path == frozen_v1_path
+                ):
+                    actual_path = frozen_v1_path
             actual_bytes = actual_path.read_bytes()
         except OSError as exc:
             raise OperatorRunnerError("checkout-source-path-unavailable") from exc
@@ -625,6 +679,11 @@ class OperatorStageRunner:
         self.private_paths = config["private_paths"]
         self.directories = config["directories"]
         self.preflight_only = preflight_only
+        self._frozen_stage_clock_bytes: bytes | None = None
+        self._active_registration_bytes: bytes | None = None
+        self._active_input_manifest_bytes: bytes | None = None
+        self._pipeline_inputs: dict[str, object] | None = None
+        self._frozen_pool_reference_bytes: bytes | None = None
         self._build_plan(preflight_only=preflight_only)
         if not preflight_only:
             self.handoff = operator_handoff.OperatorReceiptHandoff(self.directories["operator_handoff"])
@@ -704,6 +763,7 @@ class OperatorStageRunner:
                     "coverage_stage_orchestration": "scripts/coverage_stage_orchestration.py",
                     "coverage_stage_finalization": "scripts/coverage_stage_finalization.py",
                     "coverage_operator_runner": "scripts/coverage_operator_runner.py",
+                    "coverage_operator_handoff": "scripts/coverage_operator_handoff.py",
                     "coverage_stage_runtime": "scripts/coverage_stage_runtime.py",
                     "coverage_local_authority": "scripts/coverage_local_authority.py",
                     "coverage_frozen_pool_inputs": "scripts/coverage_frozen_pool_inputs.py",
@@ -910,21 +970,64 @@ class OperatorStageRunner:
         )
         orchestration._validate_plan(self.plan)
 
-    async def _request(self, scope: str, request_id: str, bindings: dict[str, object]) -> tuple[bytes, str]:
-        if "active_python_environment" in bindings or "active_python_environment_sha256" in bindings:
-            raise OperatorRunnerError("active-environment-binding-collision")
-        bindings = {
-            **bindings,
-            "active_python_environment": json.loads(self.active_environment_receipt_bytes),
-            "active_python_environment_sha256": _sha(self.active_environment_receipt_bytes),
-        }
+    async def _request(
+        self, scope: str, request_id: str, bindings: dict[str, object], *, artifacts: dict[str, bytes] | None = None
+    ) -> tuple[bytes, str]:
+        request_bindings, request_artifacts = self._phase_request_context(artifacts)
+        for key, value in request_bindings.items():
+            if key in bindings and bindings[key] != value:
+                raise OperatorRunnerError("phase-request-context-binding-collision")
+        bindings = {**bindings, **request_bindings}
         return await self.handoff.request_async(
             stage_uuid=self.plan.stage_uuid,
             scope=scope,
             request_id=request_id,
             bindings=bindings,
             deadline_monotonic=self.plan.stage_deadline_monotonic,
+            artifacts=request_artifacts,
         )
+
+    def _phase_request_context(self, artifacts: dict[str, bytes] | None = None):
+        """Return the common immutable registration context used by every authority handoff."""
+        bindings = {
+            "source_closure_sha256": self.plan.source_closure_sha256,
+            "active_python_environment": json.loads(self.active_environment_receipt_bytes),
+            "active_python_environment_sha256": _sha(self.active_environment_receipt_bytes),
+        }
+        if artifacts is not None:
+            artifacts = dict(artifacts)
+            fixed_materials = {
+                "protocol": self.plan.protocol_bytes,
+                "cohorts": self.plan.cohorts_bytes,
+                "acquisition-plan": self.plan.acquisition_plan_bytes,
+                "candidate-identity": self.plan.candidate_identity_bytes,
+                "source-closure": self.static_materials["qualified_source_closure"],
+                "initial-registration": self.initial_registration,
+                "active-registration": self._active_registration_bytes or self.initial_registration,
+            }
+            for name, raw in fixed_materials.items():
+                existing = artifacts.setdefault(name, raw)
+                if existing != raw:
+                    raise OperatorRunnerError("phase-artifact-static-material-collision")
+            for name, raw in self.static_materials.items():
+                artifact_name = f"static-{name.replace('_', '-')}"
+                existing = artifacts.setdefault(artifact_name, raw)
+                if existing != raw:
+                    raise OperatorRunnerError("phase-artifact-static-material-collision")
+            optional_materials = {
+                "task-input-manifest": self._active_input_manifest_bytes,
+                "frozen-pool-reference": self._frozen_pool_reference_bytes,
+                "acquisition-manifest": self.plan.acquisition_manifest_bytes,
+                "stage-clock": self._frozen_stage_clock_bytes,
+            }
+            if self._pipeline_inputs is not None:
+                optional_materials["capture-manifest"] = self._pipeline_inputs.get("capture_manifest_bytes")
+            for name, raw in optional_materials.items():
+                if type(raw) is bytes:
+                    existing = artifacts.setdefault(name, raw)
+                    if existing != raw:
+                        raise OperatorRunnerError("phase-artifact-dynamic-material-collision")
+        return bindings, artifacts
 
     async def _acquisition_authority(self, plan):
         manifest = core._strict_json(plan.acquisition_manifest_bytes, "acquisition-manifest")
@@ -970,7 +1073,9 @@ class OperatorStageRunner:
             clock_origin_sha256=origin_sha,
         )
         clock_doc = coverage_frozen_pool_collect._validate_clock(stage_clock, test_mode=False, test_pacer=None)
-        stage_clock_sha256 = _sha(coverage_frozen_pool_collect._canonical(clock_doc))
+        clock_bytes = coverage_frozen_pool_collect._canonical(clock_doc)
+        stage_clock_sha256 = _sha(clock_bytes)
+        self._frozen_stage_clock_bytes = clock_bytes
         manifest = core._strict_json(plan.acquisition_manifest_bytes, "frozen-pool-acquisition-manifest")
         if type(manifest) is not dict or coverage_live_acquire._canonical(manifest) != plan.acquisition_manifest_bytes:
             raise OperatorRunnerError("frozen-pool-acquisition-manifest-invalid")
@@ -990,7 +1095,12 @@ class OperatorStageRunner:
             "candidate_identity_sha256": candidate_identity_sha256,
             "candidate_endpoint_sha256": plan.candidate_endpoint_sha256,
         }
-        receipt, pin = await self._request("frozen-pool-collection", "permit", bindings)
+        receipt, pin = await self._request(
+            "frozen-pool-collection",
+            "permit",
+            bindings,
+            artifacts={"stage-clock": coverage_frozen_pool_collect._canonical(clock_doc)},
+        )
         return {
             "stage_clock": stage_clock,
             "candidate_identity_sha256": candidate_identity_sha256,
@@ -1035,7 +1145,12 @@ class OperatorStageRunner:
             capture_module_sha256=hashlib.sha256(Path(capture.__file__).read_bytes()).hexdigest(),
             ca_bundle_sha256=ca_bundle_sha256,
         )
-        qual_receipt, qual_pin = await self._request("protected-source-capture", "permit", asdict(qual_bindings))
+        qual_receipt, qual_pin = await self._request(
+            "protected-source-capture",
+            "permit",
+            asdict(qual_bindings),
+            artifacts={"capture-manifest": manifest_bytes},
+        )
         capture_bindings = {
             "stage_uuid": manifest["stage_uuid"],
             "manifest_sha256": _sha(manifest_bytes),
@@ -1053,7 +1168,12 @@ class OperatorStageRunner:
             "source_context_characters": capture.MAX_SOURCE_CHARS,
             "ca_bundle_sha256": ca_bundle_sha256,
         }
-        permit, permit_pin = await self._request("source-capture", "permit", capture_bindings)
+        permit, permit_pin = await self._request(
+            "source-capture",
+            "permit",
+            capture_bindings,
+            artifacts={"capture-manifest": manifest_bytes},
+        )
         return {
             "candidate_base_url": endpoint,
             "operator_token": _secret(self.private_paths["candidate_operator_token"]),
@@ -1070,7 +1190,9 @@ class OperatorStageRunner:
         }
 
     async def _prepare_late(self, plan, acquisition_evidence, pipeline_inputs):
-        return await request_late_registration(
+        self._pipeline_inputs = dict(pipeline_inputs)
+        phase_bindings, phase_artifacts = self._phase_request_context({})
+        evidence = await request_late_registration(
             exchange=self.handoff,
             plan=plan,
             acquisition_evidence=acquisition_evidence,
@@ -1082,12 +1204,36 @@ class OperatorStageRunner:
             task_ids=tuple(row["task_id"] for row in plan.research_cases)
             + tuple(row["target_id"] for row in plan.navigation_targets),
             navigation_skip_reasons=tuple(row.get("skip_reason") for row in plan.navigation_targets),
+            stage_clock_bytes=self._frozen_stage_clock_bytes,
+            phase_bindings=phase_bindings,
+            phase_artifacts=phase_artifacts,
         )
+        self._pin_active_registration(evidence)
+        return evidence
 
     async def _prepare_after_frozen_pool(self, plan, frozen_evidence, pipeline_inputs):
         if type(frozen_evidence) is not orchestration.FrozenPoolStageEvidence:
             raise OperatorRunnerError("frozen-pool-late-preflight-context-invalid")
-        return await request_late_registration(
+        self._pipeline_inputs = dict(pipeline_inputs)
+        self._frozen_pool_reference_bytes = _canonical(
+            {
+                "schema": "coverage-frozen-pool-reference/1",
+                "stage_uuid": plan.stage_uuid,
+                "source_revision": plan.source_revision,
+                "source_closure_sha256": plan.source_closure_sha256,
+                "protocol_sha256": _sha(plan.protocol_bytes),
+                "cohorts_sha256": _sha(plan.cohorts_bytes),
+                "pool_manifest_sha256": frozen_evidence.phase_result.verified.pool_manifest_sha256,
+                "snapshot_index_sha256": frozen_evidence.phase_result.verified.snapshot_index_sha256,
+                "evidence_sha256": frozen_evidence.phase_result.verified.evidence_sha256,
+                "availability_sha256": frozen_evidence.phase_result.verified.availability_sha256,
+                "collector_receipt_sha256": frozen_evidence.phase_result.verified.collector_receipt_sha256,
+                "proof_sha256": frozen_evidence.phase_result.verified.proof_sha256,
+                "relative_inventory": "collection",
+            }
+        )
+        phase_bindings, phase_artifacts = self._phase_request_context({})
+        evidence = await request_late_registration(
             exchange=self.handoff,
             plan=plan,
             acquisition_evidence=None,
@@ -1100,7 +1246,26 @@ class OperatorStageRunner:
             task_ids=tuple(row["task_id"] for row in plan.research_cases)
             + tuple(row["target_id"] for row in plan.navigation_targets),
             navigation_skip_reasons=tuple(row.get("skip_reason") for row in plan.navigation_targets),
+            stage_clock_bytes=self._frozen_stage_clock_bytes,
+            phase_bindings=phase_bindings,
+            phase_artifacts=phase_artifacts,
         )
+        self._pin_active_registration(evidence)
+        return evidence
+
+    def _pin_active_registration(self, evidence) -> None:
+        registration_path = (
+            Path(self.directories["operator_handoff"])
+            / evidence.prepared.stage_uuid
+            / "late-registration"
+            / "responses"
+            / "registration-1.receipt"
+        )
+        raw = _read_file(registration_path, 64_000_000, private=True)
+        if _sha(raw) != evidence.preflight_receipt_sha256 or evidence.prepared.registration_sha256 != _sha(raw):
+            raise OperatorRunnerError("late-registration-artifact-pin-mismatch")
+        self._active_registration_bytes = raw
+        self._active_input_manifest_bytes = evidence.input_manifest_bytes
 
     async def _verify_late(self, plan, evidence):
         return (
@@ -1118,7 +1283,9 @@ class OperatorStageRunner:
             "source_closure_sha256": plan.source_closure_sha256,
             "selector_input_map_sha256": map_sha,
         }
-        receipt, pin = await self._request("selector-map-admission", "map", bindings)
+        receipt, pin = await self._request(
+            "selector-map-admission", "map", bindings, artifacts={"selector-map": map_bytes}
+        )
         return selector_admission.verify_selector_map_admission(
             receipt_bytes=receipt,
             expected_receipt_sha256=pin,
@@ -1138,7 +1305,52 @@ class OperatorStageRunner:
             "selector_input_map_sha256": map_sha,
             "operations": entries,
         }
-        raw, pin = await self._request("selector-operation-permits", "batch", bindings)
+        artifacts = {"selector-map": map_bytes}
+        operation_artifact_rows = []
+        legacy_rows = []
+        for operation_id, material in operation_materials.items():
+            operation_bytes = material.get("operation_input_bytes")
+            if type(operation_bytes) is not bytes:
+                raise OperatorRunnerError("selector-operation-artifact-invalid")
+            suffix = hashlib.sha256(operation_id.encode()).hexdigest()[:16]
+            input_name = f"input-{suffix}"
+            artifacts[input_name] = operation_bytes
+            operation_artifact_rows.append({"operation_id": operation_id, "input_artifact": input_name})
+            legacy = material.get("legacy_control")
+            if legacy is not None:
+                if type(legacy) is not dict or set(legacy) != {
+                    "service",
+                    "query",
+                    "canonical_pool",
+                    "frozen_v1_source_bytes",
+                    "current_service_source_bytes",
+                }:
+                    raise OperatorRunnerError("selector-legacy-artifact-invalid")
+                for key, name in (
+                    ("frozen_v1_source_bytes", "frozen-v1-source"),
+                    ("current_service_source_bytes", "current-service-source"),
+                ):
+                    source_bytes = legacy[key]
+                    if type(source_bytes) is not bytes:
+                        raise OperatorRunnerError("selector-legacy-source-artifact-invalid")
+                    existing = artifacts.setdefault(name, source_bytes)
+                    if existing != source_bytes:
+                        raise OperatorRunnerError("selector-legacy-source-artifact-mismatch")
+                legacy_rows.append(
+                    {
+                        "operation_id": operation_id,
+                        "query": legacy["query"],
+                        "pool_reference": "frozen-pool-index",
+                    }
+                )
+        artifacts["selector-artifact-index"] = _canonical(
+            {
+                "schema": "coverage-selector-artifact-index/1",
+                "operations": operation_artifact_rows,
+                "legacy_controls": legacy_rows,
+            }
+        )
+        raw, pin = await self._request("selector-operation-permits", "batch", bindings, artifacts=artifacts)
         if _sha(raw) != pin:
             raise OperatorRunnerError("selector-permit-batch-pin-mismatch")
         batch = core._strict_json(raw, "selector-permit-batch")
@@ -1170,6 +1382,14 @@ class OperatorStageRunner:
         return permits
 
     def _selector_evidence(self, plan, prepared, pipeline_inputs, reference_closure, results, terminal):
+        operation_materials = pipeline_inputs.get("selector_operation_materials")
+        task_input_manifest_bytes = pipeline_inputs.get("task_input_manifest_bytes")
+        if type(operation_materials) is not dict or type(task_input_manifest_bytes) is not bytes:
+            raise OperatorRunnerError("selector-evidence-source-context-missing")
+        input_manifest = core._strict_json(task_input_manifest_bytes, "selector-evidence-input-manifest")
+        navigation_tasks = input_manifest.get("navigation_tasks") if type(input_manifest) is dict else None
+        if type(navigation_tasks) is not list:
+            raise OperatorRunnerError("selector-evidence-navigation-context-missing")
         by_id = {row.operation_id: row for row in results}
         orders = {}
         stability = {}
@@ -1186,7 +1406,28 @@ class OperatorStageRunner:
                 )
                 if found is None:
                     raise OperatorRunnerError("selector-order-missing")
-                return tuple(found)
+                order = tuple(found)
+                if not is_candidate:
+                    # The registered original V1 control ranks only the first
+                    # forty candidates. Its untouched native tail remains in
+                    # the exact order present in the sealed task inventory.
+                    material = operation_materials.get(operation_id)
+                    legacy_control = material.get("legacy_control") if type(material) is dict else None
+                    canonical_pool = legacy_control.get("canonical_pool") if type(legacy_control) is dict else None
+                    if type(canonical_pool) not in {list, tuple}:
+                        raise OperatorRunnerError("selector-w0-canonical-pool-missing")
+                    expected_prefix = tuple(f"c{index}" for index in range(len(canonical_pool)))
+                    if (
+                        len(order) != len(expected_prefix)
+                        or len(set(order)) != len(order)
+                        or set(order) != set(expected_prefix)
+                        or not set(order).issubset(set(task["native_order"]))
+                    ):
+                        raise OperatorRunnerError("selector-w0-prefix-invalid")
+                    order += tuple(card_id for card_id in task["native_order"] if card_id not in order)
+                if len(order) != len(task["native_order"]) or set(order) != set(task["native_order"]):
+                    raise OperatorRunnerError("selector-order-not-complete-task-permutation")
+                return order
 
             orders[task_id] = {
                 "w0": order(prefix + "base-w0", False),
@@ -1208,7 +1449,7 @@ class OperatorStageRunner:
             ordered = row.native_ordered_ids
             if ordered is None:
                 raise OperatorRunnerError("navigation-order-missing")
-            nav = next(item for item in pipeline_inputs["navigation_tasks"] if item["task_id"] == target["target_id"])
+            nav = next(item for item in navigation_tasks if item["task_id"] == target["target_id"])
             rank_one[target["target_id"]] = ordered[0] == nav["target_candidate_id"]
             material = pipeline_inputs["selector_operation_materials"][operation_id]["operation_input_bytes"]
             doc = core._strict_json(material, "navigation-operation-input")
@@ -1270,7 +1511,26 @@ class OperatorStageRunner:
             "endpoint_security_mode": mode,
             "operation_ids": tuple(row.operation_id for row in requests),
         }
-        receipt, pin = await self._request("answer-execution", "permit", bindings)
+        answer_artifacts = {
+            "answer-request-manifest": _manifest,
+            "answer-task-material": _answer_task_artifact_bytes(plan.stage_uuid, tuple(tasks)),
+        }
+        if getattr(plan, "pool_input_mode", None) == "frozen-pool/1":
+            capture_directory = Path(self.directories["capture_receipts"]) / plan.stage_uuid
+            selector_terminal = (
+                Path(self.directories["selector_results"]) / f"{plan.stage_uuid}.terminal-inventory.json"
+            )
+            capture_inventory = _read_file(capture_directory / "inventory.json", 4_000_000, private=True)
+            selector_inventory = _read_file(selector_terminal, 4_000_000, private=True)
+            answer_artifacts["answer-source-reference"] = _canonical(
+                {
+                    "schema": "coverage-answer-source-reference/1",
+                    "stage_uuid": plan.stage_uuid,
+                    "capture_inventory_sha256": _sha(capture_inventory),
+                    "selector_terminal_inventory_sha256": _sha(selector_inventory),
+                }
+            )
+        receipt, pin = await self._request("answer-execution", "permit", bindings, artifacts=answer_artifacts)
         return {
             # The permit binds the configured endpoint string. The executor
             # canonicalizes it with the same helper before dispatch; returning

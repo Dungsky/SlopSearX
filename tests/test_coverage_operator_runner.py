@@ -233,22 +233,29 @@ class OperatorRunnerConfigTests(unittest.TestCase):
         """Build real registered-v2 materials that traverse runner preflight."""
         repo = Path(__file__).parents[1]
         evidence_dir = repo / "docs/experiments/evidence/coverage-first-study"
-        bundle = evidence_dir / "registered-2026-10-12-acquisition-v2"
-        stage_dir = bundle / "development"
+        bundle = evidence_dir / "frozen-input-method-materials"
+        stage_dir = evidence_dir / "prospective-2026-10-13-band-companion-v3" / "development"
+        old_closure_placeholder = evidence_dir / "registered-2026-10-12-acquisition-v2"
+        fresh_stage_bundle = evidence_dir / "prospective-2026-10-13-band-companion-v3"
         external_paths = {
             "cohorts": bundle / "cohorts.json",
             "protocol": bundle / "protocol.json",
-            "qualified_source_closure": bundle / "current-qualified-source-closure.json",
+            # The function replaces this placeholder with a closure rebuilt
+            # from the exact checkout sources and the fresh frozen contract.
+            "qualified_source_closure": old_closure_placeholder / "current-qualified-source-closure.json",
             "coverage_source": repo / "scripts/intent_ranking_coverage.py",
-            "production_rerank_source": repo / "slopsearx/rerank.py",
+            "production_rerank_source": evidence_dir / "w0-rerank-v1.py.txt",
             "dependency_lock": repo / "uv.lock",
             "reference_manifest": stage_dir / "reference-manifest-shell.json",
             "answer_assessment_plan": stage_dir / "answer-assessment-plan-shell.json",
             "capture_plan": stage_dir / "capture-plan.json",
-            "candidate_identity": evidence_dir / "registered-2026-10-11/candidate-runtime-identity.json",
+            "candidate_identity": fresh_stage_bundle / "candidate-runtime-identity.json",
         }
         config_path, _ = self._config(root, external_paths["protocol"].read_bytes())
         config = json.loads(config_path.read_bytes())
+        # Exercise the real frozen stage shell bindings: unlike the compact
+        # unit-only config, these manifests carry the registered UUID.
+        config["stage_uuid"] = json.loads(external_paths["reference_manifest"].read_bytes())["stage_uuid"]
         config["source_revision"] = subprocess.run(
             ["git", "rev-parse", "--verify", "HEAD^{commit}"],
             cwd=repo,
@@ -266,7 +273,7 @@ class OperatorRunnerConfigTests(unittest.TestCase):
             path_values[key] = external_paths[key]
 
         companion_path = root / "band-companion.json"
-        material_bytes["band_companion"] = (evidence_dir / "band-companion/development-contract.json").read_bytes()
+        material_bytes["band_companion"] = (bundle / "band-companion-contract.json").read_bytes()
         companion_path.write_bytes(material_bytes["band_companion"])
         path_values["band_companion"] = companion_path
 
@@ -276,6 +283,7 @@ class OperatorRunnerConfigTests(unittest.TestCase):
             "coverage_stage_orchestration": "scripts/coverage_stage_orchestration.py",
             "coverage_stage_finalization": "scripts/coverage_stage_finalization.py",
             "coverage_operator_runner": "scripts/coverage_operator_runner.py",
+            "coverage_operator_handoff": "scripts/coverage_operator_handoff.py",
             "coverage_stage_runtime": "scripts/coverage_stage_runtime.py",
             "coverage_local_authority": "scripts/coverage_local_authority.py",
             "coverage_frozen_pool_inputs": "scripts/coverage_frozen_pool_inputs.py",
@@ -307,6 +315,17 @@ class OperatorRunnerConfigTests(unittest.TestCase):
 
         cohorts = runner.core._strict_json(material_bytes["cohorts"], "test-cohorts")
         stage_row = runner._stage_cohort(cohorts, config["stage_kind"])
+        capture_plan = runner.core._strict_json(material_bytes["capture_plan"], "test-capture-plan")
+        capture_ids = [row["task_id"] for row in stage_row["research_cases"]] + [
+            row["target_id"] for row in stage_row["navigation_targets"]
+        ]
+        if type(capture_plan) is not dict or type(capture_plan.get("tasks")) is not list:
+            raise AssertionError("registered capture fixture is malformed")
+        capture_plan["tasks"] = [
+            {**row, "task_id": task_id} for row, task_id in zip(capture_plan["tasks"], capture_ids, strict=True)
+        ]
+        material_bytes["capture_plan"] = runner._canonical(capture_plan)
+        path_values["capture_plan"].write_bytes(material_bytes["capture_plan"])
         acquisition_plan = runner._build_acquisition_plan(
             config["stage_uuid"], stage_row["research_cases"], stage_row["navigation_targets"]
         )
@@ -358,14 +377,9 @@ class OperatorRunnerConfigTests(unittest.TestCase):
             ):
                 instance = runner.OperatorStageRunner.preflight_from_file(config_path, config_sha)
 
-            registered_dir = (
-                Path(__file__).parents[1]
-                / "docs/experiments/evidence/coverage-first-study/registered-2026-10-12-acquisition-v2"
-            )
-            companion_bytes = (
-                Path(__file__).parents[1]
-                / "docs/experiments/evidence/coverage-first-study/band-companion/development-contract.json"
-            ).read_bytes()
+            study_dir = Path(__file__).parents[1] / "docs/experiments/evidence/coverage-first-study"
+            registered_dir = study_dir / "frozen-input-method-materials"
+            companion_bytes = (registered_dir / "band-companion-contract.json").read_bytes()
             registration_bytes = Path(
                 json.loads(config_path.read_bytes())["paths"]["initial_registration"]
             ).read_bytes()
@@ -960,7 +974,7 @@ class OperatorRunnerConfigTests(unittest.TestCase):
             instance.deadline_utc = instance.started_utc + timedelta(hours=8)
             captured = {}
 
-            async def request(scope, request_id, bindings):
+            async def request(scope, request_id, bindings, **kwargs):
                 captured.update(scope=scope, request_id=request_id, bindings=bindings)
                 return b"synthetic-receipt", "b" * 64
 
@@ -988,6 +1002,62 @@ class OperatorRunnerConfigTests(unittest.TestCase):
 
         asyncio.run(run_private())
         asyncio.run(run_public())
+
+    def test_frozen_answer_request_binds_capture_and_selector_terminal_files(self):
+        temporary = tempfile.TemporaryDirectory()
+        root = Path(temporary.name)
+        stage = str(uuid.UUID(int=811))
+        capture_root = root / "captures"
+        selector_root = root / "selector-results"
+        for directory in (capture_root, selector_root):
+            directory.mkdir(mode=0o700)
+        (capture_root / stage).mkdir(mode=0o700)
+        capture_inventory = b"sealed capture inventory fixture"
+        selector_inventory = b"sealed selector terminal fixture"
+        (capture_root / stage / "inventory.json").write_bytes(capture_inventory)
+        (capture_root / stage / "inventory.json").chmod(0o600)
+        (selector_root / f"{stage}.terminal-inventory.json").write_bytes(selector_inventory)
+        (selector_root / f"{stage}.terminal-inventory.json").chmod(0o600)
+        secret = root / "answer.key"
+        secret.write_text("synthetic-test-only\n", encoding="utf-8")
+        secret.chmod(0o600)
+        instance = object.__new__(runner.OperatorStageRunner)
+        instance._test_temporary_directory = temporary
+        instance.config = {"answer_endpoint": "https://model.example/v1"}
+        instance.private_paths = {"answer_api_key": str(secret)}
+        instance.directories = {
+            "lease_root": str(root / "leases"),
+            "answer_archive": str(root / "archive"),
+            "answer_results": str(root / "answer-results"),
+            "capture_receipts": str(capture_root),
+            "selector_results": str(selector_root),
+        }
+        instance.plan = SimpleNamespace(
+            stage_uuid=stage,
+            source_revision="a" * 40,
+            protocol_bytes=b"protocol",
+            cohorts_bytes=b"cohorts",
+            pool_input_mode="frozen-pool/1",
+        )
+        instance.started_utc = datetime.now(timezone.utc)
+        instance.deadline_utc = instance.started_utc + timedelta(hours=8)
+        captured = {}
+
+        async def request(scope, request_id, bindings, **kwargs):
+            captured.update(scope=scope, request_id=request_id, bindings=bindings, artifacts=kwargs["artifacts"])
+            return b"receipt", "b" * 64
+
+        instance._request = request
+        asyncio.run(instance._answer_authority(instance.plan, _tasks()))
+        self.assertEqual(captured["scope"], "answer-execution")
+        self.assertNotIn("capture_inventory_sha256", captured["bindings"])
+        self.assertNotIn("selector_terminal_inventory_sha256", captured["bindings"])
+        source_reference = json.loads(captured["artifacts"]["answer-source-reference"])
+        self.assertEqual(source_reference["stage_uuid"], stage)
+        self.assertEqual(source_reference["capture_inventory_sha256"], hashlib.sha256(capture_inventory).hexdigest())
+        self.assertEqual(
+            source_reference["selector_terminal_inventory_sha256"], hashlib.sha256(selector_inventory).hexdigest()
+        )
 
     def test_wrong_answer_security_mode_is_rejected_before_lease(self):
         import pytest
@@ -1069,7 +1139,7 @@ class OperatorRunnerConfigTests(unittest.TestCase):
                 instance.deadline_utc = instance.started_utc + timedelta(hours=8)
                 captured = {}
 
-                async def request(scope, request_id, bindings):
+                async def request(scope, request_id, bindings, **kwargs):
                     captured.update(scope=scope, request_id=request_id, bindings=bindings)
                     return b"synthetic-receipt", "b" * 64
 
