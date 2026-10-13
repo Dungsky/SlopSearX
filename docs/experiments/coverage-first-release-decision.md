@@ -78,3 +78,12 @@ result ends this fixed study and is published through a results PR; it does not
 authorize another candidate automatically. Both stages must pass before product
 implementation. Structural tests, documentation merges and transport readiness
 do not establish research usefulness or complete #516.
+
+## October 13 execution disposition
+
+The [v3 development invocation](evidence/coverage-first-study/completed-2026-10-13-v3/README.md)
+ended inconclusive during acquisition after an arXiv engine failure. All later
+scientific phases and untouched confirmation remained uninvoked. This ends
+the registered v3 study under the stop rule above. Coverage-first remains
+unqualified for product implementation; existing production ranking is retained.
+This is an availability result, not a negative ranking-quality finding.

@@ -57,3 +57,14 @@ For fresh operator-runner stages, grader result records are accepted only with a
 The current prospective public bundle is [the October 13 band-companion registration v3](prospective-2026-10-13-band-companion-v3/README.md), bound to merged source `278bbe4b36b91aff706ff9814eaecd2bae452f84`. Its source-closure-v2 SHA-256 is `2f6b1b7f0946683df4b6e232a94e825d6f381733951b2b5b33ad9bc880d4f33f`; the shared contract SHA-256 remains `29a25b38edd13712ab19eddc75b46a1232937487029fa53dd9668ab8c0ecdbc8`. Both stages passed real Linux static preflight; receipts bind each config and registration, report zero scientific calls and no stage roots created, and are summarized in the bundle status file. The prior v2 registration remains archived as uninvoked and its four identities are retired. Neither registration was admitted or invoked, and the current v3 remains unqualified. The October 11 [setup-retry registration](registered-2026-10-11-setup-retry/README.md), [earlier static bundle](registered-2026-10-11/README.md), and [intermediate startup amendment](registered-2026-10-11-startup-amended/README.md) also remain historical. When present, optional `paths.band_companion` points to the shared canonical public contract. The separate [October 13 lab-preparation packet](https://github.com/magnus919/groktocrawl-x/blob/f770d75b4d2e0422ad9aa6631d1be0b644d9edc1/docs/experiments/evidence/protected-capture-lab-2026-10-13/README.md) from [GroktoCrawl-X PR #453](https://github.com/magnus919/groktocrawl-x/pull/453) is API-only candidate lab readiness, not research-quality evidence, a study result, or a permit. Static preflight does not establish study qualification; no test fixture or mocked transport is production evidence.
 
 Offline phase-graph coverage is exercised by `tests/test_coverage_stage_orchestration.py`; config, draft refusal, private-secret handling, handoff adapters, and late-registration lineage have focused tests in `tests/test_coverage_operator_runner.py`, `tests/test_coverage_stage_runtime.py`, `tests/test_coverage_operator_handoff.py`, and `tests/test_coverage_late_registration.py`.
+
+## October 13 v3 execution result
+
+The v3 development stage was subsequently invoked once after refreshed lab
+qualification. It ended terminal-incomplete during acquisition: three complete
+queries, one arXiv engine failure, nine operations uninvoked, and nine physical
+requests. Capture, Jev, answers and native grading were never invoked; untouched
+confirmation remains uninvoked. The earlier static-preflight and registration
+statements above describe their historical time of creation. See the
+[terminal result](completed-2026-10-13-v3/README.md). Do not invoke either v3
+stage as a restart or rescue of this ended study.
