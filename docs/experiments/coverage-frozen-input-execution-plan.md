@@ -1,11 +1,14 @@
 # Coverage-first delivery: frozen-input execution amendment
 
+Current outcome: the fresh development invocation ended at collection admission with a controller working-directory setup failure; zero scientific calls and no quality credit. Confirmation remains uninvoked. See [terminal evidence](evidence/coverage-first-study/completed-2026-10-13-frozen-admission/README.md). The execution sequence below remains the release requirement, not a completed qualification.
+
 Status: method materials are locked, the complete runner correction merged in
 PR #831, and both fresh static preflights passed. The
 [fresh registration](evidence/coverage-first-study/frozen-input-static-registration-2026-10-13/README.md)
 binds exact source `d1d4cd35cb1e5653404d605345377e4447938704` and four new stage
-and packet identities. Neither stage is admitted or invoked; no scientific
-provider call has occurred. This preserves the approved candidate and thresholds.
+and packet identities. Development was invoked once but collection admission
+was refused; confirmation remains uninvoked. No scientific provider call has
+occurred. The approved candidate and thresholds are unchanged.
 
 ## Why the execution method changes
 
@@ -112,13 +115,12 @@ rejection. Exact-head review and required CI passed. The clean source closure
 and both static registrations are prepared; both locked-environment preflights
 passed without creating stage roots or making scientific calls.
 
-Publish the fresh static registration before issuing one development admission.
-Run development once and record its terminal result
-against the registered gates. Only a separately verified complete development
-pass permits the already registered confirmation stage to be admitted and run
-once. If either stage fails or is inconclusive, publish the failed criteria
-and close this candidate's release decision as unqualified; do not silently
-begin another study or add a new candidate to extend this delivery.
+Registration PR #832 merged before the one development invocation. That
+invocation is terminal: collection admission was refused, no receipt was issued,
+and no scientific call occurred. Confirmation remains uninvoked. This attempt
+is unqualified and must not be restarted. Any future execution requires a
+separate prospective administrative decision with its own frozen identities;
+this document does not initiate another run or change the candidate.
 
 Only a complete development and confirmation pass opens product implementation.
 Implement the shared SlopSearX behavior and GroktoCrawl X propagation against the
