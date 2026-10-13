@@ -1,9 +1,11 @@
 # Coverage-first delivery: frozen-input execution amendment
 
-Status: prospective method amendment in preparation, following the maintainer's
-instruction to amend the plan and finish delivery. No new study is registered
-or invoked by this document. This preserves the approved coverage-first
-candidate; it does not approve a new ranking algorithm.
+Status: method materials are locked, the complete runner correction merged in
+PR #831, and both fresh static preflights passed. The
+[fresh registration](evidence/coverage-first-study/frozen-input-static-registration-2026-10-13/README.md)
+binds exact source `d1d4cd35cb1e5653404d605345377e4447938704` and four new stage
+and packet identities. Neither stage is admitted or invoked; no scientific
+provider call has occurred. This preserves the approved candidate and thresholds.
 
 ## Why the execution method changes
 
@@ -102,18 +104,16 @@ harness merge.
 The frozen-input runner was delivered in PR #829 (merge `7c2dd2e`). PR #830
 merged the mandatory fresh-cohort band companion binding; frozen mode must use
 the exact companion, qualified source-closure v2 and initial-registration pin.
-Actual file-based admission exposed a remaining integration gap: the external
-issuer must reconstruct the registered materials from the sealed collection,
-capture receipts and selector archives, rather than accept runner-supplied
-hashes as proof. Complete that correction as one source change, including
-offline tests through the actual runner handoff for each admission scope.
-The original V1 control remains pinned to its frozen source; the current parser
-must not be substituted. This correction makes the declared method executable;
-it does not change the candidate or release thresholds.
+PR #831 (merge `d1d4cd35`) completed source-based issuer reconstruction from
+the sealed collection, capture receipts and selector archives. Actual runner
+handoff tests include both protected-capture approvals, full selector replay,
+answer catalogs, unchanged original-V1 prefix plus native tail, and tampering
+rejection. Exact-head review and required CI passed. The clean source closure
+and both static registrations are prepared; both locked-environment preflights
+passed without creating stage roots or making scientific calls.
 
-After that correction is reviewed and merged, prepare a clean source closure
-and both static registrations, then pass both static preflights before issuing
-one development admission. Run development once and record its terminal result
+Publish the fresh static registration before issuing one development admission.
+Run development once and record its terminal result
 against the registered gates. Only a separately verified complete development
 pass permits the already registered confirmation stage to be admitted and run
 once. If either stage fails or is inconclusive, publish the failed criteria
