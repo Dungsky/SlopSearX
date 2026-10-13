@@ -35,13 +35,22 @@ def packet(packet_id: str, *, task_id: str = "D1E0001") -> bytes:
 
 def write_phase_deadline(scope: Path, stage_uuid: str, phase: str, deadline: float) -> None:
     path = scope / "phase-deadline.json"
+    now_mono = time.monotonic()
+    now_utc = time.time()
+    if deadline > now_mono:
+        created_at_utc = now_utc
+        deadline_at_utc = now_utc + deadline - now_mono
+    else:
+        created_at_utc = now_utc - 2
+        deadline_at_utc = now_utc - 1
     path.write_bytes(
         canonical(
             {
-                "schema": "coverage-native-phase-deadline/1",
+                "schema": "coverage-native-phase-deadline/2",
                 "stage_uuid": stage_uuid,
                 "phase": phase,
-                "deadline_monotonic": deadline,
+                "created_at_utc": created_at_utc,
+                "deadline_at_utc": deadline_at_utc,
             }
         )
     )
@@ -237,6 +246,13 @@ def fake_codex(tmp_path: Path) -> tuple[Path, str]:
                         {"type": "agentMessage", "id": "assistant-1", "text": json.dumps({"synthetic": True})},
                     ]
                     completion_status = "failed" if os.environ.get("FAKE_CODEX_FAIL_TURN") else "completed"
+                    for item in items:
+                        item_params = {"threadId": thread_id, "turnId": turn_id, "item": item}
+                        emit({"method": "item/started", "params": {**item_params, "startedAtMs": 1}})
+                        emit({"method": "item/completed", "params": {**item_params, "completedAtMs": 2}})
+                        if os.environ.get("FAKE_CODEX_DUPLICATE_ITEM_COMPLETION") and item["id"] == "user-1":
+                            emit({"method": "item/completed", "params": {**item_params, "completedAtMs": 3}})
+                    assistant_summary = items[1]
                     emit({
                         "method": "turn/completed",
                         "params": {
@@ -244,8 +260,8 @@ def fake_codex(tmp_path: Path) -> tuple[Path, str]:
                             "turn": {
                                 "id": turn_id,
                                 "status": completion_status,
-                                "items": items,
-                                "itemsView": "full",
+                                "items": [assistant_summary],
+                                "itemsView": "summary",
                             },
                         },
                     })
@@ -342,6 +358,55 @@ def make_transcript(packet_id: str, packet_bytes: bytes, *, tamper: str | None =
         status = "failed"
     else:
         status = "completed"
+    for index, item in enumerate(items):
+        if tamper != "item-start-omitted" or index != 0:
+            started_item = item
+            if tamper == "started-input-mismatch" and item.get("type") == "userMessage":
+                started_item = {**item, "content": [{"type": "text", "text": "different started input"}]}
+            events.append(
+                {
+                    "direction": "server",
+                    "message": {
+                        "method": "item/started",
+                        "params": {
+                            "threadId": thread_id if tamper != "item-orphan" else str(uuid.uuid4()),
+                            "turnId": turn_id,
+                            "item": started_item,
+                            "startedAtMs": 300 if tamper == "timestamp-order" and index == 0 else 100 + index,
+                        },
+                    },
+                }
+            )
+        if tamper != "item-completion-omitted" or index != 0:
+            events.append(
+                {
+                    "direction": "server",
+                    "message": {
+                        "method": "item/completed",
+                        "params": {
+                            "threadId": thread_id,
+                            "turnId": turn_id,
+                            "item": item,
+                            "completedAtMs": 200 + index,
+                        },
+                    },
+                }
+            )
+            if tamper == "item-duplicate" and index == 0:
+                events.append(
+                    {
+                        "direction": "server",
+                        "message": {
+                            "method": "item/completed",
+                            "params": {
+                                "threadId": thread_id,
+                                "turnId": turn_id,
+                                "item": item,
+                                "completedAtMs": 201 + index,
+                            },
+                        },
+                    }
+                )
     events.append(
         {
             "direction": "server",
@@ -352,8 +417,24 @@ def make_transcript(packet_id: str, packet_bytes: bytes, *, tamper: str | None =
                     "turn": {
                         "id": turn_id,
                         "status": status,
-                        "items": items,
-                        "itemsView": tamper if tamper in {"summary", "notLoaded"} else "full",
+                        "items": (
+                            [{"type": "agentMessage", "id": "unknown", "text": '{"result":"synthetic"}'}]
+                            if tamper == "summary-unknown-id"
+                            else (
+                                [{"type": "agentMessage", "id": "a", "text": '{"result":"synthetic"}'}] * 2
+                                if tamper == "summary-duplicate"
+                                else [{"type": "agentMessage", "id": "a", "text": '{"result":"synthetic"}'}]
+                            )
+                        ),
+                        "itemsView": (
+                            "unknown"
+                            if tamper == "unknown-items-view"
+                            else "notLoaded"
+                            if tamper == "notLoaded-nonempty"
+                            else "full"
+                            if tamper == "inconsistent-full-view"
+                            else "summary"
+                        ),
                     },
                 },
             },
@@ -442,6 +523,7 @@ async def test_request_drain_stall_is_bounded_by_stage_deadline() -> None:
     "tamper",
     [
         "input",
+        "started-input-mismatch",
         "wrong-model",
         "rerouted",
         "tool",
@@ -449,8 +531,16 @@ async def test_request_drain_stall_is_bounded_by_stage_deadline() -> None:
         "extra-tool-policy",
         "tool-policy",
         "experimental-api-optin",
-        "summary",
-        "notLoaded",
+        "item-start-omitted",
+        "item-completion-omitted",
+        "item-duplicate",
+        "item-orphan",
+        "timestamp-order",
+        "unknown-items-view",
+        "notLoaded-nonempty",
+        "summary-unknown-id",
+        "summary-duplicate",
+        "inconsistent-full-view",
     ],
 )
 def test_transcript_rejects_mismatched_or_nonterminal_invocation(tamper: str) -> None:
@@ -489,24 +579,24 @@ def test_transcript_roundtrip_binds_packet_and_returns_exact_final_text() -> Non
     assert verified.response_bytes == b'{"result":"synthetic"}'
     assert verified.thread_id == identity["thread_id"]
 
-    # The installed generated schema defaults Turn.itemsView to "full".
+    # Missing view metadata defaults to a full snapshot and must then match item events.
     completed = next(
         event["message"]
         for event in transcript["events"]
         if event["direction"] == "server" and event["message"].get("method") == "turn/completed"
     )
     del completed["params"]["turn"]["itemsView"]
-    defaulted = native.verify_transcript(
-        canonical(transcript),
-        stage_uuid=identity["stage_uuid"],
-        phase="references",
-        packet_id=packet_id,
-        packet_sha256=hashlib.sha256(raw_packet).hexdigest(),
-        expected_catalog_row_sha256=transcript["model_catalog_row_sha256"],
-        expected_catalog_response_sha256=transcript["model_catalog_response_sha256"],
-        expected_mcp_server_ids=[],
-    )
-    assert defaulted.response_bytes == verified.response_bytes
+    with pytest.raises(native.NativeHostError, match="native-completed-items-mismatch"):
+        native.verify_transcript(
+            canonical(transcript),
+            stage_uuid=identity["stage_uuid"],
+            phase="references",
+            packet_id=packet_id,
+            packet_sha256=hashlib.sha256(raw_packet).hexdigest(),
+            expected_catalog_row_sha256=transcript["model_catalog_row_sha256"],
+            expected_catalog_response_sha256=transcript["model_catalog_response_sha256"],
+            expected_mcp_server_ids=[],
+        )
 
 
 def test_actual_prepared_answer_packet_shape_loads_without_inner_role(tmp_path: Path) -> None:
@@ -550,6 +640,46 @@ async def test_fake_app_server_dispatch_is_two_wide_and_one_shot(
             expected_cli_sha256=digest,
             deadline_monotonic=time.monotonic() + 30,
         )
+
+
+@pytest.mark.asyncio
+async def test_partial_completion_uses_actual_item_events_for_grade_evidence(tmp_path: Path) -> None:
+    scope, stage_uuid, packet_ids = write_scope(tmp_path)
+    codex, digest = fake_codex(tmp_path)
+
+    summary = await native.dispatch_handoff_scope(
+        scope_path=scope,
+        stage_uuid=stage_uuid,
+        phase="references",
+        codex_executable=str(codex),
+        expected_cli_sha256=digest,
+        deadline_monotonic=time.monotonic() + 30,
+    )
+
+    assert summary["status"] == "complete"
+    transcript = json.loads((scope / "native-host" / "transcripts" / f"{packet_ids[0]}.transcript.json").read_bytes())
+    events = transcript["events"]
+    completion = next(
+        event["message"]
+        for event in events
+        if event["direction"] == "server" and event["message"].get("method") == "turn/completed"
+    )
+    starts = [
+        event["message"]["params"]
+        for event in events
+        if event["direction"] == "server" and event["message"].get("method") == "item/started"
+    ]
+    completions = [
+        event["message"]["params"]
+        for event in events
+        if event["direction"] == "server" and event["message"].get("method") == "item/completed"
+    ]
+    assert completion["params"]["turn"]["itemsView"] == "summary"
+    assert len(starts) == len(completions) == 2
+    assert {row["item"]["id"] for row in starts} == {row["item"]["id"] for row in completions}
+    assert all(row["threadId"] == completion["params"]["threadId"] for row in starts + completions)
+    assert all(row["turnId"] == completion["params"]["turn"]["id"] for row in starts + completions)
+    assert len(list((scope / "results").glob("*.result.json"))) == 1
 
 
 @pytest.mark.asyncio
@@ -618,6 +748,12 @@ async def test_cumulative_progress_events_fail_before_transcript_buffer_exceeds_
     packet_id = summary["claimed_packet_ids"][0]
     assert summary["failure_reasons"][packet_id] == "native-transcript-size-cap"
     assert not (scope / "native-host" / "transcripts" / f"{packet_id}.transcript.json").exists()
+    evidence_path = scope / "native-host" / "failures" / f"{packet_id}.events.json"
+    assert evidence_path.is_file()
+    assert evidence_path.stat().st_size <= native.MAX_TRANSCRIPT_BYTES
+    evidence = json.loads(evidence_path.read_bytes())
+    assert evidence["classification"] == "event-evidence-size-cap"
+    assert evidence["event_count"] == len(evidence["events"])
 
 
 @pytest.mark.asyncio
@@ -748,6 +884,53 @@ async def test_expired_registered_phase_deadline_blocks_even_with_fresh_cli_budg
     assert not list((scope / "results").glob("*.result.json"))
 
 
+def test_phase_deadline_translates_between_host_monotonic_origins(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    scope, stage_uuid, _ = write_scope(tmp_path)
+    now_utc = time.time()
+    created_at_utc = now_utc - 120
+    deadline_at_utc = now_utc + 600
+    path = scope / "phase-deadline.json"
+    path.write_bytes(
+        canonical(
+            {
+                "schema": "coverage-native-phase-deadline/2",
+                "stage_uuid": stage_uuid,
+                "phase": "references",
+                "created_at_utc": created_at_utc,
+                "deadline_at_utc": deadline_at_utc,
+            }
+        )
+    )
+    path.chmod(0o600)
+    local_monotonic_origin = 9_000_000.0
+    monkeypatch.setattr(native.time, "monotonic", lambda: local_monotonic_origin)
+    translated = native._read_phase_deadline(scope, stage_uuid=stage_uuid, phase="references")
+    assert translated == pytest.approx(local_monotonic_origin + deadline_at_utc - now_utc)
+
+
+def test_phase_deadline_rejects_future_creation_and_overlong_deadline(tmp_path: Path) -> None:
+    scope, stage_uuid, _ = write_scope(tmp_path)
+    receipt = {
+        "schema": "coverage-native-phase-deadline/2",
+        "stage_uuid": stage_uuid,
+        "phase": "references",
+        "created_at_utc": time.time() + 60,
+        "deadline_at_utc": time.time() + 120,
+    }
+    path = scope / "phase-deadline.json"
+    path.write_bytes(canonical(receipt))
+    path.chmod(0o600)
+    with pytest.raises(native.NativeHostError, match="native-phase-deadline-clock-invalid"):
+        native._read_phase_deadline(scope, stage_uuid=stage_uuid, phase="references")
+    receipt["created_at_utc"] = time.time() - 1
+    receipt["deadline_at_utc"] = receipt["created_at_utc"] + 28_801
+    path.write_bytes(canonical(receipt))
+    with pytest.raises(native.NativeHostError, match="native-phase-deadline-binding-invalid"):
+        native._read_phase_deadline(scope, stage_uuid=stage_uuid, phase="references")
+
+
 @pytest.mark.asyncio
 async def test_failed_native_turn_is_terminal_without_result_or_retry(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -755,6 +938,11 @@ async def test_failed_native_turn_is_terminal_without_result_or_retry(
     scope, stage_uuid, packet_ids = write_scope(tmp_path)
     codex, digest = fake_codex(tmp_path)
     monkeypatch.setenv("FAKE_CODEX_FAIL_TURN", "1")
+
+    def forbidden_grade(**_kwargs: object) -> None:
+        pytest.fail("a failed native turn must never be submitted as a grade")
+
+    monkeypatch.setattr(native, "publish_native_tool_result", forbidden_grade)
     with pytest.raises(native.NativeHostError, match="incomplete-terminal"):
         await native.dispatch_handoff_scope(
             scope_path=scope,
@@ -770,6 +958,22 @@ async def test_failed_native_turn_is_terminal_without_result_or_retry(
     assert summary["claimed_packet_ids"] == packet_ids
     assert summary["completed_packet_ids"] == []
     assert list((audit / "failures").glob("*.failure.json"))
+    events_path = audit / "failures" / f"{packet_ids[0]}.events.json"
+    assert events_path.is_file()
+    assert stat.S_IMODE(events_path.stat().st_mode) == 0o600
+    failure_events = json.loads(events_path.read_bytes())
+    assert failure_events["schema"] == "coverage-native-host-failure-events/1"
+    assert failure_events["reason_code"] == "native-turn-not-complete"
+    assert failure_events["classification"] == "turn-reported-non-success"
+    assert failure_events["event_count"] == len(failure_events["events"])
+    completed = [
+        event["message"]
+        for event in failure_events["events"]
+        if event["direction"] == "server" and event["message"].get("method") == "turn/completed"
+    ]
+    assert len(completed) == 1
+    assert completed[0]["params"]["turn"]["status"] == "failed"
+    assert not list((audit / "transcripts").glob("*.transcript.json"))
     assert not list((scope / "results").glob("*.result.json"))
     with pytest.raises(native.NativeHostError, match="already-consumed"):
         await native.dispatch_handoff_scope(
@@ -780,3 +984,39 @@ async def test_failed_native_turn_is_terminal_without_result_or_retry(
             expected_cli_sha256=digest,
             deadline_monotonic=time.monotonic() + 30,
         )
+
+
+@pytest.mark.asyncio
+async def test_duplicate_item_lifecycle_is_retained_as_terminal_failure_without_grade(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    scope, stage_uuid, packet_ids = write_scope(tmp_path)
+    codex, digest = fake_codex(tmp_path)
+    monkeypatch.setenv("FAKE_CODEX_DUPLICATE_ITEM_COMPLETION", "1")
+    monkeypatch.setattr(
+        native,
+        "publish_native_tool_result",
+        lambda **_kwargs: pytest.fail("ambiguous item lifecycle must not be graded"),
+    )
+
+    with pytest.raises(native.NativeHostError, match="incomplete-terminal"):
+        await native.dispatch_handoff_scope(
+            scope_path=scope,
+            stage_uuid=stage_uuid,
+            phase="references",
+            codex_executable=str(codex),
+            expected_cli_sha256=digest,
+            deadline_monotonic=time.monotonic() + 30,
+        )
+
+    audit = scope / "native-host"
+    summary = json.loads((audit / "dispatch-summary.json").read_bytes())
+    assert summary["failure_reasons"][packet_ids[0]] == "native-item-lifecycle-duplicate"
+    failure_evidence = json.loads((audit / "failures" / f"{packet_ids[0]}.events.json").read_bytes())
+    duplicate_items = [
+        event["message"]
+        for event in failure_evidence["events"]
+        if event["direction"] == "server" and event["message"].get("method") == "item/completed"
+    ]
+    assert len(duplicate_items) == 3
+    assert not list((scope / "results").glob("*.result.json"))
