@@ -23,6 +23,9 @@ from scripts.coverage_study_core import selector_inventory
 SCHEMA = "coverage-first-gate-calculation/1"
 FROZEN_QUALITY_TASK_USE_SHA256 = "b6353b480fd88543da530ef6b03129d26743f8f273e8a80d543320167399f7dd"
 FROZEN_EXECUTION_CONTRACT_SHA256 = "44cee41bc453581d4d0e00e9d3081332dc0467d64a73b9fd70a1ef3515548858"
+REGISTERED_V2_PROTOCOL_SHA256 = "567e337d41268f380348abc70ab1bf4a0249852f237797fa361295f1e34afb06"
+REGISTERED_V2_COHORTS_SHA256 = "36d4cbff9c93555d35d7269525616f009a21727c8d1141a8a2a61934791038f0"
+REGISTERED_V2_EXECUTION_CONTRACT_SHA256 = "e114b172d4eba352897ea8dfe3fc83568097bf154425aaecfaa6690f6c3e8bf3"
 GATE_NAMES = frozenset(
     {
         "complete_eligible_membership",
@@ -622,6 +625,10 @@ def calculate_coverage_gate_report(
     navigation_observations: object,
     resource_evidence: object,
     input_manifest_sha256: str,
+    band_companion_bytes: bytes | None = None,
+    stage_kind: str = "development",
+    cohorts_sha256: str | None = None,
+    protocol_sha256: str | None = None,
 ) -> CoverageGateReport:
     """Calculate frozen mixed-workload gates from closed grades and observations.
 
@@ -664,8 +671,20 @@ def calculate_coverage_gate_report(
         execution_contract = {key: protocol[key] for key in execution_contract_keys}
     except KeyError as exc:
         raise GateCalculationError("frozen-execution-contract-missing") from exc
-    if _sha(_canonical(execution_contract)) != FROZEN_EXECUTION_CONTRACT_SHA256:
-        raise GateCalculationError("frozen-execution-contract-mismatch")
+    execution_contract_sha256 = _sha(_canonical(execution_contract))
+    if execution_contract_sha256 != FROZEN_EXECUTION_CONTRACT_SHA256:
+        registered_v2_allowed = (
+            execution_contract_sha256 == REGISTERED_V2_EXECUTION_CONTRACT_SHA256
+            and protocol_sha256 == REGISTERED_V2_PROTOCOL_SHA256
+            and cohorts_sha256 == REGISTERED_V2_COHORTS_SHA256
+            and protocol.get("schema") == "coverage-first-study-protocol/2"
+            and protocol.get("status") == "registered"
+            and protocol.get("cohorts_sha256") == REGISTERED_V2_COHORTS_SHA256
+            and type(protocol.get("acquisition")) is dict
+            and protocol["acquisition"].get("execution_profile") == "coverage-acquisition-profile/2"
+        )
+        if not registered_v2_allowed:
+            raise GateCalculationError("frozen-execution-contract-mismatch")
     refs, answers = _closed_outputs(reference_closure, answer_closure)
     source_stage_uuid = getattr(prepared_assessments, "source_stage_uuid", None)
     packet_stage_uuid = getattr(prepared_assessments, "packet_stage_uuid", None)
@@ -816,6 +835,34 @@ def calculate_coverage_gate_report(
         "exact_navigation_top1": nav_gate,
         "resource_and_terminal_guards": resource.passed,
     }
+    companion = None
+    if band_companion_bytes is not None:
+        if (
+            type(band_companion_bytes) is not bytes
+            or type(cohorts_sha256) is not str
+            or type(protocol_sha256) is not str
+        ):
+            raise GateCalculationError("band-companion-binding-invalid")
+        try:
+            contract = json.loads(band_companion_bytes)
+            from scripts.coverage_band_companion import calculate as calculate_band_companion
+
+            companion = calculate_band_companion(
+                contract=contract,
+                stage_kind=stage_kind,
+                protocol_sha256=protocol_sha256,
+                cohorts_sha256=cohorts_sha256,
+                quality=quality,
+                task_use=task_use,
+                protocol=protocol,
+                task_inputs=task_inputs,
+                orders=orders,
+                records_by_task=cards,
+                answer_scores=answer_scores,
+                prepared_assessments=prepared_assessments,
+            )
+        except Exception as exc:
+            raise GateCalculationError("band-companion-contract-invalid") from exc
     status = (
         "inconclusive"
         if any(value is None for value in gates.values())
@@ -852,6 +899,12 @@ def calculate_coverage_gate_report(
         "resources": resource.metrics,
         "status": status,
     }
+    if companion is not None:
+        metrics["band_companion"] = {
+            "status": companion.status,
+            "gates": companion.gates,
+            "groups": companion.groups,
+        }
     metrics_sha = _sha(_canonical(metrics))
     threshold_sha = _sha(_canonical({"quality": quality, "task_use": task_use}))
     receipt = {
@@ -866,6 +919,14 @@ def calculate_coverage_gate_report(
         "quality_credit": False,
         "admission_created": False,
     }
+    if companion is not None:
+        receipt.update(
+            {
+                "band_companion_sha256": _sha(band_companion_bytes),
+                "band_companion_status": companion.status,
+                "band_companion_gates": companion.gates,
+            }
+        )
     receipt_bytes = _canonical(receipt)
     evaluation = GateEvaluation(
         status=status,
@@ -876,6 +937,8 @@ def calculate_coverage_gate_report(
         band_diagnostics=metrics["bands_and_intents"],
         metrics_sha256=metrics_sha,
         calculation_receipt_sha256=_sha(receipt_bytes),
+        companion_status=companion.status if companion is not None else None,
+        companion_sha256=_sha(band_companion_bytes) if band_companion_bytes is not None else None,
     )
     return CoverageGateReport(evaluation=evaluation, metrics=metrics, receipt_bytes=receipt_bytes)
 

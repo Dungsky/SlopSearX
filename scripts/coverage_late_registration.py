@@ -197,11 +197,14 @@ def verify_late_registration(
     forbidden_stage_uuids: tuple[str, ...],
     task_ids: tuple[str, ...],
     navigation_skip_reasons: tuple[str | None, ...],
+    band_companion_bytes: bytes | None = None,
+    expected_band_companion_sha256: str | None = None,
+    expected_source_pins: Mapping[str, str] | None = None,
 ) -> VerifiedLateRegistration:
     """Validate lineage and run the original pure registration preflight."""
     initial = _registration(initial_registration_bytes, expected_initial_registration_sha256)
     late = _registration(late_registration_bytes, expected_late_registration_sha256)
-    if set(initial) != {
+    expected_initial_fields = {
         "schema",
         "stage_uuid",
         "stage_kind",
@@ -210,10 +213,17 @@ def verify_late_registration(
         "operation_ids",
         "navigation_skip_reasons",
         "task_ids",
-    }:
+    }
+    if set(initial) not in (expected_initial_fields, expected_initial_fields | {"band_companion_sha256"}):
         raise LateRegistrationError("initial-registration-shape")
     if set(late) != set(initial):
         raise LateRegistrationError("late-registration-shape")
+    if (band_companion_bytes is None) != (expected_band_companion_sha256 is None):
+        raise LateRegistrationError("late-registration-companion-binding-incomplete")
+    if initial.get("band_companion_sha256") != expected_band_companion_sha256 or (
+        band_companion_bytes is not None and _sha(band_companion_bytes) != expected_band_companion_sha256
+    ):
+        raise LateRegistrationError("late-registration-companion-binding-mismatch")
     if type(initial.get("pins")) is not dict or type(late.get("pins")) is not dict:
         raise LateRegistrationError("late-registration-pins-shape")
     if set(initial["pins"]) != set(core.PIN_NAMES) or set(late["pins"]) != set(core.PIN_NAMES):
@@ -245,6 +255,9 @@ def verify_late_registration(
             capture_plan_bytes=materials["capture_plan"],
             task_ids=task_ids,
             navigation_skip_reasons=navigation_skip_reasons,
+            band_companion_bytes=band_companion_bytes,
+            expected_band_companion_sha256=expected_band_companion_sha256,
+            expected_source_pins=expected_source_pins,
         )
     except Exception as exc:
         raise LateRegistrationError("late-registration-core-preflight-failed") from exc
@@ -325,6 +338,9 @@ async def request_late_registration(
         forbidden_stage_uuids=forbidden_stage_uuids,
         task_ids=task_ids,
         navigation_skip_reasons=navigation_skip_reasons,
+        band_companion_bytes=plan.band_companion_bytes,
+        expected_band_companion_sha256=plan.band_companion_sha256,
+        expected_source_pins=plan.band_companion_source_pins,
     )
     return orchestration.LatePreparationEvidence(
         prepared=verified.prepared,

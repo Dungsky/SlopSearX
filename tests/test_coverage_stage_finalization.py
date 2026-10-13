@@ -12,6 +12,7 @@ from unittest import mock
 
 from scripts import coverage_gate_calculation as gate_calculation
 from scripts import coverage_stage_finalization as finalization
+from tests.test_coverage_gate_calculation import _closure
 from tests.test_coverage_gate_calculation import _fixture as gate_fixture
 
 
@@ -80,6 +81,197 @@ class StageFinalizationTests(unittest.TestCase):
             with self.assertRaisesRegex(finalization.StageFinalizationError, "finalization-gate-binding-mismatch"):
                 self._verify(paths, plan)
 
+    def test_primary_pass_does_not_override_failed_companion_band(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            paths, plan = self._fixture(Path(temporary), elapsed=7.5)
+            companion_sha = "d" * 64
+            registration_sha = "e" * 64
+            band_gates = {
+                f"band_{band}_{assessor}_ranking": True
+                for band in ("research_le_40", "research_41_80")
+                for assessor in ("A", "B")
+            }
+            band_gates.update(
+                {
+                    f"band_{band}_{assessor}_task_use": True
+                    for band in ("research_le_40", "research_41_80")
+                    for assessor in ("R1", "R2")
+                }
+            )
+            band_gates["band_research_41_80_A_ranking"] = False
+            group_pass = {"status": "pass", "task_ids": ["D-R01", "D-R02", "D-R03", "D-R04"]}
+            group_fail = {"status": "fail", "task_ids": ["D-R05", "D-R06", "D-R07", "D-R08"]}
+            metrics = json.loads(paths["inventory"].read_bytes())["gate_metrics"]
+            metrics["band_companion"] = {
+                "status": "fail",
+                "gates": band_gates,
+                "groups": {"research_le_40": group_pass, "research_41_80": group_fail},
+            }
+            gate_input = json.loads(paths["gate_input"].read_bytes())
+            gate_input["band_companion_sha256"] = companion_sha
+            gate_input["initial_registration_sha256"] = registration_sha
+            gate_input_bytes = _canonical(gate_input)
+            self._write_private(paths["gate_input"], gate_input_bytes)
+            paths["gate_input_sha"] = _sha(gate_input_bytes)
+
+            gate = json.loads(paths["gate"].read_bytes())
+            gate.update(
+                {
+                    "input_manifest_sha256": paths["gate_input_sha"],
+                    "band_companion_sha256": companion_sha,
+                    "band_companion_status": "fail",
+                    "band_companion_gates": band_gates,
+                    "metrics_sha256": _sha(_canonical(metrics)),
+                }
+            )
+            inventory = json.loads(paths["inventory"].read_bytes())
+            inventory.update(
+                {
+                    "band_companion_sha256": companion_sha,
+                    "initial_registration_sha256": registration_sha,
+                    "band_companion_status": "fail",
+                    "release_qualification_status": "fail",
+                    "terminal_reason": "gate-fail",
+                    "gate_input_manifest_sha256": paths["gate_input_sha"],
+                    "gate_metrics": metrics,
+                }
+            )
+            self._repin_inventory_closeout(paths, gate=gate, inventory=inventory, metrics=metrics)
+            result = self._verify(paths, plan, expected_band_companion_sha256=companion_sha)
+            self.assertEqual(result.status, "gates-failed")
+            self.assertFalse(result.eligible_for_independent_decision)
+            receipt = json.loads(result.receipt_bytes)
+            self.assertEqual(receipt["band_companion_status"], "fail")
+            self.assertEqual(receipt["release_qualification_status"], "fail")
+
+            band_gates = {name: True for name in band_gates}
+            metrics["band_companion"].update(
+                {
+                    "status": "pass",
+                    "gates": band_gates,
+                    "groups": {
+                        "research_le_40": group_pass,
+                        "research_41_80": {**group_fail, "status": "pass"},
+                    },
+                }
+            )
+            gate = json.loads(paths["gate"].read_bytes())
+            gate.update(
+                {
+                    "band_companion_status": "pass",
+                    "band_companion_gates": band_gates,
+                    "metrics_sha256": _sha(_canonical(metrics)),
+                }
+            )
+            inventory = json.loads(paths["inventory"].read_bytes())
+            inventory["band_companion_status"] = "pass"
+            inventory.pop("release_qualification_status")
+            inventory["terminal_reason"] = None
+            self._repin_inventory_closeout(paths, gate=gate, inventory=inventory, metrics=metrics)
+            with self.assertRaisesRegex(
+                finalization.StageFinalizationError, "finalization-combined-qualification-missing"
+            ):
+                self._verify(paths, plan, expected_band_companion_sha256=companion_sha)
+
+    def test_companion_artifact_cannot_appear_without_external_registration_pin(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            paths, plan = self._fixture(Path(temporary), elapsed=7.5)
+            gate = json.loads(paths["gate"].read_bytes())
+            inventory = json.loads(paths["inventory"].read_bytes())
+            inventory["band_companion_sha256"] = "d" * 64
+            self._repin_inventory_closeout(paths, gate=gate, inventory=inventory, metrics=inventory["gate_metrics"])
+            with self.assertRaisesRegex(
+                finalization.StageFinalizationError, "finalization-companion-registration-required"
+            ):
+                self._verify(paths, plan)
+
+    def test_calculator_companion_output_finalizes_pass_and_unknown_band(self):
+        evidence_dir = Path(gate_calculation.__file__).parents[1] / "docs/experiments/evidence/coverage-first-study"
+        registered_dir = evidence_dir / "registered-2026-10-12-acquisition-v2"
+        protocol_bytes = (registered_dir / "protocol.json").read_bytes()
+        cohorts_bytes = (registered_dir / "cohorts.json").read_bytes()
+        companion_bytes = (evidence_dir / "band-companion/development-contract.json").read_bytes()
+        companion_sha = _sha(companion_bytes)
+        registration_sha = "e" * 64
+        for unknown_band in (False, True):
+            with self.subTest(unknown_band=unknown_band), tempfile.TemporaryDirectory() as temporary:
+                paths, plan = self._fixture(
+                    Path(temporary),
+                    elapsed=7.5,
+                    protocol_bytes_override=protocol_bytes,
+                    cohorts_bytes_override=cohorts_bytes,
+                    gate_input_extra={
+                        "band_companion_sha256": companion_sha,
+                        "initial_registration_sha256": registration_sha,
+                    },
+                )
+                calc_inputs = gate_fixture()
+                calc_inputs["protocol"] = json.loads(protocol_bytes)
+                calc_inputs["protocol_sha256"] = _sha(protocol_bytes)
+                calc_inputs["cohorts_sha256"] = _sha(cohorts_bytes)
+                calc_inputs["band_companion_bytes"] = companion_bytes
+                calc_inputs["stage_kind"] = "development"
+                calc_inputs["input_manifest_sha256"] = paths["gate_input_sha"]
+                calc_inputs["resource_evidence"].update(
+                    {
+                        "acquisition_timeout_seconds": calc_inputs["protocol"]["acquisition"]["timeout_seconds"],
+                        "acquisition_retries": calc_inputs["protocol"]["acquisition"]["retries"],
+                        "acquisition_pacing_seconds": calc_inputs["protocol"]["acquisition"]["pacing_seconds"],
+                        "arxiv_pacing_seconds": calc_inputs["protocol"]["acquisition"]["arxiv_physical_pacing_seconds"],
+                    }
+                )
+                answer_output = calc_inputs["answer_closure"].outputs()
+                for assessor in ("R1", "R2"):
+                    facets = answer_output["answers"]["D-R06"]["candidate"][assessor]["tasks"][0]["arms"][0][
+                        "facet_assessments"
+                    ]
+                    for facet in facets:
+                        facet["status"] = "complete"
+                calc_inputs["answer_closure"] = _closure(
+                    "answer", calc_inputs["answer_closure"].stage_uuid, answer_output
+                )
+                if unknown_band:
+                    calc_inputs["task_inputs"] = [
+                        {**row, "band": "research_le_40"} if row["task_id"] == "D-R08" else row
+                        for row in calc_inputs["task_inputs"]
+                    ]
+                report = gate_calculation.calculate_coverage_gate_report(**calc_inputs)
+                if unknown_band:
+                    self.assertEqual(report.evaluation.companion_status, "inconclusive")
+                    self.assertEqual(
+                        report.metrics["band_companion"]["groups"]["research_41_80"]["status"], "inconclusive"
+                    )
+                    expected_qualification = "inconclusive"
+                else:
+                    self.assertEqual(report.evaluation.companion_status, "pass")
+                    self.assertEqual(report.evaluation.status, "pass")
+                    expected_qualification = "pass"
+                gate = json.loads(report.receipt_bytes)
+                inventory = json.loads(paths["inventory"].read_bytes())
+                gate["band_companion_sha256"] = companion_sha
+                gate["band_companion_status"] = report.evaluation.companion_status
+                inventory.update(
+                    {
+                        "band_companion_sha256": companion_sha,
+                        "initial_registration_sha256": registration_sha,
+                        "band_companion_status": report.evaluation.companion_status,
+                        "release_qualification_status": expected_qualification,
+                        "terminal_reason": None if expected_qualification == "pass" else "gate-inconclusive",
+                        "gate_status": report.evaluation.status,
+                        "gate_scope": report.evaluation.scope,
+                        "thresholds_sha256": report.evaluation.threshold_sha256,
+                        "gate_metrics": report.metrics,
+                    }
+                )
+                self._repin_inventory_closeout(paths, gate=gate, inventory=inventory, metrics=report.metrics)
+                result = self._verify(paths, plan, expected_band_companion_sha256=companion_sha)
+                if unknown_band:
+                    self.assertEqual(result.status, "gates-inconclusive")
+                    self.assertFalse(result.eligible_for_independent_decision)
+                else:
+                    self.assertEqual(result.status, "gates-pass-awaiting-independent-decision")
+                    self.assertTrue(result.eligible_for_independent_decision)
+
     def test_thresholds_are_rederived_from_protocol_even_when_artifacts_match_each_other(self):
         with tempfile.TemporaryDirectory() as temporary:
             paths, plan = self._fixture(Path(temporary), elapsed=7.5)
@@ -134,14 +326,24 @@ class StageFinalizationTests(unittest.TestCase):
             with self.subTest(raw=raw), self.assertRaisesRegex(finalization.StageFinalizationError, "json-invalid"):
                 finalization._strict_loads(raw)
 
-    def _fixture(self, root: Path, *, elapsed: float, late: bool = False, stage_deadline: float = 28_800.0):
+    def _fixture(
+        self,
+        root: Path,
+        *,
+        elapsed: float,
+        late: bool = False,
+        stage_deadline: float = 28_800.0,
+        protocol_bytes_override: bytes | None = None,
+        cohorts_bytes_override: bytes | None = None,
+        gate_input_extra: dict[str, str] | None = None,
+    ):
         os.chmod(root, 0o700)
         root = root / "stage"
         root.mkdir(mode=0o700)
         os.chmod(root, 0o700)
         evidence_dir = Path(gate_calculation.__file__).parents[1] / "docs/experiments/evidence/coverage-first-study"
-        protocol_bytes = (evidence_dir / "protocol.json").read_bytes()
-        cohorts_bytes = (evidence_dir / "cohorts.json").read_bytes()
+        protocol_bytes = protocol_bytes_override or (evidence_dir / "protocol.json").read_bytes()
+        cohorts_bytes = cohorts_bytes_override or (evidence_dir / "cohorts.json").read_bytes()
         calculated = gate_fixture()
         prepared = calculated["prepared_assessments"]
         stage_id = prepared.source_stage_uuid
@@ -158,6 +360,18 @@ class StageFinalizationTests(unittest.TestCase):
         cohorts_sha = _sha(plan.cohorts_bytes)
         binding = _sha(b"preacquisition-binding")
         protocol = json.loads(plan.protocol_bytes)
+        calculated["protocol"] = protocol
+        if protocol_bytes_override is not None:
+            calculated["protocol_sha256"] = protocol_sha
+            calculated["cohorts_sha256"] = cohorts_sha
+            calculated["resource_evidence"].update(
+                {
+                    "acquisition_timeout_seconds": protocol["acquisition"]["timeout_seconds"],
+                    "acquisition_retries": protocol["acquisition"]["retries"],
+                    "acquisition_pacing_seconds": protocol["acquisition"]["pacing_seconds"],
+                    "arxiv_pacing_seconds": protocol["acquisition"]["arxiv_physical_pacing_seconds"],
+                }
+            )
         thresholds = _sha(_canonical({"quality": protocol["quality"], "task_use": protocol["task_use"]}))
         pending_elapsed = 5.0
         pending = {
@@ -211,13 +425,15 @@ class StageFinalizationTests(unittest.TestCase):
                 "pending_time_receipt_sha256": _sha(pending_bytes),
                 "resource_evidence": resource_observations,
                 "resource_evidence_receipt_sha256": resource_sha,
+                **(gate_input_extra or {}),
             }
         )
         self._write_private(root / "gate-input-manifest.json", gate_input_bytes)
         input_sha = _sha(gate_input_bytes)
         calculated["input_manifest_sha256"] = input_sha
         report = gate_calculation.calculate_coverage_gate_report(**calculated)
-        self.assertEqual(report.evaluation.status, "pass")
+        if protocol_bytes_override is None:
+            self.assertEqual(report.evaluation.status, "pass")
         gate_bytes = report.receipt_bytes
         self._write_private(root / "gate-calculation-receipt.json", gate_bytes)
         metrics = report.metrics
@@ -307,11 +523,13 @@ class StageFinalizationTests(unittest.TestCase):
         paths["inventory_sha"] = _sha(inventory_bytes)
         closeout = json.loads(paths["closeout"].read_bytes())
         closeout["final_inventory_sha256"] = paths["inventory_sha"]
+        closeout["final_inventory_status"] = inventory["status"]
+        closeout["final_inventory_terminal_reason"] = inventory["terminal_reason"]
         closeout_bytes = _canonical(closeout)
         self._write_private(paths["closeout"], closeout_bytes)
         paths["closeout_sha"] = _sha(closeout_bytes)
 
-    def _verify(self, paths, plan):
+    def _verify(self, paths, plan, *, expected_band_companion_sha256=None):
         return finalization.verify_stage_finalization(
             inventory_path=paths["inventory"],
             expected_inventory_sha256=paths["inventory_sha"],
@@ -329,6 +547,7 @@ class StageFinalizationTests(unittest.TestCase):
             cohorts_bytes=plan.cohorts_bytes,
             expected_protocol_sha256=_sha(plan.protocol_bytes),
             expected_cohorts_sha256=_sha(plan.cohorts_bytes),
+            expected_band_companion_sha256=expected_band_companion_sha256,
         )
 
 
