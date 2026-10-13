@@ -1499,6 +1499,7 @@ async def coordinate_coverage_stage(
             selector_pipeline_inputs["selector_input_map_bytes"] = selector_input_map_bytes
             selector_pipeline_inputs["selector_input_map_sha256"] = selector_input_map_sha256
             selector_pipeline_inputs["selector_operation_materials"] = operation_materials
+            selector_pipeline_inputs["task_input_manifest_bytes"] = late_preparation.input_manifest_bytes
             if map_schema == "coverage-selector-input-map/2-draft":
                 # Preserve the original draft hard stop. Only the new
                 # registered schema can proceed, after its externally pinned

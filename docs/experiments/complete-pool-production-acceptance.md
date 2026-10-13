@@ -4,7 +4,25 @@ Implementation acceptance plan inspected against SlopSearX `3d5e8bac38b619aec1bd
 
 The cross-service boundary follows accepted X ADR-0082: GroktoCrawl owns the caller's question, constraints, evidence sufficiency and completion; SlopSearX owns bounded search dispatch, merge/ranking and immutable result snapshots. Keep the SlopSearX ordinary HTTP behavior unchanged when the option is absent. The proposed ADR-0093 provenance work is not an accepted substitute for candidate quality evidence.
 
-## Current evidence and next action (2026-10-07)
+## Current delivery state (2026-10-13)
+
+The controlling next steps are in the
+[frozen-input execution amendment](coverage-frozen-input-execution-plan.md).
+The v3 acquisition ended after a provider rate limit without a ranking or
+task-use comparison; its consumed identities and partial artifacts are retired.
+PRs #829 and #830 merged the fresh frozen-input runner and companion binding.
+The remaining runner correction completes actual file-based issuer
+reconstruction from sealed acquisition, capture and selector evidence.
+No fresh development or confirmation quality result exists yet.
+
+Finish and review that correction, lock both fresh stage registrations, run
+development once, and admit confirmation only after every development gate
+passes. Both stages must qualify before implementing the entire checklist
+below. A failed or inconclusive stage closes this candidate as unqualified;
+it does not start another study automatically. The earlier records that follow
+are historical evidence and provide no current-stage adoption credit.
+
+## Retained evidence and next action at 2026-10-07
 
 [EXP-094](EXP-094-sol-assessments.md) retained five valid Sol source assignments before the app rejected the sixth agent spawn for reaching this chat's thread limit. The process is gone and the eight-hour deadline expired; the [interruption readout](evidence/EXP-094/completed/readout.md) preserves the partial outcome and conservative accounting. This is platform/interruption evidence, not a model-validation failure. No complete ranking/task-use comparison or confirmation was run. A successor must prospectively freeze all five valid inputs and use fresh independent tasks for the remaining assignments under unchanged gates and ceilings. Previous EXP-093 remains terminal/inconclusive with its wrong-source citation rejection; its response is not repaired or reused.
 

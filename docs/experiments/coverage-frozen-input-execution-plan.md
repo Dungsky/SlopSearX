@@ -100,8 +100,17 @@ harness merge.
 ## Delivery order and stopping decisions
 
 The frozen-input runner was delivered in PR #829 (merge `7c2dd2e`). PR #830
-adds the mandatory fresh-cohort band companion binding; frozen mode must use
+merged the mandatory fresh-cohort band companion binding; frozen mode must use
 the exact companion, qualified source-closure v2 and initial-registration pin.
+Actual file-based admission exposed a remaining integration gap: the external
+issuer must reconstruct the registered materials from the sealed collection,
+capture receipts and selector archives, rather than accept runner-supplied
+hashes as proof. Complete that correction as one source change, including
+offline tests through the actual runner handoff for each admission scope.
+The original V1 control remains pinned to its frozen source; the current parser
+must not be substituted. This correction makes the declared method executable;
+it does not change the candidate or release thresholds.
+
 After that correction is reviewed and merged, prepare a clean source closure
 and both static registrations, then pass both static preflights before issuing
 one development admission. Run development once and record its terminal result

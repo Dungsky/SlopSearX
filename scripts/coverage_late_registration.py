@@ -303,6 +303,9 @@ async def request_late_registration(
     task_ids: tuple[str, ...],
     navigation_skip_reasons: tuple[str | None, ...],
     verified_pool_source: object | None = None,
+    stage_clock_bytes: bytes | None = None,
+    phase_bindings: Mapping[str, object] | None = None,
+    phase_artifacts: Mapping[str, bytes] | None = None,
 ) -> object:
     """Wait for an external late registration, then run core preflight.
 
@@ -354,6 +357,48 @@ async def request_late_registration(
         "navigation_skip_reasons": list(navigation_skip_reasons),
         "late_material_sha256": {name: _sha(materials[name]) for name in sorted(_LATE_MATERIALS)},
     }
+    if phase_bindings is not None:
+        if type(phase_bindings) is not dict or any(
+            key in request_bindings and request_bindings[key] != value for key, value in phase_bindings.items()
+        ):
+            raise LateRegistrationError("late-registration-phase-binding-collision")
+        request_bindings.update(phase_bindings)
+    artifact_bytes = {f"material-{name.replace('_', '-')}": raw for name, raw in materials.items()}
+    artifact_bytes["capture-manifest"] = pipeline_inputs["capture_manifest_bytes"]
+    if stage_clock_bytes is not None:
+        artifact_bytes["stage-clock"] = stage_clock_bytes
+    if verified_pool_source is not None:
+        # This same-host, source-closed handle points only to the fixed
+        # stage_inventory/<uuid>/collection location. The issuer must reopen
+        # that sealed inventory and run verify_frozen_pool_evidence; no caller
+        # supplied filesystem path or copied multi-megabyte response is trusted.
+        collection_root = verified_pool_source.snapshots_directory
+        if collection_root.name != "collection" or collection_root.parent.name != plan.stage_uuid:
+            raise LateRegistrationError("frozen-pool-inventory-location-invalid")
+        artifact_bytes["frozen-pool-reference"] = core._canonical(
+            {
+                "schema": "coverage-frozen-pool-reference/1",
+                "stage_uuid": plan.stage_uuid,
+                "source_revision": plan.source_revision,
+                "source_closure_sha256": plan.source_closure_sha256,
+                "protocol_sha256": _sha(plan.protocol_bytes),
+                "cohorts_sha256": _sha(plan.cohorts_bytes),
+                "pool_manifest_sha256": verified_pool_source.pool_manifest_sha256,
+                "snapshot_index_sha256": verified_pool_source.snapshot_index_sha256,
+                "evidence_sha256": verified_pool_source.evidence_sha256,
+                "availability_sha256": verified_pool_source.availability_sha256,
+                "collector_receipt_sha256": verified_pool_source.collector_receipt_sha256,
+                "proof_sha256": verified_pool_source.proof_sha256,
+                "relative_inventory": "collection",
+            }
+        )
+    if phase_artifacts is not None:
+        if type(phase_artifacts) is not dict or any(
+            type(name) is not str or type(raw) is not bytes or (name in artifact_bytes and artifact_bytes[name] != raw)
+            for name, raw in phase_artifacts.items()
+        ):
+            raise LateRegistrationError("late-registration-phase-artifact-collision")
+        artifact_bytes.update(phase_artifacts)
     try:
         registration_bytes, registration_sha256 = await exchange.request_async(
             stage_uuid=plan.stage_uuid,
@@ -361,6 +406,7 @@ async def request_late_registration(
             request_id="registration-1",
             bindings=request_bindings,
             deadline_monotonic=plan.stage_deadline_monotonic,
+            artifacts=artifact_bytes,
         )
     except Exception as exc:
         raise LateRegistrationError("late-registration-handoff-failed") from exc
