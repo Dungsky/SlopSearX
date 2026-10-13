@@ -596,7 +596,7 @@ class NativeGraderHandoff:
                     },
                     **(
                         {
-                            "native_host_transcript_schema": "coverage-native-host-transcript/2",
+                            "native_host_transcript_schema": "coverage-native-host-transcript/3",
                             **native_host_evidence,
                         }
                         if self.require_native_host_transcripts

@@ -169,27 +169,54 @@ def publish_synthetic_host_evidence(
             "direction": "server",
             "message": {"method": "turn/started", "params": {"threadId": thread_id, "turn": {"id": turn_id}}},
         },
+    ]
+    items = [
+        {"type": "userMessage", "id": "user-1", "content": [{"type": "text", "text": text}]},
+        {"type": "agentMessage", "id": "agent-1", "text": (b'{"synthetic":"forged"}' if tamper else answer).decode()},
+    ]
+    if tamper == "tool":
+        items.append({"type": "mcpToolCall", "id": "tool-1"})
+    for index, item in enumerate(items):
+        events.append(
+            {
+                "direction": "server",
+                "message": {
+                    "method": "item/started",
+                    "params": {
+                        "threadId": thread_id,
+                        "turnId": turn_id,
+                        "item": item,
+                        "startedAtMs": 100 + index,
+                    },
+                },
+            }
+        )
+        events.append(
+            {
+                "direction": "server",
+                "message": {
+                    "method": "item/completed",
+                    "params": {
+                        "threadId": thread_id,
+                        "turnId": turn_id,
+                        "item": item,
+                        "completedAtMs": 200 + index,
+                    },
+                },
+            }
+        )
+    events.append(
         {
             "direction": "server",
             "message": {
                 "method": "turn/completed",
                 "params": {
                     "threadId": thread_id,
-                    "turn": {
-                        "id": turn_id,
-                        "status": "completed",
-                        "items": [
-                            {"type": "userMessage", "content": [{"type": "text", "text": text}]},
-                            {
-                                "type": "agentMessage",
-                                "text": (b'{"synthetic":"forged"}' if tamper else answer).decode(),
-                            },
-                        ],
-                    },
+                    "turn": {"id": turn_id, "status": "completed", "items": [items[-1]], "itemsView": "summary"},
                 },
             },
-        },
-    ]
+        }
+    )
     transcript = {
         "schema": host.TRANSCRIPT_SCHEMA,
         "stage_uuid": stage_uuid,
@@ -443,7 +470,7 @@ def test_required_host_transcripts_bind_complete_fake_protocol_before_submission
         assert len(submissions) == 1
         assert submissions[0].response_bytes == b'{"synthetic":"grade"}'
         closed = json.loads((scope / "results-closed.json").read_bytes())
-        assert closed["native_host_transcript_schema"] == "coverage-native-host-transcript/2"
+        assert closed["native_host_transcript_schema"] == "coverage-native-host-transcript/3"
         assert set(closed["native_host_transcript_sha256"]) == {row["packet_id"]}
         assert (
             stat.S_IMODE((scope / "native-host" / "transcripts" / f"{row['packet_id']}.transcript.json").stat().st_mode)

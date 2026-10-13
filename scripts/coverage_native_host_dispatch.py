@@ -26,7 +26,7 @@ from typing import Any
 from scripts.coverage_native_grader_handoff import publish_native_tool_result
 
 MODEL = "gpt-6.1-sol"
-TRANSCRIPT_SCHEMA = "coverage-native-host-transcript/2"
+TRANSCRIPT_SCHEMA = "coverage-native-host-transcript/3"
 MAX_PACKET_BYTES = 384_000
 MAX_TRANSCRIPT_BYTES = 12_000_000
 MAX_EVENT_LINE_BYTES = 3_000_000
@@ -65,6 +65,33 @@ _MCP_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,127}\Z")
 
 class NativeHostError(RuntimeError):
     """Native host dispatch failed; the reserved packet must not be retried."""
+
+
+def _safe_failure_classification(reason_code: str) -> str:
+    """Map internal failure codes to bounded, non-provider-derived labels."""
+    if reason_code == "native-turn-not-complete":
+        return "turn-reported-non-success"
+    if reason_code in {
+        "native-turn-event-chain-invalid",
+        "native-turn-start-event-mismatch",
+        "native-turn-completed-before-start",
+        "native-turn-start-response-invalid",
+        "native-turn-id-invalid",
+    }:
+        return "turn-event-chain-invalid"
+    if reason_code in {
+        "native-completed-items-missing",
+        "native-completed-items-not-full",
+        "native-assistant-response-missing",
+        "native-persisted-input-mismatch",
+        "native-tool-or-unsupported-item-present",
+    }:
+        return "turn-result-validation-failed"
+    if reason_code in {"native-stage-deadline-expired", "native-host-deadline-expired"}:
+        return "dispatch-deadline-expired"
+    if reason_code == "native-transcript-size-cap":
+        return "event-evidence-size-cap"
+    return "dispatch-protocol-failed"
 
 
 class _TranscriptEvents:
@@ -353,7 +380,6 @@ def verify_transcript(
     input_bytes = turn_params["input"][0]["text"].encode("utf-8")
     if len(input_bytes) != value["packet_byte_count"] or _sha(input_bytes) != packet_sha256:
         raise NativeHostError("native-input-packet-bytes-mismatch")
-
     response_rows = [message for message in server_messages if "id" in message]
     response_ids = [message.get("id") for message in response_rows]
     if len(response_ids) != len(set(response_ids)):
@@ -401,15 +427,102 @@ def verify_transcript(
         raise NativeHostError("native-turn-event-chain-invalid")
     if type(started[0]) is not dict or started[0].get("id") != turn_id:
         raise NativeHostError("native-turn-start-event-mismatch")
-    turn = completed[0]
-    if type(turn) is not dict or turn.get("id") != turn_id or turn.get("status") != "completed":
+    completion = completed[0]
+    if type(completion) is not dict or completion.get("id") != turn_id or completion.get("status") != "completed":
         raise NativeHostError("native-turn-not-complete")
-    items_view = turn.get("itemsView", "full")
-    if items_view != "full":
-        raise NativeHostError("native-completed-items-not-full")
-    items = turn.get("items")
-    if type(items) is not list:
+    turn_started_positions = [
+        index
+        for index, event in enumerate(events)
+        if event["direction"] == "server" and event["message"].get("method") == "turn/started"
+    ]
+    turn_completed_positions = [
+        index
+        for index, event in enumerate(events)
+        if event["direction"] == "server" and event["message"].get("method") == "turn/completed"
+    ]
+    if len(turn_started_positions) != 1 or len(turn_completed_positions) != 1:
+        raise NativeHostError("native-turn-event-chain-invalid")
+    turn_started_position = turn_started_positions[0]
+    turn_completed_position = turn_completed_positions[0]
+    if turn_started_position >= turn_completed_position:
+        raise NativeHostError("native-turn-event-order-invalid")
+
+    started_items: dict[str, tuple[int, int, dict[str, Any]]] = {}
+    completed_items: dict[str, tuple[int, int, dict[str, Any]]] = {}
+    for index, event in enumerate(events):
+        if event["direction"] != "server":
+            continue
+        message = event["message"]
+        method = message.get("method")
+        if method not in {"item/started", "item/completed"}:
+            continue
+        params = message.get("params")
+        if (
+            type(params) is not dict
+            or params.get("threadId") != thread_id
+            or params.get("turnId") != turn_id
+            or type(params.get("item")) is not dict
+        ):
+            raise NativeHostError("native-item-lifecycle-binding")
+        item = params["item"]
+        item_id = item.get("id")
+        item_type = item.get("type")
+        timestamp_key = "startedAtMs" if method == "item/started" else "completedAtMs"
+        if type(item_id) is not str or not item_id or type(item_type) is not str:
+            raise NativeHostError("native-item-lifecycle-item-invalid")
+        if type(params.get(timestamp_key)) is not int or params[timestamp_key] < 0:
+            raise NativeHostError("native-item-lifecycle-timestamp-invalid")
+        if item_type not in {"userMessage", "agentMessage", "reasoning"}:
+            raise NativeHostError("native-tool-or-unsupported-item-present")
+        target = started_items if method == "item/started" else completed_items
+        if item_id in target:
+            raise NativeHostError("native-item-lifecycle-duplicate")
+        target[item_id] = (index, params[timestamp_key], item)
+
+    if not started_items or set(started_items) != set(completed_items):
+        raise NativeHostError("native-item-lifecycle-incomplete")
+    for item_id, (start_index, started_at, started_item) in started_items.items():
+        complete_index, completed_at, completed_item = completed_items[item_id]
+        if (
+            not turn_started_position < start_index < complete_index < turn_completed_position
+            or completed_at < started_at
+            or started_item.get("type") != completed_item.get("type")
+        ):
+            raise NativeHostError("native-item-lifecycle-order-invalid")
+    items = [item for _, _, item in sorted(completed_items.values(), key=lambda entry: entry[0])]
+    completion = completed[0]
+    completion_view = completion.get("itemsView", "full")
+    completion_items = completion.get("items")
+    if completion_view not in {"full", "summary", "notLoaded"}:
+        raise NativeHostError("native-completed-items-view-invalid")
+    if type(completion_items) is not list:
         raise NativeHostError("native-completed-items-missing")
+    if completion_view == "full" and completion_items != items:
+        raise NativeHostError("native-completed-items-mismatch")
+    if completion_view == "notLoaded" and completion_items:
+        raise NativeHostError("native-completed-items-mismatch")
+    if completion_view == "summary":
+        full_by_id = {item["id"]: item for item in items}
+
+        def is_consistent_summary(summary: Any, full: dict[str, Any]) -> bool:
+            if (
+                type(summary) is not dict
+                or summary.get("id") != full.get("id")
+                or summary.get("type") != full.get("type")
+            ):
+                return False
+            return all(full.get(key) == value for key, value in summary.items())
+
+        summary_ids: set[str] = set()
+        for summary_item in completion_items:
+            if type(summary_item) is not dict or type(summary_item.get("id")) is not str:
+                raise NativeHostError("native-completed-items-mismatch")
+            summary_id = summary_item["id"]
+            if summary_id in summary_ids or summary_id not in full_by_id:
+                raise NativeHostError("native-completed-items-mismatch")
+            summary_ids.add(summary_id)
+            if not is_consistent_summary(summary_item, full_by_id[summary_id]):
+                raise NativeHostError("native-completed-items-mismatch")
     user_items = [item for item in items if type(item) is dict and item.get("type") == "userMessage"]
     assistant_items = [item for item in items if type(item) is dict and item.get("type") == "agentMessage"]
     if len(user_items) != 1 or len(assistant_items) != 1:
@@ -427,6 +540,9 @@ def verify_transcript(
         or user_content[0].get("text") != turn_params["input"][0]["text"]
     ):
         raise NativeHostError("native-persisted-input-mismatch")
+    started_user_items = [item for _, _, item in started_items.values() if item.get("type") == "userMessage"]
+    if len(started_user_items) != 1 or started_user_items[0].get("content") != user_content:
+        raise NativeHostError("native-started-input-mismatch")
     response = assistant_items[0].get("text")
     if type(response) is not str or not response:
         raise NativeHostError("native-assistant-response-missing")
@@ -476,6 +592,7 @@ async def _invoke_codex(
     cli_executable_sha256: str,
     cli_version: str,
     mcp_server_ids: list[str],
+    failure_events_path: Path,
     deadline: float,
 ) -> tuple[bytes, VerifiedTranscript]:
     try:
@@ -493,6 +610,7 @@ async def _invoke_codex(
             limit=MAX_EVENT_LINE_BYTES + 1,
         )
         assert process.stdin is not None and process.stdout is not None
+        turn_start_sent = False
         try:
             requests = [
                 {
@@ -553,8 +671,10 @@ async def _invoke_codex(
                 raise NativeHostError("native-stage-deadline-expired-before-turn")
             events.append({"direction": "client", "message": turn_start})
             await _write_request(process.stdin, turn_start, deadline=deadline)
+            turn_start_sent = True
             turn_id = None
             turn_start_response = False
+            completion_notification = None
             while True:
                 message = await _read_message(process.stdout, deadline=deadline)
                 events.append({"direction": "server", "message": message})
@@ -568,7 +688,14 @@ async def _invoke_codex(
                     if type(params) is dict and params.get("threadId") == thread_id:
                         if not turn_start_response or type(turn_id) is not str:
                             raise NativeHostError("native-turn-completed-before-start")
+                        completion_notification = params.get("turn")
                         break
+            if (
+                type(completion_notification) is not dict
+                or completion_notification.get("id") != turn_id
+                or completion_notification.get("status") != "completed"
+            ):
+                raise NativeHostError("native-turn-not-complete")
             transcript = {
                 "schema": TRANSCRIPT_SCHEMA,
                 "stage_uuid": stage_uuid,
@@ -598,6 +725,31 @@ async def _invoke_codex(
                 expected_mcp_server_ids=mcp_server_ids,
             )
             return transcript_bytes, verified
+        except Exception as exc:
+            if turn_start_sent:
+                reason_code = exc.args[0] if isinstance(exc, NativeHostError) and exc.args else "native-dispatch-failed"
+                failure_evidence = {
+                    "schema": "coverage-native-host-failure-events/1",
+                    "stage_uuid": stage_uuid,
+                    "phase": phase,
+                    "packet_id": packet_id,
+                    "packet_sha256": _sha(packet_bytes),
+                    "model": MODEL,
+                    "cli_executable_sha256": cli_executable_sha256,
+                    "cli_version": cli_version,
+                    "reason_code": reason_code,
+                    "classification": _safe_failure_classification(reason_code),
+                    "event_count": len(events.events),
+                    "events": events.events,
+                }
+                try:
+                    failure_bytes = _canonical(failure_evidence)
+                    if len(failure_bytes) <= MAX_TRANSCRIPT_BYTES:
+                        _write_exclusive(failure_events_path, failure_bytes)
+                except (NativeHostError, OSError):
+                    # Diagnostic persistence must never change the terminal failure.
+                    pass
+            raise
         finally:
             process.stdin.close()
             if process.returncode is None:
@@ -1011,6 +1163,7 @@ async def dispatch_handoff_scope(
                     cli_executable_sha256=expected_cli_sha256,
                     cli_version=cli_version,
                     mcp_server_ids=mcp_server_ids,
+                    failure_events_path=failure_root / f"{packet_id}.events.json",
                     deadline=deadline_monotonic,
                 )
                 async with activity_lock:
