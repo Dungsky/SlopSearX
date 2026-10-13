@@ -39,6 +39,40 @@ def _canonical(value: object) -> bytes:
     return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8")
 
 
+def _phase_request_context_bindings(
+    request_bindings: object,
+    *,
+    expected_source_closure_sha256: str,
+    expected_scope_bindings: Mapping[str, object],
+) -> dict[str, object]:
+    """Validate the runner's common context without loosening scope bindings."""
+    common_keys = {
+        "source_closure_sha256",
+        "active_python_environment",
+        "active_python_environment_sha256",
+    }
+    if (
+        type(request_bindings) is not dict
+        or set(request_bindings) != set(expected_scope_bindings) | common_keys
+        or request_bindings.get("source_closure_sha256") != expected_source_closure_sha256
+    ):
+        raise LocalAuthorityError("phase-artifact-request-context-binding-mismatch")
+    environment = request_bindings.get("active_python_environment")
+    environment_sha256 = request_bindings.get("active_python_environment_sha256")
+    if (
+        type(environment) is not dict
+        or environment.get("schema") != "coverage-active-python-environment/1"
+        or type(environment_sha256) is not str
+        or not _SHA.fullmatch(environment_sha256)
+        or _sha(_canonical(environment)) != environment_sha256
+    ):
+        raise LocalAuthorityError("phase-artifact-active-environment-binding-invalid")
+    scope_bindings = {key: value for key, value in request_bindings.items() if key not in common_keys}
+    if scope_bindings != dict(expected_scope_bindings):
+        raise LocalAuthorityError("phase-artifact-request-scope-binding-mismatch")
+    return scope_bindings
+
+
 def _strict_json(raw: bytes) -> object:
     def pairs(items):
         result = {}
@@ -1606,9 +1640,11 @@ class PhaseArtifactReceiptIssuer:
             capture_module_sha256=_sha(Path(capture.__file__).read_bytes()),
             ca_bundle_sha256=ca_bundle_sha256,
         )
-        request_bindings = envelope.get("bindings")
-        if request_bindings != asdict(bindings):
-            raise LocalAuthorityError("phase-artifact-capture-qualification-request-mismatch")
+        _phase_request_context_bindings(
+            envelope.get("bindings"),
+            expected_source_closure_sha256=expected_source_closure_sha256,
+            expected_scope_bindings=asdict(bindings),
+        )
         PinnedReceiptAuthorities.protected_capture_qualification(
             qualification_receipt_bytes,
             expected_qualification_receipt_sha256,

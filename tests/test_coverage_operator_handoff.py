@@ -1326,6 +1326,195 @@ class OperatorReceiptHandoffTests(unittest.TestCase):
                     expected_source_closure_sha256=plan.source_closure_sha256,
                 )
 
+    def test_capture_authority_issues_both_permits_through_file_handoff(self):
+        from scripts import coverage_operator_runner as runner
+        from scripts import coverage_runtime_environment as runtime_environment
+        from scripts import coverage_source_capture as capture
+        from tests.test_coverage_operator_runner import OperatorRunnerConfigTests
+
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            config_root = base / "config"
+            config_root.mkdir(mode=0o700)
+            config_path, config_sha = OperatorRunnerConfigTests()._registered_companion_config(config_root)
+            environment_bytes = canonical({"schema": runtime_environment.SCHEMA, "fixture": True})
+            with (
+                mock.patch.object(runner, "_verify_checkout_sources"),
+                mock.patch.object(runner, "_require_source_bootstrap"),
+                mock.patch.object(
+                    runner.runtime_environment,
+                    "verify_active_environment",
+                    return_value=environment_bytes,
+                ),
+            ):
+                stage_runner = runner.OperatorStageRunner.from_file(config_path, config_sha)
+
+            plan = stage_runner.plan
+            endpoint = stage_runner.config["candidate_base_url"]
+            _health_url, _scrape_url, endpoint_sha = capture._candidate_endpoints(endpoint)
+            manifest = {
+                "schema": "coverage-source-capture-manifest/1",
+                "stage": plan.stage_kind,
+                "stage_uuid": plan.stage_uuid,
+                "source_revision": plan.source_revision,
+                "protocol_sha256": digest(plan.protocol_bytes),
+                "cohorts_sha256": digest(plan.cohorts_bytes),
+                "candidate_identity_sha256": digest(plan.candidate_identity_bytes),
+                "candidate_endpoint_sha256": endpoint_sha,
+                "sources": [],
+            }
+            manifest_bytes = capture._canonical_json(manifest)
+            active_registration = json.loads(stage_runner.initial_registration)
+            active_registration["pins"]["source_capture_manifest"] = digest(manifest_bytes)
+            stage_runner._active_registration_bytes = canonical(active_registration)
+            handoff_root = Path(stage_runner.directories["operator_handoff"])
+            qualification_request_path = (
+                handoff_root / plan.stage_uuid / "protected-source-capture" / "requests" / "permit.json"
+            )
+            source_request_path = handoff_root / plan.stage_uuid / "source-capture" / "requests" / "permit.json"
+            result: list[object] = []
+
+            async def invoke_capture_authority():
+                try:
+                    result.append(
+                        await stage_runner._capture_authority(plan, {"capture_manifest_bytes": manifest_bytes})
+                    )
+                except Exception as exc:
+                    result.append(exc)
+
+            worker = threading.Thread(target=lambda: asyncio.run(invoke_capture_authority()))
+            worker.start()
+
+            def wait_for_request(path: Path) -> bytes:
+                for _ in range(400):
+                    if path.is_file():
+                        return path.read_bytes()
+                    time.sleep(0.01)
+                self.fail(f"file handoff request was not created: {path.parent.parent.name}")
+
+            qualification_request = wait_for_request(qualification_request_path)
+            qualification_envelope = json.loads(qualification_request)
+            expected_active_sha = digest(stage_runner._active_registration_bytes)
+            qualification_args = {
+                "root": handoff_root,
+                "stage_uuid": plan.stage_uuid,
+                "request_id": "permit",
+                "expected_source_closure_sha256": plan.source_closure_sha256,
+                "expected_initial_registration_sha256": stage_runner.initial_registration_sha256,
+                "expected_active_registration_sha256": expected_active_sha,
+                "candidate_base_url": endpoint,
+                "ca_bundle_sha256": None,
+            }
+            evidence = {
+                "grok_image_digest": "sha256:" + "a" * 64,
+                "grok_config_sha256": "b" * 64,
+                "protected_profile_sha256": "c" * 64,
+                "full_boundary_evidence_sha256": "d" * 64,
+            }
+            scope_bindings = {
+                key: value
+                for key, value in qualification_envelope["bindings"].items()
+                if key not in {"source_closure_sha256", "active_python_environment", "active_python_environment_sha256"}
+            }
+            qualification_receipt = canonical(
+                {
+                    "schema": authority.SCHEMA,
+                    "decision": "allow",
+                    "scope": "protected-source-capture",
+                    "bindings": scope_bindings,
+                    "evidence": evidence,
+                }
+            )
+
+            bad_closure = json.loads(qualification_request)
+            bad_closure["bindings"]["source_closure_sha256"] = "f" * 64
+            bad_closure["request_sha256"] = digest(canonical(bad_closure["bindings"]))
+            with self.assertRaisesRegex(handoff.OperatorHandoffError, "handoff-artifact-binding-mismatch"):
+                authority.PhaseArtifactReceiptIssuer.protected_capture_qualification(
+                    request_bytes=canonical(bad_closure),
+                    qualification_receipt_bytes=qualification_receipt,
+                    expected_qualification_receipt_sha256=digest(qualification_receipt),
+                    **qualification_args,
+                )
+
+            bad_extra = json.loads(qualification_request)
+            bad_extra["bindings"]["unregistered_extra"] = "rejected"
+            bad_extra["request_sha256"] = digest(canonical(bad_extra["bindings"]))
+            with self.assertRaisesRegex(
+                authority.LocalAuthorityError, "phase-artifact-request-context-binding-mismatch"
+            ):
+                authority.PhaseArtifactReceiptIssuer.protected_capture_qualification(
+                    request_bytes=canonical(bad_extra),
+                    qualification_receipt_bytes=qualification_receipt,
+                    expected_qualification_receipt_sha256=digest(qualification_receipt),
+                    **qualification_args,
+                )
+
+            bad_environment = json.loads(qualification_request)
+            bad_environment["bindings"]["active_python_environment_sha256"] = "e" * 64
+            bad_environment["request_sha256"] = digest(canonical(bad_environment["bindings"]))
+            with self.assertRaisesRegex(
+                authority.LocalAuthorityError, "phase-artifact-active-environment-binding-invalid"
+            ):
+                authority.PhaseArtifactReceiptIssuer.protected_capture_qualification(
+                    request_bytes=canonical(bad_environment),
+                    qualification_receipt_bytes=qualification_receipt,
+                    expected_qualification_receipt_sha256=digest(qualification_receipt),
+                    **qualification_args,
+                )
+
+            issued_qualification = authority.PhaseArtifactReceiptIssuer.protected_capture_qualification(
+                request_bytes=qualification_request,
+                qualification_receipt_bytes=qualification_receipt,
+                expected_qualification_receipt_sha256=digest(qualification_receipt),
+                **qualification_args,
+            )
+            qualification_scope = handoff_root / plan.stage_uuid / "protected-source-capture"
+            qualification_response = qualification_scope / "responses" / "permit.receipt"
+            qualification_pin = qualification_scope / "pins" / "permit.sha256"
+            qualification_response.write_bytes(issued_qualification)
+            qualification_response.chmod(0o600)
+            qualification_pin.write_text(digest(issued_qualification) + "\n")
+            qualification_pin.chmod(0o600)
+
+            source_request = wait_for_request(source_request_path)
+            issued_capture = authority.PhaseArtifactReceiptIssuer.source_capture(
+                root=handoff_root,
+                stage_uuid=plan.stage_uuid,
+                request_id="permit",
+                request_bytes=source_request,
+                expected_source_closure_sha256=plan.source_closure_sha256,
+                expected_initial_registration_sha256=stage_runner.initial_registration_sha256,
+                expected_active_registration_sha256=expected_active_sha,
+                expected_capture_manifest_bytes=manifest_bytes,
+            )
+            source_scope = handoff_root / plan.stage_uuid / "source-capture"
+            source_response = source_scope / "responses" / "permit.receipt"
+            source_pin = source_scope / "pins" / "permit.sha256"
+            source_response.write_bytes(issued_capture)
+            source_response.chmod(0o600)
+            source_pin.write_text(digest(issued_capture) + "\n")
+            source_pin.chmod(0o600)
+            worker.join(timeout=5)
+            self.assertFalse(worker.is_alive())
+            self.assertEqual(len(result), 1)
+            self.assertIsInstance(result[0], dict)
+            authority_result = result[0]
+
+            qualified = authority_result["qualification_verifier"].verify(
+                authority_result["qualification_receipt_bytes"],
+                authority_result["expected_qualification_receipt_sha256"],
+                capture.ProtectedCaptureQualificationBindings(**scope_bindings),
+            )
+            admitted = authority_result["permit_verifier"].verify(
+                manifest_bytes,
+                authority_result["permit_receipt_bytes"],
+                authority_result["expected_permit_receipt_sha256"],
+            )
+            self.assertEqual(qualified.status, "verified-qualified")
+            self.assertEqual(admitted.status, "verified-admitted")
+            self.assertEqual(admitted.manifest_sha256, digest(manifest_bytes))
+
     def test_phase_artifact_bundle_is_persisted_private_and_source_bound(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary) / "handoff"
