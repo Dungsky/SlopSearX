@@ -59,7 +59,7 @@ def validate_contract(contract: object, *, stage_kind: str, protocol_sha256: str
         "claim_scope",
     }:
         raise BandCompanionError("companion-contract-shape")
-    if contract["schema"] != SCHEMA or contract["stage_kind"] != stage_kind:
+    if contract["schema"] != SCHEMA or contract["stage_kind"] != "development_and_confirmation":
         raise BandCompanionError("companion-contract-identity")
     if contract["protocol_sha256"] != PROTOCOL_SHA256 or protocol_sha256 != PROTOCOL_SHA256:
         raise BandCompanionError("companion-protocol-pin-mismatch")

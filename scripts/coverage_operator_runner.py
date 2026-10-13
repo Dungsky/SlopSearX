@@ -684,6 +684,10 @@ class OperatorStageRunner:
         acquisition_plan = _build_acquisition_plan(self.config["stage_uuid"], cases, targets)
         if protocol.get("cohorts_sha256") != _sha(path_bytes["cohorts"]):
             raise OperatorRunnerError("protocol-cohort-pin-mismatch")
+        companion_sha = _sha(path_bytes["band_companion"]) if "band_companion" in path_bytes else None
+        initial_registration_sha256 = _sha(path_bytes["initial_registration"])
+        if initial_registration_sha256 != self.config["initial_registration_sha256"]:
+            raise OperatorRunnerError("initial-registration-config-pin-mismatch")
         try:
             source_pins = None
             if closure.get("schema") == "coverage-study-qualified-source-closure/2":
@@ -710,6 +714,7 @@ class OperatorStageRunner:
                     ),
                 },
                 expected_source_pins=source_pins,
+                expected_band_companion_sha256=companion_sha,
             )
         except Exception as exc:
             raise OperatorRunnerError("source-closure-preflight-failed") from exc
@@ -727,20 +732,21 @@ class OperatorStageRunner:
             execution_profile = coverage_study_acquire.execution_profile_from_protocol(protocol.get("acquisition"))
         except ValueError as exc:
             raise OperatorRunnerError("acquisition-execution-profile-invalid") from exc
-        preacq = _canonical(
-            {
-                "schema": "coverage-preacquisition-input-manifest/1",
-                "stage_uuid": self.config["stage_uuid"],
-                "protocol_sha256": _sha(path_bytes["protocol"]),
-                "cohorts_sha256": _sha(path_bytes["cohorts"]),
-                "task_ids": [row["task_id"] for row in cases] + [row["target_id"] for row in targets],
-                **(
-                    {"band_companion_sha256": _sha(path_bytes["band_companion"])}
-                    if "band_companion" in path_bytes
-                    else {}
-                ),
-            }
-        )
+        preacquisition_input = {
+            "schema": "coverage-preacquisition-input-manifest/1",
+            "stage_uuid": self.config["stage_uuid"],
+            "protocol_sha256": _sha(path_bytes["protocol"]),
+            "cohorts_sha256": _sha(path_bytes["cohorts"]),
+            "task_ids": [row["task_id"] for row in cases] + [row["target_id"] for row in targets],
+        }
+        if companion_sha is not None:
+            preacquisition_input.update(
+                {
+                    "band_companion_sha256": companion_sha,
+                    "initial_registration_sha256": initial_registration_sha256,
+                }
+            )
+        preacq = _canonical(preacquisition_input)
         acquisition_manifest_doc = {
             "schema": execution_profile.manifest_schema,
             "stage": self.config["stage_kind"],
@@ -769,9 +775,7 @@ class OperatorStageRunner:
             "capture_plan": path_bytes["capture_plan"],
         }
         self.initial_registration = path_bytes["initial_registration"]
-        self.initial_registration_sha256 = _sha(self.initial_registration)
-        if self.initial_registration_sha256 != self.config["initial_registration_sha256"]:
-            raise OperatorRunnerError("initial-registration-config-pin-mismatch")
+        self.initial_registration_sha256 = initial_registration_sha256
         self.candidate_identity = identity
         # Verify every static registration pin before taking the stage clock or
         # creating operator/lease directories. Dynamic pins are replaced only
@@ -843,6 +847,8 @@ class OperatorStageRunner:
                 expected_acquisition_manifest_sha256=_sha(acquisition_manifest),
                 band_companion_bytes=path_bytes.get("band_companion"),
                 band_companion_sha256=companion_sha,
+                initial_registration_bytes=self.initial_registration if companion_sha is not None else None,
+                initial_registration_sha256=self.initial_registration_sha256 if companion_sha is not None else None,
                 band_companion_source_pins=self.band_companion_source_pins,
             )
             self.preflight_validation = orchestration._validate_plan_static(self.plan)
@@ -877,6 +883,8 @@ class OperatorStageRunner:
             expected_acquisition_manifest_sha256=_sha(acquisition_manifest),
             band_companion_bytes=path_bytes.get("band_companion"),
             band_companion_sha256=companion_sha,
+            initial_registration_bytes=self.initial_registration if companion_sha is not None else None,
+            initial_registration_sha256=self.initial_registration_sha256 if companion_sha is not None else None,
             band_companion_source_pins=self.band_companion_source_pins,
         )
         orchestration._validate_plan(self.plan)

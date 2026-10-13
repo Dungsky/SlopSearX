@@ -229,6 +229,148 @@ class OperatorRunnerConfigTests(unittest.TestCase):
         config_path.chmod(0o600)
         return config_path, digest(raw_config), config["directories"]
 
+    def _registered_companion_config(self, root: Path) -> tuple[Path, str]:
+        """Build real registered-v2 materials that traverse runner preflight."""
+        repo = Path(__file__).parents[1]
+        evidence_dir = repo / "docs/experiments/evidence/coverage-first-study"
+        bundle = evidence_dir / "registered-2026-10-12-acquisition-v2"
+        stage_dir = bundle / "development"
+        external_paths = {
+            "cohorts": bundle / "cohorts.json",
+            "protocol": bundle / "protocol.json",
+            "qualified_source_closure": bundle / "current-qualified-source-closure.json",
+            "coverage_source": repo / "scripts/intent_ranking_coverage.py",
+            "production_rerank_source": repo / "slopsearx/rerank.py",
+            "dependency_lock": repo / "uv.lock",
+            "reference_manifest": stage_dir / "reference-manifest-shell.json",
+            "answer_assessment_plan": stage_dir / "answer-assessment-plan-shell.json",
+            "capture_plan": stage_dir / "capture-plan.json",
+            "candidate_identity": evidence_dir / "registered-2026-10-11/candidate-runtime-identity.json",
+        }
+        config_path, _ = self._config(root, external_paths["protocol"].read_bytes())
+        config = json.loads(config_path.read_bytes())
+        config["source_revision"] = subprocess.run(
+            ["git", "rev-parse", "--verify", "HEAD^{commit}"],
+            cwd=repo,
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+        path_values = {key: Path(value) for key, value in config["paths"].items()}
+        material_bytes = {key: path.read_bytes() for key, path in external_paths.items()}
+        material_bytes["candidate_identity"] = runner.capture._canonical_json(
+            runner.core._strict_json(material_bytes["candidate_identity"], "test-candidate-identity")
+        )
+        for key in ("coverage_source", "production_rerank_source", "dependency_lock"):
+            path_values[key] = external_paths[key]
+
+        companion_path = root / "band-companion.json"
+        material_bytes["band_companion"] = (evidence_dir / "band-companion/development-contract.json").read_bytes()
+        companion_path.write_bytes(material_bytes["band_companion"])
+        path_values["band_companion"] = companion_path
+
+        source_names = {
+            "coverage_study_core": "scripts/coverage_study_core.py",
+            "coverage_gate_calculation": "scripts/coverage_gate_calculation.py",
+            "coverage_stage_orchestration": "scripts/coverage_stage_orchestration.py",
+            "coverage_stage_finalization": "scripts/coverage_stage_finalization.py",
+            "coverage_operator_runner": "scripts/coverage_operator_runner.py",
+            "coverage_band_companion": "scripts/coverage_band_companion.py",
+            "coverage_late_registration": "scripts/coverage_late_registration.py",
+        }
+        material_bytes["qualified_source_closure"] = runner._canonical(
+            {
+                "schema": "coverage-study-qualified-source-closure/2",
+                "source_revision": config["source_revision"],
+                "material_pins": {
+                    "coverage_source": digest(material_bytes["coverage_source"]),
+                    "production_rerank_source": digest(material_bytes["production_rerank_source"]),
+                    "dependency_lock": digest(material_bytes["dependency_lock"]),
+                    "band_companion": digest(material_bytes["band_companion"]),
+                },
+                "source_pins": {
+                    name: digest((repo / relative).read_bytes()) for name, relative in source_names.items()
+                },
+            }
+        )
+        for key, raw in material_bytes.items():
+            if key not in {"coverage_source", "production_rerank_source", "dependency_lock"}:
+                path_values[key].write_bytes(raw)
+
+        cohorts = runner.core._strict_json(material_bytes["cohorts"], "test-cohorts")
+        stage_row = runner._stage_cohort(cohorts, config["stage_kind"])
+        acquisition_plan = runner._build_acquisition_plan(
+            config["stage_uuid"], stage_row["research_cases"], stage_row["navigation_targets"]
+        )
+        static_materials = {
+            "protocol": material_bytes["protocol"],
+            "qualified_source_closure": material_bytes["qualified_source_closure"],
+            "coverage_source": material_bytes["coverage_source"],
+            "production_rerank_source": material_bytes["production_rerank_source"],
+            "dependency_lock": material_bytes["dependency_lock"],
+            "reference_manifest": material_bytes["reference_manifest"],
+            "answer_assessment_plan": material_bytes["answer_assessment_plan"],
+            "acquisition_plan": acquisition_plan,
+            "capture_plan": material_bytes["capture_plan"],
+        }
+        registration = runner._canonical(
+            {
+                "schema": runner.core.REGISTRATION_SCHEMA,
+                "stage_uuid": config["stage_uuid"],
+                "stage_kind": config["stage_kind"],
+                "source_revision": config["source_revision"],
+                "pins": {
+                    **{key: digest(raw) for key, raw in static_materials.items()},
+                    "task_input_manifest": "b" * 64,
+                    "source_capture_manifest": "c" * 64,
+                },
+                "task_ids": [row["task_id"] for row in stage_row["research_cases"]]
+                + [row["target_id"] for row in stage_row["navigation_targets"]],
+                "navigation_skip_reasons": [None] * len(stage_row["navigation_targets"]),
+                "operation_ids": [call.operation_id for call in runner.core.selector_inventory([None] * 5)],
+                "band_companion_sha256": digest(material_bytes["band_companion"]),
+            }
+        )
+        path_values["initial_registration"].write_bytes(registration)
+        config["initial_registration_sha256"] = digest(registration)
+        config["paths"] = {key: str(path) for key, path in path_values.items()}
+        raw_config = canonical(config)
+        config_path.write_bytes(raw_config)
+        config_path.chmod(0o600)
+        return config_path, digest(raw_config)
+
+    def test_registered_v2_companion_runner_preflight_binds_closure_registration_and_plan(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            config_path, config_sha = self._registered_companion_config(root)
+            with (
+                mock.patch.object(runner, "_verify_checkout_sources"),
+                mock.patch.object(runner, "_require_source_bootstrap"),
+                mock.patch.object(runner.runtime_environment, "verify_active_environment", return_value=b"{}"),
+            ):
+                instance = runner.OperatorStageRunner.preflight_from_file(config_path, config_sha)
+
+            registered_dir = (
+                Path(__file__).parents[1]
+                / "docs/experiments/evidence/coverage-first-study/registered-2026-10-12-acquisition-v2"
+            )
+            companion_bytes = (
+                Path(__file__).parents[1]
+                / "docs/experiments/evidence/coverage-first-study/band-companion/development-contract.json"
+            ).read_bytes()
+            registration_bytes = Path(
+                json.loads(config_path.read_bytes())["paths"]["initial_registration"]
+            ).read_bytes()
+            self.assertEqual(instance.plan.protocol_bytes, (registered_dir / "protocol.json").read_bytes())
+            self.assertEqual(instance.plan.cohorts_bytes, (registered_dir / "cohorts.json").read_bytes())
+            self.assertEqual(instance.plan.band_companion_bytes, companion_bytes)
+            self.assertEqual(instance.plan.band_companion_sha256, digest(companion_bytes))
+            self.assertEqual(instance.plan.initial_registration_bytes, registration_bytes)
+            self.assertEqual(instance.plan.initial_registration_sha256, digest(registration_bytes))
+            self.assertEqual(instance.preflight_validation["band_companion_sha256"], digest(companion_bytes))
+            self.assertEqual(instance.preflight_validation["initial_registration_sha256"], digest(registration_bytes))
+
     def test_unregistered_or_draft_protocol_fails_before_clock_or_handoff_side_effects(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

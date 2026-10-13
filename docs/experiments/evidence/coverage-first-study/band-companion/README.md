@@ -3,9 +3,12 @@
 This companion adds a stricter delivery condition to the frozen eight-task
 mixed-workload gates. It does not change the protocol, cohorts, budgets,
 thresholds, sampling plan, or stage schedule. Each registered run must pin the
-matching stage contract, source-closure v2, and initial registration before
-admission. The operator must fail closed if any of those bindings is absent or
-does not match.
+same shared stage contract, source-closure v2, and initial registration before
+admission. The shared contract declares both development and confirmation
+membership so the qualified source-closure digest remains identical across the
+required development-to-confirmation lineage. The operator still validates
+that the actual run is one of those two stage kinds and fails closed if any
+binding is absent or does not match.
 
 The gate calculator accepts the original frozen execution-contract digest and
 one additional exact digest for the registered acquisition-v2 protocol. That
