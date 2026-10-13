@@ -11,12 +11,14 @@ The controlling next steps are in the
 The v3 acquisition ended after a provider rate limit without a ranking or
 task-use comparison; its consumed identities and partial artifacts are retired.
 PRs #829 and #830 merged the fresh frozen-input runner and companion binding.
-The remaining runner correction completes actual file-based issuer
-reconstruction from sealed acquisition, capture and selector evidence.
-No fresh development or confirmation quality result exists yet.
+PR #831 completed actual file-based issuer reconstruction, including the
+protected capture entrypoint, full selector replay and answer catalogs.
+Both [fresh static preflights](evidence/coverage-first-study/frozen-input-static-registration-2026-10-13/README.md)
+passed against the exact merge source. Neither stage is admitted or invoked;
+no fresh development or confirmation quality result exists yet.
 
-Finish and review that correction, lock both fresh stage registrations, run
-development once, and admit confirmation only after every development gate
+Publish the locked fresh stage registrations, run development once, and admit
+confirmation only after every development gate
 passes. Both stages must qualify before implementing the entire checklist
 below. A failed or inconclusive stage closes this candidate as unqualified;
 it does not start another study automatically. The earlier records that follow
