@@ -509,9 +509,7 @@ def test_mock_fake_clock_cannot_qualify_or_report_pacing(tmp_path: Path):
             return self.elapsed
 
     manifest, acquisition_plan = make_manifest()
-    evidence, _verifier, _lease, _pacer, _calls = asyncio.run(
-        _run_acquisition(tmp_path, pacer=NoWaitPacer())
-    )
+    evidence, _verifier, _lease, _pacer, _calls = asyncio.run(_run_acquisition(tmp_path, pacer=NoWaitPacer()))
     observed = resource_evidence.collect_acquisition_observations(
         snapshots_directory=evidence.receipt_directory,
         receipt_directory=evidence.receipt_directory,
@@ -574,9 +572,7 @@ def test_rounded_gap_lower_bound_rejects_submicrosecond_shortfall(threshold_seco
     rounded_earlier_us = round(0.0)
     rounded_later_us = round(threshold_us - 0.5)
     assert rounded_later_us == threshold_us
-    lower_bound = resource_evidence._conservative_rounded_gap_lower_bound_us(
-        rounded_earlier_us, rounded_later_us
-    )
+    lower_bound = resource_evidence._conservative_rounded_gap_lower_bound_us(rounded_earlier_us, rounded_later_us)
     assert lower_bound == threshold_us - 1
     assert lower_bound < threshold_us
 
