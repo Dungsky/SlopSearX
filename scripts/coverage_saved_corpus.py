@@ -26,6 +26,7 @@ from scripts import intent_ranking_receipts as response_receipts
 SCHEMA = "coverage-saved-corpus-import/1"
 CAPTURE_IMPORT_SCHEMA = "coverage-saved-source-capture-inventory/1"
 _SHA = re.compile(r"[0-9a-f]{64}\Z")
+_REVISION = re.compile(r"[0-9a-f]{40}\Z")
 _UUID = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\Z")
 _MAX_CAPTURE_FILE = source_capture.MAX_RESPONSE_BYTES
 _MAX_CONTEXT_FILE = 64_000
@@ -291,8 +292,8 @@ def _validate_origin_binding(binding: SavedCorpusStageBinding, origin: SavedCorp
         or binding.packet_stage_uuid == registration.stage_uuid
     ):
         raise SavedCorpusError("current-stage-identities-not-fresh")
-    if binding.source_revision != registration.source_revision:
-        raise SavedCorpusError("current-source-revision-mismatch")
+    if type(binding.source_revision) is not str or _REVISION.fullmatch(binding.source_revision) is None:
+        raise SavedCorpusError("current-source-revision-invalid")
     for pin in (
         binding.source_closure_sha256,
         binding.protocol_sha256,

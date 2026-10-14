@@ -91,12 +91,53 @@ def build_postacquisition_materials(
         manifest = core._strict_json(plan.acquisition_manifest_bytes, "acquisition-manifest")
         if type(protocol) is not dict or type(manifest) is not dict:
             raise ValueError("protocol or manifest is not an object")
+        protocol_pool_mode = acquisition.pool_input_mode_for_stage(protocol, plan.stage_kind)
         profile = acquisition.execution_profile_from_protocol(
-            protocol.get("acquisition"), pool_input_mode=protocol.get("pool_input_mode", "live-acquisition/1")
+            protocol.get("acquisition"), pool_input_mode=protocol_pool_mode
         )
-        manifest_profile = acquisition.execution_profile_from_manifest(manifest)
-        if profile != manifest_profile:
-            raise ValueError("acquisition profile does not match the pinned protocol")
+        if saved_source:
+            if protocol_pool_mode != _SAVED_POOL_MODE:
+                raise ValueError("saved inputs are not registered for this stage")
+            preacquisition_input = {
+                "schema": "coverage-preacquisition-input-manifest/1",
+                "stage_uuid": plan.stage_uuid,
+                "protocol_sha256": _sha(plan.protocol_bytes),
+                "cohorts_sha256": _sha(plan.cohorts_bytes),
+                "task_ids": [
+                    *(row["task_id"] for row in plan.research_cases),
+                    *(row["target_id"] for row in plan.navigation_targets),
+                ],
+            }
+            if plan.band_companion_sha256 is not None:
+                preacquisition_input.update(
+                    {
+                        "band_companion_sha256": plan.band_companion_sha256,
+                        "initial_registration_sha256": plan.initial_registration_sha256,
+                    }
+                )
+            expected_manifest = {
+                "schema": "coverage-saved-import-plan/1",
+                "stage": plan.stage_kind,
+                "stage_uuid": plan.stage_uuid,
+                "source_revision": plan.source_revision,
+                "source_closure_sha256": plan.source_closure_sha256,
+                "protocol_sha256": _sha(plan.protocol_bytes),
+                "cohorts_sha256": _sha(plan.cohorts_bytes),
+                "input_manifest_sha256": _sha(core._canonical(preacquisition_input)),
+                "acquisition_plan_sha256": _sha(plan.acquisition_plan_bytes),
+                "research_cases": list(plan.research_cases),
+                "navigation_targets": list(plan.navigation_targets),
+                "packet_stage_uuid": plan.packet_stage_uuid,
+                "origin_package_sha256": plan.saved_origin.expected_package_sha256,
+            }
+            if profile is acquisition.CONTINUE_ACQUISITION_PROFILE:
+                expected_manifest["execution_profile"] = profile.identifier
+            if manifest != expected_manifest:
+                raise ValueError("saved import plan does not match the pinned stage and origin")
+        else:
+            manifest_profile = acquisition.execution_profile_from_manifest(manifest)
+            if profile != manifest_profile:
+                raise ValueError("acquisition profile does not match the pinned protocol")
     except Exception as exc:
         raise LateRegistrationError("postacquisition-profile-binding-invalid") from exc
     try:
