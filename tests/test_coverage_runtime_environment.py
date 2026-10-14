@@ -249,9 +249,13 @@ def test_phase_handoff_carries_canonical_active_environment_receipt() -> None:
     instance = object.__new__(runner.OperatorStageRunner)
     receipt = _receipt()
     instance.active_environment_receipt_bytes = receipt
+    instance._saved_corpus_reference_bytes = None
     stage_uuid = str(uuid.UUID(int=503))
     instance.plan = SimpleNamespace(
-        stage_uuid=stage_uuid, stage_deadline_monotonic=99.0, source_closure_sha256="d" * 64
+        stage_uuid=stage_uuid,
+        stage_deadline_monotonic=99.0,
+        source_closure_sha256="d" * 64,
+        pool_input_mode="frozen-pool/1",
     )
 
     class Handoff:

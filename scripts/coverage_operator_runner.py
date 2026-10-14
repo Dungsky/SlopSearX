@@ -1068,8 +1068,62 @@ class OperatorStageRunner:
             "active_python_environment": json.loads(self.active_environment_receipt_bytes),
             "active_python_environment_sha256": _sha(self.active_environment_receipt_bytes),
         }
-        if artifacts is not None:
-            artifacts = dict(artifacts)
+        reference = None
+        reference_bytes = self._saved_corpus_reference_bytes
+        if self.plan.pool_input_mode == "saved-corpus/1" and reference_bytes is not None:
+            try:
+                reference = core._strict_json(reference_bytes, "saved-corpus-import-reference")
+                origin = self.plan.saved_origin
+                if (
+                    type(reference) is not dict
+                    or set(reference)
+                    != {
+                        "schema",
+                        "stage_uuid",
+                        "origin_stage_uuid",
+                        "origin_package_sha256",
+                        "import_receipt_sha256",
+                        "capture_manifest_sha256",
+                        "capture_inventory_sha256",
+                        "source_rows",
+                        "captured_contexts",
+                        "failed_contexts",
+                        "current_search_calls",
+                        "current_capture_calls",
+                    }
+                    or core._canonical(reference) != reference_bytes
+                    or reference.get("schema") != "coverage-saved-corpus-import-reference/1"
+                    or reference.get("stage_uuid") != self.plan.stage_uuid
+                    or origin is None
+                    or reference.get("origin_stage_uuid") != origin.registration.stage_uuid
+                    or reference.get("origin_package_sha256") != origin.expected_package_sha256
+                    or type(reference.get("import_receipt_sha256")) is not str
+                    or re.fullmatch(r"[0-9a-f]{64}", reference["import_receipt_sha256"]) is None
+                    or any(
+                        type(reference.get(name)) is not str or re.fullmatch(r"[0-9a-f]{64}", reference[name]) is None
+                        for name in ("capture_manifest_sha256", "capture_inventory_sha256")
+                    )
+                    or any(
+                        type(reference.get(name)) is not int or reference[name] < 0
+                        for name in ("source_rows", "captured_contexts", "failed_contexts")
+                    )
+                    or reference["captured_contexts"] + reference["failed_contexts"] != reference["source_rows"]
+                    or type(reference.get("current_search_calls")) is not int
+                    or reference.get("current_search_calls") != 0
+                    or type(reference.get("current_capture_calls")) is not int
+                    or reference.get("current_capture_calls") != 0
+                ):
+                    raise ValueError("saved import reference does not match the registered stage")
+            except Exception as exc:
+                raise OperatorRunnerError("saved-corpus-import-reference-invalid") from exc
+            bindings.update(
+                {
+                    "saved_corpus_import_receipt_sha256": reference["import_receipt_sha256"],
+                    "origin_package_sha256": reference["origin_package_sha256"],
+                }
+            )
+        if artifacts is not None or reference is not None:
+            artifacts = dict(artifacts or {})
             fixed_materials = {
                 "protocol": self.plan.protocol_bytes,
                 "cohorts": self.plan.cohorts_bytes,
@@ -1102,6 +1156,11 @@ class OperatorStageRunner:
                     existing = artifacts.setdefault(name, raw)
                     if existing != raw:
                         raise OperatorRunnerError("phase-artifact-dynamic-material-collision")
+            if reference is not None:
+                import_receipt_bytes = reference["import_receipt_sha256"].encode("ascii")
+                existing = artifacts.setdefault("saved-corpus-import-receipt-sha256", import_receipt_bytes)
+                if existing != import_receipt_bytes:
+                    raise OperatorRunnerError("phase-artifact-dynamic-material-collision")
         return bindings, artifacts
 
     async def _acquisition_authority(self, plan):
