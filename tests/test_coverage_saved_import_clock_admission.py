@@ -102,7 +102,6 @@ def _registered_runner(tmp_path: Path, *, clock_bytes: bytes):
         "source_revision": revision,
         "pins": {
             "protocol": _sha(protocol),
-            "cohorts": _sha(cohorts),
             "qualified_source_closure": closure_sha,
         },
     }
@@ -187,7 +186,9 @@ def _artifact_bundle(runner, initial: dict, clock_bytes: bytes) -> tuple[dict[st
     return bindings, artifacts
 
 
-def _invoke_issuer(tmp_path: Path, monkeypatch, *, stale: bool = False, tamper_origin: bool = False):
+def _invoke_issuer(
+    tmp_path: Path, monkeypatch, *, stale: bool = False, tamper_origin: bool = False, tamper_cohorts: bool = False
+):
     import pathlib
 
     boot_id = b"offline-test-boot-id"
@@ -203,6 +204,13 @@ def _invoke_issuer(tmp_path: Path, monkeypatch, *, stale: bool = False, tamper_o
     monkeypatch.setattr(collector, "_local_clock_origin_sha256", lambda: origin_sha256)
     _clock_doc, clock_bytes = _clock(stale=stale, tamper_origin=tamper_origin, origin_sha256=origin_sha256)
     runner, runner_module, initial, _clock_raw, _ = _registered_runner(tmp_path, clock_bytes=clock_bytes)
+    if tamper_cohorts:
+        protocol = json.loads(runner.plan.protocol_bytes)
+        protocol["cohorts_sha256"] = "0" * 64
+        raw = _canonical(protocol)
+        runner.plan = dataclasses.replace(runner.plan, protocol_bytes=raw)
+        initial["pins"]["protocol"] = _sha(raw)
+        runner.initial_registration_sha256 = _sha(_canonical(initial))
     monkeypatch.setattr(
         subprocess,
         "check_output",
@@ -233,7 +241,7 @@ def _invoke_issuer(tmp_path: Path, monkeypatch, *, stale: bool = False, tamper_o
                     scope="saved-corpus-import",
                     request_id="permit",
                     bindings=bindings,
-                    deadline_monotonic=time.monotonic() + (1 if stale or tamper_origin else 10),
+                    deadline_monotonic=time.monotonic() + (1 if stale or tamper_origin or tamper_cohorts else 10),
                     artifacts=artifacts,
                 )
             )
@@ -330,3 +338,8 @@ def test_pinned_saved_import_rejects_malformed_current_revision(monkeypatch, tmp
             expected_active_registration_sha256=runner.initial_registration_sha256,
             plan=malformed,
         )
+
+
+def test_external_saved_import_rejects_wrong_protocol_cohort_hash(monkeypatch, tmp_path):
+    with pytest.raises(authority.LocalAuthorityError, match="saved-corpus-import-registration-mismatch"):
+        _invoke_issuer(tmp_path, monkeypatch, tamper_cohorts=True)

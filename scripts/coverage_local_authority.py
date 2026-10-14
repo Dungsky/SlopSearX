@@ -482,7 +482,7 @@ class PhaseArtifactReceiptIssuer:
             or artifacts.get("protocol") != plan.protocol_bytes
             or artifacts.get("cohorts") != plan.cohorts_bytes
             or artifacts.get("acquisition-plan") != plan.acquisition_plan_bytes
-            or initial.get("pins", {}).get("cohorts") != _sha(plan.cohorts_bytes)
+            or protocol.get("cohorts_sha256") != _sha(plan.cohorts_bytes)
         ):
             raise LocalAuthorityError("saved-corpus-import-registration-mismatch")
         try:
