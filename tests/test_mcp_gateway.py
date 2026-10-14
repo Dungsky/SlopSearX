@@ -49,7 +49,7 @@ async def _wait_for_port(port: int, timeout: float = 20.0) -> bool:
 
 
 @asynccontextmanager
-async def _gateway_client(gateway: FastMCP):
+async def _gateway_client(gateway: FastMCP, *, check_shutdown: bool = False):
     """Exercise the gateway across its HTTP boundary, with its real lifespan."""
     port = _free_port()
     server = uvicorn.Server(
@@ -77,6 +77,8 @@ async def _gateway_client(gateway: FastMCP):
         # rejects bad credentials; the test asserts that startup failure.
         with suppress(SystemExit):
             await asyncio.wait_for(task, timeout=10)
+        if check_shutdown:
+            assert not server.lifespan.shutdown_failed
 
 
 @pytest.fixture
@@ -414,3 +416,96 @@ class TestInputSchemaFidelity:
             result = await client.call_tool_mcp("remote", arguments)
         assert calls == [("remote", arguments)]
         assert gateway._field(result, "structured_content", "structuredContent") == arguments
+
+
+class TestGatewaySessionOwner:
+    @pytest.mark.parametrize("exit_mode", ["normal", "body_error", "cancel"])
+    async def test_connection_scopes_stay_in_owner_task(self, monkeypatch: Any, exit_mode: str) -> None:
+        from slopsearx.mcp import gateway
+
+        entered = asyncio.Event()
+        exited = asyncio.Event()
+        tasks = []
+
+        @asynccontextmanager
+        async def connection(*args: Any, **kwargs: Any):
+            tasks.append(asyncio.current_task())
+            try:
+                yield
+            finally:
+                tasks.append(asyncio.current_task())
+                exited.set()
+
+        monkeypatch.setattr(gateway, "_gateway_connection", connection)
+
+        async def hosting() -> None:
+            async with gateway._gateway_lifespan(FastMCP("owner-test"), "unused", None, 1):
+                entered.set()
+                if exit_mode == "body_error":
+                    raise ValueError("body failed")
+                if exit_mode == "cancel":
+                    await asyncio.Event().wait()
+
+        host = asyncio.create_task(hosting())
+        await asyncio.wait_for(entered.wait(), 1)
+        if exit_mode == "cancel":
+            host.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await host
+        elif exit_mode == "body_error":
+            with pytest.raises(ValueError, match="body failed"):
+                await host
+        else:
+            await host
+        assert exited.is_set()
+        assert len(tasks) == 2
+        assert tasks[0] is tasks[1] and tasks[0] is not host
+        assert tasks[0].done()
+
+    async def test_startup_failure_propagates_and_owner_finishes(self, monkeypatch: Any) -> None:
+        from slopsearx.mcp import gateway
+
+        owners = []
+
+        @asynccontextmanager
+        async def connection(*args: Any, **kwargs: Any):
+            owners.append(asyncio.current_task())
+            raise RuntimeError("startup failed")
+            yield  # pragma: no cover
+
+        monkeypatch.setattr(gateway, "_gateway_connection", connection)
+        with pytest.raises(RuntimeError, match="startup failed"):
+            async with gateway._gateway_lifespan(FastMCP("owner-test"), "unused", None, 1):
+                pytest.fail("startup must fail closed")
+        assert owners[0].done()
+
+    async def test_cancelled_startup_closes_owner(self, monkeypatch: Any) -> None:
+        from slopsearx.mcp import gateway
+
+        entered = asyncio.Event()
+        exited = asyncio.Event()
+        owners = []
+
+        @asynccontextmanager
+        async def connection(*args: Any, **kwargs: Any):
+            owners.append(asyncio.current_task())
+            entered.set()
+            try:
+                await asyncio.Event().wait()
+                yield
+            finally:
+                exited.set()
+
+        monkeypatch.setattr(gateway, "_gateway_connection", connection)
+
+        async def hosting() -> None:
+            async with gateway._gateway_lifespan(FastMCP("owner-test"), "unused", None, 1):
+                pytest.fail("cancelled startup cannot publish a session")
+
+        host = asyncio.create_task(hosting())
+        await asyncio.wait_for(entered.wait(), 1)
+        host.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await host
+        assert exited.is_set()
+        assert owners[0].done()
