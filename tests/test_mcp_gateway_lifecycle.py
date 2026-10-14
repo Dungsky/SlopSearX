@@ -12,6 +12,7 @@ from slopsearx.mcp.security import make_http_app
 from slopsearx.mcp.server import create_server
 from tests.test_mcp_gateway import TOKEN, _free_port, _gateway_client, _wait_for_port
 
+
 @pytest.fixture
 async def offline_remote_server() -> Any:
     from slopsearx.mcp.harness import build_fixture_context
