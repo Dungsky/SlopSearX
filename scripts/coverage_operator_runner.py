@@ -1274,7 +1274,7 @@ class OperatorStageRunner:
             and evidence.prepared.selector_input_map_schema == "coverage-selector-input-map/2-registered"
         )
 
-    async def _selector_admission(self, plan, prepared, map_bytes, map_sha, _operation_materials):
+    async def _selector_admission(self, plan, prepared, map_bytes, map_sha):
         bindings = {
             "stage_uuid": plan.stage_uuid,
             "source_revision": plan.source_revision,

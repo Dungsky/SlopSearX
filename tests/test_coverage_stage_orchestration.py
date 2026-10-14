@@ -871,6 +871,7 @@ class StageOrchestrationTests(unittest.TestCase):
         selector_map_registered: bool = False,
         admission_mode: str = "valid",
         frozen_mode: bool = False,
+        runtime_bound_admission: bool = False,
     ):
         plan = plan_fixture(
             selector_map_registered=selector_map_registered,
@@ -1485,21 +1486,76 @@ class StageOrchestrationTests(unittest.TestCase):
 
                 verify_admission = None if admission_mode == "missing" else verify_admission
 
-            executors = stage.StageExecutors(
-                acquire=acquire,
-                verify_acquisition=verify_acquisition,
-                capture=capture,
-                prepare_after_acquisition=prepare_after_acquisition,
-                verify_late_preflight=verify_late_preflight,
-                grade_references=grading_refs,
-                selectors=selector_callback,
-                answerer=answerer,
-                grade_answers=grade_answers,
-                verify_selector_admission=verify_admission,
-                collect_frozen_pool=collect_frozen_pool if frozen_mode else None,
-                verify_frozen_pool=verify_frozen_pool if frozen_mode else None,
-                prepare_after_frozen_pool=prepare_after_acquisition if frozen_mode else None,
-            )
+            executor_values = {
+                "acquire": acquire,
+                "verify_acquisition": verify_acquisition,
+                "capture": capture,
+                "prepare_after_acquisition": prepare_after_acquisition,
+                "verify_late_preflight": verify_late_preflight,
+                "grade_references": grading_refs,
+                "selectors": selector_callback,
+                "answerer": answerer,
+                "grade_answers": grade_answers,
+                "collect_frozen_pool": collect_frozen_pool if frozen_mode else None,
+                "verify_frozen_pool": verify_frozen_pool if frozen_mode else None,
+                "prepare_after_frozen_pool": prepare_after_acquisition if frozen_mode else None,
+            }
+            if runtime_bound_admission:
+                from scripts import (
+                    coverage_native_grader_handoff,
+                    coverage_operator_runner,
+                    coverage_stage_runtime,
+                )
+
+                issuer = object.__new__(coverage_operator_runner.OperatorStageRunner)
+                map_bytes_from_request: list[bytes] = []
+
+                async def issue_synthetic_admission(_scope, _request_id, bindings, *, artifacts=None):
+                    self.assertEqual(_scope, "selector-map-admission")
+                    self.assertEqual(_request_id, "map")
+                    self.assertEqual(artifacts, {"selector-map": map_bytes_from_request[0]})
+                    calls.append("verify_selector_admission")
+                    receipt_bytes = canonical({"schema": admission_module.SCHEMA, "status": "admitted", **bindings})
+                    return receipt_bytes, digest(receipt_bytes)
+
+                async def request_after_map(_scope, _request_id, bindings, *, artifacts=None):
+                    map_bytes_from_request[:] = [artifacts["selector-map"]]
+                    return await issue_synthetic_admission(_scope, _request_id, bindings, artifacts=artifacts)
+
+                issuer._request = request_after_map
+
+                async def unused_async(*_args, **_kwargs):
+                    raise AssertionError("fixture callbacks replace non-admission runtime phases")
+
+                bindings = coverage_stage_runtime.RuntimeBindings(
+                    acquisition_authority=lambda _plan: {},
+                    verify_acquisition=unused_async,
+                    capture_authority=lambda _plan, _inputs: {},
+                    prepare_after_acquisition=unused_async,
+                    verify_late_preflight=unused_async,
+                    selector_permit_resolver=resolve_selector_permits,
+                    selector_admission_verifier=issuer._selector_admission,
+                    selector_evidence_builder=selector_evidence_builder,
+                    answer_authority=lambda _plan, _tasks: {},
+                    selector_api_key="synthetic-test-key",
+                    selector_lease_root=selector_roots.lease,
+                    selector_archive_root=selector_roots.archive,
+                    selector_result_root=selector_roots.result,
+                    native_handoff=coverage_native_grader_handoff.NativeGraderHandoff(
+                        base / "unused-grader-handoff", require_native_host_transcripts=True
+                    ),
+                )
+                runtime_executors = coverage_stage_runtime.build_stage_executors(plan, bindings)
+                executor_values["verify_selector_admission"] = runtime_executors.verify_selector_admission
+                executors = replace(runtime_executors, **executor_values)
+                self.assertIs(executors.verify_selector_admission.__self__, issuer)
+                self.assertIs(
+                    executors.verify_selector_admission.__func__,
+                    coverage_operator_runner.OperatorStageRunner._selector_admission,
+                )
+            else:
+                executor_values["verify_selector_admission"] = verify_admission
+                executors = stage.StageExecutors(**executor_values)
             original_write_inventory = stage._write_inventory
 
             def write_inventory(path, value):
@@ -1707,6 +1763,13 @@ class StageOrchestrationTests(unittest.TestCase):
 
     def test_registered_map_executes_full_offline_graph_after_external_admission(self):
         self._run_integrated_synthetic_stage(deadline_cross=False, selector_map_registered=True)
+
+    def test_runtime_bound_admission_reaches_offline_registered_selector(self):
+        self._run_integrated_synthetic_stage(
+            deadline_cross=False,
+            selector_map_registered=True,
+            runtime_bound_admission=True,
+        )
 
     def test_registered_map_missing_or_wrong_admission_has_zero_selector_dispatch(self):
         for mode in ("missing", "wrong"):
