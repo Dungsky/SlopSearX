@@ -1548,6 +1548,7 @@ class StageOrchestrationTests(unittest.TestCase):
                 runtime_executors = coverage_stage_runtime.build_stage_executors(plan, bindings)
                 executor_values["verify_selector_admission"] = runtime_executors.verify_selector_admission
                 executors = replace(runtime_executors, **executor_values)
+                executors = replace(executors, persist_reference_closure=None)
                 self.assertIs(executors.verify_selector_admission.__self__, issuer)
                 self.assertIs(
                     executors.verify_selector_admission.__func__,

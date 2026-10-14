@@ -159,7 +159,10 @@ def verify_stage_finalization(
         raise StageFinalizationError("finalization-protocol-invalid") from exc
     if type(protocol) is not dict:
         raise StageFinalizationError("finalization-protocol-invalid")
-    if protocol.get("schema") != "coverage-first-study-protocol/2" or protocol.get("status") not in {
+    if protocol.get("schema") not in {
+        "coverage-first-study-protocol/2",
+        "coverage-first-study-protocol/3",
+    } or protocol.get("status") not in {
         "draft_not_registered_not_admitted",
         "registered",
     }:

@@ -71,6 +71,7 @@ class FakePlan:
     band_companion_bytes: bytes = b"fixture-companion"
     band_companion_sha256: str = "a" * 64
     band_companion_source_pins: dict | None = None
+    initial_registration_sha256: str | None = None
 
 
 def make_runner(base: Path, revision: str):

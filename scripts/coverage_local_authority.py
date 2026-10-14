@@ -329,9 +329,207 @@ class PinnedReceiptAuthorities:
             receipt_sha256=expected_receipt_sha256,
         )
 
+    @staticmethod
+    def saved_corpus_import(plan, receipt_bytes: bytes, expected_receipt_sha256: str):
+        """Verify an early permit bound to this fresh stage and immutable origin package."""
+        from scripts import coverage_saved_corpus as saved
+        from scripts import coverage_stage_orchestration as orchestration
+
+        origin = getattr(plan, "saved_origin", None)
+        if (
+            type(plan) is not orchestration.StagePlan
+            or plan.pool_input_mode != "saved-corpus/1"
+            or type(origin) is not saved.SavedCorpusOrigin
+            or plan.stage_kind != "development"
+            or plan.source_revision != origin.registration.source_revision
+            or plan.stage_uuid in {origin.registration.stage_uuid, plan.packet_stage_uuid}
+            or plan.packet_stage_uuid == origin.registration.stage_uuid
+        ):
+            raise LocalAuthorityError("saved-corpus-import-plan-invalid")
+        try:
+            protocol = _strict_json(plan.protocol_bytes)
+        except Exception as exc:
+            raise LocalAuthorityError("saved-corpus-import-protocol-invalid") from exc
+        try:
+            if type(protocol) is not dict:
+                raise ValueError("protocol must be an object")
+            stage_pool_input_mode = coverage_study_acquire.pool_input_mode_for_stage(protocol, plan.stage_kind)
+        except (TypeError, ValueError) as exc:
+            raise LocalAuthorityError("saved-corpus-import-protocol-invalid") from exc
+        if (
+            type(protocol) is not dict
+            or stage_pool_input_mode != "saved-corpus/1"
+            or _sha(plan.cohorts_bytes) != origin.registration.cohorts_sha256
+            or _sha(plan.candidate_identity_bytes) != origin.registration.candidate_identity_sha256
+            or plan.candidate_endpoint_sha256 != origin.registration.candidate_endpoint_sha256
+        ):
+            raise LocalAuthorityError("saved-corpus-import-plan-binding-mismatch")
+        try:
+            actual_package_sha256 = saved.package_sha256(origin.collection_directory, origin.capture_stage_directory)
+        except Exception as exc:
+            raise LocalAuthorityError("saved-corpus-import-origin-unavailable") from exc
+        if actual_package_sha256 != origin.expected_package_sha256:
+            raise LocalAuthorityError("saved-corpus-import-origin-package-mismatch")
+        bindings = {
+            "stage_uuid": plan.stage_uuid,
+            "packet_stage_uuid": plan.packet_stage_uuid,
+            "source_revision": plan.source_revision,
+            "source_closure_sha256": plan.source_closure_sha256,
+            "protocol_sha256": _sha(plan.protocol_bytes),
+            "cohorts_sha256": _sha(plan.cohorts_bytes),
+            "candidate_identity_sha256": _sha(plan.candidate_identity_bytes),
+            "candidate_endpoint_sha256": plan.candidate_endpoint_sha256,
+            "origin_package_sha256": actual_package_sha256,
+        }
+        _pinned_document(
+            receipt_bytes,
+            expected_receipt_sha256,
+            scope="saved-corpus-import",
+            bindings=bindings,
+        )
+        return saved.VerifiedSavedCorpusImportPermit(
+            status="verified-admitted",
+            scope="saved-corpus-import",
+            **bindings,
+            receipt_sha256=expected_receipt_sha256,
+        )
+
 
 class PhaseArtifactReceiptIssuer:
     """Recompute phase receipts from fixed artifacts and pinned registration context."""
+
+    @staticmethod
+    def saved_corpus_import(
+        *,
+        root,
+        stage_uuid,
+        request_id,
+        request_bytes,
+        expected_source_closure_sha256,
+        expected_initial_registration_sha256,
+        expected_active_registration_sha256,
+        plan,
+    ) -> bytes:
+        """Issue a fresh import permit only after reopening and validating its immutable origin."""
+        from scripts import coverage_saved_corpus as saved
+        from scripts import coverage_stage_orchestration as orchestration
+
+        envelope = _strict_json(request_bytes)
+        origin = getattr(plan, "saved_origin", None)
+        if type(plan) is not orchestration.StagePlan:
+            raise LocalAuthorityError("saved-corpus-import-context-invalid")
+        try:
+            protocol = _strict_json(plan.protocol_bytes)
+            if type(protocol) is not dict:
+                raise ValueError("protocol must be an object")
+            stage_pool_input_mode = coverage_study_acquire.pool_input_mode_for_stage(protocol, plan.stage_kind)
+        except (TypeError, ValueError) as exc:
+            raise LocalAuthorityError("saved-corpus-import-context-invalid") from exc
+        if (
+            type(plan) is not orchestration.StagePlan
+            or plan.pool_input_mode != "saved-corpus/1"
+            or stage_pool_input_mode != "saved-corpus/1"
+            or type(origin) is not saved.SavedCorpusOrigin
+            or plan.stage_kind != "development"
+            or envelope.get("scope") != "saved-corpus-import"
+            or envelope.get("stage_uuid") != stage_uuid
+            or envelope.get("request_id") != request_id
+            or stage_uuid != plan.stage_uuid
+        ):
+            raise LocalAuthorityError("saved-corpus-import-context-invalid")
+        artifacts = coverage_operator_handoff.load_request_artifacts(
+            root=root,
+            stage_uuid=stage_uuid,
+            scope="saved-corpus-import",
+            request_id=request_id,
+            request_bytes=request_bytes,
+            expected_source_closure_sha256=expected_source_closure_sha256,
+        )
+        clock_raw = artifacts.get("stage-clock")
+        try:
+            from scripts import coverage_frozen_pool_collect as collector
+
+            clock_doc = _strict_json(clock_raw) if type(clock_raw) is bytes else None
+            clock = collector.FrozenCollectionStageClock(
+                **{key: value for key, value in clock_doc.items() if key != "schema"}
+            )
+            validated_clock = collector._validate_clock(clock, test_mode=False, test_pacer=None)
+        except Exception as exc:
+            raise LocalAuthorityError("saved-corpus-import-stage-clock-invalid") from exc
+        if (
+            validated_clock != clock_doc
+            or clock.stage_started_monotonic != plan.stage_started_monotonic
+            or clock.stage_deadline_monotonic != plan.stage_deadline_monotonic
+            or clock.clock_origin_sha256 != collector._local_clock_origin_sha256()
+        ):
+            raise LocalAuthorityError("saved-corpus-import-stage-clock-mismatch")
+        initial_raw = artifacts.get("initial-registration")
+        initial = _strict_json(initial_raw) if type(initial_raw) is bytes else None
+        active_raw = artifacts.get("active-registration")
+        active = _strict_json(active_raw) if type(active_raw) is bytes else initial
+        if (
+            type(initial) is not dict
+            or _sha(initial_raw) != expected_initial_registration_sha256
+            or type(active) is not dict
+            or active != initial
+            or initial.get("stage_uuid") != stage_uuid
+            or initial.get("source_revision") != plan.source_revision
+            or initial.get("pins", {}).get("protocol") != _sha(plan.protocol_bytes)
+            or initial.get("pins", {}).get("qualified_source_closure") != expected_source_closure_sha256
+            or artifacts.get("protocol") != plan.protocol_bytes
+            or artifacts.get("cohorts") != plan.cohorts_bytes
+            or artifacts.get("acquisition-plan") != plan.acquisition_plan_bytes
+            or initial.get("pins", {}).get("cohorts") != _sha(plan.cohorts_bytes)
+        ):
+            raise LocalAuthorityError("saved-corpus-import-registration-mismatch")
+        try:
+            package_sha = saved.package_sha256(origin.collection_directory, origin.capture_stage_directory)
+            collection_index_sha = saved.resource_evidence.receipt_inventory_sha256(origin.collection_directory)
+            capture_inventory_sha = _sha(
+                saved._private_file(origin.capture_stage_directory / "inventory.json", max_bytes=4_000_000)
+            )
+            capture_manifest_sha = _sha(
+                saved._private_file(origin.capture_stage_directory / "source-manifest.json", max_bytes=4_000_000)
+            )
+        except Exception as exc:
+            raise LocalAuthorityError("saved-corpus-import-origin-invalid") from exc
+        if (
+            package_sha != origin.expected_package_sha256
+            or plan.source_revision != origin.registration.source_revision
+            or _sha(plan.cohorts_bytes) != origin.registration.cohorts_sha256
+            or _sha(plan.candidate_identity_bytes) != origin.registration.candidate_identity_sha256
+            or plan.candidate_endpoint_sha256 != origin.registration.candidate_endpoint_sha256
+        ):
+            raise LocalAuthorityError("saved-corpus-import-origin-plan-mismatch")
+        expected = {
+            "stage_uuid": plan.stage_uuid,
+            "packet_stage_uuid": plan.packet_stage_uuid,
+            "source_revision": plan.source_revision,
+            "source_closure_sha256": plan.source_closure_sha256,
+            "protocol_sha256": _sha(plan.protocol_bytes),
+            "cohorts_sha256": _sha(plan.cohorts_bytes),
+            "candidate_identity_sha256": _sha(plan.candidate_identity_bytes),
+            "candidate_endpoint_sha256": plan.candidate_endpoint_sha256,
+            "origin_package_sha256": package_sha,
+        }
+        public = {
+            key: value
+            for key, value in envelope["bindings"].items()
+            if key not in {"active_python_environment", "active_python_environment_sha256"}
+        }
+        if public != expected or artifacts.get("saved-corpus-origin-reference") != _canonical(
+            {
+                "schema": "coverage-saved-corpus-origin-reference/1",
+                "origin_stage_uuid": origin.registration.stage_uuid,
+                "origin_source_revision": origin.registration.source_revision,
+                "origin_package_sha256": package_sha,
+                "collection_receipt_inventory_sha256": collection_index_sha,
+                "capture_inventory_sha256": capture_inventory_sha,
+                "capture_manifest_sha256": capture_manifest_sha,
+            }
+        ):
+            raise LocalAuthorityError("saved-corpus-import-request-mismatch")
+        return _canonical({"schema": SCHEMA, "decision": "allow", "scope": "saved-corpus-import", "bindings": expected})
 
     @staticmethod
     async def _rebuild_frozen_answer_tasks(
@@ -383,6 +581,7 @@ class PhaseArtifactReceiptIssuer:
             expected_initial_registration_sha256=expected_initial_registration_sha256,
             expected_active_registration_sha256=expected_active_registration_sha256,
         )
+        saved_import_out: dict[str, object] = {}
         materials, pipeline, verified = PhaseArtifactReceiptIssuer.rebuild_frozen_registration_materials(
             root=root,
             stage_uuid=stage_uuid,
@@ -396,6 +595,7 @@ class PhaseArtifactReceiptIssuer:
             inventory_root=inventory_root,
             now_monotonic=now_monotonic,
             scope="answer-execution",
+            saved_import_out=saved_import_out,
         )
 
         def private_dir(path_value, *parts):
@@ -492,7 +692,11 @@ class PhaseArtifactReceiptIssuer:
             snapshots_directory=verified.snapshots_directory,
             acquisition_snapshot_index_sha256=verified.snapshot_index_sha256,
             acquisition_manifest_bytes=plan.acquisition_manifest_bytes,
-            acquisition_manifest_sha256=verified.pool_manifest_sha256,
+            acquisition_manifest_sha256=(
+                _sha(plan.acquisition_manifest_bytes)
+                if plan.pool_input_mode == "saved-corpus/1"
+                else verified.pool_manifest_sha256
+            ),
             neutral_fixture_bytes=(
                 Path(__file__).parents[1]
                 / "docs/experiments/evidence/coverage-first-study/draft-v2/selector-readiness-inputs.json"
@@ -504,6 +708,9 @@ class PhaseArtifactReceiptIssuer:
             expected_builder_source_sha256=_sha(Path(selector_map.__file__).read_bytes()),
             operation_materials=operation_materials,
             verified_pool_source=verified,
+            saved_corpus_import=saved_import_out.get("imported"),
+            initial_registration_sha256=plan.initial_registration_sha256,
+            band_companion_sha256=plan.band_companion_sha256,
         )
         map_doc = _strict_json(rebuilt_map)
         map_operations = map_doc.get("operations") if type(map_doc) is dict else None
@@ -786,6 +993,7 @@ class PhaseArtifactReceiptIssuer:
         inventory_root: str | os.PathLike[str],
         now_monotonic: float,
         scope: str = "late-registration",
+        saved_import_out: dict[str, object] | None = None,
     ) -> tuple[dict[str, bytes], dict[str, object], object]:
         """Reopen and verify the registered frozen corpus, then rebuild late materials.
 
@@ -818,6 +1026,85 @@ class PhaseArtifactReceiptIssuer:
             expected_initial_registration_sha256=expected_initial_registration_sha256,
             expected_active_registration_sha256=expected_active_registration_sha256,
         )
+        if plan.pool_input_mode == "saved-corpus/1":
+            from scripts import coverage_late_registration as late
+            from scripts import coverage_saved_corpus as saved
+
+            if (
+                type(plan.saved_origin) is not saved.SavedCorpusOrigin
+                or plan.stage_uuid != stage_uuid
+                or plan.source_revision != active.get("source_revision")
+                or _sha(plan.protocol_bytes) != _sha(artifacts["protocol"])
+                or _sha(plan.cohorts_bytes) != _sha(artifacts["cohorts"])
+                or _sha(plan.acquisition_plan_bytes) != _sha(artifacts["acquisition-plan"])
+            ):
+                raise LocalAuthorityError("saved-corpus-late-plan-binding-mismatch")
+            for name, raw in static_materials.items():
+                if artifacts.get(f"static-{name.replace('_', '-')}") != raw:
+                    raise LocalAuthorityError("phase-artifact-static-material-mismatch")
+            reference_raw = artifacts.get("saved-corpus-import-reference")
+            reference = _strict_json(reference_raw) if type(reference_raw) is bytes else None
+            request_envelope = _strict_json(request_bytes)
+            request_bindings = request_envelope.get("bindings") if type(request_envelope) is dict else None
+            if type(reference) is not dict or reference.get("schema") != "coverage-saved-corpus-import-reference/1":
+                raise LocalAuthorityError("saved-corpus-import-reference-missing")
+            if (
+                type(request_bindings) is not dict
+                or request_bindings.get("saved_corpus_import_receipt_sha256") != reference.get("import_receipt_sha256")
+                or request_bindings.get("origin_package_sha256") != reference.get("origin_package_sha256")
+                or reference.get("stage_uuid") != stage_uuid
+            ):
+                raise LocalAuthorityError("saved-corpus-import-binding-mismatch")
+            permit_base = Path(root) / stage_uuid / "saved-corpus-import"
+            try:
+                receipt_raw = coverage_operator_handoff._read_private(
+                    permit_base / "responses" / "permit.receipt", 16_384
+                )
+                pin_raw = coverage_operator_handoff._read_private(permit_base / "pins" / "permit.sha256", 256)
+                permit_sha = pin_raw.decode("ascii").strip()
+            except Exception as exc:
+                raise LocalAuthorityError("saved-corpus-import-permit-missing") from exc
+            permit = PinnedReceiptAuthorities.saved_corpus_import(plan, receipt_raw, permit_sha)
+            binding = saved.SavedCorpusStageBinding(
+                stage_uuid=plan.stage_uuid,
+                packet_stage_uuid=plan.packet_stage_uuid,
+                stage_kind=plan.stage_kind,
+                source_revision=plan.source_revision,
+                source_closure_sha256=plan.source_closure_sha256,
+                protocol_sha256=_sha(plan.protocol_bytes),
+                cohorts_sha256=_sha(plan.cohorts_bytes),
+                candidate_identity_sha256=_sha(plan.candidate_identity_bytes),
+                candidate_endpoint_sha256=plan.candidate_endpoint_sha256,
+                origin_package_sha256=permit.origin_package_sha256,
+                import_authority_receipt_sha256=permit.receipt_sha256,
+            )
+            imported = saved.verify_and_import_saved_corpus(
+                plan.saved_origin, binding, plan.research_cases, plan.navigation_targets
+            )
+            if saved_import_out is not None:
+                if type(saved_import_out) is not dict:
+                    raise LocalAuthorityError("saved-corpus-import-output-invalid")
+                saved_import_out["imported"] = imported
+            if (
+                late.saved_corpus_import_reference(imported, plan=plan) != reference_raw
+                or reference.get("import_receipt_sha256")
+                != artifacts.get("saved-corpus-import-receipt-sha256", b"").decode()
+                or artifacts.get("saved-corpus-import-receipt-sha256") != imported.import_receipt_sha256.encode()
+                or artifacts.get("capture-manifest") != imported.capture_manifest_bytes
+            ):
+                raise LocalAuthorityError("saved-corpus-import-reconstruction-mismatch")
+            materials = late.build_postacquisition_materials(
+                plan=plan,
+                acquisition_evidence=None,
+                pipeline_inputs=imported.pipeline_inputs,
+                static_materials=static_materials,
+                saved_corpus_import=imported,
+            )
+            if scope == "late-registration":
+                for name, raw in materials.items():
+                    if artifacts.get(f"material-{name.replace('_', '-')}") != raw:
+                        raise LocalAuthorityError(f"phase-artifact-late-material-recomputation-mismatch:{name}")
+            return materials, imported.pipeline_inputs, imported.origin_pool_verified
         if (
             plan.stage_uuid != stage_uuid
             or plan.source_closure_sha256 != expected_source_closure_sha256
@@ -1174,6 +1461,7 @@ class PhaseArtifactReceiptIssuer:
             expected_initial_registration_sha256=expected_initial_registration_sha256,
             expected_active_registration_sha256=expected_active_registration_sha256,
         )
+        saved_import_out: dict[str, object] = {}
         materials, pipeline_inputs, verified = PhaseArtifactReceiptIssuer.rebuild_frozen_registration_materials(
             root=root,
             stage_uuid=stage_uuid,
@@ -1187,6 +1475,7 @@ class PhaseArtifactReceiptIssuer:
             inventory_root=inventory_root,
             now_monotonic=now_monotonic,
             scope="selector-operation-permits",
+            saved_import_out=saved_import_out,
         )
         initial_raw = artifacts.get("initial-registration")
         active_raw = artifacts.get("active-registration")
@@ -1239,13 +1528,20 @@ class PhaseArtifactReceiptIssuer:
             snapshots_directory=verified.snapshots_directory,
             acquisition_snapshot_index_sha256=verified.snapshot_index_sha256,
             acquisition_manifest_bytes=plan.acquisition_manifest_bytes,
-            acquisition_manifest_sha256=verified.pool_manifest_sha256,
+            acquisition_manifest_sha256=(
+                _sha(plan.acquisition_manifest_bytes)
+                if plan.pool_input_mode == "saved-corpus/1"
+                else verified.pool_manifest_sha256
+            ),
             neutral_fixture_bytes=neutral_fixture,
             frozen_v1_source_bytes=frozen_source,
             current_service_source_bytes=current_service_source,
             expected_builder_source_sha256=_sha(Path(selector_map.__file__).read_bytes()),
             operation_materials=operation_materials,
             verified_pool_source=verified,
+            saved_corpus_import=saved_import_out.get("imported"),
+            initial_registration_sha256=plan.initial_registration_sha256,
+            band_companion_sha256=plan.band_companion_sha256,
         )
         map_raw = artifacts.get("selector-map")
         map_doc = _strict_json(map_raw) if type(map_raw) is bytes else None
@@ -2034,6 +2330,13 @@ class FrozenPoolCollectionReceiptVerifier:
             receipt_bytes=receipt_bytes,
             expected_receipt_sha256=expected_receipt_sha256,
         )
+
+
+class SavedCorpusImportReceiptVerifier:
+    """Fixed verifier adapter for a fresh, source-bound saved-corpus permit."""
+
+    def verify(self, plan, receipt_bytes, expected_receipt_sha256):
+        return PinnedReceiptAuthorities.saved_corpus_import(plan, receipt_bytes, expected_receipt_sha256)
 
 
 class FileOneShotLease:

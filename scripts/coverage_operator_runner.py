@@ -21,7 +21,7 @@ import sys
 import time
 import types
 import uuid
-from dataclasses import asdict
+from dataclasses import asdict, fields
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
@@ -40,6 +40,7 @@ from scripts import coverage_native_grader_handoff as native_handoff
 from scripts import coverage_native_host_dispatch as native_host_dispatch
 from scripts import coverage_operator_handoff as operator_handoff
 from scripts import coverage_runtime_environment as runtime_environment
+from scripts import coverage_saved_corpus as saved_corpus
 from scripts import coverage_selector_admission as selector_admission
 from scripts import coverage_source_capture as capture
 from scripts import coverage_stage_orchestration as orchestration
@@ -67,7 +68,7 @@ _CONFIG_KEYS = {
     "private_paths",
     "directories",
 }
-_OPTIONAL_CONFIG_KEYS = {"allow_trusted_private_http"}
+_OPTIONAL_CONFIG_KEYS = {"allow_trusted_private_http", "saved_origin"}
 _PATH_KEYS = {
     "cohorts",
     "protocol",
@@ -285,6 +286,41 @@ def _read_file(path: str | os.PathLike[str], maximum: int, *, private: bool = Fa
         return data
     finally:
         os.close(fd)
+
+
+def _saved_origin_from_config(value: object) -> saved_corpus.SavedCorpusOrigin:
+    """Read only the registered archive description, never historical grades."""
+    from scripts import coverage_frozen_pool_inputs
+
+    if type(value) is not dict or set(value) != {field.name for field in fields(saved_corpus.SavedCorpusOrigin)}:
+        raise OperatorRunnerError("saved-origin-config-shape-invalid")
+    args = dict(value)
+    registration = args["registration"]
+    if type(registration) is not dict or set(registration) != {
+        field.name for field in fields(coverage_frozen_pool_inputs.FrozenPoolRegistrationContext)
+    }:
+        raise OperatorRunnerError("saved-origin-registration-invalid")
+    registration = dict(registration)
+    for key in ("task_ids", "navigation_ids"):
+        if type(registration[key]) is not list:
+            raise OperatorRunnerError("saved-origin-task-inventory-invalid")
+        registration[key] = tuple(registration[key])
+    args["registration"] = coverage_frozen_pool_inputs.FrozenPoolRegistrationContext(**registration)
+    for key in ("research_cases", "navigation_targets"):
+        if type(args[key]) is not list or any(type(row) is not dict for row in args[key]):
+            raise OperatorRunnerError("saved-origin-cohort-invalid")
+        args[key] = tuple(args[key])
+    for key in ("collection_directory", "capture_stage_directory"):
+        if type(args[key]) is not str or not Path(args[key]).is_absolute():
+            raise OperatorRunnerError("saved-origin-path-invalid")
+        args[key] = Path(args[key])
+    origin = saved_corpus.SavedCorpusOrigin(**args)
+    if (
+        saved_corpus.package_sha256(origin.collection_directory, origin.capture_stage_directory)
+        != origin.expected_package_sha256
+    ):
+        raise OperatorRunnerError("saved-origin-package-mismatch")
+    return origin
 
 
 def _secret(path: str) -> str:
@@ -684,6 +720,7 @@ class OperatorStageRunner:
         self._active_input_manifest_bytes: bytes | None = None
         self._pipeline_inputs: dict[str, object] | None = None
         self._frozen_pool_reference_bytes: bytes | None = None
+        self._saved_corpus_reference_bytes: bytes | None = None
         self._build_plan(preflight_only=preflight_only)
         if not preflight_only:
             self.handoff = operator_handoff.OperatorReceiptHandoff(self.directories["operator_handoff"])
@@ -740,16 +777,32 @@ class OperatorStageRunner:
         targets = stage_row.get("navigation_targets")
         if type(cases) is not list or type(targets) is not list:
             raise OperatorRunnerError("cohort-inventory-invalid")
+        pool_input_mode = coverage_study_acquire.pool_input_mode_for_stage(protocol, self.config["stage_kind"])
+        self.saved_origin = (
+            _saved_origin_from_config(self.config["saved_origin"]) if "saved_origin" in self.config else None
+        )
+        if (pool_input_mode == "saved-corpus/1") != (self.saved_origin is not None):
+            raise OperatorRunnerError("saved-origin-mode-mismatch")
         acquisition_plan = _build_acquisition_plan(self.config["stage_uuid"], cases, targets)
+        if pool_input_mode == "saved-corpus/1":
+            plan_doc = core._strict_json(acquisition_plan, "saved-search-plan")
+            for row in plan_doc["tasks"]:
+                row["engine_calls"] = {name: 0 for name in row["engine_calls"]}
+            acquisition_plan = _canonical(plan_doc)
         if protocol.get("cohorts_sha256") != _sha(path_bytes["cohorts"]):
             raise OperatorRunnerError("protocol-cohort-pin-mismatch")
         companion_sha = _sha(path_bytes["band_companion"]) if "band_companion" in path_bytes else None
-        if protocol.get("pool_input_mode") == "frozen-pool/1":
+        if pool_input_mode in {"frozen-pool/1", "saved-corpus/1"}:
             from scripts import coverage_band_companion as band_companion
 
             if closure.get("schema") != "coverage-study-qualified-source-closure/2":
                 raise OperatorRunnerError("frozen-pool-source-closure-v2-required")
-            if companion_sha != band_companion.FROZEN_CONTRACT_SHA256:
+            expected_companion = (
+                band_companion.SAVED_CONTRACT_SHA256
+                if protocol.get("pool_input_mode_by_stage") is not None
+                else band_companion.FROZEN_CONTRACT_SHA256
+            )
+            if companion_sha != expected_companion:
                 raise OperatorRunnerError("frozen-pool-band-companion-required")
         initial_registration_sha256 = _sha(path_bytes["initial_registration"])
         if initial_registration_sha256 != self.config["initial_registration_sha256"]:
@@ -774,6 +827,13 @@ class OperatorStageRunner:
                     "coverage_band_companion": "scripts/coverage_band_companion.py",
                     "coverage_late_registration": "scripts/coverage_late_registration.py",
                 }
+                if protocol.get("pool_input_mode_by_stage") is not None:
+                    source_names.update(
+                        {
+                            "coverage_saved_corpus": "scripts/coverage_saved_corpus.py",
+                            "coverage_assessment_checkpoint": "scripts/coverage_assessment_checkpoint.py",
+                        }
+                    )
                 root = Path(__file__).resolve().parents[1]
                 source_pins = {name: _sha((root / relative).read_bytes()) for name, relative in source_names.items()}
             core._verify_qualified_source_closure(
@@ -805,7 +865,7 @@ class OperatorStageRunner:
         try:
             execution_profile = coverage_study_acquire.execution_profile_from_protocol(
                 protocol.get("acquisition"),
-                pool_input_mode=protocol.get("pool_input_mode", "live-acquisition/1"),
+                pool_input_mode=pool_input_mode,
             )
         except ValueError as exc:
             raise OperatorRunnerError("acquisition-execution-profile-invalid") from exc
@@ -839,6 +899,14 @@ class OperatorStageRunner:
         }
         if execution_profile is coverage_study_acquire.CONTINUE_ACQUISITION_PROFILE:
             acquisition_manifest_doc["execution_profile"] = execution_profile.identifier
+        if pool_input_mode == "saved-corpus/1":
+            acquisition_manifest_doc.update(
+                {
+                    "schema": "coverage-saved-import-plan/1",
+                    "packet_stage_uuid": self.config["packet_stage_uuid"],
+                    "origin_package_sha256": self.saved_origin.expected_package_sha256,
+                }
+            )
         acquisition_manifest = coverage_live_acquire._canonical(acquisition_manifest_doc)
         self.static_materials = {
             "protocol": path_bytes["protocol"],
@@ -924,12 +992,13 @@ class OperatorStageRunner:
                 stage_started_monotonic=0.0,
                 stage_deadline_monotonic=0.0,
                 expected_acquisition_manifest_sha256=_sha(acquisition_manifest),
-                pool_input_mode=protocol.get("pool_input_mode", "live-acquisition/1"),
+                pool_input_mode=pool_input_mode,
                 band_companion_bytes=path_bytes.get("band_companion"),
                 band_companion_sha256=companion_sha,
                 initial_registration_bytes=self.initial_registration if companion_sha is not None else None,
                 initial_registration_sha256=self.initial_registration_sha256 if companion_sha is not None else None,
                 band_companion_source_pins=self.band_companion_source_pins,
+                saved_origin=self.saved_origin,
             )
             self.preflight_validation = orchestration._validate_plan_static(self.plan)
             return
@@ -961,12 +1030,13 @@ class OperatorStageRunner:
             stage_started_monotonic=self.started_monotonic,
             stage_deadline_monotonic=self.deadline_monotonic,
             expected_acquisition_manifest_sha256=_sha(acquisition_manifest),
-            pool_input_mode=protocol.get("pool_input_mode", "live-acquisition/1"),
+            pool_input_mode=pool_input_mode,
             band_companion_bytes=path_bytes.get("band_companion"),
             band_companion_sha256=companion_sha,
             initial_registration_bytes=self.initial_registration if companion_sha is not None else None,
             initial_registration_sha256=self.initial_registration_sha256 if companion_sha is not None else None,
             band_companion_source_pins=self.band_companion_source_pins,
+            saved_origin=self.saved_origin,
         )
         orchestration._validate_plan(self.plan)
 
@@ -1017,6 +1087,7 @@ class OperatorStageRunner:
             optional_materials = {
                 "task-input-manifest": self._active_input_manifest_bytes,
                 "frozen-pool-reference": self._frozen_pool_reference_bytes,
+                "saved-corpus-import-reference": self._saved_corpus_reference_bytes,
                 "acquisition-manifest": self.plan.acquisition_manifest_bytes,
                 "stage-clock": self._frozen_stage_clock_bytes,
             }
@@ -1058,6 +1129,71 @@ class OperatorStageRunner:
             "one_shot_lease": local_authority.FileOneShotLease(self.directories["lease_root"], scope="acquisition"),
             "receipt_directory": str(Path(self.directories["stage_inventory"]) / plan.stage_uuid / "acquisition"),
         }
+
+    async def _import_saved_corpus(self, plan):
+        from scripts import coverage_frozen_pool_collect, coverage_late_registration
+
+        if plan.pool_input_mode != "saved-corpus/1" or plan.saved_origin is None:
+            raise OperatorRunnerError("saved-corpus-mode-not-registered")
+        clock = coverage_frozen_pool_collect.FrozenCollectionStageClock(
+            stage_started_monotonic=plan.stage_started_monotonic,
+            stage_deadline_monotonic=plan.stage_deadline_monotonic,
+            stage_started_utc=self.started_utc.isoformat().replace("+00:00", "Z"),
+            stage_deadline_utc=self.deadline_utc.isoformat().replace("+00:00", "Z"),
+            clock_origin_sha256=coverage_frozen_pool_collect._local_clock_origin_sha256(),
+        )
+        self._frozen_stage_clock_bytes = coverage_frozen_pool_collect._canonical(
+            coverage_frozen_pool_collect._validate_clock(clock, test_mode=False, test_pacer=None)
+        )
+        phase_bindings, phase_artifacts = self._phase_request_context({})
+        imported = await coverage_late_registration.request_saved_corpus_import(
+            exchange=self.handoff,
+            plan=plan,
+            expected_initial_registration_sha256=self.initial_registration_sha256,
+            stage_clock_bytes=self._frozen_stage_clock_bytes,
+            phase_bindings=phase_bindings,
+            phase_artifacts=phase_artifacts,
+        )
+        if type(imported) is not saved_corpus.SavedCorpusImportResult:
+            raise OperatorRunnerError("saved-corpus-import-result-invalid")
+        receipt_directory = Path(self.directories["stage_inventory"]) / plan.stage_uuid / "saved-inputs"
+        receipt_directory.mkdir(mode=0o700)
+        orchestration._write_new(receipt_directory / "import-receipt.json", imported.import_receipt_bytes)
+        capture_directory = Path(self.directories["capture_receipts"]) / plan.stage_uuid
+        capture_directory.mkdir(mode=0o700)
+        for name, raw in imported.context_artifacts.items():
+            orchestration._write_new(capture_directory / name, raw)
+        orchestration._write_new(capture_directory / "inventory.json", imported.capture_inventory_bytes)
+        orchestration._write_new(capture_directory / "source-manifest.json", imported.capture_manifest_bytes)
+        self._saved_corpus_reference_bytes = coverage_late_registration.saved_corpus_import_reference(
+            imported, plan=plan
+        )
+        return orchestration.SavedCorpusStageEvidence(plan.saved_origin, imported, receipt_directory)
+
+    async def _prepare_after_saved_corpus(self, plan, evidence, pipeline_inputs):
+        if type(evidence) is not orchestration.SavedCorpusStageEvidence:
+            raise OperatorRunnerError("saved-corpus-late-preflight-context-invalid")
+        self._pipeline_inputs = dict(pipeline_inputs)
+        phase_bindings, phase_artifacts = self._phase_request_context({})
+        late = await request_late_registration(
+            exchange=self.handoff,
+            plan=plan,
+            acquisition_evidence=None,
+            saved_corpus_import=evidence.imported,
+            pipeline_inputs=pipeline_inputs,
+            static_materials=self.static_materials,
+            initial_registration_bytes=self.initial_registration,
+            expected_initial_registration_sha256=self.initial_registration_sha256,
+            forbidden_stage_uuids=tuple(self.config["forbidden_stage_uuids"]),
+            task_ids=tuple(row["task_id"] for row in plan.research_cases)
+            + tuple(row["target_id"] for row in plan.navigation_targets),
+            navigation_skip_reasons=tuple(row.get("skip_reason") for row in plan.navigation_targets),
+            stage_clock_bytes=self._frozen_stage_clock_bytes,
+            phase_bindings=phase_bindings,
+            phase_artifacts=phase_artifacts,
+        )
+        self._pin_active_registration(late)
+        return late
 
     async def _frozen_pool_collection_authority(self, plan):
         if plan.pool_input_mode != "frozen-pool/1":
@@ -1515,7 +1651,7 @@ class OperatorStageRunner:
             "answer-request-manifest": _manifest,
             "answer-task-material": _answer_task_artifact_bytes(plan.stage_uuid, tuple(tasks)),
         }
-        if getattr(plan, "pool_input_mode", None) == "frozen-pool/1":
+        if getattr(plan, "pool_input_mode", None) in {"frozen-pool/1", "saved-corpus/1"}:
             capture_directory = Path(self.directories["capture_receipts"]) / plan.stage_uuid
             selector_terminal = (
                 Path(self.directories["selector_results"]) / f"{plan.stage_uuid}.terminal-inventory.json"
@@ -1575,6 +1711,8 @@ class OperatorStageRunner:
             ),
             frozen_pool_collection_authority=self._frozen_pool_collection_authority,
             prepare_after_frozen_pool=self._prepare_after_frozen_pool,
+            import_saved_corpus=self._import_saved_corpus,
+            prepare_after_saved_corpus=self._prepare_after_saved_corpus,
         )
 
     async def run(self) -> orchestration.StageResult:

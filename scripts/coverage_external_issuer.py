@@ -66,6 +66,7 @@ def main():
     p.add_argument(
         "--scope",
         choices=[
+            "saved-corpus-import",
             "frozen-pool-collection",
             "late-registration",
             "protected-source-capture",
@@ -116,7 +117,7 @@ def main():
             if not a.active_registration_sha256 or sha(raw) != a.active_registration_sha256:
                 raise ValueError("active-pin-mismatch")
             active_pin = a.active_registration_sha256
-        elif a.scope not in {"frozen-pool-collection", "late-registration"}:
+        elif a.scope not in {"saved-corpus-import", "frozen-pool-collection", "late-registration"}:
             raise ValueError("active-registration-required")
         root = pathlib.Path(runner.directories["operator_handoff"])
         stage = runner.plan.stage_uuid
@@ -143,6 +144,19 @@ def main():
             expected_initial_registration_sha256=initial_pin,
             expected_active_registration_sha256=active_pin,
         )
+        if a.scope == "saved-corpus-import":
+            if active_pin != initial_pin or runner.plan.pool_input_mode != "saved-corpus/1":
+                raise ValueError("saved-import-requires-initial-registration")
+            receipt = authority.PhaseArtifactReceiptIssuer.saved_corpus_import(**common, plan=runner.plan)
+            base = root / stage / a.scope
+            write(base / "responses" / (a.request_id + ".receipt"), receipt)
+            write(base / "pins" / (a.request_id + ".sha256"), sha(receipt).encode())
+            print(
+                json.dumps(
+                    {"scope": a.scope, "stage_uuid": stage, "receipt_sha256": sha(receipt), "scientific_calls": 0}
+                )
+            )
+            return
         artifacts = handoff.load_request_artifacts(
             scope=a.scope,
             **{
@@ -176,8 +190,9 @@ def main():
         elif a.scope == "selector-operation-permits":
             receipt = issuer.selector_operation_permits(**common, **rebuild, forbidden_stage_uuids=forbidden)
         elif a.scope in {"source-capture", "protected-source-capture", "selector-map-admission"}:
+            saved_import_out = {}
             materials, pipeline, verified = issuer.rebuild_frozen_registration_materials(
-                **common, **rebuild, scope=a.scope
+                **common, **rebuild, scope=a.scope, saved_import_out=saved_import_out
             )
             if a.scope == "source-capture":
                 receipt = issuer.source_capture(
@@ -251,7 +266,15 @@ def main():
                     snapshots_directory=verified.snapshots_directory,
                     acquisition_snapshot_index_sha256=verified.snapshot_index_sha256,
                     acquisition_manifest_bytes=plan.acquisition_manifest_bytes,
-                    acquisition_manifest_sha256=verified.pool_manifest_sha256,
+                    acquisition_manifest_sha256=(
+                        sha(plan.acquisition_manifest_bytes)
+                        if plan.pool_input_mode == "saved-corpus/1"
+                        else verified.pool_manifest_sha256
+                    ),
+                    verified_pool_source=verified,
+                    saved_corpus_import=saved_import_out.get("imported"),
+                    initial_registration_sha256=plan.initial_registration_sha256,
+                    band_companion_sha256=plan.band_companion_sha256,
                     neutral_fixture_bytes=(
                         source
                         / "docs/experiments/evidence/coverage-first-study/draft-v2/selector-readiness-inputs.json"

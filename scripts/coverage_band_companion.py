@@ -30,6 +30,8 @@ COHORTS_SHA256 = ARCHIVAL_COHORTS_SHA256
 FROZEN_PROTOCOL_SHA256 = "e4f7a7eaf7b78c9e662e02b48f9672eac368db7bef2992fe4e4c11443500b604"
 FROZEN_COHORTS_SHA256 = "377450c59f2b8498c8a7f923bb7b6d05a0b780300467cc9b9f8ef0bd69522595"
 FROZEN_CONTRACT_SHA256 = "359f0899a2afcec711352fa5bc673de6cb94d308cf69e013347e24aebb4814e7"
+SAVED_PROTOCOL_SHA256 = "647d1a09b9594f04798a9b891e609ed710c37111da62ecbf3e8e34d1b183c2bb"
+SAVED_CONTRACT_SHA256 = "e71660f3dbabe03c7d15e983f3c8b8cc666560d5f900a3323508b407cdef87b6"
 ARCHIVAL_GROUPS = {
     "research_le_40": {
         "development": ["D-R01", "D-R02", "D-R03", "D-R04"],
@@ -88,6 +90,11 @@ def validate_contract(contract: object, *, stage_kind: str, protocol_sha256: str
         FROZEN_PROTOCOL_SHA256,
         FROZEN_COHORTS_SHA256,
     ) and (protocol_sha256, cohorts_sha256) == (FROZEN_PROTOCOL_SHA256, FROZEN_COHORTS_SHA256):
+        expected_groups = FROZEN_GROUPS
+    elif (contract["protocol_sha256"], contract["cohorts_sha256"]) == (
+        SAVED_PROTOCOL_SHA256,
+        FROZEN_COHORTS_SHA256,
+    ) and (protocol_sha256, cohorts_sha256) == (SAVED_PROTOCOL_SHA256, FROZEN_COHORTS_SHA256):
         expected_groups = FROZEN_GROUPS
     else:
         raise BandCompanionError("companion-material-pin-mismatch")
