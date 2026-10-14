@@ -1,18 +1,8 @@
 # Coverage-first delivery: frozen-input execution amendment
 
-Current outcome: the fresh development invocation ended at collection admission with a controller working-directory setup failure; zero scientific calls and no quality credit. Confirmation remains uninvoked. See [terminal evidence](evidence/coverage-first-study/completed-2026-10-13-frozen-admission/README.md). The execution sequence below remains the release requirement, not a completed qualification.
+Current status: saved-development setup checks passed, but ranking quality is not yet established. The [current registration](evidence/coverage-first-study/saved-development-registration-2026-10-14/README.md) fixes the exact source and settings. Development uses the complete real saved collection with fresh blind grades and no new searches or captures. Confirmation stays separate and fresh, and starts only if development passes all checks. Production is unchanged.
 
-Status: method materials are locked, the complete runner correction merged in
-PR #831, and both fresh static preflights passed. The
-[fresh registration](evidence/coverage-first-study/frozen-input-static-registration-2026-10-13/README.md)
-binds exact source `d1d4cd35cb1e5653404d605345377e4447938704` and four new stage
-and packet identities. Development was invoked once but collection admission
-was refused; confirmation remains uninvoked. No scientific provider call has
-occurred. The approved candidate and thresholds are unchanged.
-
-## Prepared replacement admission, awaiting decision
-
-The [replacement proposal](evidence/coverage-first-study/proposed-repaired-admission-2026-10-13/README.md) preserves the same candidate, cases, thresholds and budgets and uses four fresh identities disjoint from all 59 retired identities. It is offline preparation only. The actual external-file issuer correction is retained in PR #834; the prior failed attempt is not restarted. Automatic approval review rejected creating new private configs without explicit authorization for this post-terminal run. No new config or scientific call is claimed.
+The current [saved-development method](evidence/coverage-first-study/saved-development-method-materials/README.md) changes input acquisition for development only. It preserves the candidate and quality requirements described below. Earlier admission and collection failures remain terminal historical evidence; they are not resumed.
 
 ## Why the execution method changes
 
