@@ -312,7 +312,12 @@ def _capture_observations(
     candidate_endpoint_sha256: str,
     timeout_limit_seconds: int | float,
     response_bytes_limit: int,
+    producer_source_sha256: str | None = None,
 ) -> dict[str, object]:
+    if producer_source_sha256 is not None and (
+        type(producer_source_sha256) is not str or not _SHA.fullmatch(producer_source_sha256)
+    ):
+        raise ResourceEvidenceError("capture-producer-source-pin-invalid")
     root = Path(capture_result.receipt_directory)
     _require_private_directory(root)
     try:
@@ -533,7 +538,9 @@ def _capture_observations(
             "protocol_sha256": protocol_sha256,
             "cohorts_sha256": cohorts_sha256,
             "operation_plan_sha256": expected_manifest_sha256,
-            "producer_module_sha256": execution_controls.module_source_sha256(source_capture.__file__),
+            "producer_module_sha256": (
+                producer_source_sha256 or execution_controls.module_source_sha256(source_capture.__file__)
+            ),
             "execution_controls_module_sha256": execution_controls.module_source_sha256(execution_controls.__file__),
             "timeout_limit_seconds_configured": timeout_limit_seconds,
             "response_bytes_limit_applied": response_bytes_limit,
@@ -587,7 +594,9 @@ def _capture_observations(
                 "candidate_endpoint_sha256": candidate_endpoint_sha256,
                 "candidate_endpoint_scheme": capture_result.candidate_endpoint_scheme,
                 "candidate_runtime_revision": expected_identity["runtime"]["revision"],
-                "capture_module_sha256": execution_controls.module_source_sha256(source_capture.__file__),
+                "capture_module_sha256": (
+                    producer_source_sha256 or execution_controls.module_source_sha256(source_capture.__file__)
+                ),
                 "ca_bundle_sha256": capture_result.ca_bundle_sha256,
             }
             qualification_bindings = (
@@ -1970,48 +1979,53 @@ def collect_resource_evidence(**kwargs) -> ResourceEvidenceReport:
             raise ResourceEvidenceError("protocol-cohort-binding")
         protocol_sha256 = _sha(protocol_bytes)
         cohorts_sha256 = _sha(cohorts_bytes)
+        input_mode = offline_acquisition.pool_input_mode_for_stage(protocol, kwargs.get("stage_kind"))
         try:
             acquisition_profile = offline_acquisition.execution_profile_from_protocol(
                 protocol.get("acquisition"),
-                pool_input_mode=protocol.get("pool_input_mode", "live-acquisition/1"),
+                pool_input_mode=input_mode,
             )
         except Exception as exc:
             raise ResourceEvidenceError("protocol-acquisition-profile-invalid") from exc
-        acquisition_plan_bytes = kwargs["acquisition_plan_bytes"]
-        acq = collect_acquisition_observations(
-            snapshots_directory=kwargs["snapshots_directory"],
-            receipt_directory=kwargs["receipt_directory"],
-            expected_receipt_inventory_sha256=kwargs["expected_receipt_inventory_sha256"],
-            acquisition_manifest_bytes=kwargs["acquisition_manifest_bytes"],
-            acquisition_plan_bytes=acquisition_plan_bytes,
-            expected_index_sha256=kwargs["expected_snapshot_index_sha256"],
-            expected_manifest_sha256=kwargs["acquisition_manifest_sha256"],
-            stage_uuid=stage_uuid,
-            source_revision=source_revision,
-            protocol_sha256=protocol_sha256,
-            cohorts_sha256=cohorts_sha256,
-            source_closure_sha256=kwargs["source_closure_sha256"],
-            acquisition_plan_sha256=_sha(acquisition_plan_bytes),
-            configured_timeout_seconds=protocol["acquisition"]["timeout_seconds"],
-            expected_execution_profile=acquisition_profile.identifier,
-            configured_query_pacing_seconds=protocol["acquisition"]["pacing_seconds"],
-            configured_arxiv_pacing_seconds=protocol["acquisition"]["arxiv_physical_pacing_seconds"],
-            deadline_monotonic=deadline,
-            verified_pool_source=kwargs.get("verified_pool_source"),
-        )
-        capture = _capture_observations(
-            capture_result=kwargs["capture_result"],
-            expected_inventory_sha256=kwargs["expected_capture_inventory_sha256"],
-            expected_manifest_sha256=kwargs["expected_capture_manifest_sha256"],
-            protocol_sha256=protocol_sha256,
-            cohorts_sha256=cohorts_sha256,
-            source_revision=source_revision,
-            candidate_identity_bytes=kwargs["candidate_identity_bytes"],
-            candidate_identity_sha256=kwargs["candidate_identity_sha256"],
-            candidate_endpoint_sha256=kwargs["candidate_endpoint_sha256"],
-            timeout_limit_seconds=protocol["capture"]["timeout_seconds"],
-            response_bytes_limit=protocol["capture"]["response_bytes"],
-        )
+        if input_mode == "saved-corpus/1":
+            acq, capture, saved_provenance = _saved_origin_resource_observations(kwargs, protocol)
+        else:
+            acquisition_plan_bytes = kwargs["acquisition_plan_bytes"]
+            acq = collect_acquisition_observations(
+                snapshots_directory=kwargs["snapshots_directory"],
+                receipt_directory=kwargs["receipt_directory"],
+                expected_receipt_inventory_sha256=kwargs["expected_receipt_inventory_sha256"],
+                acquisition_manifest_bytes=kwargs["acquisition_manifest_bytes"],
+                acquisition_plan_bytes=acquisition_plan_bytes,
+                expected_index_sha256=kwargs["expected_snapshot_index_sha256"],
+                expected_manifest_sha256=kwargs["acquisition_manifest_sha256"],
+                stage_uuid=stage_uuid,
+                source_revision=source_revision,
+                protocol_sha256=protocol_sha256,
+                cohorts_sha256=cohorts_sha256,
+                source_closure_sha256=kwargs["source_closure_sha256"],
+                acquisition_plan_sha256=_sha(acquisition_plan_bytes),
+                configured_timeout_seconds=protocol["acquisition"]["timeout_seconds"],
+                expected_execution_profile=acquisition_profile.identifier,
+                configured_query_pacing_seconds=protocol["acquisition"]["pacing_seconds"],
+                configured_arxiv_pacing_seconds=protocol["acquisition"]["arxiv_physical_pacing_seconds"],
+                deadline_monotonic=deadline,
+                verified_pool_source=kwargs.get("verified_pool_source"),
+            )
+            capture = _capture_observations(
+                capture_result=kwargs["capture_result"],
+                expected_inventory_sha256=kwargs["expected_capture_inventory_sha256"],
+                expected_manifest_sha256=kwargs["expected_capture_manifest_sha256"],
+                protocol_sha256=protocol_sha256,
+                cohorts_sha256=cohorts_sha256,
+                source_revision=source_revision,
+                candidate_identity_bytes=kwargs["candidate_identity_bytes"],
+                candidate_identity_sha256=kwargs["candidate_identity_sha256"],
+                candidate_endpoint_sha256=kwargs["candidate_endpoint_sha256"],
+                timeout_limit_seconds=protocol["capture"]["timeout_seconds"],
+                response_bytes_limit=protocol["capture"]["response_bytes"],
+            )
+            saved_provenance = None
         answer = _answer_observations(
             stage_uuid=stage_uuid,
             source_revision=source_revision,
@@ -2052,6 +2066,26 @@ def collect_resource_evidence(**kwargs) -> ResourceEvidenceReport:
             expected_selector_input_map_sha256=kwargs.get("expected_selector_input_map_sha256"),
         )
         observations = {**acq, **capture, **answer, **grader, **selector}
+        if input_mode == "saved-corpus/1":
+            stage_started = kwargs.get("stage_started_monotonic")
+            if (
+                type(stage_started) not in {int, float}
+                or isinstance(stage_started, bool)
+                or not math.isfinite(float(stage_started))
+                or stage_started < 0
+            ):
+                raise ResourceEvidenceError("saved-stage-start-time-invalid")
+            observations.update(
+                {
+                    "historical_input_search_calls": acq["acquisition_physical_http_calls"],
+                    "historical_input_capture_calls": capture["capture_owned_http_calls"],
+                    "historical_input_scrape_calls": capture["capture_scrape_calls"],
+                    "historical_input_health_calls": capture["capture_health_calls"],
+                    "current_stage_search_calls": 0,
+                    "current_stage_capture_calls": 0,
+                    "current_stage_elapsed_seconds": (max(0.0, time.monotonic() - float(stage_started))),
+                }
+            )
         observations["stage_elapsed_seconds"] = None
         observations["grader_concurrency"] = None
         observations["capture_internal_fanout"] = None
@@ -2080,6 +2114,14 @@ def collect_resource_evidence(**kwargs) -> ResourceEvidenceReport:
             ),
             "quality_credit": False,
             "admission_created": False,
+            "resource_accounting_mode": input_mode,
+            "saved_origin": saved_provenance,
+            "resource_accounting_note": (
+                "saved development search and capture costs are historical input-creation measurements; "
+                "current-stage search and capture dispatch counts are separately zero"
+                if input_mode == "saved-corpus/1"
+                else "resource costs are derived from the registered input method"
+            ),
             "selector_transaction_proof_sha256": (
                 _sha(_canonical(selector["selector_transaction_proof"]))
                 if selector.get("selector_transaction_proof") is not None
@@ -2384,6 +2426,373 @@ def _configuration_provenance(protocol: Mapping[str, object]) -> dict[str, objec
         "quality_credit": False,
         "note": "configured ceilings are not measured observations",
     }
+
+
+def _saved_method_material_path(name: str) -> Path:
+    if name not in {"protocol.json", "cohorts.json"}:
+        raise ResourceEvidenceError("saved-origin-method-material-name-invalid")
+    return (
+        Path(__file__).resolve().parent.parent
+        / "docs/experiments/evidence/coverage-first-study/frozen-input-method-materials"
+        / name
+    )
+
+
+def _read_saved_method_material(name: str, *, max_bytes: int) -> bytes:
+    path = _saved_method_material_path(name)
+    try:
+        fd = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+    except OSError as exc:
+        raise ResourceEvidenceError("saved-origin-method-material-unavailable") from exc
+    try:
+        info = os.fstat(fd)
+        if not stat.S_ISREG(info.st_mode) or info.st_size > max_bytes:
+            raise ResourceEvidenceError("saved-origin-method-material-invalid")
+        with os.fdopen(fd, "rb", closefd=False) as handle:
+            raw = handle.read(max_bytes + 1)
+        if len(raw) > max_bytes:
+            raise ResourceEvidenceError("saved-origin-method-material-too-large")
+        return raw
+    finally:
+        os.close(fd)
+
+
+def _saved_origin_resource_observations(
+    kwargs: Mapping[str, object], current_protocol: Mapping[str, object]
+) -> tuple[dict[str, object], dict[str, object], dict[str, object]]:
+    """Recompute original input-creation costs from the pinned saved package.
+
+    The saved branch accounts the origin's search and capture artifacts under
+    their original registration. It does not relabel them as calls made by the
+    current grading stage.
+    """
+    from scripts import coverage_frozen_pool_inputs as frozen_pool
+    from scripts import coverage_saved_corpus
+
+    origin = kwargs.get("saved_origin")
+    imported = kwargs.get("saved_corpus_import")
+    if (
+        type(origin) is not coverage_saved_corpus.SavedCorpusOrigin
+        or type(imported) is not coverage_saved_corpus.SavedCorpusImportResult
+    ):
+        raise ResourceEvidenceError("saved-origin-resource-input-invalid")
+    registration = origin.registration
+    if (
+        kwargs.get("stage_kind") != "development"
+        or registration.stage_kind != "development"
+        or imported.origin_package_sha256 != origin.expected_package_sha256
+        or imported.origin_pool_verified is None
+        or imported.origin_capture_result.stage_uuid != registration.stage_uuid
+    ):
+        raise ResourceEvidenceError("saved-origin-resource-binding-mismatch")
+    import_receipt_bytes = imported.import_receipt_bytes
+    try:
+        import_receipt = _strict_json(import_receipt_bytes, "saved-import-receipt")
+    except Exception as exc:
+        raise ResourceEvidenceError("saved-origin-import-receipt-invalid") from exc
+    expected_import_keys = {
+        "schema",
+        "status",
+        "stage_uuid",
+        "stage_kind",
+        "source_revision",
+        "source_closure_sha256",
+        "protocol_sha256",
+        "cohorts_sha256",
+        "candidate_identity_sha256",
+        "candidate_endpoint_sha256",
+        "packet_stage_uuid",
+        "origin_stage_uuid",
+        "origin_source_revision",
+        "origin_package_sha256",
+        "origin_pool_manifest_sha256",
+        "origin_pool_snapshot_index_sha256",
+        "origin_collection_receipt_sha256",
+        "origin_capture_manifest_sha256",
+        "origin_capture_inventory_sha256",
+        "derived_capture_manifest_sha256",
+        "import_authority_receipt_sha256",
+        "research_task_ids",
+        "navigation_target_ids",
+        "source_rows",
+        "captured_contexts",
+        "source_failures",
+        "historical_search_calls",
+        "historical_capture_calls",
+        "historical_scrape_calls",
+        "historical_health_calls",
+        "current_search_calls",
+        "current_capture_calls",
+        "quality_credit",
+    }
+    expected_current_bindings = {
+        "schema": "coverage-saved-corpus-import/1",
+        "status": "verified-for-fresh-grading",
+        "stage_uuid": kwargs.get("stage_uuid"),
+        "stage_kind": kwargs.get("stage_kind"),
+        "source_revision": kwargs.get("source_revision"),
+        "source_closure_sha256": kwargs.get("source_closure_sha256"),
+        "protocol_sha256": _sha(kwargs.get("protocol_bytes", b"")),
+        "cohorts_sha256": _sha(kwargs.get("cohorts_bytes", b"")),
+        "candidate_identity_sha256": kwargs.get("candidate_identity_sha256"),
+        "candidate_endpoint_sha256": kwargs.get("candidate_endpoint_sha256"),
+        "origin_stage_uuid": registration.stage_uuid,
+        "origin_source_revision": registration.source_revision,
+        "origin_package_sha256": origin.expected_package_sha256,
+        "research_task_ids": list(registration.task_ids),
+        "navigation_target_ids": list(registration.navigation_ids),
+        "current_search_calls": 0,
+        "current_capture_calls": 0,
+        "quality_credit": False,
+    }
+    if (
+        type(import_receipt) is not dict
+        or set(import_receipt) != expected_import_keys
+        or _sha(import_receipt_bytes) != imported.import_receipt_sha256
+        or coverage_saved_corpus._canonical(import_receipt) != import_receipt_bytes
+        or any(import_receipt.get(key) != value for key, value in expected_current_bindings.items())
+        or type(import_receipt.get("packet_stage_uuid")) is not str
+        or not re.fullmatch(
+            r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}",
+            import_receipt["packet_stage_uuid"],
+        )
+        or (
+            kwargs.get("packet_stage_uuid") is not None
+            and import_receipt.get("packet_stage_uuid") != kwargs.get("packet_stage_uuid")
+        )
+        or type(import_receipt.get("import_authority_receipt_sha256")) is not str
+        or not _SHA.fullmatch(import_receipt["import_authority_receipt_sha256"])
+        or _sha(imported.capture_manifest_bytes) != imported.capture_manifest_sha256
+    ):
+        raise ResourceEvidenceError("saved-origin-import-receipt-binding-mismatch")
+
+    # Resolve only the committed, reviewed method materials. The registration
+    # hashes remain the authority; no caller-supplied filesystem path is used.
+    origin_protocol_bytes = _read_saved_method_material("protocol.json", max_bytes=2_000_000)
+    origin_cohorts_bytes = _read_saved_method_material("cohorts.json", max_bytes=2_000_000)
+    if (
+        _sha(origin_protocol_bytes) != registration.protocol_sha256
+        or _sha(origin_cohorts_bytes) != registration.cohorts_sha256
+    ):
+        raise ResourceEvidenceError("saved-origin-locked-material-pin-mismatch")
+    origin_protocol = _strict_json(origin_protocol_bytes, "saved-origin-protocol")
+    origin_cohorts = _strict_json(origin_cohorts_bytes, "saved-origin-cohorts")
+    if type(origin_protocol) is not dict or type(origin_cohorts) is not dict:
+        raise ResourceEvidenceError("saved-origin-locked-material-invalid")
+
+    current_origin = current_protocol.get("saved_development_origin")
+    historical_producer_sha = (
+        current_origin.get("capture_producer_source_sha256") if type(current_origin) is dict else None
+    )
+    if (
+        type(current_origin) is not dict
+        or current_origin.get("stage_uuid") != registration.stage_uuid
+        or current_origin.get("source_revision") != registration.source_revision
+        or current_origin.get("package_sha256") != origin.expected_package_sha256
+        or type(historical_producer_sha) is not str
+        or not _SHA.fullmatch(historical_producer_sha)
+    ):
+        raise ResourceEvidenceError("saved-origin-capture-producer-pin-missing")
+
+    try:
+        observed_package_sha = coverage_saved_corpus.package_sha256(
+            Path(origin.collection_directory), Path(origin.capture_stage_directory)
+        )
+        collection_inventory_sha = receipt_inventory_sha256(Path(origin.collection_directory))
+    except Exception as exc:
+        raise ResourceEvidenceError("saved-origin-package-reverification-failed") from exc
+    if (
+        observed_package_sha != origin.expected_package_sha256
+        or observed_package_sha != imported.origin_package_sha256
+        or collection_inventory_sha != origin.expected_collection_receipt_inventory_sha256
+    ):
+        raise ResourceEvidenceError("saved-origin-package-pin-mismatch")
+
+    collection_root = Path(origin.collection_directory)
+    try:
+        evidence_bytes = _read_private(
+            collection_root / "frozen-pool-evidence.json", max_bytes=coverage_live_acquire.MAX_POOL_SNAPSHOT_BYTES
+        )
+        collector_receipt_bytes = _read_private(
+            collection_root / "collector-receipt.json", max_bytes=coverage_live_acquire.MAX_POOL_SNAPSHOT_BYTES
+        )
+        availability_bytes = _read_private(
+            collection_root / "engine-availability.json", max_bytes=coverage_live_acquire.MAX_POOL_SNAPSHOT_BYTES
+        )
+        evidence_doc = frozen_pool._strict(evidence_bytes, "saved-origin-pool-evidence")
+        origin_deadline = evidence_doc.get("stage_deadline_monotonic")
+        origin_completed = evidence_doc.get("collection_completed_monotonic")
+        stage_wall = origin_protocol.get("phase_limits", {}).get("stage_wall_seconds")
+        if (
+            type(origin_deadline) not in (int, float)
+            or type(origin_completed) not in (int, float)
+            or type(stage_wall) not in (int, float)
+            or origin_deadline < stage_wall
+        ):
+            raise ValueError("saved-origin-clock-invalid")
+        origin_started = origin_deadline - stage_wall
+        pool_evidence = frozen_pool.FrozenPoolEvidence(
+            snapshots_directory=collection_root,
+            evidence_bytes=evidence_bytes,
+            expected_evidence_sha256=_sha(evidence_bytes),
+            collector_receipt_bytes=collector_receipt_bytes,
+            expected_collector_receipt_sha256=_sha(collector_receipt_bytes),
+            availability_bytes=availability_bytes,
+            expected_availability_sha256=_sha(availability_bytes),
+        )
+        verified_origin_pool = frozen_pool.verify_frozen_pool_evidence(
+            pool_evidence,
+            expected_stage_uuid=registration.stage_uuid,
+            expected_stage_kind=registration.stage_kind,
+            expected_source_revision=registration.source_revision,
+            expected_source_closure_sha256=registration.source_closure_sha256,
+            expected_protocol_sha256=registration.protocol_sha256,
+            expected_cohorts_sha256=registration.cohorts_sha256,
+            expected_candidate_identity_sha256=registration.candidate_identity_sha256,
+            expected_candidate_endpoint_sha256=registration.candidate_endpoint_sha256,
+            expected_acquisition_plan_sha256=registration.acquisition_plan_sha256,
+            expected_task_ids=registration.task_ids,
+            expected_navigation_ids=registration.navigation_ids,
+            stage_started_monotonic=origin_started,
+            stage_deadline_monotonic=origin_deadline,
+            now_monotonic=origin_completed,
+        )
+    except Exception as exc:
+        raise ResourceEvidenceError("saved-origin-pool-reverification-failed") from exc
+    if (
+        verified_origin_pool.snapshot_index_sha256 != imported.origin_pool_verified.snapshot_index_sha256
+        or verified_origin_pool.pool_manifest_sha256 != imported.origin_pool_verified.pool_manifest_sha256
+        or verified_origin_pool.proof_sha256 != imported.origin_pool_verified.proof_sha256
+        or import_receipt.get("origin_pool_snapshot_index_sha256") != verified_origin_pool.snapshot_index_sha256
+        or import_receipt.get("origin_pool_manifest_sha256") != verified_origin_pool.pool_manifest_sha256
+        or import_receipt.get("origin_collection_receipt_sha256") != registration.collector_receipt_sha256
+    ):
+        raise ResourceEvidenceError("saved-origin-pool-proof-mismatch")
+
+    acquisition_plan_bytes = _read_private(collection_root / "acquisition-plan.json", max_bytes=2_000_000)
+    acquisition_manifest_bytes = _read_private(
+        collection_root / "acquisition-manifest.json", max_bytes=coverage_live_acquire.MAX_POOL_SNAPSHOT_BYTES
+    )
+    if _sha(acquisition_plan_bytes) != registration.acquisition_plan_sha256:
+        raise ResourceEvidenceError("saved-origin-acquisition-plan-pin-mismatch")
+    origin_acquisition = origin_protocol.get("acquisition")
+    origin_profile = offline_acquisition.execution_profile_from_protocol(
+        origin_acquisition, pool_input_mode="frozen-pool/1"
+    )
+    origin_acq = collect_acquisition_observations(
+        snapshots_directory=collection_root,
+        receipt_directory=collection_root,
+        expected_receipt_inventory_sha256=origin.expected_collection_receipt_inventory_sha256,
+        acquisition_manifest_bytes=acquisition_manifest_bytes,
+        acquisition_plan_bytes=acquisition_plan_bytes,
+        expected_index_sha256=verified_origin_pool.snapshot_index_sha256,
+        expected_manifest_sha256=verified_origin_pool.pool_manifest_sha256,
+        stage_uuid=registration.stage_uuid,
+        source_revision=registration.source_revision,
+        protocol_sha256=registration.protocol_sha256,
+        cohorts_sha256=registration.cohorts_sha256,
+        source_closure_sha256=registration.source_closure_sha256,
+        acquisition_plan_sha256=registration.acquisition_plan_sha256,
+        configured_timeout_seconds=origin_acquisition["timeout_seconds"],
+        expected_execution_profile=origin_profile.identifier,
+        configured_query_pacing_seconds=origin_acquisition["pacing_seconds"],
+        configured_arxiv_pacing_seconds=origin_acquisition["arxiv_physical_pacing_seconds"],
+        deadline_monotonic=origin_deadline,
+        verified_pool_source=verified_origin_pool,
+    )
+    original_capture = imported.origin_capture_result
+    try:
+        origin_capture_inventory = _read_private(
+            Path(origin.capture_stage_directory) / "inventory.json", max_bytes=4_000_000
+        )
+        origin_capture_manifest = _read_private(
+            Path(origin.capture_stage_directory) / "source-manifest.json", max_bytes=2_000_000
+        )
+    except Exception as exc:
+        raise ResourceEvidenceError("saved-origin-capture-artifact-unreadable") from exc
+    if (
+        _sha(origin_capture_inventory) != origin.expected_capture_inventory_sha256
+        or _sha(origin_capture_manifest) != origin.expected_capture_manifest_sha256
+        or import_receipt.get("origin_capture_inventory_sha256") != origin.expected_capture_inventory_sha256
+        or import_receipt.get("origin_capture_manifest_sha256") != origin.expected_capture_manifest_sha256
+        or import_receipt.get("derived_capture_manifest_sha256") != imported.capture_manifest_sha256
+    ):
+        raise ResourceEvidenceError("saved-origin-capture-artifact-pin-mismatch")
+    try:
+        checked_origin_manifest, _checked_origin_sources = source_capture._validate_manifest(
+            origin_capture_manifest, registration.protocol_sha256
+        )
+    except Exception as exc:
+        raise ResourceEvidenceError("saved-origin-capture-manifest-invalid") from exc
+    expected_derived_manifest = dict(checked_origin_manifest)
+    expected_derived_manifest.update(
+        {
+            "stage_uuid": kwargs["stage_uuid"],
+            "source_revision": kwargs["source_revision"],
+            "protocol_sha256": _sha(kwargs["protocol_bytes"]),
+            "cohorts_sha256": _sha(kwargs["cohorts_bytes"]),
+            "candidate_identity_sha256": kwargs["candidate_identity_sha256"],
+            "candidate_endpoint_sha256": kwargs["candidate_endpoint_sha256"],
+        }
+    )
+    expected_derived_manifest_bytes = source_capture._canonical_json(expected_derived_manifest)
+    if (
+        imported.capture_manifest_bytes != expected_derived_manifest_bytes
+        or imported.capture_manifest_sha256 != _sha(expected_derived_manifest_bytes)
+        or import_receipt.get("derived_capture_manifest_sha256") != _sha(expected_derived_manifest_bytes)
+    ):
+        raise ResourceEvidenceError("saved-origin-derived-capture-manifest-mismatch")
+    origin_capture = _capture_observations(
+        capture_result=original_capture,
+        expected_inventory_sha256=origin.expected_capture_inventory_sha256,
+        expected_manifest_sha256=origin.expected_capture_manifest_sha256,
+        protocol_sha256=registration.protocol_sha256,
+        cohorts_sha256=registration.cohorts_sha256,
+        source_revision=registration.source_revision,
+        candidate_identity_bytes=kwargs["candidate_identity_bytes"],
+        candidate_identity_sha256=registration.candidate_identity_sha256,
+        candidate_endpoint_sha256=registration.candidate_endpoint_sha256,
+        timeout_limit_seconds=origin_protocol["capture"]["timeout_seconds"],
+        response_bytes_limit=origin_protocol["capture"]["response_bytes"],
+        producer_source_sha256=historical_producer_sha,
+    )
+    observed_import_costs = {
+        "historical_search_calls": origin_acq["acquisition_physical_http_calls"],
+        "historical_capture_calls": origin_capture["capture_owned_http_calls"],
+        "historical_scrape_calls": origin_capture["capture_scrape_calls"],
+        "historical_health_calls": origin_capture["capture_health_calls"],
+        "historical_captured_sources": original_capture.captured_count,
+        "historical_failed_sources": original_capture.failed_count,
+    }
+    for key, observed in observed_import_costs.items():
+        imported_value = getattr(imported, key, None)
+        if type(observed) is not int or type(imported_value) is not int or imported_value != observed:
+            raise ResourceEvidenceError(f"saved-origin-import-counter-mismatch:{key}")
+        receipt_key = {
+            "historical_captured_sources": "captured_contexts",
+            "historical_failed_sources": "source_failures",
+        }.get(key, key)
+        if import_receipt.get(receipt_key) != observed:
+            raise ResourceEvidenceError(f"saved-origin-import-counter-mismatch:{key}")
+    if (
+        import_receipt.get("source_rows") != original_capture.source_count
+        or import_receipt.get("captured_contexts") != original_capture.captured_count
+        or import_receipt.get("source_failures") != original_capture.failed_count
+    ):
+        raise ResourceEvidenceError("saved-origin-import-counter-mismatch")
+    provenance = {
+        "origin_stage_uuid": registration.stage_uuid,
+        "origin_source_revision": registration.source_revision,
+        "origin_protocol_sha256": registration.protocol_sha256,
+        "origin_cohorts_sha256": registration.cohorts_sha256,
+        "origin_source_closure_sha256": registration.source_closure_sha256,
+        "origin_package_sha256": observed_package_sha,
+        "origin_pool_snapshot_index_sha256": verified_origin_pool.snapshot_index_sha256,
+        "origin_capture_inventory_sha256": origin.expected_capture_inventory_sha256,
+        "origin_capture_manifest_sha256": origin.expected_capture_manifest_sha256,
+        "historical_input_costs": True,
+    }
+    return origin_acq, origin_capture, provenance
 
 
 __all__ = [

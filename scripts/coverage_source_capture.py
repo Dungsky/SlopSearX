@@ -241,6 +241,7 @@ def _validate_protocol(protocol_bytes: bytes) -> tuple[dict[str, object], str]:
     if type(obj) is not dict or obj.get("schema") not in {
         "coverage-first-study-protocol/1",
         "coverage-first-study-protocol/2",
+        "coverage-first-study-protocol/3",
     }:
         raise SourceCaptureError("protocol-schema")
     capture = obj.get("capture")

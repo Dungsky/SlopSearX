@@ -19,6 +19,7 @@ from typing import Any, Awaitable, Callable, Mapping
 
 from scripts import coverage_answer_execution as answer_execution
 from scripts import (
+    coverage_assessment_packets,
     coverage_live_acquire,
     coverage_native_grader_handoff,
     coverage_resource_evidence,
@@ -68,6 +69,29 @@ def _read_private(path: Path, *, maximum_bytes: int) -> bytes:
         os.close(descriptor)
 
 
+def _assessment_checkpoint_root(handoff: coverage_native_grader_handoff.NativeGraderHandoff) -> Path:
+    """Create or validate the private checkpoint root beneath grader handoff storage."""
+    root = Path(handoff.root) / "assessment-checkpoints"
+    try:
+        root.mkdir(mode=0o700)
+    except FileExistsError:
+        pass
+    except OSError as exc:
+        raise RuntimeWiringError("assessment-checkpoint-root-unavailable") from exc
+    try:
+        info = root.lstat()
+    except OSError as exc:
+        raise RuntimeWiringError("assessment-checkpoint-root-unavailable") from exc
+    if (
+        stat.S_ISLNK(info.st_mode)
+        or not stat.S_ISDIR(info.st_mode)
+        or stat.S_IMODE(info.st_mode) != 0o700
+        or info.st_uid != getattr(os, "geteuid", lambda: info.st_uid)()
+    ):
+        raise RuntimeWiringError("assessment-checkpoint-root-unsafe")
+    return root
+
+
 @dataclass(frozen=True)
 class RuntimeBindings:
     """Explicit non-secret authority providers and stage-specific executors.
@@ -109,6 +133,8 @@ class RuntimeBindings:
         ]
         | None
     ) = None
+    import_saved_corpus: Callable[..., Awaitable[orchestration.SavedCorpusStageEvidence]] | None = None
+    prepare_after_saved_corpus: Callable[..., Awaitable[orchestration.LatePreparationEvidence]] | None = None
 
 
 def build_stage_executors(plan: orchestration.StagePlan, bindings: RuntimeBindings) -> orchestration.StageExecutors:
@@ -399,13 +425,48 @@ def build_stage_executors(plan: orchestration.StagePlan, bindings: RuntimeBindin
             result_root=result_root,
         )
 
+    reference_checkpoint = None
+
     async def grade_references(prepared_packets):
+        nonlocal reference_checkpoint
+        if (
+            type(prepared_packets) is not coverage_assessment_packets.PreparedAssessmentPackets
+            or prepared_packets.packet_stage_uuid != plan.packet_stage_uuid
+        ):
+            raise RuntimeWiringError("reference-assessment-stage-binding-invalid")
+        if reference_checkpoint is not None:
+            raise RuntimeWiringError("assessment-checkpoint-already-created-no-resume")
+        from scripts import coverage_assessment_checkpoint
+
+        try:
+            reference_checkpoint = coverage_assessment_checkpoint.persist_prepared_assessment(
+                _assessment_checkpoint_root(bindings.native_handoff), prepared_packets
+            )
+        except coverage_assessment_checkpoint.AssessmentCheckpointError as exc:
+            raise RuntimeWiringError("prepared-assessment-checkpoint-failed") from exc
         return await bindings.native_handoff.collect(
             stage_uuid=plan.packet_stage_uuid,
             phase="references",
             prepared_packets=prepared_packets,
             deadline_monotonic=plan.stage_deadline_monotonic,
         )
+
+    async def persist_reference_closure(prepared_packets, submissions, closure):
+        if reference_checkpoint is None:
+            raise RuntimeWiringError("prepared-assessment-checkpoint-required")
+        if (
+            type(prepared_packets) is not coverage_assessment_packets.PreparedAssessmentPackets
+            or prepared_packets.packet_stage_uuid != plan.packet_stage_uuid
+        ):
+            raise RuntimeWiringError("reference-assessment-stage-binding-invalid")
+        from scripts import coverage_assessment_checkpoint
+
+        try:
+            return coverage_assessment_checkpoint.persist_validated_preassessment_closure(
+                reference_checkpoint, prepared_packets, submissions, closure
+            )
+        except coverage_assessment_checkpoint.AssessmentCheckpointError as exc:
+            raise RuntimeWiringError("validated-assessment-closure-checkpoint-failed") from exc
 
     async def grade_answers(prepared_packets):
         return await bindings.native_handoff.collect(
@@ -430,12 +491,17 @@ def build_stage_executors(plan: orchestration.StagePlan, bindings: RuntimeBindin
         prepare_after_acquisition=bindings.prepare_after_acquisition,
         verify_late_preflight=bindings.verify_late_preflight,
         grade_references=grade_references,
+        persist_reference_closure=persist_reference_closure,
         selectors=selector,
         answerer=answerer,
         grade_answers=grade_answers,
         verify_selector_admission=bindings.selector_admission_verifier,
         collect_frozen_pool=collect_frozen_pool if plan.pool_input_mode == "frozen-pool/1" else None,
         verify_frozen_pool=verify_frozen_pool if plan.pool_input_mode == "frozen-pool/1" else None,
+        import_saved_corpus=bindings.import_saved_corpus if plan.pool_input_mode == "saved-corpus/1" else None,
+        prepare_after_saved_corpus=bindings.prepare_after_saved_corpus
+        if plan.pool_input_mode == "saved-corpus/1"
+        else None,
         prepare_after_frozen_pool=(
             bindings.prepare_after_frozen_pool if plan.pool_input_mode == "frozen-pool/1" else None
         ),

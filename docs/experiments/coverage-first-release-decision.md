@@ -44,7 +44,12 @@ confirmation tasks/pools together. Historical exposed cases may be exploratory
 diagnostics only. Freeze fresh blind independent card/source references before
 any Jev score or selector output in each stage. Freeze equal consumer and
 answerer budgets; assess references separately, never average disagreement
-into a pass. Substantive, applicable evidence must be delivered and correctly
+into a pass. The current [saved-development method](evidence/coverage-first-study/saved-development-method-materials/README.md)
+supersedes the requirement to collect the development inputs again: it uses the
+complete real development archive with new blind grades. Confirmation remains
+separate and untouched, with fresh collection and capture. The earlier runs
+remain terminal and receive no quality credit. All numerical gates remain
+unchanged. Substantive, applicable evidence must be delivered and correctly
 used for every critical check; bibliographic or topical leads alone do not
 complete factual-answer tasks.
 

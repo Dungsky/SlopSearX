@@ -11,6 +11,12 @@ Before implementing the complete-pool selector, follow the [v0.6.0 release
 reconciliation](slopsearx-v0.6-release-reconciliation.md): reuse shipped Jev,
 grouping, service and snapshot behavior; confirm only the remaining extension.
 
+The coverage-first study is preparing the [saved-development method](evidence/coverage-first-study/saved-development-method-materials/README.md).
+It will grade the complete real development archive afresh, then use separate
+fresh confirmation cases only if development passes. The [engine replay tool](coverage-engine-replay.md)
+tests plumbing offline and does not count as quality evidence. Ranking quality
+and product delivery remain unproven.
+
 ## Run one cycle
 
 1. Read this ledger, relevant project contracts, current issues and open PRs.

@@ -91,6 +91,21 @@ _ACQUISITION_PROFILES = {
 }
 
 
+def pool_input_mode_for_stage(protocol: Mapping[str, object], stage_kind: str | None = None) -> str:
+    """Select the registered input method without substituting confirmation data."""
+    modes = protocol.get("pool_input_mode_by_stage")
+    if modes is None:
+        return str(protocol.get("pool_input_mode", "live-acquisition/1"))
+    if modes != {"development": "saved-corpus/1", "confirmation": "frozen-pool/1"}:
+        raise ValueError("unsupported stage input methods")
+    if stage_kind not in {"development", "confirmation"}:
+        raise ValueError("stage kind required for saved development inputs")
+    inputs = protocol.get("inputs")
+    if type(inputs) is not dict or inputs.get("source_artifact_reuse") != "development-only":
+        raise ValueError("saved development reuse must be explicit")
+    return modes[stage_kind]
+
+
 def execution_profile_from_protocol(
     acquisition: object, *, pool_input_mode: str = "live-acquisition/1"
 ) -> AcquisitionExecutionProfile:
@@ -127,7 +142,7 @@ def execution_profile_from_protocol(
         "adapter_calls_maximum": MAX_PHYSICAL_REQUESTS_PER_ENGINE,
         "credentials": "keyless public acquisition; no provider key loaded before admitted model phase",
     }
-    if pool_input_mode == "frozen-pool/1":
+    if pool_input_mode in {"frozen-pool/1", "saved-corpus/1"}:
         expected.update(
             {
                 "pool_failure": (

@@ -25,6 +25,7 @@ stage = c["stage_uuid"]
 root = pathlib.Path(c["directories"]["operator_handoff"]) / stage
 terminal = a.output_root / (stage + ".terminal.json")
 scopes = {
+    "saved-corpus-import": "permit",
     "frozen-pool-collection": "permit",
     "late-registration": "registration-1",
     "protected-source-capture": "permit",
@@ -63,7 +64,7 @@ while time.monotonic() < end:
             "--request-id",
             request_id,
         ]
-        if scope not in {"frozen-pool-collection", "late-registration"}:
+        if scope not in {"saved-corpus-import", "frozen-pool-collection", "late-registration"}:
             active = root / "late-registration/responses/registration-1.receipt"
             pin = (root / "late-registration/pins/registration-1.sha256").read_text().strip()
             command += ["--active-registration", str(active), "--active-registration-sha256", pin]
