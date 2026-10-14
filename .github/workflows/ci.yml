@@ -204,6 +204,7 @@ jobs:
             tests/test_entity_transport.py
             tests/test_http_pooling.py
             tests/test_mcp_gateway.py
+            tests/test_mcp_gateway_lifecycle.py
             tests/test_mcp_harness.py
             tests/test_mcp_oauth.py
             tests/test_mcp_oauth_client.py

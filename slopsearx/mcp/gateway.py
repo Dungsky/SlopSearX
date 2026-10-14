@@ -404,6 +404,45 @@ async def _gateway_lifespan(
     remote_url: str,
     token: str | None,
     connect_timeout: float,
+    **options: Any,
+) -> AsyncIterator[None]:
+    """Keep the upstream client's cancel scopes in one dedicated task.
+
+    FastMCP enters other task groups after this lifespan yields. Its later
+    cleanup therefore cannot safely unwind the MCP client's AnyIO scopes in
+    the hosting task. The owner enters and exits all upstream scopes itself.
+    """
+    ready: asyncio.Future[None] = asyncio.get_running_loop().create_future()
+    stop = asyncio.Event()
+
+    async def own_connection() -> None:
+        try:
+            async with _gateway_connection(server, remote_url, token, connect_timeout, **options):
+                ready.set_result(None)
+                await stop.wait()
+        except BaseException as exc:
+            if not ready.done():
+                ready.set_exception(exc)
+            raise
+
+    owner = asyncio.create_task(own_connection(), name="slopsearx-gateway-upstream")
+    try:
+        await asyncio.shield(ready)
+        yield
+    finally:
+        stop.set()
+        if not ready.done():
+            ready.cancel()
+            owner.cancel()
+        await owner
+
+
+@asynccontextmanager
+async def _gateway_connection(
+    server: FastMCP,
+    remote_url: str,
+    token: str | None,
+    connect_timeout: float,
     *,
     oauth: bool = False,
     oauth_callback_port: int = 8765,
