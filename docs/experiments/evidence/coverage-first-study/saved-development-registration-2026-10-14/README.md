@@ -1,6 +1,8 @@
 # Ranking test using saved development results
 
-Status: setup checks passed; neither study stage has started. Ranking quality remains unproven.
+Status at registration: setup checks passed; neither study stage had started. Ranking quality was unproven.
+
+Later outcome: development stopped at import admission before any scientific calls. Confirmation was not started, and these identities are retired. See the [terminal record](../completed-2026-10-14-saved-admission/README.md). The JSON registration materials below remain the original prospective snapshot.
 
 The development test reuses the complete real search results and page captures from the earlier collection. It uses new blind grades and makes no new search or capture requests. Old grades are excluded. Original collection failures remain in the data.
 

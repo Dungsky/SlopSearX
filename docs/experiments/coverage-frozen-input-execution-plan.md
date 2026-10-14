@@ -1,6 +1,6 @@
 # Coverage-first delivery: frozen-input execution amendment
 
-Current status: saved-development setup checks passed, but ranking quality is not yet established. The [current registration](evidence/coverage-first-study/saved-development-registration-2026-10-14/README.md) fixes the exact source and settings. Development uses the complete real saved collection with fresh blind grades and no new searches or captures. Confirmation stays separate and fresh, and starts only if development passes all checks. Production is unchanged.
+Current status: the saved-development invocation stopped at import admission before any grading or ranking calls. See the [terminal record](evidence/coverage-first-study/completed-2026-10-14-saved-admission/README.md). The failed run will not be retried. Confirmation was not started, and both sets of identities are retired. Ranking quality and production adoption remain unproven.
 
 The current [saved-development method](evidence/coverage-first-study/saved-development-method-materials/README.md) changes input acquisition for development only. It preserves the candidate and quality requirements described below. Earlier admission and collection failures remain terminal historical evidence; they are not resumed.
 
