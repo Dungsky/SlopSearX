@@ -341,7 +341,8 @@ class PinnedReceiptAuthorities:
             or plan.pool_input_mode != "saved-corpus/1"
             or type(origin) is not saved.SavedCorpusOrigin
             or plan.stage_kind != "development"
-            or plan.source_revision != origin.registration.source_revision
+            or type(plan.source_revision) is not str
+            or saved._REVISION.fullmatch(plan.source_revision) is None
             or plan.stage_uuid in {origin.registration.stage_uuid, plan.packet_stage_uuid}
             or plan.packet_stage_uuid == origin.registration.stage_uuid
         ):
@@ -431,6 +432,8 @@ class PhaseArtifactReceiptIssuer:
             or stage_pool_input_mode != "saved-corpus/1"
             or type(origin) is not saved.SavedCorpusOrigin
             or plan.stage_kind != "development"
+            or type(plan.source_revision) is not str
+            or saved._REVISION.fullmatch(plan.source_revision) is None
             or envelope.get("scope") != "saved-corpus-import"
             or envelope.get("stage_uuid") != stage_uuid
             or envelope.get("request_id") != request_id
@@ -495,7 +498,8 @@ class PhaseArtifactReceiptIssuer:
             raise LocalAuthorityError("saved-corpus-import-origin-invalid") from exc
         if (
             package_sha != origin.expected_package_sha256
-            or plan.source_revision != origin.registration.source_revision
+            or type(plan.source_revision) is not str
+            or saved._REVISION.fullmatch(plan.source_revision) is None
             or _sha(plan.cohorts_bytes) != origin.registration.cohorts_sha256
             or _sha(plan.candidate_identity_bytes) != origin.registration.candidate_identity_sha256
             or plan.candidate_endpoint_sha256 != origin.registration.candidate_endpoint_sha256

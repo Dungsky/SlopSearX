@@ -144,19 +144,6 @@ def main():
             expected_initial_registration_sha256=initial_pin,
             expected_active_registration_sha256=active_pin,
         )
-        if a.scope == "saved-corpus-import":
-            if active_pin != initial_pin or runner.plan.pool_input_mode != "saved-corpus/1":
-                raise ValueError("saved-import-requires-initial-registration")
-            receipt = authority.PhaseArtifactReceiptIssuer.saved_corpus_import(**common, plan=runner.plan)
-            base = root / stage / a.scope
-            write(base / "responses" / (a.request_id + ".receipt"), receipt)
-            write(base / "pins" / (a.request_id + ".sha256"), sha(receipt).encode())
-            print(
-                json.dumps(
-                    {"scope": a.scope, "stage_uuid": stage, "receipt_sha256": sha(receipt), "scientific_calls": 0}
-                )
-            )
-            return
         artifacts = handoff.load_request_artifacts(
             scope=a.scope,
             **{
@@ -175,6 +162,19 @@ def main():
         )
         if time.monotonic() >= plan.stage_deadline_monotonic:
             raise ValueError("stage-expired")
+        if a.scope == "saved-corpus-import":
+            if active_pin != initial_pin or plan.pool_input_mode != "saved-corpus/1":
+                raise ValueError("saved-import-requires-initial-registration")
+            receipt = authority.PhaseArtifactReceiptIssuer.saved_corpus_import(**common, plan=plan)
+            base = root / stage / a.scope
+            write(base / "responses" / (a.request_id + ".receipt"), receipt)
+            write(base / "pins" / (a.request_id + ".sha256"), sha(receipt).encode())
+            print(
+                json.dumps(
+                    {"scope": a.scope, "stage_uuid": stage, "receipt_sha256": sha(receipt), "scientific_calls": 0}
+                )
+            )
+            return
         forbidden = tuple(runner.config["forbidden_stage_uuids"])
         rebuild = dict(
             plan=plan,
