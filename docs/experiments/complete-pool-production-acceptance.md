@@ -12,6 +12,8 @@ PR #843 added saved-result import and offline engine replay; PR #844 repaired se
 
 The admission repair reconstructs the live clock in the actual issuer and distinguishes the new runner revision from the immutable archive revision. Its offline regression exercises the real issuer and receipt validator, reproduces the old failure, and rejects stale or tampered clocks and malformed revisions. The focused checks passed 59 tests and 12 subtests. The failed study is terminal; these repair tests provide no ranking-quality credit.
 
+A further offline check found missing saved-import receipt fields in the later ranking and answer requests. The [downstream check](evidence/coverage-first-study/saved-downstream-offline-check-2026-10-14/README.md) verifies that the repaired runner carries those fields into all three consumers. The complete real archive reconstructed successfully with temporary engineering fixtures and zero scientific calls. This is a setup check, not a quality comparison.
+
 The remaining release requirements are a passing development comparison, a passing fresh confirmation, and implementation of the complete compatibility and recovery checklist below. Historical records provide no current-stage quality credit.
 
 ## Retained evidence and next action at 2026-10-07
