@@ -1,6 +1,6 @@
 # Production acceptance checklist: explicit-purpose complete-pool Jev selection
 
-Current status: saved-development setup checks passed, but ranking quality is not yet established. The [current registration](evidence/coverage-first-study/saved-development-registration-2026-10-14/README.md) fixes the exact source and settings. Development uses the complete real saved collection with fresh blind grades and no new searches or captures. Confirmation stays separate and fresh, and starts only if development passes all checks. Production is unchanged.
+Current status: the saved-development invocation stopped at import admission before any grading or ranking calls. See the [terminal record](evidence/coverage-first-study/completed-2026-10-14-saved-admission/README.md). The failed run will not be retried. Confirmation was not started, and both sets of identities are retired. Ranking quality and production adoption remain unproven.
 
 Implementation acceptance plan inspected against SlopSearX `3d5e8bac38b619aec1bd7a679f1a7667f1fc1abf` and experimental GroktoCrawl X `3612affba3b51e7240a0e60d079499739052c0b1`. This is a checklist of required work, not a claim of delivery. EXP-050 is bounded identifier-based source-information capture, not source-quality measurement or selector qualification. The production selector still requires a separately qualified, frozen candidate and fresh confirmation. Metadata presence or richer cards alone cannot satisfy either gate.
 
@@ -8,9 +8,11 @@ The cross-service boundary follows accepted X ADR-0082: GroktoCrawl owns the cal
 
 ## Current delivery state (2026-10-14)
 
-PR #843 added saved-result import and offline engine replay. PR #844 repairs setup against the complete real archive. Both stages passed zero-call runner and issuer preflights. The new registration is separate from the earlier terminal studies.
+PR #843 added saved-result import and offline engine replay; PR #844 repaired setup against the complete archive. PR #845 recorded the test before execution. Runner and issuer static checks passed, but the actual saved-import admission path refused the single invocation. No scientific call occurred.
 
-The remaining release requirements are a passing development comparison, a passing fresh confirmation, and implementation of the complete compatibility and recovery checklist below. No ranking or task-use improvement is claimed yet. Historical records below provide no current-stage quality credit.
+The admission repair reconstructs the live clock in the actual issuer and distinguishes the new runner revision from the immutable archive revision. Its offline regression exercises the real issuer and receipt validator, reproduces the old failure, and rejects stale or tampered clocks and malformed revisions. The focused checks passed 59 tests and 12 subtests. The failed study is terminal; these repair tests provide no ranking-quality credit.
+
+The remaining release requirements are a passing development comparison, a passing fresh confirmation, and implementation of the complete compatibility and recovery checklist below. Historical records provide no current-stage quality credit.
 
 ## Retained evidence and next action at 2026-10-07
 
