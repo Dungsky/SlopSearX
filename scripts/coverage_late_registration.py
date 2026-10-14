@@ -296,7 +296,7 @@ async def request_saved_corpus_import(
     exchange: object,
     plan: object,
     expected_initial_registration_sha256: str,
-    stage_clock_bytes: bytes | None = None,
+    stage_clock_bytes: bytes,
     phase_bindings: Mapping[str, object] | None = None,
     phase_artifacts: Mapping[str, bytes] | None = None,
 ) -> object:
@@ -314,6 +314,8 @@ async def request_saved_corpus_import(
         or type(plan.saved_origin) is not saved.SavedCorpusOrigin
     ):
         raise LateRegistrationError("saved-corpus-import-context-invalid")
+    if type(stage_clock_bytes) is not bytes or not stage_clock_bytes:
+        raise LateRegistrationError("saved-corpus-import-stage-clock-required")
     origin = plan.saved_origin
     try:
         package_sha = saved.package_sha256(origin.collection_directory, origin.capture_stage_directory)
@@ -352,8 +354,6 @@ async def request_saved_corpus_import(
     )
     if type(phase_bindings) is not dict or type(phase_artifacts) is not dict:
         raise LateRegistrationError("saved-corpus-import-phase-context-required")
-    if stage_clock_bytes is not None and type(stage_clock_bytes) is not bytes:
-        raise LateRegistrationError("saved-corpus-import-stage-clock-invalid")
     if any(key in bindings and bindings[key] != value for key, value in phase_bindings.items()):
         raise LateRegistrationError("saved-corpus-import-phase-binding-collision")
     request_bindings = {**bindings, **phase_bindings}
@@ -362,8 +362,7 @@ async def request_saved_corpus_import(
     ):
         raise LateRegistrationError("saved-corpus-import-phase-artifact-collision")
     artifacts = {**phase_artifacts, "saved-corpus-origin-reference": origin_reference}
-    if stage_clock_bytes is not None:
-        artifacts["stage-clock"] = stage_clock_bytes
+    artifacts["stage-clock"] = stage_clock_bytes
     try:
         receipt, receipt_sha = await exchange.request_async(
             stage_uuid=plan.stage_uuid,

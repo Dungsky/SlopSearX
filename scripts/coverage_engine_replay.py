@@ -214,10 +214,11 @@ class EngineReplay:
         queue = self._pending.get(key)
         if not queue:
             raise ReplayMismatchError("unmatched-request-denied")
-        row = queue.popleft()
+        row = queue[0]
         expected_headers = {key.casefold(): value for key, value in row["request"].get("headers", {}).items()}
         if any(headers.get(key) != value for key, value in expected_headers.items()):
             raise ReplayMismatchError("request-header-mismatch")
+        queue.popleft()
         self._consumed.append(row["scenario_id"])
         outcome = row["outcome"]
         if outcome["kind"] == "timeout":

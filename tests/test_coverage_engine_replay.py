@@ -6,6 +6,7 @@ import base64
 import json
 from urllib.parse import urlencode
 
+import httpx
 import pytest
 
 from engines.arxiv import ArxivAdapter
@@ -15,6 +16,7 @@ from engines.wikipedia import WikipediaAdapter
 from scripts.coverage_engine_replay import (
     EngineReplay,
     ReplayBundleError,
+    ReplayMismatchError,
     _request_key,
     _validate_bundle,
     build_bundle,
@@ -249,6 +251,22 @@ async def test_unmatched_request_fails_closed_without_live_transport_fallback():
     assert not replay.receipt().consumed_scenario_ids
     assert len(replay.receipt().unused_scenario_ids) == 1
     await replay.aclose()
+
+
+@pytest.mark.asyncio
+async def test_header_mismatch_does_not_consume_the_recorded_response():
+    url = "https://replay.example/works?search=test"
+    row = _http("openalex", "GET", url, b'{"results":[]}')
+    row["request"]["headers"] = {"accept": "application/json"}
+    replay = _replay(row)
+    async with httpx.AsyncClient(transport=replay.transport) as client:
+        with pytest.raises(ReplayMismatchError, match="request-header-mismatch"):
+            await client.get(url, headers={"accept": "text/plain"})
+        assert replay.receipt().consumed_scenario_ids == ()
+        assert replay.receipt().unused_scenario_ids == (row["scenario_id"],)
+        response = await client.get(url, headers={"accept": "application/json"})
+        assert response.json() == {"results": []}
+        assert replay.receipt().consumed_scenario_ids == (row["scenario_id"],)
 
 
 def test_bundle_hash_and_recorded_capture_provenance_are_required():

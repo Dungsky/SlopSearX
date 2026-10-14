@@ -9,6 +9,7 @@ import pytest
 
 from scripts import coverage_late_registration as late
 from scripts import coverage_local_authority as authority
+from scripts import coverage_operator_handoff as handoff
 from scripts import coverage_saved_corpus as saved
 from scripts import coverage_stage_orchestration as orchestration
 from tests.test_coverage_saved_corpus import _origin_package
@@ -129,6 +130,24 @@ def test_saved_import_authority_uses_registered_stage_specific_protocol_mode(tmp
 
     with pytest.raises(authority.LocalAuthorityError, match="saved-corpus-import-protocol-invalid"):
         authority.PinnedReceiptAuthorities.saved_corpus_import(changed_plan, b"{}", _sha(b"{}"))
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("clock", [None, b"", "not-bytes"])
+async def test_saved_import_requires_a_clock_before_requesting_authority(tmp_path, clock):
+    origin, *_rest = _origin_package(tmp_path)
+    plan = _plan(origin)
+    exchange = handoff.OperatorReceiptHandoff(tmp_path / "handoff")
+    with pytest.raises(late.LateRegistrationError, match="saved-corpus-import-stage-clock-required"):
+        await late.request_saved_corpus_import(
+            exchange=exchange,
+            plan=plan,
+            expected_initial_registration_sha256="a" * 64,
+            stage_clock_bytes=clock,
+            phase_bindings={},
+            phase_artifacts={},
+        )
+    assert not list((tmp_path / "handoff").rglob("*.request"))
 
 
 def test_saved_import_reference_is_current_stage_bound_and_contains_no_paths(tmp_path):
