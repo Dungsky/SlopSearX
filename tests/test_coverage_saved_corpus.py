@@ -277,11 +277,13 @@ def _origin_package(tmp_path: Path):
     return origin, cases, list(origin.navigation_targets), collection, capture_root
 
 
-def _current_binding(origin: saved.SavedCorpusOrigin) -> saved.SavedCorpusStageBinding:
+def _current_binding(
+    origin: saved.SavedCorpusOrigin, *, source_revision: str | None = None
+) -> saved.SavedCorpusStageBinding:
     return saved.SavedCorpusStageBinding(
         stage_uuid=str(uuid.UUID(int=901)),
         stage_kind="development",
-        source_revision=origin.registration.source_revision,
+        source_revision=source_revision or origin.registration.source_revision,
         source_closure_sha256="d" * 64,
         protocol_sha256="e" * 64,
         cohorts_sha256=origin.registration.cohorts_sha256,
@@ -320,6 +322,26 @@ def test_saved_corpus_import_preserves_origin_and_failed_capture_rows(tmp_path):
     assert receipt["current_search_calls"] == receipt["current_capture_calls"] == 0
     assert receipt["quality_credit"] is False
     assert saved.package_sha256(collection, capture_root) == before_collection
+
+
+def test_saved_corpus_import_allows_fresh_source_revision_and_rejects_malformed_revision(tmp_path):
+    origin, cases, nav, _collection, capture_root = _origin_package(tmp_path)
+    fresh_revision = "b" * 40
+    binding = _current_binding(origin, source_revision=fresh_revision)
+    result = saved.verify_and_import_saved_corpus(origin, binding, cases, nav)
+
+    old_capture_manifest = json.loads((capture_root / "source-manifest.json").read_bytes())
+    new_capture_manifest = json.loads(result.capture_manifest_bytes)
+    receipt = json.loads(result.import_receipt_bytes)
+    assert origin.registration.source_revision != fresh_revision
+    assert old_capture_manifest["source_revision"] == origin.registration.source_revision
+    assert new_capture_manifest["source_revision"] == fresh_revision
+    assert receipt["source_revision"] == fresh_revision
+    assert receipt["origin_source_revision"] == origin.registration.source_revision
+
+    malformed = saved.SavedCorpusStageBinding(**{**binding.__dict__, "source_revision": "not-a-revision"})
+    with pytest.raises(saved.SavedCorpusError, match="current-source-revision-invalid"):
+        saved.verify_and_import_saved_corpus(origin, malformed, cases, nav)
 
 
 def test_saved_corpus_import_fails_closed_on_tampering_and_identity_reuse(tmp_path):

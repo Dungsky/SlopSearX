@@ -3,6 +3,9 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import uuid
+from dataclasses import replace
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -12,11 +15,77 @@ from scripts import coverage_operator_runner as operator_runner
 from scripts import coverage_saved_corpus as saved
 from scripts import coverage_selector_input_map
 from scripts import coverage_stage_orchestration as orchestration
+from scripts import coverage_study_acquire as acquisition
+from scripts import coverage_study_core as core
 from tests.test_coverage_saved_corpus import _current_binding, _origin_package
 
 
 def _sha(raw: bytes) -> str:
     return hashlib.sha256(raw).hexdigest()
+
+
+def _saved_plan_and_manifest(origin, cases, navigation):
+    protocol = (
+        Path(__file__).parents[1]
+        / "docs/experiments/evidence/coverage-first-study/saved-development-method-materials/protocol.json"
+    ).read_bytes()
+    protocol_doc = core._strict_json(protocol, "protocol")
+    profile = acquisition.execution_profile_from_protocol(
+        protocol_doc["acquisition"],
+        pool_input_mode=acquisition.pool_input_mode_for_stage(protocol_doc, "development"),
+    )
+    stage_uuid = str(uuid.UUID(int=90_001))
+    packet_stage_uuid = str(uuid.UUID(int=90_002))
+    cohorts = b"registered saved cohorts"
+    candidate = b"candidate identity"
+    acquisition_plan = b"registered saved acquisition plan"
+    source_closure_sha256 = _sha(b"closure")
+    preacquisition_input = {
+        "schema": "coverage-preacquisition-input-manifest/1",
+        "stage_uuid": stage_uuid,
+        "protocol_sha256": _sha(protocol),
+        "cohorts_sha256": _sha(cohorts),
+        "task_ids": [*(row["task_id"] for row in cases), *(row["target_id"] for row in navigation)],
+    }
+    manifest = {
+        "schema": "coverage-saved-import-plan/1",
+        "stage": "development",
+        "stage_uuid": stage_uuid,
+        "source_revision": "b" * 40,
+        "source_closure_sha256": source_closure_sha256,
+        "protocol_sha256": _sha(protocol),
+        "cohorts_sha256": _sha(cohorts),
+        "input_manifest_sha256": _sha(core._canonical(preacquisition_input)),
+        "acquisition_plan_sha256": _sha(acquisition_plan),
+        "research_cases": list(cases),
+        "navigation_targets": list(navigation),
+        "packet_stage_uuid": packet_stage_uuid,
+        "origin_package_sha256": origin.expected_package_sha256,
+    }
+    if profile is acquisition.CONTINUE_ACQUISITION_PROFILE:
+        manifest["execution_profile"] = profile.identifier
+    manifest_bytes = core._canonical(manifest)
+    plan = orchestration.StagePlan(
+        stage_uuid=stage_uuid,
+        stage_kind="development",
+        source_revision=manifest["source_revision"],
+        protocol_bytes=protocol,
+        cohorts_bytes=cohorts,
+        acquisition_plan_bytes=acquisition_plan,
+        acquisition_manifest_bytes=manifest_bytes,
+        source_closure_sha256=source_closure_sha256,
+        research_cases=tuple(cases),
+        navigation_targets=tuple(navigation),
+        candidate_identity_bytes=candidate,
+        candidate_endpoint_sha256=origin.registration.candidate_endpoint_sha256,
+        packet_stage_uuid=packet_stage_uuid,
+        stage_started_monotonic=1.0,
+        stage_deadline_monotonic=10_000.0,
+        expected_acquisition_manifest_sha256=_sha(manifest_bytes),
+        pool_input_mode="saved-corpus/1",
+        saved_origin=origin,
+    )
+    return plan, manifest
 
 
 @pytest.mark.asyncio
@@ -350,3 +419,66 @@ async def test_saved_selector_map_preflight_failure_stops_before_reference_gradi
     assert inventory["phases"][4]["status"] == "terminal-failure"
     assert inventory["phases"][5]["status"] == "not-invoked"
     assert imported.current_search_calls == imported.current_capture_calls == 0
+
+
+def test_saved_late_materials_validate_saved_import_plan_without_live_profile_manifest(tmp_path):
+    origin, cases, navigation, _collection, _capture = _origin_package(tmp_path)
+    # The shared synthetic acquisition fixture labels navigation operations from
+    # zero while its registered target rows start at one. Use the exact recorded
+    # operation query/result pairs for this post-acquisition reconstruction test.
+    planned_navigation = [
+        {
+            **row,
+            "search_query": f"synthetic nav {index}",
+            "target_url": f"https://github.com/example/{index}",
+        }
+        for index, row in enumerate(navigation)
+    ]
+    plan, manifest = _saved_plan_and_manifest(origin, cases, planned_navigation)
+    import_binding = replace(
+        _current_binding(origin),
+        stage_uuid=plan.stage_uuid,
+        packet_stage_uuid=plan.packet_stage_uuid,
+        source_revision=plan.source_revision,
+        source_closure_sha256=plan.source_closure_sha256,
+        protocol_sha256=_sha(plan.protocol_bytes),
+    )
+    imported = saved.verify_and_import_saved_corpus(origin, import_binding, cases, navigation)
+    static_materials = {
+        name: f"static:{name}".encode()
+        for name in set(core.PIN_NAMES) - {"task_input_manifest", "source_capture_manifest"}
+    }
+    static_materials.update(
+        {
+            "protocol": plan.protocol_bytes,
+            "qualified_source_closure": b"closure",
+            "acquisition_plan": plan.acquisition_plan_bytes,
+        }
+    )
+    materials = late.build_postacquisition_materials(
+        plan=plan,
+        acquisition_evidence=None,
+        pipeline_inputs=imported.pipeline_inputs,
+        static_materials=static_materials,
+        saved_corpus_import=imported,
+    )
+    assert materials["protocol"] == plan.protocol_bytes
+    assert materials["source_capture_manifest"] == imported.capture_manifest_bytes
+    task_manifest = core._strict_json(materials["task_input_manifest"], "task-input-manifest")
+    assert task_manifest["stage_uuid"] == plan.stage_uuid
+
+    tampered = dict(manifest)
+    tampered["execution_profile"] = "coverage-acquisition-profile/1"
+    tampered_bytes = core._canonical(tampered)
+    with pytest.raises(late.LateRegistrationError, match="postacquisition-profile-binding-invalid"):
+        late.build_postacquisition_materials(
+            plan=replace(
+                plan,
+                acquisition_manifest_bytes=tampered_bytes,
+                expected_acquisition_manifest_sha256=_sha(tampered_bytes),
+            ),
+            acquisition_evidence=None,
+            pipeline_inputs=imported.pipeline_inputs,
+            static_materials=static_materials,
+            saved_corpus_import=imported,
+        )

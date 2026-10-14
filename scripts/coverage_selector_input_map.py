@@ -488,17 +488,18 @@ def build_selector_input_map(
         "operations": ordered_entries,
     }
     if saved_corpus_import is not None:
+        origin_index = saved_corpus_import.origin_pool_verified.pool_index
         document.update(
             {
                 "pool_input_mode": "saved-corpus/1",
                 "origin_pool_snapshot_index_sha256": saved_origin_snapshot_sha256,
                 "origin_pool_manifest_sha256": saved_origin_manifest_sha256,
-                "origin_stage_uuid": index.get("stage_uuid"),
-                "origin_source_revision": index.get("source_revision"),
-                "origin_source_closure_sha256": index.get("source_closure_sha256"),
-                "origin_protocol_sha256": index.get("protocol_sha256"),
-                "origin_cohorts_sha256": index.get("cohorts_sha256"),
-                "origin_acquisition_plan_sha256": index.get("acquisition_plan_sha256"),
+                "origin_stage_uuid": origin_index.get("stage_uuid"),
+                "origin_source_revision": origin_index.get("source_revision"),
+                "origin_source_closure_sha256": origin_index.get("source_closure_sha256"),
+                "origin_protocol_sha256": origin_index.get("protocol_sha256"),
+                "origin_cohorts_sha256": origin_index.get("cohorts_sha256"),
+                "origin_acquisition_plan_sha256": origin_index.get("acquisition_plan_sha256"),
                 "saved_import_receipt_sha256": saved_corpus_import.import_receipt_sha256,
                 "derived_capture_manifest_sha256": saved_corpus_import.capture_manifest_sha256,
             }
@@ -695,10 +696,10 @@ def _saved_import_snapshot(
     if (
         type(acquisition_manifest.get("input_manifest_sha256")) is not str
         or not SHA256.fullmatch(acquisition_manifest["input_manifest_sha256"])
-        or acquisition_manifest["input_manifest_sha256"] != _sha(_canonical(preacquisition_input))
+        or acquisition_manifest["input_manifest_sha256"] != _sha(core._canonical(preacquisition_input))
     ):
         raise SelectorInputMapError("saved-import-plan-input-manifest-invalid")
-    if acquisition_manifest_sha256 != _sha(_canonical(acquisition_manifest)):
+    if acquisition_manifest_sha256 != _sha(core._canonical(acquisition_manifest)):
         raise SelectorInputMapError("saved-import-plan-digest-mismatch")
     if Path(snapshots_directory) != origin_pool.snapshots_directory:
         raise SelectorInputMapError("saved-origin-snapshot-directory-mismatch")

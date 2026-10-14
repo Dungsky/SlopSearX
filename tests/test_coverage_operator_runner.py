@@ -20,7 +20,7 @@ from types import SimpleNamespace
 from unittest import mock
 
 from scripts import coverage_answer_execution as answer
-from scripts import coverage_live_acquire
+from scripts import coverage_frozen_pool_inputs, coverage_live_acquire, coverage_saved_corpus
 from scripts import coverage_local_authority as local_authority
 from scripts import coverage_operator_runner as runner
 from tests.test_coverage_answer_execution import _stage_inputs, _tasks
@@ -391,6 +391,166 @@ class OperatorRunnerConfigTests(unittest.TestCase):
             self.assertEqual(instance.plan.initial_registration_sha256, digest(registration_bytes))
             self.assertEqual(instance.preflight_validation["band_companion_sha256"], digest(companion_bytes))
             self.assertEqual(instance.preflight_validation["initial_registration_sha256"], digest(registration_bytes))
+
+    def test_saved_import_preflight_uses_orchestration_canonical_manifest_bytes(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            config_path, _ = self._registered_companion_config(root)
+            config = json.loads(config_path.read_bytes())
+            repo = Path(__file__).parents[1]
+            evidence_dir = repo / "docs/experiments/evidence/coverage-first-study"
+            material_dir = evidence_dir / "saved-development-method-materials"
+            registered_dir = evidence_dir / "frozen-input-static-registration-2026-10-13/development"
+            stage_uuid = json.loads((registered_dir / "reference-manifest-shell.json").read_bytes())["stage_uuid"]
+            config["stage_uuid"] = stage_uuid
+            config["packet_stage_uuid"] = str(uuid.UUID(int=1502))
+            config["paths"]["protocol"] = str(material_dir / "protocol.json")
+            config["paths"]["cohorts"] = str(material_dir / "cohorts.json")
+            config["paths"]["band_companion"] = str(material_dir / "band-companion-contract.json")
+            config["paths"]["reference_manifest"] = str(registered_dir / "reference-manifest-shell.json")
+            config["paths"]["answer_assessment_plan"] = str(registered_dir / "answer-assessment-plan-shell.json")
+            config["paths"]["capture_plan"] = str(registered_dir / "capture-plan.json")
+            config["saved_origin"] = {"fixture": "resolver-isolated"}
+
+            protocol_bytes = Path(config["paths"]["protocol"]).read_bytes()
+            cohorts_bytes = Path(config["paths"]["cohorts"]).read_bytes()
+            protocol = runner.core._strict_json(protocol_bytes, "saved-test-protocol")
+            cohorts = runner.core._strict_json(cohorts_bytes, "saved-test-cohorts")
+            stage_row = runner._stage_cohort(cohorts, "development")
+            cases = stage_row["research_cases"]
+            targets = stage_row["navigation_targets"]
+            acquisition_plan_doc = runner.core._strict_json(
+                runner._build_acquisition_plan(stage_uuid, cases, targets), "saved-test-acquisition-plan"
+            )
+            for row in acquisition_plan_doc["tasks"]:
+                row["engine_calls"] = {name: 0 for name in row["engine_calls"]}
+            acquisition_plan = runner._canonical(acquisition_plan_doc)
+
+            path_values = {key: Path(value) for key, value in config["paths"].items()}
+            material_bytes = {key: path.read_bytes() for key, path in path_values.items()}
+            material_bytes["candidate_identity"] = runner.capture._canonical_json(
+                runner.core._strict_json(material_bytes["candidate_identity"], "saved-test-candidate")
+            )
+            companion_sha = digest(material_bytes["band_companion"])
+            source_names = {
+                "coverage_study_core": "scripts/coverage_study_core.py",
+                "coverage_gate_calculation": "scripts/coverage_gate_calculation.py",
+                "coverage_stage_orchestration": "scripts/coverage_stage_orchestration.py",
+                "coverage_stage_finalization": "scripts/coverage_stage_finalization.py",
+                "coverage_operator_runner": "scripts/coverage_operator_runner.py",
+                "coverage_operator_handoff": "scripts/coverage_operator_handoff.py",
+                "coverage_stage_runtime": "scripts/coverage_stage_runtime.py",
+                "coverage_local_authority": "scripts/coverage_local_authority.py",
+                "coverage_frozen_pool_inputs": "scripts/coverage_frozen_pool_inputs.py",
+                "coverage_frozen_pool_collect": "scripts/coverage_frozen_pool_collect.py",
+                "coverage_resource_evidence": "scripts/coverage_resource_evidence.py",
+                "coverage_pipeline_inputs": "scripts/coverage_pipeline_inputs.py",
+                "coverage_selector_input_map": "scripts/coverage_selector_input_map.py",
+                "coverage_band_companion": "scripts/coverage_band_companion.py",
+                "coverage_late_registration": "scripts/coverage_late_registration.py",
+                "coverage_saved_corpus": "scripts/coverage_saved_corpus.py",
+                "coverage_assessment_checkpoint": "scripts/coverage_assessment_checkpoint.py",
+            }
+            material_bytes["qualified_source_closure"] = runner._canonical(
+                {
+                    "schema": "coverage-study-qualified-source-closure/2",
+                    "source_revision": config["source_revision"],
+                    "material_pins": {
+                        "coverage_source": digest(material_bytes["coverage_source"]),
+                        "production_rerank_source": digest(material_bytes["production_rerank_source"]),
+                        "dependency_lock": digest(material_bytes["dependency_lock"]),
+                        "band_companion": companion_sha,
+                    },
+                    "source_pins": {
+                        name: digest((repo / relative).read_bytes()) for name, relative in source_names.items()
+                    },
+                }
+            )
+            for key in ("qualified_source_closure", "candidate_identity"):
+                path_values[key].write_bytes(material_bytes[key])
+            static_materials = {
+                "protocol": material_bytes["protocol"],
+                "qualified_source_closure": material_bytes["qualified_source_closure"],
+                "coverage_source": material_bytes["coverage_source"],
+                "production_rerank_source": material_bytes["production_rerank_source"],
+                "dependency_lock": material_bytes["dependency_lock"],
+                "reference_manifest": material_bytes["reference_manifest"],
+                "answer_assessment_plan": material_bytes["answer_assessment_plan"],
+                "acquisition_plan": acquisition_plan,
+                "capture_plan": material_bytes["capture_plan"],
+            }
+            registration = runner._canonical(
+                {
+                    "schema": runner.core.REGISTRATION_SCHEMA,
+                    "stage_uuid": stage_uuid,
+                    "stage_kind": "development",
+                    "source_revision": config["source_revision"],
+                    "pins": {
+                        **{key: digest(raw) for key, raw in static_materials.items()},
+                        "task_input_manifest": "b" * 64,
+                        "source_capture_manifest": "c" * 64,
+                    },
+                    "task_ids": [row["task_id"] for row in cases] + [row["target_id"] for row in targets],
+                    "navigation_skip_reasons": [None] * len(targets),
+                    "operation_ids": [call.operation_id for call in runner.core.selector_inventory([None] * 5)],
+                    "band_companion_sha256": companion_sha,
+                }
+            )
+            path_values["initial_registration"].write_bytes(registration)
+            config["initial_registration_sha256"] = digest(registration)
+            config["paths"] = {key: str(path) for key, path in path_values.items()}
+            config_path.write_bytes(canonical(config))
+            config_path.chmod(0o600)
+
+            origin_doc = protocol["saved_development_origin"]
+            origin_registration = coverage_frozen_pool_inputs.FrozenPoolRegistrationContext(
+                stage_uuid=origin_doc["stage_uuid"],
+                stage_kind="development",
+                source_revision=origin_doc["source_revision"],
+                source_closure_sha256="1" * 64,
+                protocol_sha256="2" * 64,
+                cohorts_sha256="3" * 64,
+                candidate_identity_sha256="4" * 64,
+                candidate_endpoint_sha256="5" * 64,
+                acquisition_plan_sha256="6" * 64,
+                task_ids=tuple(row["task_id"] for row in cases),
+                navigation_ids=tuple(row["target_id"] for row in targets),
+                evidence_sha256="7" * 64,
+                collector_receipt_sha256="8" * 64,
+                availability_sha256="9" * 64,
+            )
+            origin = coverage_saved_corpus.SavedCorpusOrigin(
+                registration=origin_registration,
+                research_cases=tuple(cases),
+                navigation_targets=tuple(targets),
+                collection_directory=root / "origin-collection",
+                expected_collection_receipt_inventory_sha256="a" * 64,
+                capture_stage_directory=root / "origin-capture",
+                expected_capture_inventory_sha256="b" * 64,
+                expected_capture_manifest_sha256="c" * 64,
+                expected_package_sha256=origin_doc["package_sha256"],
+            )
+            with (
+                mock.patch.object(runner, "_verify_checkout_sources"),
+                mock.patch.object(runner, "_require_source_bootstrap"),
+                mock.patch.object(runner, "_saved_origin_from_config", return_value=origin),
+                mock.patch.object(runner.runtime_environment, "verify_active_environment", return_value=b"{}"),
+            ):
+                instance = runner.OperatorStageRunner.preflight_from_file(config_path, digest(config_path.read_bytes()))
+
+            saved_manifest = runner.core._strict_json(
+                instance.plan.acquisition_manifest_bytes, "saved-test-acquisition-manifest"
+            )
+            self.assertEqual(instance.plan.pool_input_mode, "saved-corpus/1")
+            self.assertEqual(
+                instance.preflight_validation["acquisition_manifest_sha256"],
+                digest(instance.plan.acquisition_manifest_bytes),
+            )
+            self.assertFalse(instance.plan.acquisition_manifest_bytes.endswith(b"\n"))
+            self.assertEqual(
+                instance.plan.acquisition_manifest_bytes,
+                runner.orchestration._canonical(saved_manifest),
+            )
 
     def test_unregistered_or_draft_protocol_fails_before_clock_or_handoff_side_effects(self):
         with tempfile.TemporaryDirectory() as temporary:

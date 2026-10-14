@@ -907,7 +907,11 @@ class OperatorStageRunner:
                     "origin_package_sha256": self.saved_origin.expected_package_sha256,
                 }
             )
-        acquisition_manifest = coverage_live_acquire._canonical(acquisition_manifest_doc)
+        acquisition_manifest = (
+            _canonical(acquisition_manifest_doc)
+            if pool_input_mode == "saved-corpus/1"
+            else coverage_live_acquire._canonical(acquisition_manifest_doc)
+        )
         self.static_materials = {
             "protocol": path_bytes["protocol"],
             "qualified_source_closure": path_bytes["qualified_source_closure"],
