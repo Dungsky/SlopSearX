@@ -1,6 +1,6 @@
 # Coverage-first delivery: frozen-input execution amendment
 
-Current status: saved development completed all 53 required native grading calls, but one response violated its assigned output schema. Independent grade validation correctly stopped the study before ranking or answer evaluation. See the [terminal record](evidence/coverage-first-study/completed-2026-10-15-native-grade-schema/README.md). No response was edited or retried, confirmation was not started, and ranking quality remains unproven.
+Current status: the latest development attempt stopped before grading completed. Two grading requests were rejected because the strict output schema used an unsupported `propertyNames` keyword; 52 prepared packets remained unstarted. No grades were returned, and Jev, answer, search, capture, and confirmation phases did not run. See the [latest terminal record](evidence/coverage-first-study/completed-2026-10-15-native-schema-rejection/README.md). The old run will not be resumed, and its failure is preserved. The earlier response-validation failure remains in its [separate terminal record](evidence/coverage-first-study/completed-2026-10-15-native-grade-schema/README.md).
 
 The current [saved-development method](evidence/coverage-first-study/saved-development-method-materials/README.md) changes input acquisition for development only. It preserves the candidate and quality requirements described below. Earlier admission and collection failures remain terminal historical evidence; they are not resumed.
 

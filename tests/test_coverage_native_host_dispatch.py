@@ -184,6 +184,30 @@ def write_prepared_answer_scope(root: Path) -> tuple[Path, str, list[str]]:
     return scope, stage_uuid, packet_ids
 
 
+def replace_request_schema(scope: Path, packet_id: str, schema: dict[str, object]) -> None:
+    import base64
+
+    manifest_path = scope / "handoff-manifest.json"
+    manifest = json.loads(manifest_path.read_bytes())
+    row = next(row for row in manifest["packets"] if row["packet_id"] == packet_id)
+    request_path = scope / "requests" / f"{packet_id}.request.json"
+    request = json.loads(request_path.read_bytes())
+    packet_bytes = base64.b64decode(request["packet_bytes_base64"], validate=True)
+    payload = json.loads(packet_bytes)
+    payload["output_schema"] = schema
+    packet_bytes = canonical(payload)
+    digest = hashlib.sha256(packet_bytes).hexdigest()
+    row["packet_sha256"] = digest
+    row["byte_count"] = len(packet_bytes)
+    request["packet_sha256"] = digest
+    request["byte_count"] = len(packet_bytes)
+    request["packet_bytes_base64"] = base64.b64encode(packet_bytes).decode("ascii")
+    request_path.write_bytes(canonical(request))
+    request_path.chmod(0o600)
+    manifest_path.write_bytes(canonical(manifest))
+    manifest_path.chmod(0o600)
+
+
 def fake_codex(tmp_path: Path) -> tuple[Path, str]:
     script = tmp_path / "fake-codex"
     script.write_text(
@@ -337,7 +361,7 @@ def make_transcript(packet_id: str, packet_bytes: bytes, *, tamper: str | None =
                 "threadId": thread_id,
                 "model": native.MODEL,
                 "input": [{"type": "text", "text": text}],
-                "outputSchema": native._packet_output_schema(packet_bytes),
+                "outputSchema": native._provider_output_schema(native._packet_output_schema(packet_bytes)),
             },
         },
     ]
@@ -383,7 +407,13 @@ def make_transcript(packet_id: str, packet_bytes: bytes, *, tamper: str | None =
             "id": "u",
             "content": [{"type": "text", "text": text if tamper != "input" else "changed"}],
         },
-        {"type": "agentMessage", "id": "a", "text": '{"assessments":[{"source_id":"SRC-1"}]}'},
+        {
+            "type": "agentMessage",
+            "id": "a",
+            "text": '{ "assessments" : [ { "source_id" : "SRC-1" } ] }'
+            if tamper == "response-whitespace"
+            else '{"assessments":[{"source_id":"SRC-1"}]}',
+        },
     ]
     if tamper == "invalid-json":
         items[1]["text"] = "not json"
@@ -544,6 +574,160 @@ def test_output_schema_rejects_remote_references_before_validation() -> None:
         native._packet_output_schema(canonical(payload))
 
 
+def _bounded_map_schema() -> dict[str, object]:
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["records"],
+        "properties": {
+            "records": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "required": ["facets", "facet_anchors"],
+                    "properties": {
+                        "facets": {"type": "array", "items": {"enum": ["F1", "F2"]}},
+                        "facet_anchors": {
+                            "type": "object",
+                            "propertyNames": {"enum": ["F1", "F2"]},
+                            "additionalProperties": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                                "uniqueItems": True,
+                            },
+                        },
+                    },
+                },
+            }
+        },
+    }
+
+
+def test_bounded_map_projection_is_exact_and_keeps_unique_items_local() -> None:
+    schema = _bounded_map_schema()
+    projected = native._provider_output_schema(schema)
+    map_schema = projected["properties"]["records"]["items"]["properties"]["facet_anchors"]
+    assert len(map_schema["anyOf"]) == 4
+    assert all(branch["additionalProperties"] is False for branch in map_schema["anyOf"])
+    assert [set(branch["required"]) for branch in map_schema["anyOf"]] == [set(), {"F1"}, {"F2"}, {"F1", "F2"}]
+    assert "uniqueItems" not in map_schema["anyOf"][1]["properties"]["F1"]
+
+    original_validator = native.Draft202012Validator(schema)
+    provider_validator = native.Draft202012Validator(projected)
+    for facet_ids in ([], ["F1"], ["F2"], ["F1", "F2"]):
+        value = {"records": [{"facets": facet_ids, "facet_anchors": {facet_id: ["quote"] for facet_id in facet_ids}}]}
+        assert original_validator.is_valid(value)
+        assert provider_validator.is_valid(value)
+
+    # Schema projection preserves the original schema language. The separate
+    # frozen semantic verifier still decides whether these sets agree.
+    mismatch = {"records": [{"facets": ["F1"], "facet_anchors": {"F2": ["quote"]}}]}
+    assert original_validator.is_valid(mismatch)
+    assert provider_validator.is_valid(mismatch)
+    unknown = {"records": [{"facets": ["F3"], "facet_anchors": {"F3": ["quote"]}}]}
+    assert not original_validator.is_valid(unknown)
+    assert not provider_validator.is_valid(unknown)
+
+    duplicate_anchors = {"records": [{"facets": [], "facet_anchors": {"F1": ["x", "x"]}}]}
+    assert not original_validator.is_valid(duplicate_anchors)
+    assert provider_validator.is_valid(duplicate_anchors)
+
+
+def test_projection_fails_closed_for_optional_and_unbounded_schema_shapes() -> None:
+    optional = {
+        "type": "object",
+        "properties": {"required": {"type": "string"}, "optional": {"type": "string"}},
+        "required": ["required"],
+        "additionalProperties": False,
+    }
+    with pytest.raises(native.NativeHostError, match="open-object"):
+        native._provider_output_schema(optional)
+
+    open_object = {"type": "object", "properties": {"value": {"type": "string"}}, "required": ["value"]}
+    with pytest.raises(native.NativeHostError, match="open-object"):
+        native._provider_output_schema(open_object)
+
+    unreachable_open_definition = {
+        **_bounded_map_schema(),
+        "$defs": {
+            "unused": {
+                "type": "object",
+                "properties": {"free_form": {"type": "string"}},
+                "required": ["free_form"],
+            }
+        },
+    }
+    assert "$defs" not in native._provider_output_schema(unreachable_open_definition)
+
+    too_many_map_keys = _bounded_map_schema()
+    too_many_map_keys["properties"]["records"]["items"]["properties"]["facet_anchors"]["propertyNames"]["enum"] = [
+        f"F{index}" for index in range(native._MAX_BOUNDED_MAP_KEYS + 1)
+    ]
+    with pytest.raises(native.NativeHostError, match="unrepresentable-map"):
+        native._provider_output_schema(too_many_map_keys)
+
+
+def test_const_only_string_schema_projects_to_typed_enum() -> None:
+    schema = {
+        "type": "object",
+        "properties": {"id": {"const": "R1"}},
+        "required": ["id"],
+        "additionalProperties": False,
+    }
+    projected = native._provider_output_schema(schema)
+    assert projected["properties"]["id"] == {"enum": ["R1"], "type": "string"}
+
+
+def test_response_bytes_retain_the_exact_assistant_text() -> None:
+    packet_id = "a" * 64
+    raw_packet = packet(packet_id)
+    transcript = json.loads(make_transcript(packet_id, raw_packet, tamper="response-whitespace"))
+    identity = transcript.pop("_test_identity")
+    verified = native.verify_transcript(
+        canonical(transcript),
+        stage_uuid=identity["stage_uuid"],
+        phase="references",
+        packet_id=packet_id,
+        packet_sha256=hashlib.sha256(raw_packet).hexdigest(),
+        expected_catalog_row_sha256=transcript["model_catalog_row_sha256"],
+        expected_catalog_response_sha256=transcript["model_catalog_response_sha256"],
+        expected_mcp_server_ids=[],
+    )
+    assert verified.response_bytes == b'{ "assessments" : [ { "source_id" : "SRC-1" } ] }'
+
+
+@pytest.mark.asyncio
+async def test_incompatible_later_packet_fails_before_any_native_dispatch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    scope, stage_uuid, packet_ids = write_scope(tmp_path, count=2)
+    bad_schema = {
+        "type": "object",
+        "properties": {"assessments": {"type": "array", "items": {"type": "string"}}},
+        "required": ["assessments"],
+        "additionalProperties": False,
+        "patternProperties": {},
+    }
+    replace_request_schema(scope, packet_ids[-1], bad_schema)
+    codex, digest = fake_codex(tmp_path)
+    args_log = tmp_path / "app-server-argv.json"
+    monkeypatch.setenv("FAKE_CODEX_ARGS_LOG", str(args_log))
+
+    with pytest.raises(native.NativeHostError, match="unsupported-keyword"):
+        await native.dispatch_handoff_scope(
+            scope_path=scope,
+            stage_uuid=stage_uuid,
+            phase="references",
+            codex_executable=str(codex),
+            expected_cli_sha256=digest,
+            deadline_monotonic=time.monotonic() + 30,
+        )
+
+    assert not args_log.exists()
+    assert not (scope / "native-host").exists()
+
+
 @pytest.mark.asyncio
 async def test_request_drain_stall_is_bounded_by_stage_deadline() -> None:
     class StalledWriter:
@@ -657,6 +841,8 @@ def test_actual_prepared_answer_packet_shape_loads_without_inner_role(tmp_path: 
     _, manifest, requests = native._load_scope(scope, stage_uuid=stage_uuid, phase="answers")
     assert manifest["packet_count"] == 32
     assert [request["row"]["packet_id"] for request in requests] == [row["packet_id"] for row in manifest["packets"]]
+    for request in requests:
+        native._provider_output_schema(native._packet_output_schema(request["bytes"]))
     first_payload = json.loads(requests[0]["bytes"])
     assert first_payload["packet_kind"] == "answer"
     assert "role" not in first_payload
