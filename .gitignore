@@ -33,3 +33,6 @@ htmlcov/
 
 # Graphify
 graphify-out/
+
+# Rust
+/target/

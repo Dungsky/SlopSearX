@@ -8,3 +8,6 @@ use a new record and link the successor.
 
 - [001 — Web portal delivery architecture](001-web-portal-architecture.md)
 - [002 — Browser identity and tenant isolation](002-browser-identity-and-tenant-isolation.md)
+- [003 — Rust workspace and contract boundaries](003-rust-workspace-and-contract-boundaries.md)
+- [004 — Valkey authority and Rust cutover](004-rust-valkey-authority-and-migration.md)
+- [005 — Native protocol, TLS and platform contract](005-rust-protocol-tls-and-platforms.md)

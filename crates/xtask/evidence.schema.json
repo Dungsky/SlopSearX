@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Native rewrite acceptance evidence",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "plan_id",
+    "status",
+    "error",
+    "scope",
+    "source",
+    "toolchain",
+    "commands",
+    "identity_commands",
+    "output_path",
+    "started_unix_ms",
+    "finished_unix_ms"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "plan_id": {
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "passed",
+        "failed"
+      ]
+    },
+    "error": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "scope": {
+      "type": "string"
+    },
+    "source": {
+      "type": "object",
+      "required": [
+        "head",
+        "working_tree",
+        "diff",
+        "files"
+      ]
+    },
+    "toolchain": {
+      "type": "string"
+    },
+    "commands": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "program",
+          "args"
+        ]
+      }
+    },
+    "identity_commands": {
+      "type": "array"
+    },
+    "output_path": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "started_unix_ms": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "finished_unix_ms": {
+      "type": "integer",
+      "minimum": 0
+    }
+  },
+  "additionalProperties": false
+}

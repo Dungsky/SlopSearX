@@ -1,0 +1,39 @@
+[workspace]
+members = ["crates/*"]
+resolver = "3"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.99"
+license = "MIT"
+publish = false
+
+[workspace.dependencies]
+tokio = { version = "=1.53.3", features = ["macros", "rt-multi-thread", "net", "signal", "sync", "time", "io-util"] }
+axum = { version = "=0.8.9" }
+tower = { version = "=0.5.3", features = ["util"] }
+tower-http = { version = "=0.7.1" }
+reqwest = { version = "=0.13.5", features = ["json"] }
+rustls = { version = "=0.23.46" }
+tokio-rustls = { version = "=0.26.6" }
+rmcp = { version = "=3.5.1" }
+redis = { version = "=1.7.1" }
+serde = { version = "=1.0.229", features = ["derive"] }
+serde_json = { version = "=1.0.154" }
+schemars = { version = "=1.2.3" }
+scraper = { version = "=0.27.0" }
+quick-xml = { version = "=0.42.0" }
+clap = { version = "=4.6.7", features = ["derive"] }
+ssx-domain = { path = "crates/ssx-domain" }
+ssx-wire = { path = "crates/ssx-wire" }
+ssx-application = { path = "crates/ssx-application" }
+ssx-infra = { path = "crates/ssx-infra" }
+ssx-http = { path = "crates/ssx-http" }
+ssx-mcp = { path = "crates/ssx-mcp" }
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+all = "warn"

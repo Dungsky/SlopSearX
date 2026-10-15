@@ -12,7 +12,8 @@ substitute for milestone completion.
   issue evidence, dependency readiness and final completion audit.
 - General execution: GPT-6 Luna (`gpt-6-luna`).
 - Particularly complex architecture, identity and distributed-state work:
-  GPT-6 Sol (`gpt-6-sol`).
+  GPT-6.1 Sol (`gpt-6.1-sol`), per the maintainer update on 2026-10-15.
+  Earlier F01/F02 assignments used GPT-6 Sol; new complex assignments use 6.1.
 - Use isolated task worktrees. Within a task, parallel agents own disjoint files;
   the orchestrator owns integration and shared contracts.
 
@@ -26,7 +27,8 @@ review findings and exact-head CI, and verify the merged artifact before closure
 | Plan | Issue | State | Evidence / next gate |
 | --- | --- | --- | --- |
 | F01 | [#880](https://github.com/magnus919/SlopSearX/issues/880) | Accepted | [PR #950](https://github.com/magnus919/SlopSearX/pull/950), merged `2e0026b4e471c9309a898665169578333074015e`; [inventory evidence](inventory/validation.json), exact-head CI passed, independent Sol corrections and Luna final audit accepted |
-| F02 | [#881](https://github.com/magnus919/SlopSearX/issues/881) | In progress | Architecture ADRs based on accepted F01; implementation and independent acceptance pending |
+| F02 | [#881](https://github.com/magnus919/SlopSearX/issues/881) | Accepted | [PR #952](https://github.com/magnus919/SlopSearX/pull/952), merged `562b6ce1ce9f798104311e8f3a213daefeddc795`; ADR 003–005 and state/pin registers; corrected membership classification, positive Droid re-review and exact-head CI passed |
+| F03 | [#882](https://github.com/magnus919/SlopSearX/issues/882) | In progress | Workspace, native evidence runner and additive CI/smoke implementation; acceptance pending |
 
 All other packages remain pending. [The dependency index](ISSUES.md) and native
 GitHub dependencies determine readiness. Update this ledger with merged PR and

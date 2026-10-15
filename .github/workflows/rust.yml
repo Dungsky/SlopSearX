@@ -1,0 +1,88 @@
+name: Rust foundation
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  foundation:
+    name: Foundation (${{ matrix.runner }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            target: x86_64-unknown-linux-gnu
+          - runner: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+    env:
+      CARGO_TERM_COLOR: always
+      RUST_BACKTRACE: 1
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Confirm pinned toolchain
+        run: rustc --version --verbose
+
+      - name: Formatting
+        run: cargo fmt --all --check
+
+      - name: Clippy
+        run: cargo clippy --locked --workspace --all-targets -- -D warnings
+
+      - name: Workspace tests, including xtask
+        run: cargo test --locked --workspace
+
+      - name: Locked workspace build
+        run: cargo build --locked --workspace --target "${{ matrix.target }}"
+
+      - name: Verify outbound TLS feature graph
+        run: |
+          cargo tree --locked --workspace -e features > target/rust-feature-graph.txt
+          grep -q 'rustls-platform-verifier' target/rust-feature-graph.txt
+          if grep -Eq '(^|[[:space:]])(native-tls|hyper-tls|openssl-sys)([[:space:]@v]|$)' target/rust-feature-graph.txt; then
+            echo "unexpected native-TLS/OpenSSL backend in the locked feature graph" >&2
+            exit 1
+          fi
+
+      - name: Foundation lane evidence
+        run: cargo xtask check F03 --output target/rust-evidence/F03.json
+
+      - name: Native readiness and Python bridge smoke
+        env:
+          SSX_SERVER_BIN: target/${{ matrix.target }}/debug/ssx-server
+        run: sh scripts/rust-foundation-smoke.sh
+
+      - name: Retain source-bound foundation evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: rust-foundation-${{ matrix.target }}-${{ github.sha }}
+          path: |
+            target/rust-evidence/F03.json
+            target/rust-feature-graph.txt
+          if-no-files-found: warn
+
+  supply-chain:
+    name: Supply-chain policy (cargo-deny 0.20.2)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      CARGO_TERM_COLOR: always
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install pinned cargo-deny
+        run: cargo install --locked --version 0.20.2 cargo-deny
+
+      - name: Check advisories, licenses, duplicate versions and registry sources
+        run: cargo deny --locked --workspace check all

@@ -12,6 +12,8 @@ Original planning baseline: `2a995f964757df77693747b232aa47738c0c58cc`.
 
 | F01 merged `2e0026b4` → `6aa33a16` (observed during F02) | PR #951 changed 29 experiment Markdown/JSON registration and evidence files | No runtime, dependency, workflow or Python-source changes; architecture and pinned F01 source inventory remain applicable |
 
+| `6aa33a16` → `65a55e2e` | PR #953 changed six experiment Markdown/JSON outcome files | No runtime, dependency, workflow or Python-source changes; F03 begins from F02 merge `562b6ce1` on top of this revision |
+
 ## Drift procedure
 
 1. Fetch upstream and follow AGENTS.md session synchronization rules.
