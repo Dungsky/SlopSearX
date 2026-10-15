@@ -61,7 +61,7 @@ case "$host_os" in
         fi
         nm -D "$server_bin" >"$scratch/nm" 2>&1 \
             || fail "nm could not inspect dynamic server symbols"
-        if grep -Eq '(^|[[:space:]])_?Py[A-Z][[:alnum:]_]*(@|$|[[:space:]])' "$scratch/nm"; then
+        if grep -Eq '(^|[[:space:]])_{0,2}Py(_|[A-Z])[[:alnum:]_]*(@|$|[[:space:]])' "$scratch/nm"; then
             fail "server imports CPython symbols"
         fi
         ;;
@@ -75,7 +75,7 @@ case "$host_os" in
         fi
         nm -g -u "$server_bin" >"$scratch/nm" 2>&1 \
             || fail "nm could not inspect undefined server symbols"
-        if grep -Eq '(^|[[:space:]])_?Py[A-Z][[:alnum:]_]*(@|$|[[:space:]])' "$scratch/nm"; then
+        if grep -Eq '(^|[[:space:]])_{0,2}Py(_|[A-Z])[[:alnum:]_]*(@|$|[[:space:]])' "$scratch/nm"; then
             fail "server imports CPython symbols"
         fi
         ;;
