@@ -10,3 +10,9 @@ publish = false
 serde = { workspace = true }
 serde_json = { workspace = true }
 serde-saphyr = { version = "=2.0.0", default-features = false, features = ["deserialize"] }
+ssx-domain.workspace = true
+ssx-wire.workspace = true
+ssx-http.workspace = true
+ssx-mcp.workspace = true
+sha2.workspace = true
+ssx-json.workspace = true

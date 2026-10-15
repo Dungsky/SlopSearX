@@ -13,3 +13,9 @@ The proposed F02 design, contingent on maintainer acceptance of the ADRs, requir
 | O02/O04, G04–G08 | Target matrix, trust roots, cutover/recovery classes | Exact artifact install, CA/TLS and staging migration/rollback rehearsal |
 
 Every row in F01 remains pending until its implementation owner links executable evidence. A pin change, transport retirement, storage incompatibility or policy tightening requires an ADR amendment and affected contract/intentional-difference update before implementation fan-out. The upstream main revision and F01 inventory baseline must be reconciled under `inventory/DRIFT.md` at every merge.
+
+F05 amends ADR 003 with the pure `ssx-json` serialization crate. Domain and wire
+consume its bounded lossless JSON values independently; it has no backend or
+network dependencies. The native gate rejects serde_json `arbitrary_precision`
+feature unification and qualifies huge integers and ordinary reserved-looking
+object keys through storage and public DTO serialization.

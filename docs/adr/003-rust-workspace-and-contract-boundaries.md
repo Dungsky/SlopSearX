@@ -16,8 +16,9 @@ Use one Cargo workspace and one deployable application, with narrowly separated 
 
 | Crate | Owns | May depend on | Must not own |
 | --- | --- | --- | --- |
-| `ssx-domain` | Internal value types, typed IDs, result/provenance, search request/outcome, explicit missing/expired/unavailable/error distinctions | Standard library, pure serialization traits | HTTP, MCP, Valkey, provider clients, operator config |
-| `ssx-wire` | Versioned public HTTP/MCP DTOs, explicit codecs and golden contract schemas shared with native clients | Pure serialization crates only | Domain/application policy, Valkey, backend configuration |
+| `ssx-json` | Bounded lossless JSON values and pure number/object codecs shared by backend records and public DTOs | `serde`, `serde_json` with `raw_value` only, `ryu` float formatting, `indexmap` insertion-ordered JSON objects | Backend/domain policy, HTTP/MCP, Valkey, provider clients, configuration |
+| `ssx-domain` | Internal value types, typed IDs, result/provenance, search request/outcome, explicit missing/expired/unavailable/error distinctions | Standard library, `ssx-json`, pure serialization traits | HTTP, MCP, Valkey, provider clients, operator config |
+| `ssx-wire` | Versioned public HTTP/MCP DTOs, explicit codecs and golden contract schemas shared with native clients | `ssx-json` and pure serialization crates only | Domain/application policy, Valkey, backend configuration |
 | `ssx-application` | `SearchService`, scope, shared fail-closed MCP policy with surface-specific inputs, budgets, jobs/workflow commands, canonical response and per-request views | `ssx-domain`, abstract ports | Route parsing, socket/Valkey implementations, provider-specific wire DTOs |
 | `ssx-infra` | Valkey stores, leases/scripts, clocks, HTTP client pools, parsers and 51 engine implementations | Domain/application ports | Public route status mapping or changing policy grants |
 | `ssx-http` | Axum routes, form/query negotiation, JSON/YAML/HTML/CSV/RSS rendering, portal/OIDC boundary, error/status/security headers | Application and domain contracts; injected infra ports | Independent search, cache or authorization decisions |
@@ -36,7 +37,7 @@ The shared application command boundary evaluates the authority inputs applicabl
 
 ## Accepted constraints and alternatives
 
-A Python-backed compatibility layer, PyO3 backend, subprocess adapter, sidecar and remote Python fallback are excluded from the final runtime. A temporary pinned Python comparison oracle is permitted in F03/F04 only, outside native execution and final mandatory release gates. Splitting the application into independent search/MCP/workflow services is rejected for this rewrite because it would add a distributed boundary while existing HTTP/MCP already share one service. Dynamic Rust plugin loading is deferred: it would weaken the complete built-in registration and metadata check without an existing runtime requirement. A single giant crate is rejected because it would let transport and storage types leak into policy and public serialization.
+A Python-backed compatibility layer, PyO3 backend, subprocess adapter, sidecar and remote Python fallback are excluded from the final runtime. A temporary pinned Python comparison oracle is permitted for migration evidence established by F04 and extended by successor parity work, isolated from native execution and final mandatory release gates, with executable retirement at G08. Splitting the application into independent search/MCP/workflow services is rejected for this rewrite because it would add a distributed boundary while existing HTTP/MCP already share one service. Dynamic Rust plugin loading is deferred: it would weaken the complete built-in registration and metadata check without an existing runtime requirement. A single giant crate is rejected because it would let transport and storage types leak into policy and public serialization.
 
 ADR 001's server-rendered same-process portal and ADR 002's separate browser OIDC authority remain in force. The Rust rewrite replaces implementation language, not those accepted user-facing and identity contracts.
 
@@ -50,3 +51,32 @@ F03 creates the workspace and native `cargo xtask check <plan-id>` gate; F04 com
 | Registry descriptors may drift from generated docs/Jev metadata | Catalog owner | F06 51-name completeness and README/portal contract checks |
 | Serde/schema generation may alter defaults, optionality or response envelopes | Protocol owner | F04 byte fixtures and T01 real-client descriptor diff |
 | One policy gate may be bypassed by workflow resume or a surface route | Search/policy owner | F09 path matrix and G02 denial tests |
+
+## F05 amendment: lossless JSON without global parser mutation
+
+F05 adds the pure `ssx-json` crate for opaque payloads, answers, infoboxes and
+canonical numeric values. Both domain/storage and public wire DTOs consume this
+serialization-only crate; it has no backend, transport, configuration or network
+dependencies. Surface modules continue to own domain-to-public projections.
+
+A reproduced compatibility test showed that enabling `serde_json`'s globally
+unified `arbitrary_precision` feature changes the valid user object
+`{"$serde_json::private::Number":"123"}` into number `123`. Feature unification
+would affect third-party MCP/HTTP deserializers as well as our own parser, so F05
+forbids that feature rather than wrapping selected call sites. Default JSON
+values also round integers beyond i64/u64 through f64, breaking durable bytes.
+
+`ssx-json` parses bounded raw JSON tokens into its own object/number representation
+and serializes number tokens without rounding. JSON objects retain their exact
+keys, including serde's private-looking keys. Structured DTOs keep ordinary serde
+implementations with opaque `ssx-json::Value` fields. Consumer review covers
+`ssx-domain`, `ssx-wire`, surface projections, and the native F05 gate. This adds a
+pure serialization dependency and does not change storage authority or public
+transport ownership. Parsing is bounded to 4 MiB and 100 nested levels; callers
+apply narrower payload and durable-record limits. Existing opaque identifiers
+are never parsed as numbers or normalized on read.
+
+The F05 legacy reader retains opaque object insertion order with pinned `indexmap`
+inside `ssx-json`: Python `str(dict)` makes that order observable. Canonical
+identity profiles still sort keys explicitly. Neither serde_json `preserve_order`
+nor `arbitrary_precision` is enabled globally.

@@ -1,4 +1,5 @@
 //! Fail-closed native evidence runner. Owned check implementations are deliberately finite.
+mod f05;
 mod o06;
 mod replay;
 mod t01;
@@ -144,6 +145,7 @@ fn validate_output(root: &Path, path: &Path) -> Result<PathBuf> {
         let name = relative.to_str().ok_or("non-UTF8 output path")?;
         let owned = name == ".git"
             || name.starts_with(".git/")
+            || name.starts_with("contracts/")
             || name.starts_with("crates/")
             || name.starts_with(".cargo/")
             || name.starts_with("docs/rust-rewrite/")
@@ -215,7 +217,8 @@ fn source_snapshot(root: &Path, records: &mut Vec<Value>) -> Result<Vec<Value>> 
     )?;
     let mut sources = Vec::new();
     for path in paths.split('\0').filter(|p| !p.is_empty()).filter(|p| {
-        p.starts_with("crates/")
+        p.starts_with("contracts/")
+            || p.starts_with("crates/")
             || p.starts_with(".cargo/")
             || p.starts_with(".github/workflows/")
             || matches!(
@@ -425,6 +428,8 @@ fn execute(root: &Path, id: &str, records: &mut Vec<Value>) -> Result<()> {
         "F01" | "F02" => source_check(root, id, records),
         "F04" => replay::check(root, records),
         "T01" => t01::check(root, records),
+
+        "F05" => f05::check(root, records),
         "F03" => {
             source_check(root, "F01", records)?;
             source_check(root, "F02", records)?;
@@ -752,7 +757,7 @@ mod tests {
     fn unknown_and_unimplemented_fail() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
         assert!(
-            execute(&root, "F05", &mut vec![])
+            execute(&root, "F06", &mut vec![])
                 .unwrap_err()
                 .contains("unimplemented")
         );
