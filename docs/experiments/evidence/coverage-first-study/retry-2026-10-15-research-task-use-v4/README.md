@@ -1,0 +1,11 @@
+# Replacement research-ranking test registration
+
+This registers one replacement development attempt under the [retry plan](../../../coverage-first-retry-plan.md). It uses the same eight research questions and five navigation cases, candidate, control, thresholds, models, and query plans as the [previous registration](../prospective-2026-10-15-research-task-use-v4/README.md). The failed collection remains [recorded](../completed-2026-10-15-task-use-collection/README.md) and receives no quality credit.
+
+The [retry binding](retry-binding.json) pins the amendment, four new run and packet identifiers, private configuration hashes, and original registration hashes. All 125 retired identifiers are excluded. The original protocol bytes are unchanged; the separately pinned amendment permits this replacement. Every pool must be collected again, with no result selection or mixing across attempts. Development is limited to 40 physical search requests and conditional confirmation to 41, with zero Brave requests. Including the original 26 requests, the ceiling is 107.
+
+The scientific source remains `943f0b7ef670b3ffe4a3abb03b2aee54570e6a0c`. Its production service, merger, reranker and dependency lock match current main byte for byte. Source, protocol, cohort, companion, and runtime pins are preserved. The read-only authenticated health check passed with the existing trusted CA, unchanged runtime, and model `free`. Raw health and private configuration are excluded.
+
+All four actual no-call preflights passed in the locked lab environment: runner and issuer, for both stages. Setup failures are retained in the [preflight summary](static-preflight-summary.json). The issuer must use Python safe-path mode so its external directory cannot enter the trusted import path. No execution directories, searches, captures, model calls, or grades have been created under this registration.
+
+Before launch, verify the retry binding and exact configuration hashes against this reviewed registration and the unchanged source. Check recorded rate-limit cooldowns without issuing a search probe. Confirmation remains unstarted and requires a passing development result. Neither this registration nor passing setup checks establish ranking quality or authorize production deployment.
