@@ -691,6 +691,13 @@ fn typed_sdk_large_number_limitation_is_characterized_and_not_mistaken_for_parit
     Ok(())
 }
 async fn raw_process_catalog(args: &[&str]) -> Result<String> {
+    raw_process_request(
+        args,
+        r#"{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}"#,
+    )
+    .await
+}
+async fn raw_process_request(args: &[&str], request: &str) -> Result<String> {
     use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
     let mut child = tokio::process::Command::new(env!("CARGO_BIN_EXE_mcp-qualification"))
         .args(args)
@@ -708,7 +715,11 @@ async fn raw_process_catalog(args: &[&str]) -> Result<String> {
         .await??
         .ok_or("initialize missing")?;
     assert!(init.contains("result"));
-    input.write_all(b"{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\"}\n{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/list\",\"params\":{}}\n").await?;
+    input
+        .write_all(b"{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\"}\n")
+        .await?;
+    input.write_all(request.as_bytes()).await?;
+    input.write_all(b"\n").await?;
     let response = tokio::time::timeout(Duration::from_secs(3), output.next_line())
         .await??
         .ok_or("catalog missing")?;
@@ -765,21 +776,24 @@ async fn selected_raw_gateway_owns_stateful_session_and_closes_it() -> Result<()
     let deletes = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
     let observed = deletes.clone();
     let router =
-        ssx_mcp::harness::http_router_mode(Registry::large_catalog(), None, ct.clone(), true)
-            .layer(axum::middleware::from_fn(
-                move |request: axum::http::Request<axum::body::Body>,
-                      next: axum::middleware::Next| {
-                    let observed = observed.clone();
-                    async move {
-                        if request.method() == axum::http::Method::DELETE
-                            && request.headers().contains_key("mcp-session-id")
-                        {
-                            observed.fetch_add(1, Ordering::SeqCst);
+        ssx_mcp::harness::http_router_mode(Registry::large_catalog(), None, ct.clone(), true).map(
+            |router| {
+                router.layer(axum::middleware::from_fn(
+                    move |request: axum::http::Request<axum::body::Body>,
+                          next: axum::middleware::Next| {
+                        let observed = observed.clone();
+                        async move {
+                            if request.method() == axum::http::Method::DELETE
+                                && request.headers().contains_key("mcp-session-id")
+                            {
+                                observed.fetch_add(1, Ordering::SeqCst);
+                            }
+                            next.run(request).await
                         }
-                        next.run(request).await
-                    }
-                },
-            ));
+                    },
+                ))
+            },
+        );
     let host = Host::start(router, ct).await?;
     let url = format!("http://{}/mcp", host.address);
     assert_large_catalog(&raw_process_catalog(&["gateway", &url]).await?)?;
@@ -1084,5 +1098,477 @@ async fn invalid_http_session_flood_does_not_consume_accepted_session_capacity()
     assert!(gateway.catalogs.contains_key("tools/list"));
     gateway.close().await?;
     host.shutdown().await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn typed_gateway_cancels_tools_resources_and_prompts_upstream() -> Result<()> {
+    let mut registry = Registry::synthetic();
+    registry.response_delay = Duration::from_secs(10);
+    let ct = CancellationToken::new();
+    let host = Host::start(
+        ssx_mcp::harness::http_router_mode(registry.clone(), None, ct.clone(), true),
+        ct,
+    )
+    .await?;
+    let gateway = Gateway::connect(
+        format!("http://{}/mcp", host.address),
+        None,
+        Duration::from_secs(3),
+    )
+    .await?;
+    let handler = gateway.handler();
+    let (server_io, client_io) = tokio::io::duplex(65536);
+    let server = tokio::spawn(async move {
+        handler.serve(server_io).await?.waiting().await?;
+        Ok::<(), ssx_mcp::Error>(())
+    });
+    let client = config().serve(client_io).await?;
+    for request in [
+        ClientRequest::CallToolRequest(CallToolRequest::new(
+            CallToolRequestParams::new("t01_echo").with_arguments(serde_json::from_value(
+                json!({"payload":{"items":[]},"note":"wait"}),
+            )?),
+        )),
+        ClientRequest::ReadResourceRequest(ReadResourceRequest::new(
+            ReadResourceRequestParams::new("t01://text"),
+        )),
+        ClientRequest::GetPromptRequest(GetPromptRequest::new(GetPromptRequestParams::new(
+            "t01_prompt",
+        ))),
+    ] {
+        let handle = client
+            .peer()
+            .send_cancellable_request(request, rmcp::service::PeerRequestOptions::no_options())
+            .await?;
+        tokio::time::timeout(Duration::from_secs(2), async {
+            while registry.in_flight.load(Ordering::SeqCst) == 0 {
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+        })
+        .await?;
+        handle.cancel(Some("test downstream cancel".into())).await?;
+        tokio::time::timeout(Duration::from_secs(2), async {
+            while registry.in_flight.load(Ordering::SeqCst) != 0 {
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+        })
+        .await?;
+    }
+    client.cancel().await?;
+    tokio::time::timeout(Duration::from_secs(3), server).await???;
+    gateway.shutdown().await?;
+    host.shutdown().await?;
+    Ok(())
+}
+async fn initialize_http_session(http: &reqwest::Client, url: &str) -> Result<String> {
+    let response=http.post(url).header("accept","application/json, text/event-stream").json(&json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"expiry-test","version":"1"}}})).send().await?;
+    assert_eq!(response.status(), 200);
+    let session = response.headers()["mcp-session-id"].to_str()?.to_owned();
+    let _ = response.bytes().await?;
+    let response = http
+        .post(url)
+        .header("mcp-session-id", &session)
+        .header("accept", "application/json, text/event-stream")
+        .json(&json!({"jsonrpc":"2.0","method":"notifications/initialized"}))
+        .send()
+        .await?;
+    assert_eq!(response.status(), 202);
+    Ok(session)
+}
+#[tokio::test]
+async fn stateful_idle_expiry_reclaims_sdk_aliases_and_permits_but_keeps_active_work() -> Result<()>
+{
+    let mut registry = Registry::synthetic();
+    registry.response_delay = Duration::from_millis(400);
+    let ct = CancellationToken::new();
+    let (router, probe) = ssx_mcp::harness::http_router_with_session_expiry(
+        registry.clone(),
+        None,
+        ct.clone(),
+        Duration::from_millis(100),
+    );
+    let host = Host::start(router, ct).await?;
+    let http = reqwest::Client::new();
+    let url = format!("http://{}/mcp", host.address);
+    let session = initialize_http_session(&http, &url).await?;
+    let request = async {
+        let response=http.post(&url).header("mcp-session-id",&session).header("accept","application/json, text/event-stream").json(&json!({"jsonrpc":"2.0","id":2,"method":"resources/read","params":{"uri":"t01://text"}})).send().await?;
+        assert_eq!(response.status(), 200);
+        Ok::<_, ssx_mcp::Error>(response.text().await?)
+    };
+    tokio::pin!(request);
+    tokio::select! {r=&mut request=>panic!("request completed before injected delay: {r:?}"),_=tokio::time::sleep(Duration::from_millis(250))=>{}}
+    assert_eq!(registry.in_flight.load(Ordering::SeqCst), 1);
+    assert_eq!(probe.aliases(), 1);
+    assert_eq!(probe.sdk_sessions().await, 1);
+    let response = tokio::time::timeout(Duration::from_secs(2), request).await??;
+    let data = response
+        .lines()
+        .filter_map(|line| line.strip_prefix("data: "))
+        .find(|data| !data.trim().is_empty())
+        .ok_or("missing SSE response")?;
+    assert_eq!(serde_json::from_str::<Value>(data)?["id"], 2);
+    let stream = http
+        .get(&url)
+        .header("mcp-session-id", &session)
+        .header("accept", "text/event-stream")
+        .send()
+        .await?;
+    assert_eq!(stream.status(), 200);
+    tokio::time::sleep(Duration::from_millis(250)).await;
+    assert_eq!(probe.aliases(), 1);
+    assert_eq!(probe.sdk_sessions().await, 1);
+    drop(stream);
+    tokio::time::timeout(Duration::from_secs(3), async {
+        while probe.aliases() != 0
+            || probe.sdk_sessions().await != 0
+            || probe.available_permits() != 128
+        {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await?;
+    assert_eq!(probe.available_permits(), 128);
+    let response = http
+        .post(&url)
+        .header("mcp-session-id", &session)
+        .header("accept", "application/json, text/event-stream")
+        .json(&json!({"jsonrpc":"2.0","id":3,"method":"tools/list"}))
+        .send()
+        .await?;
+    assert_eq!(response.status(), 404);
+    let replacement = initialize_http_session(&http, &url).await?;
+    assert_ne!(replacement, session);
+    host.shutdown().await?;
+    tokio::time::timeout(Duration::from_secs(2), probe.stopped()).await??;
+    assert_eq!(probe.aliases(), 0);
+    assert_eq!(probe.sdk_sessions().await, 0);
+    Ok(())
+}
+
+fn assert_integer_echo(raw: &str) -> Result<()> {
+    type RawMap = std::collections::BTreeMap<String, Box<serde_json::value::RawValue>>;
+    let fields: RawMap = serde_json::from_str(raw)?;
+    assert!(!fields.contains_key("error"));
+    let result: RawMap = serde_json::from_str(fields["result"].get())?;
+    assert_eq!(
+        serde_json::from_str::<Value>(result["content"].get())?,
+        baseline()["observations"]["integer_echo_result"]["content"]
+    );
+    let structured: RawMap = serde_json::from_str(result["structuredContent"].get())?;
+    let payload: RawMap = serde_json::from_str(structured["payload"].get())?;
+    let items: Vec<Box<serde_json::value::RawValue>> =
+        serde_json::from_str(payload["items"].get())?;
+    assert_eq!(
+        items.iter().map(|v| v.get()).collect::<Vec<_>>(),
+        [
+            "9223372036854775808",
+            "18446744073709551617",
+            "-18446744073709551617"
+        ]
+    );
+    Ok(())
+}
+#[tokio::test]
+async fn unbounded_integer_echo_retains_source_tokens_and_rejects_bool_fractional_and_failure()
+-> Result<()> {
+    let ct = CancellationToken::new();
+    let host = Host::start(http_router(Registry::synthetic(), None, ct.clone()), ct).await?;
+    let url = format!("http://{}/mcp", host.address);
+    let http = reqwest::Client::new();
+    let ct = CancellationToken::new();
+    let legacy = Legacy::new(
+        Registry::synthetic(),
+        "/messages/",
+        Duration::from_secs(10),
+        ct.clone(),
+    )?;
+    let sse_host = Host::start(legacy.router("/sse")?, ct).await?;
+    let mut sse = SseClient::connect(format!("http://{}", sse_host.address), "/sse").await?;
+    sse.request(1,"initialize",json!({"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"integer-test","version":"1"}})).await?;
+    for (items, note, success) in [
+        (
+            "[9223372036854775808,18446744073709551617,-18446744073709551617]",
+            "null",
+            true,
+        ),
+        ("[18446744073709551617,true]", "null", false),
+        ("[18446744073709551617,1.5]", "null", false),
+        ("[18446744073709551617]", "\"error\"", false),
+    ] {
+        let request = format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{{\"name\":\"t01_echo\",\"arguments\":{{\"payload\":{{\"items\":{items}}},\"note\":{note}}}}}}}"
+        );
+        let response = http
+            .post(&url)
+            .header("accept", "application/json, text/event-stream")
+            .header("content-type", "application/json")
+            .body(request.clone())
+            .send()
+            .await?;
+        assert_eq!(response.status(), 200);
+        let direct = response.text().await?;
+        assert_eq!(
+            sse.post_raw(&request).await?,
+            baseline()["observations"]["accepted"]
+        );
+        let (_, legacy) = sse.event().await?;
+        let stdio = raw_process_request(&["stdio"], &request).await?;
+        let gateway = raw_process_request(&["gateway", &url], &request).await?;
+        for raw in [direct, legacy, stdio, gateway] {
+            if success {
+                assert_integer_echo(&raw)?;
+            } else {
+                let response: Value = serde_json::from_str(&raw)?;
+                assert!(response.get("error").is_some() || response["result"]["isError"] == true);
+            }
+        }
+    }
+    let response=http.post(&url).header("accept","application/json, text/event-stream").header("content-type","application/json").body(r#"{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"t01_echo","arguments":{"payload":{"items":[01]}}}}"#).send().await?;
+    assert_eq!(response.status(), 400);
+    drop(sse);
+    sse_host.shutdown().await?;
+    host.shutdown().await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn sdk_termination_and_abrupt_host_or_router_drop_drain_actual_session_state() -> Result<()> {
+    let ct = CancellationToken::new();
+    let (router, probe) = ssx_mcp::harness::http_router_with_session_expiry(
+        Registry::synthetic(),
+        None,
+        ct.clone(),
+        Duration::from_secs(10),
+    );
+    let host = Host::start(router, ct).await?;
+    let url = format!("http://{}/mcp", host.address);
+    let http = reqwest::Client::new();
+    let session = initialize_http_session(&http, &url).await?;
+    assert_eq!(probe.sdk_sessions().await, 1);
+    probe.terminate_sdk_session(&session).await?;
+    tokio::time::timeout(Duration::from_secs(2), async {
+        while probe.aliases() != 0
+            || probe.sdk_sessions().await != 0
+            || probe.available_permits() != 128
+        {
+            tokio::time::sleep(Duration::from_millis(5)).await;
+        }
+    })
+    .await?;
+    initialize_http_session(&http, &url).await?;
+    assert_eq!(probe.sdk_sessions().await, 1);
+    drop(host);
+    tokio::time::timeout(Duration::from_secs(3), probe.stopped()).await??;
+    assert_eq!(probe.sdk_sessions().await, 0);
+    assert_eq!(probe.aliases(), 0);
+    assert_eq!(probe.available_permits(), 128);
+    let ct = CancellationToken::new();
+    let (router, probe) = ssx_mcp::harness::http_router_with_session_expiry(
+        Registry::synthetic(),
+        None,
+        ct.clone(),
+        Duration::from_secs(10),
+    );
+    drop(router);
+    assert!(!ct.is_cancelled());
+    tokio::time::timeout(Duration::from_secs(2), probe.stopped()).await??;
+    assert_eq!(probe.sdk_sessions().await, 0);
+    assert_eq!(probe.aliases(), 0);
+    Ok(())
+}
+#[tokio::test]
+async fn malformed_call_shapes_do_not_poison_stateful_request_admission() -> Result<()> {
+    let ct = CancellationToken::new();
+    let host = Host::start(
+        ssx_mcp::harness::http_router_mode(Registry::synthetic(), None, ct.clone(), true),
+        ct,
+    )
+    .await?;
+    let url = format!("http://{}/mcp", host.address);
+    let http = reqwest::Client::new();
+    let session = initialize_http_session(&http, &url).await?;
+    for id in 2..82 {
+        let params = if id % 2 == 0 {
+            "[]"
+        } else {
+            r#"{"name":"t01_echo","arguments":[]}"#
+        };
+        let response=http.post(&url).header("mcp-session-id",&session).header("accept","application/json, text/event-stream").header("content-type","application/json").body(format!("{{\"jsonrpc\":\"2.0\",\"id\":\"bad-{id}\",\"method\":\"tools/call\",\"params\":{params}}}")).send().await?;
+        if response.status() == 200 {
+            assert!(response.text().await?.contains("\"error\""));
+        } else {
+            assert!(response.status().is_client_error());
+        }
+    }
+    let gateway =
+        ssx_mcp::opaque::RawGateway::connect(url.clone(), None, Duration::from_secs(3)).await?;
+    gateway.close().await?;
+    let response = http
+        .post(&url)
+        .header("mcp-session-id", &session)
+        .header("accept", "application/json, text/event-stream")
+        .json(&json!({"jsonrpc":"2.0","id":"valid-after-malformed","method":"tools/list"}))
+        .send()
+        .await?;
+    assert_eq!(response.status(), 200);
+    let body = response.text().await?;
+    assert!(body.contains("valid-after-malformed"));
+    assert!(!body.contains("\"error\""));
+    host.shutdown().await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn typed_and_raw_catalogs_use_resource_uri_identity() -> Result<()> {
+    for duplicate_uri in [false, true] {
+        let mut registry = Registry::synthetic();
+        let mut descriptors = registry.descriptors.as_ref().clone();
+        descriptors["resources"] = json!([{"name":"same display name","uri":"t01://one"},{"name":if duplicate_uri{"another display name"}else{"same display name"},"uri":if duplicate_uri{"t01://one"}else{"t01://two"}}]);
+        registry.descriptors = std::sync::Arc::new(descriptors);
+        let ct = CancellationToken::new();
+        let host = Host::start(http_router(registry, None, ct.clone()), ct).await?;
+        let url = format!("http://{}/mcp", host.address);
+        let typed = Gateway::connect(url.clone(), None, Duration::from_secs(3)).await;
+        let raw = ssx_mcp::opaque::RawGateway::connect(url, None, Duration::from_secs(3)).await;
+        if duplicate_uri {
+            assert!(typed.is_err());
+            assert!(raw.is_err());
+        } else {
+            let typed = typed?;
+            assert_eq!(typed.catalog["resources"].as_array().unwrap().len(), 2);
+            typed.shutdown().await?;
+            let raw = raw?;
+            let catalog: Value = serde_json::from_str(raw.catalogs["resources/list"].get())?;
+            assert_eq!(catalog["resources"].as_array().unwrap().len(), 2);
+            raw.close().await?;
+        }
+        host.shutdown().await?;
+    }
+    Ok(())
+}
+#[tokio::test]
+async fn raw_gateway_uses_negotiated_older_protocol_on_every_http_operation() -> Result<()> {
+    use axum::{response::IntoResponse, routing::post};
+    let seen = std::sync::Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
+    let posts = seen.clone();
+    let deletes = seen.clone();
+    let router=axum::Router::new().route("/mcp",post(move |headers:axum::http::HeaderMap,axum::Json(body):axum::Json<Value>|{
+        let seen=posts.clone();async move {
+            let method=body["method"].as_str().unwrap_or("");
+            if method!="initialize" && headers.get("mcp-protocol-version").and_then(|v|v.to_str().ok())!=Some("2024-11-05") {return axum::http::StatusCode::BAD_REQUEST.into_response();}
+            seen.lock().unwrap().push(method.to_owned());
+            if method=="notifications/initialized" {return axum::http::StatusCode::ACCEPTED.into_response();}
+            let result=match method {
+                "initialize"=>json!({"protocolVersion":"2024-11-05","capabilities":{"tools":{},"resources":{},"prompts":{}},"serverInfo":{"name":"older-peer","version":"1"}}),
+                "tools/list"=>json!({"tools":[]}),"prompts/list"=>json!({"prompts":[]}),
+                "resources/list"=>json!({"resources":[{"name":"same","uri":"t01://one"},{"name":"same","uri":"t01://two"}]}),
+                "resources/templates/list"=>json!({"resourceTemplates":[{"name":"same","uriTemplate":"t01://one/{id}"},{"name":"same","uriTemplate":"t01://two/{id}"}]}),
+                "tools/call"=>baseline()["observations"]["echo_result"].clone(),
+                _=>return axum::http::StatusCode::BAD_REQUEST.into_response(),
+            };
+            let mut response=axum::Json(json!({"jsonrpc":"2.0","id":body["id"],"result":result})).into_response();
+            if method=="initialize"{response.headers_mut().insert("mcp-session-id",axum::http::HeaderValue::from_static("older-session"));}response
+        }
+    }).delete(move |headers:axum::http::HeaderMap|{let seen=deletes.clone();async move{
+        if headers.get("mcp-protocol-version").and_then(|v|v.to_str().ok())!=Some("2024-11-05") {return axum::http::StatusCode::BAD_REQUEST;}
+        seen.lock().unwrap().push("DELETE".into());axum::http::StatusCode::NO_CONTENT
+    }}));
+    let ct = CancellationToken::new();
+    let host = Host::start(router, ct).await?;
+    let url = format!("http://{}/mcp", host.address);
+    let gateway =
+        ssx_mcp::opaque::RawGateway::connect(url.clone(), None, Duration::from_secs(3)).await?;
+    let templates: Value =
+        serde_json::from_str(gateway.catalogs["resources/templates/list"].get())?;
+    assert_eq!(templates["resourceTemplates"].as_array().unwrap().len(), 2);
+    gateway.close().await?;
+    let result=raw_process_request(&["gateway",&url],r#"{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"t01_echo","arguments":{"payload":{"items":[1,2]},"note":null}}}"#).await?;
+    assert_eq!(
+        serde_json::from_str::<Value>(&result)?["result"],
+        baseline()["observations"]["echo_result"]
+    );
+    let seen = seen.lock().unwrap().clone();
+    for method in [
+        "notifications/initialized",
+        "tools/list",
+        "resources/list",
+        "resources/templates/list",
+        "prompts/list",
+        "tools/call",
+        "DELETE",
+    ] {
+        assert!(seen.iter().any(|value| value == method));
+    }
+    assert_eq!(seen.iter().filter(|m| m.as_str() == "DELETE").count(), 2);
+    host.shutdown().await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn rejected_delete_retains_actual_sdk_session_aliases_and_capacity() -> Result<()> {
+    let cancel = CancellationToken::new();
+    let (router, probe) = ssx_mcp::harness::http_router_with_session_expiry(
+        Registry::synthetic(),
+        None,
+        cancel.clone(),
+        Duration::from_secs(30),
+    );
+    let host = Host::start(router, cancel).await?;
+    let url = format!("http://{}/mcp", host.address);
+    let http = reqwest::Client::new();
+    let mut first = None;
+    for index in 0..128 {
+        let session = initialize_http_session(&http, &url).await?;
+        if first.is_none() {
+            first = Some(session.clone());
+        }
+        let rejected = http
+            .delete(&url)
+            .header("mcp-session-id", &session)
+            .header("mcp-protocol-version", "unsupported")
+            .send()
+            .await?;
+        assert_eq!(rejected.status(), 400);
+        let _ = rejected.bytes().await?;
+        assert_eq!(probe.sdk_sessions().await, index + 1);
+        assert_eq!(probe.aliases(), index + 1);
+        assert_eq!(probe.available_permits(), 127 - index);
+    }
+    let first = first.unwrap();
+    let valid=http.post(&url).header("mcp-session-id",&first).header("mcp-protocol-version","2025-11-25").header("accept","application/json, text/event-stream").json(&json!({"jsonrpc":"2.0","id":"still-works-after-rejected-delete","method":"tools/list"})).send().await?;
+    assert_eq!(valid.status(), 200);
+    let body = valid.text().await?;
+    assert!(body.contains("still-works-after-rejected-delete"));
+    assert!(!body.contains("\"error\""));
+    let saturated=http.post(&url).header("accept","application/json, text/event-stream").json(&json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"capacity-test","version":"1"}}})).send().await?;
+    assert_eq!(saturated.status(), 503);
+    assert_eq!(probe.sdk_sessions().await, 128);
+    let closed = http
+        .delete(&url)
+        .header("mcp-session-id", &first)
+        .header("mcp-protocol-version", "2025-11-25")
+        .send()
+        .await?;
+    assert_eq!(closed.status(), 202);
+    let _ = closed.bytes().await?;
+    tokio::time::timeout(Duration::from_secs(2), async {
+        while probe.sdk_sessions().await != 127
+            || probe.aliases() != 127
+            || probe.available_permits() != 1
+        {
+            tokio::time::sleep(Duration::from_millis(5)).await;
+        }
+    })
+    .await?;
+    initialize_http_session(&http, &url).await?;
+    assert_eq!(probe.sdk_sessions().await, 128);
+    assert_eq!(probe.aliases(), 128);
+    assert_eq!(probe.available_permits(), 0);
+    host.shutdown().await?;
+    assert_eq!(probe.sdk_sessions().await, 0);
+    assert_eq!(probe.aliases(), 0);
+    assert_eq!(probe.available_permits(), 128);
     Ok(())
 }

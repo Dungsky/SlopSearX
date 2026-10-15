@@ -19,6 +19,7 @@ pub struct Registry {
     pub in_flight: Arc<AtomicUsize>,
     pub discovery: Discovery,
     pub initialize_delay: std::time::Duration,
+    pub response_delay: std::time::Duration,
     pub opaque: Arc<opaque::Catalogs>,
 }
 #[derive(Clone, Copy, Default)]
@@ -49,6 +50,7 @@ impl Registry {
             in_flight: Default::default(),
             discovery: Discovery::Normal,
             initialize_delay: std::time::Duration::ZERO,
+            response_delay: std::time::Duration::ZERO,
             opaque: Default::default(),
         }
     }
@@ -73,6 +75,17 @@ impl Registry {
             .collect(),
         );
         registry
+    }
+    async fn wait_response(
+        &self,
+        context: &RequestContext<RoleServer>,
+    ) -> std::result::Result<(), ErrorData> {
+        if !self.response_delay.is_zero() {
+            self.in_flight.fetch_add(1, Ordering::SeqCst);
+            let _flight = InFlight(self.in_flight.clone());
+            tokio::select! { _=tokio::time::sleep(self.response_delay)=>{}, _=context.ct.cancelled()=>return Err(ErrorData::internal_error("cancelled",None)) }
+        }
+        Ok(())
     }
     fn parse<T: serde::de::DeserializeOwned>(v: Value) -> std::result::Result<T, ErrorData> {
         serde_json::from_value(v).map_err(|e| ErrorData::internal_error(e.to_string(), None))
@@ -147,8 +160,9 @@ impl ServerHandler for Registry {
     async fn read_resource(
         &self,
         r: ReadResourceRequestParams,
-        _: RequestContext<RoleServer>,
+        context: RequestContext<RoleServer>,
     ) -> std::result::Result<ReadResourceResponse, ErrorData> {
+        self.wait_response(&context).await?;
         if r.uri != "t01://text" {
             return Err(ErrorData::invalid_params("unknown resource", None));
         }
@@ -160,8 +174,9 @@ impl ServerHandler for Registry {
     async fn get_prompt(
         &self,
         r: GetPromptRequestParams,
-        _: RequestContext<RoleServer>,
+        context: RequestContext<RoleServer>,
     ) -> std::result::Result<GetPromptResponse, ErrorData> {
+        self.wait_response(&context).await?;
         if r.name != "t01_prompt" {
             return Err(ErrorData::invalid_params("unknown prompt", None));
         }
@@ -182,7 +197,7 @@ impl ServerHandler for Registry {
         if payload
             .get("items")
             .and_then(Value::as_array)
-            .is_none_or(|a| a.iter().any(|v| !v.is_i64()))
+            .is_none_or(|a| a.iter().any(|v| !(v.is_i64() || v.is_u64())))
         {
             return Err(ErrorData::invalid_params(
                 "payload.items must be integers",

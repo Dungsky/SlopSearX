@@ -51,16 +51,7 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
     let listed = command(
         root,
         "cargo",
-        &[
-            "test",
-            "--locked",
-            "-p",
-            "ssx-mcp",
-            "--test",
-            "qualification",
-            "--",
-            "--list",
-        ],
+        &["test", "--locked", "-p", "ssx-mcp", "--", "--list"],
         records,
     )?;
     let ignored = command(
@@ -71,8 +62,6 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
             "--locked",
             "-p",
             "ssx-mcp",
-            "--test",
-            "qualification",
             "--",
             "--ignored",
             "--list",
@@ -80,6 +69,11 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
         records,
     )?;
     for name in [
+        "harness::lifecycle_tests::sdk_close_lock_timeout_retains_alias_admission_until_actual_removal",
+        "opaque::tests::rejected_requests_do_not_leak_admission_capacity",
+        "opaque::tests::adjacent_large_request_ids_do_not_alias_and_sdk_ids_restore_exactly",
+        "opaque::tests::newline_free_frame_is_rejected_before_eof_or_unbounded_allocation",
+        "opaque::tests::compaction_preserves_strings_numbers_and_reserved_objects",
         "descriptor_comparison_rejects_nested_schema_defaults_nullable_and_metadata_mutation",
         "complete_captured_public_catalog_roundtrips_through_pinned_sdk_and_http",
         "typed_sdk_large_number_limitation_is_characterized_and_not_mistaken_for_parity",
@@ -102,6 +96,14 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
         "legacy_source_lifecycle_matches_captured_phase_errors",
         "real_http_and_legacy_preserve_adjacent_large_request_ids",
         "invalid_http_session_flood_does_not_consume_accepted_session_capacity",
+        "rejected_delete_retains_actual_sdk_session_aliases_and_capacity",
+        "typed_gateway_cancels_tools_resources_and_prompts_upstream",
+        "stateful_idle_expiry_reclaims_sdk_aliases_and_permits_but_keeps_active_work",
+        "sdk_termination_and_abrupt_host_or_router_drop_drain_actual_session_state",
+        "malformed_call_shapes_do_not_poison_stateful_request_admission",
+        "unbounded_integer_echo_retains_source_tokens_and_rejects_bool_fractional_and_failure",
+        "typed_and_raw_catalogs_use_resource_uri_identity",
+        "raw_gateway_uses_negotiated_older_protocol_on_every_http_operation",
     ] {
         if !listed.lines().any(|line| line == format!("{name}: test")) {
             return Err(format!("missing T01 acceptance case: {name}"));

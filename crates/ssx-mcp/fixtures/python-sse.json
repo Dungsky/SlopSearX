@@ -55,6 +55,25 @@
         }
       }
     },
+    "integer_echo_result": {
+      "content": [
+        {
+          "text": "{\"payload\":{\"items\":[9223372036854775808,18446744073709551617,-18446744073709551617]},\"note\":null}",
+          "type": "text"
+        }
+      ],
+      "isError": false,
+      "structuredContent": {
+        "note": null,
+        "payload": {
+          "items": [
+            9223372036854775808,
+            18446744073709551617,
+            -18446744073709551617
+          ]
+        }
+      }
+    },
     "invalid_json": {
       "body": "Could not parse message",
       "status": 400
@@ -2854,9 +2873,9 @@
   },
   "oracle": {
     "f04_helper_git_blob": "0efc1b2917d7be5c66bb7fe08697273807728598",
-    "git_blob": "92c2e1bb4e364a653491329b67913da0947d7f72",
+    "git_blob": "3c3104a3bc8a275454c4a8eca48e4b427c2a45ca",
     "path": "docs/rust-rewrite/replay/oracle/export_mcp.py",
-    "sha256": "e4fed793227eb14193b3fcfa353dc8c9d4c3120e2d7e9367760b16cac3d83805"
+    "sha256": "086de9e2991dbe62aa643eef5d654da07d339a593624e489e4e38b2bb92c400d"
   },
   "python": "3.14.7 (main, Aug  5 2026, 10:29:49) [Clang 21.0.0 (clang-2100.1.1.101)]",
   "schema_version": 1,

@@ -214,6 +214,20 @@ async def main():
                         {"name": "t01_echo", "arguments": {"payload": {"items": [1, 2]}, "note": None}},
                         "echo_result",
                     ),
+                    (
+                        8,
+                        "tools/call",
+                        {
+                            "name": "t01_echo",
+                            "arguments": {
+                                "payload": {
+                                    "items": [9223372036854775808, 18446744073709551617, -18446744073709551617]
+                                },
+                                "note": None,
+                            },
+                        },
+                        "integer_echo_result",
+                    ),
                     (6, "resources/read", {"uri": "t01://text"}, "resource_result"),
                     (7, "prompts/get", {"name": "t01_prompt", "arguments": {"topic": "test"}}, "prompt_result"),
                 ]:

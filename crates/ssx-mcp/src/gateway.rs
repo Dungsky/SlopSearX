@@ -44,7 +44,7 @@ impl Gateway {
                 }
             })
             .await?;
-            let resources = collect_pages(|cursor| {
+            let resources = collect_pages_by(catalog_identity("resources/list")?, |cursor| {
                 let s = &service;
                 async move {
                     let page = s
@@ -88,7 +88,22 @@ impl Gateway {
         Ok(())
     }
 }
-pub async fn collect_pages<F, Fut>(mut fetch: F) -> Result<Vec<Value>>
+pub fn catalog_identity(method: &str) -> Result<&'static str> {
+    match method {
+        "tools/list" | "prompts/list" => Ok("name"),
+        "resources/list" => Ok("uri"),
+        "resources/templates/list" => Ok("uriTemplate"),
+        _ => Err("unknown MCP catalog identity".into()),
+    }
+}
+pub async fn collect_pages<F, Fut>(fetch: F) -> Result<Vec<Value>>
+where
+    F: FnMut(Option<String>) -> Fut,
+    Fut: std::future::Future<Output = Result<(Value, Option<String>)>>,
+{
+    collect_pages_by("name", fetch).await
+}
+pub async fn collect_pages_by<F, Fut>(identity: &str, mut fetch: F) -> Result<Vec<Value>>
 where
     F: FnMut(Option<String>) -> Fut,
     Fut: std::future::Future<Output = Result<(Value, Option<String>)>>,
@@ -101,9 +116,9 @@ where
         let (items, next) = fetch(cursor).await?;
         for item in items.as_array().ok_or("catalog page must be an array")? {
             let name = item
-                .get("name")
+                .get(identity)
                 .and_then(Value::as_str)
-                .ok_or("catalog item lacks name")?;
+                .ok_or("catalog item lacks identity")?;
             if !names.insert(name.to_string()) {
                 return Err("duplicate catalog name".into());
             }
@@ -141,6 +156,26 @@ fn remote_error(e: rmcp::service::ServiceError) -> rmcp::ErrorData {
         _ => rmcp::ErrorData::internal_error("remote transport unavailable", None),
     }
 }
+impl Forwarder {
+    async fn forward(
+        &self,
+        request: ClientRequest,
+        context: rmcp::service::RequestContext<rmcp::RoleServer>,
+    ) -> std::result::Result<ServerResult, rmcp::ErrorData> {
+        let mut handle = self
+            .peer
+            .send_cancellable_request(request, rmcp::service::PeerRequestOptions::no_options())
+            .await
+            .map_err(remote_error)?;
+        tokio::select! {
+            response=&mut handle.rx=>response.map_err(|_|rmcp::ErrorData::internal_error("remote transport closed",None))?.map_err(remote_error),
+            _=context.ct.cancelled()=>{
+                let _=tokio::time::timeout(Duration::from_secs(1),handle.cancel(Some("downstream cancelled".into()))).await;
+                Err(rmcp::ErrorData::internal_error("cancelled",None))
+            }
+        }
+    }
+}
 impl rmcp::ServerHandler for Forwarder {
     fn get_info(&self) -> ServerConfig {
         self.registry.get_info()
@@ -171,20 +206,59 @@ impl rmcp::ServerHandler for Forwarder {
         r: CallToolRequestParams,
         c: rmcp::service::RequestContext<rmcp::RoleServer>,
     ) -> std::result::Result<CallToolResponse, rmcp::ErrorData> {
-        tokio::select! {r=self.peer.call_tool_once(r)=>r.map_err(remote_error),_=c.ct.cancelled()=>Err(rmcp::ErrorData::internal_error("cancelled",None))}
+        match self
+            .forward(ClientRequest::CallToolRequest(CallToolRequest::new(r)), c)
+            .await?
+        {
+            ServerResult::CallToolResult(result) => Ok(result.into()),
+            ServerResult::InputRequiredResult(result) => {
+                Ok(CallToolResponse::InputRequired(result))
+            }
+            _ => Err(rmcp::ErrorData::internal_error(
+                "unexpected upstream tool response",
+                None,
+            )),
+        }
     }
     async fn read_resource(
         &self,
         r: ReadResourceRequestParams,
-        _: rmcp::service::RequestContext<rmcp::RoleServer>,
+        c: rmcp::service::RequestContext<rmcp::RoleServer>,
     ) -> std::result::Result<ReadResourceResponse, rmcp::ErrorData> {
-        self.peer.read_resource_once(r).await.map_err(remote_error)
+        match self
+            .forward(
+                ClientRequest::ReadResourceRequest(ReadResourceRequest::new(r)),
+                c,
+            )
+            .await?
+        {
+            ServerResult::ReadResourceResult(result) => Ok(result.into()),
+            ServerResult::InputRequiredResult(result) => {
+                Ok(ReadResourceResponse::InputRequired(result))
+            }
+            _ => Err(rmcp::ErrorData::internal_error(
+                "unexpected upstream resource response",
+                None,
+            )),
+        }
     }
     async fn get_prompt(
         &self,
         r: GetPromptRequestParams,
-        _: rmcp::service::RequestContext<rmcp::RoleServer>,
+        c: rmcp::service::RequestContext<rmcp::RoleServer>,
     ) -> std::result::Result<GetPromptResponse, rmcp::ErrorData> {
-        self.peer.get_prompt_once(r).await.map_err(remote_error)
+        match self
+            .forward(ClientRequest::GetPromptRequest(GetPromptRequest::new(r)), c)
+            .await?
+        {
+            ServerResult::GetPromptResult(result) => Ok(result.into()),
+            ServerResult::InputRequiredResult(result) => {
+                Ok(GetPromptResponse::InputRequired(result))
+            }
+            _ => Err(rmcp::ErrorData::internal_error(
+                "unexpected upstream prompt response",
+                None,
+            )),
+        }
     }
 }

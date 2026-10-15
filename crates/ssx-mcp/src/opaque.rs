@@ -207,9 +207,103 @@ impl<R: tokio::io::AsyncRead + Unpin> Frames<R> {
 pub struct WireState {
     requests: HashMap<String, String>,
     replies: HashMap<String, String>,
+    synthetic: HashMap<String, String>,
     aliases: HashMap<String, Box<RawValue>>,
     reverse: HashMap<String, Box<RawValue>>,
     active: HashSet<String>,
+}
+/// The synthetic echo has an unbounded integer schema. Validate raw integer
+/// tokens before Value decoding, give the SDK exact safe placeholders, and keep
+/// the real echo payload for replacement only after handler success. This is a
+/// qualification fixture boundary, not a generic domain JSON interpreter.
+fn synthetic_integer_call(line: &str) -> Result<Option<(String, String)>> {
+    let mut fields: BTreeMap<String, Box<RawValue>> = serde_json::from_str(line)?;
+    if fields
+        .get("method")
+        .is_none_or(|v| v.get() != "\"tools/call\"")
+    {
+        return Ok(None);
+    }
+    let Some(id) = fields.get("id").cloned() else {
+        return Ok(None);
+    };
+    let Some(params) = fields.get("params") else {
+        return Ok(None);
+    };
+    let mut params: BTreeMap<String, Box<RawValue>> = match serde_json::from_str(params.get()) {
+        Ok(value) => value,
+        Err(_) => return Ok(None),
+    };
+    if !params
+        .get("name")
+        .is_some_and(|v| ["\"t01_echo\"", "\"t01_large\""].contains(&v.get()))
+    {
+        return Ok(None);
+    }
+    let Some(args) = params.get("arguments") else {
+        return Ok(None);
+    };
+    let mut args: BTreeMap<String, Box<RawValue>> = match serde_json::from_str(args.get()) {
+        Ok(value) => value,
+        Err(_) => return Ok(None),
+    };
+    let Some(payload) = args.get("payload").cloned() else {
+        return Ok(None);
+    };
+    let mut safe_payload: BTreeMap<String, Box<RawValue>> =
+        match serde_json::from_str(payload.get()) {
+            Ok(v) => v,
+            Err(_) => return Ok(None),
+        };
+    let Some(items) = safe_payload.get("items") else {
+        return Ok(None);
+    };
+    let mut items: Vec<Box<RawValue>> = match serde_json::from_str(items.get()) {
+        Ok(v) => v,
+        Err(_) => return Ok(None),
+    };
+    let mut changed = false;
+    for item in &mut items {
+        let raw = item.get();
+        let digits = raw.strip_prefix('-').unwrap_or(raw);
+        if digits.is_empty() || !digits.bytes().all(|b| b.is_ascii_digit()) {
+            return Ok(None);
+        }
+        if raw.parse::<i64>().is_err() && raw.parse::<u64>().is_err() {
+            *item = RawValue::from_string("0".into())?;
+            changed = true;
+        }
+    }
+    if !changed {
+        return Ok(None);
+    }
+    let note = args.get("note").map(|v| v.get()).unwrap_or("null");
+    let echoed = compact(&format!(
+        "{{\"payload\":{},\"note\":{note}}}",
+        payload.get()
+    ))?;
+    let reply = compact(&format!(
+        "{{\"jsonrpc\":\"2.0\",\"id\":{},\"result\":{{\"content\":[{{\"type\":\"text\",\"text\":{}}}],\"structuredContent\":{echoed},\"isError\":false}}}}",
+        id.get(),
+        serde_json::to_string(&echoed)?
+    ))?;
+    safe_payload.insert(
+        "items".into(),
+        RawValue::from_string(serde_json::to_string(&items)?)?,
+    );
+    args.insert(
+        "payload".into(),
+        RawValue::from_string(serde_json::to_string(&safe_payload)?)?,
+    );
+    params.insert(
+        "arguments".into(),
+        RawValue::from_string(serde_json::to_string(&args)?)?,
+    );
+    fields.insert(
+        "params".into(),
+        RawValue::from_string(serde_json::to_string(&params)?)?,
+    );
+    Ok(Some((compact(&serde_json::to_string(&fields)?)?, reply)))
 }
 impl WireState {
     pub fn request(&mut self, line: &str) -> Result<String> {
@@ -236,7 +330,7 @@ impl WireState {
             if self.active.len() >= 32 {
                 return Err("MCP peer exceeds 32 concurrent requests".into());
             }
-            self.active.insert(original.clone());
+            let mut alias_binding = None;
             let mut rewritten = line.to_owned();
             let mut internal = original.clone();
             if !id.get().starts_with('"') && id.get().parse::<i64>().is_err() {
@@ -245,11 +339,21 @@ impl WireState {
                     uuid::Uuid::new_v4()
                 ))?)?;
                 internal = key(&alias)?;
-                self.aliases.insert(internal.clone(), id);
-                self.reverse.insert(original, alias.clone());
+                alias_binding = Some((id, alias.clone()));
                 let mut fields: BTreeMap<String, Box<RawValue>> = serde_json::from_str(line)?;
                 fields.insert("id".into(), alias);
                 rewritten = compact(&serde_json::to_string(&fields)?)?;
+            }
+            let synthetic = synthetic_integer_call(&rewritten)?;
+            // Admission is transactional: nothing above mutates session bookkeeping.
+            self.active.insert(original.clone());
+            if let Some((id, alias)) = alias_binding {
+                self.aliases.insert(internal.clone(), id);
+                self.reverse.insert(original, alias);
+            }
+            if let Some((safe, reply)) = synthetic {
+                self.synthetic.insert(internal.clone(), reply);
+                rewritten = safe;
             }
             self.requests.insert(internal, line.into());
             return Ok(rewritten);
@@ -273,9 +377,20 @@ impl WireState {
             return Ok(line.into());
         }
         self.requests.remove(&internal);
+        let synthetic = self.synthetic.remove(&internal);
+        let success = fields.get("result").is_some_and(|result| {
+            serde_json::from_str::<BTreeMap<String, Box<RawValue>>>(result.get())
+                .ok()
+                .is_some_and(|fields| {
+                    fields
+                        .get("isError")
+                        .is_none_or(|value| value.get() != "true")
+                })
+        }) && !fields.contains_key("error");
         let mut result = self
             .replies
             .remove(&internal)
+            .or(if success { synthetic } else { None })
             .unwrap_or_else(|| line.into());
         if let Some(original) = self.aliases.remove(&internal) {
             self.reverse.remove(&key(&original)?);
@@ -405,6 +520,7 @@ pub struct RawGateway {
     deadline: Duration,
     session: std::sync::Arc<std::sync::Mutex<Option<String>>>,
     initialize_result: Option<Box<RawValue>>,
+    protocol: String,
 }
 impl RawGateway {
     async fn exchange(&self, body: &str) -> Result<Option<String>> {
@@ -413,7 +529,7 @@ impl RawGateway {
             .post(&self.url)
             .header("accept", "application/json, text/event-stream")
             .header("content-type", "application/json")
-            .header("mcp-protocol-version", "2025-11-25")
+            .header("mcp-protocol-version", self.protocol.as_str())
             .body(body.to_owned());
         if let Some(token) = &self.token {
             request = request.bearer_auth(token);
@@ -514,6 +630,7 @@ impl RawGateway {
             deadline,
             session: Default::default(),
             initialize_result: None,
+            protocol: "2025-11-25".into(),
         };
         let startup=tokio::time::timeout(deadline,async {
             let initialize=gateway.exchange(&json!({"jsonrpc":"2.0","id":0,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"ssx-native-proxy","version":"0.1.0"}}}).to_string()).await?.ok_or("remote initialize had no result")?;
@@ -522,6 +639,7 @@ impl RawGateway {
             let initialize_fields:BTreeMap<String,Box<RawValue>>=serde_json::from_str(gateway.initialize_result.as_ref().ok_or("initialize result")?.get())?;
             let version:String=serde_json::from_str(initialize_fields.get("protocolVersion").ok_or("remote protocol version missing")?.get())?;
             if !["2024-11-05","2025-03-26","2025-06-18","2025-11-25"].contains(&version.as_str()){return Err("unsupported remote initialize protocol version".into());}
+            gateway.protocol=version;
             gateway.exchange(r#"{"jsonrpc":"2.0","method":"notifications/initialized"}"#).await?;
             for (method,field) in [("tools/list","tools"),("resources/list","resources"),("prompts/list","prompts"),("resources/templates/list","resourceTemplates")] {
                 let mut items:Vec<Box<RawValue>>=Vec::new();let mut names=HashSet::new();let mut cursors=HashSet::new();let mut cursor=None;let mut complete=false;
@@ -532,7 +650,7 @@ impl RawGateway {
                     if envelope.contains_key("error"){return Err("remote catalog error".into());}
                     let result:BTreeMap<String,Box<RawValue>>=serde_json::from_str(envelope.get("result").ok_or("catalog result missing")?.get())?;
                     let rows:Vec<Box<RawValue>>=serde_json::from_str(result.get(field).ok_or("catalog entries missing")?.get())?;
-                    for row in rows {let data:BTreeMap<String,Box<RawValue>>=serde_json::from_str(row.get())?;let name:String=serde_json::from_str(data.get("name").ok_or("catalog name missing")?.get())?;if !names.insert(name){return Err("duplicate catalog name".into());}items.push(row);if items.len()>4096{return Err("catalog exceeds 4096 items".into());}}
+                    for row in rows {let data:BTreeMap<String,Box<RawValue>>=serde_json::from_str(row.get())?;let identity=crate::gateway::catalog_identity(method)?;let name:String=serde_json::from_str(data.get(identity).ok_or("catalog identity missing")?.get())?;if !names.insert(name){return Err("duplicate catalog name".into());}items.push(row);if items.len()>4096{return Err("catalog exceeds 4096 items".into());}}
                     let next:Option<String>=result.get("nextCursor").map(|c|serde_json::from_str(c.get())).transpose()?.flatten();
                     let Some(next)=next else{complete=true;break;};if !cursors.insert(next.clone()){return Err("repeated catalog cursor".into());}cursor=Some(next);
                 }
@@ -564,7 +682,7 @@ impl RawGateway {
                 .http
                 .delete(&self.url)
                 .header("mcp-session-id", session)
-                .header("mcp-protocol-version", "2025-11-25");
+                .header("mcp-protocol-version", self.protocol.as_str());
             if let Some(token) = &self.token {
                 request = request.bearer_auth(token);
             }

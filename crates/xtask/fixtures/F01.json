@@ -52,7 +52,7 @@
     },
     {
       "path": "docs/rust-rewrite/replay/oracle/export_mcp.py",
-      "git_blob": "92c2e1bb4e364a653491329b67913da0947d7f72"
+      "git_blob": "3c3104a3bc8a275454c4a8eca48e4b427c2a45ca"
     },
     {
       "path": "engines/__init__.py",

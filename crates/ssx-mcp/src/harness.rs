@@ -38,7 +38,11 @@ async fn bearer(
             .into_response()
     }
 }
-pub fn http_router(registry: Registry, token: Option<String>, cancel: CancellationToken) -> Router {
+pub fn http_router(
+    registry: Registry,
+    token: Option<String>,
+    cancel: CancellationToken,
+) -> ManagedRouter {
     http_router_mode(registry, token, cancel, false)
 }
 /// Additional SDK session qualification seam; production baseline remains stateless.
@@ -47,11 +51,134 @@ pub fn http_router_mode(
     token: Option<String>,
     cancel: CancellationToken,
     stateful: bool,
-) -> Router {
-    let opaque = registry.opaque.clone();
+) -> ManagedRouter {
+    configured_router(registry, token, cancel, stateful, Duration::from_secs(300)).0
+}
+/// Injectable idle expiry exercises the actual SDK manager, without a second worker timer.
+pub fn http_router_with_session_expiry(
+    registry: Registry,
+    token: Option<String>,
+    cancel: CancellationToken,
+    expiry: Duration,
+) -> (ManagedRouter, SessionProbe) {
+    configured_router(registry, token, cancel, true, expiry)
+}
+fn configured_router(
+    registry: Registry,
+    token: Option<String>,
+    cancel: CancellationToken,
+    stateful: bool,
+    expiry: Duration,
+) -> (ManagedRouter, SessionProbe) {
+    let mut manager = LocalSessionManager::default();
+    // One owner governs idle expiry. The SDK timer counts time inside active
+    // operations; stream/request leases below suspend idle expiry correctly.
+    manager.session_config.keep_alive = None;
+    let manager = std::sync::Arc::new(manager);
+    let state = OpaqueState {
+        catalogs: registry.opaque.clone(),
+        sessions: Default::default(),
+        admission: stateful.then(|| std::sync::Arc::new(tokio::sync::Semaphore::new(128))),
+    };
+    let control = std::sync::Arc::new(CleanupControl {
+        stop: CancellationToken::new(),
+        done: CancellationToken::new(),
+        task: std::sync::Mutex::new(None),
+        result: Default::default(),
+    });
+    let probe = SessionProbe {
+        state: state.clone(),
+        manager: manager.clone(),
+        control: control.clone(),
+    };
+    let worker_state = state.clone();
+    let worker_manager = manager.clone();
+    let worker_cancel = cancel.clone();
+    let worker_stopped = control.done.clone();
+    let worker_stop = control.stop.clone();
+    let worker_result = control.result.clone();
+    let task = tokio::spawn(async move {
+        let _stopped = worker_stopped.drop_guard();
+        let mut interval = tokio::time::interval(
+            (expiry / 4).clamp(Duration::from_millis(5), Duration::from_secs(1)),
+        );
+        loop {
+            tokio::select! { _=worker_cancel.cancelled()=>break, _=worker_stop.cancelled()=>break, _=interval.tick()=>{} }
+            let entries: Vec<_> = worker_state
+                .sessions
+                .lock()
+                .unwrap()
+                .iter()
+                .map(|(id, entry)| (id.clone(), entry.clone()))
+                .collect();
+            // SDK worker failure removes its manager entry in spawn_session_worker.
+            let live: std::collections::HashSet<String> = match tokio::time::timeout(
+                Duration::from_millis(100),
+                worker_manager.sessions.read(),
+            )
+            .await
+            {
+                Ok(sessions) => sessions.keys().map(ToString::to_string).collect(),
+                Err(_) => continue,
+            };
+            for (id, entry) in entries {
+                if worker_stop.is_cancelled() || worker_cancel.is_cancelled() {
+                    break;
+                }
+                let close = {
+                    let mut activity = entry.activity.lock().unwrap();
+                    if !live.contains(&id)
+                        || (activity.active == 0 && activity.last.elapsed() >= expiry)
+                    {
+                        activity.closing = true;
+                        true
+                    } else {
+                        false
+                    }
+                };
+                if close {
+                    // Never hold alias/activity locks while waiting for SDK manager locks.
+                    if close_and_confirm(&worker_manager, &id).await {
+                        worker_state.sessions.lock().unwrap().remove(&id);
+                    }
+                }
+            }
+        }
+        let drain = tokio::time::timeout(Duration::from_secs(4), async {
+            loop {
+                let ids: Vec<_> = worker_manager
+                    .sessions
+                    .read()
+                    .await
+                    .keys()
+                    .map(ToString::to_string)
+                    .collect();
+                if ids.is_empty() {
+                    break;
+                }
+                futures_util::future::join_all(
+                    ids.iter().map(|id| close_and_confirm(&worker_manager, id)),
+                )
+                .await;
+                tokio::task::yield_now().await;
+            }
+        })
+        .await;
+        let result = if drain.is_ok() {
+            worker_state.sessions.lock().unwrap().clear();
+            Ok(())
+        } else {
+            Err("SDK session cleanup deadline; aliases and permits retained".to_owned())
+        };
+        *worker_result.lock().unwrap() = Some(result);
+    });
+    *control.task.lock().unwrap() = Some(task);
+    let owner = std::sync::Arc::new(ExpiryOwner {
+        control: control.clone(),
+    });
     let service: StreamableHttpService<Registry, LocalSessionManager> = StreamableHttpService::new(
         move || Ok(registry.clone()),
-        Default::default(),
+        manager,
         StreamableHttpServerConfig::default()
             .with_legacy_session_mode(stateful)
             .with_json_response(true)
@@ -59,28 +186,165 @@ pub fn http_router_mode(
     );
     let router = Router::new()
         .nest_service("/mcp", service)
-        .layer(middleware::from_fn_with_state(
-            OpaqueState {
-                catalogs: opaque,
-                sessions: Default::default(),
-                admission: stateful.then(|| std::sync::Arc::new(tokio::sync::Semaphore::new(128))),
-            },
-            opaque_catalog,
-        ));
-    if let Some(token) = token.filter(|s| !s.is_empty()) {
+        .layer(middleware::from_fn_with_state(state, opaque_catalog))
+        .layer(axum::Extension(owner));
+    let router = if let Some(token) = token.filter(|s| !s.is_empty()) {
         router.layer(middleware::from_fn_with_state(token, bearer))
     } else {
         router
+    };
+    (
+        ManagedRouter {
+            router,
+            cleanup: Some(control),
+        },
+        probe,
+    )
+}
+async fn close_and_confirm(manager: &LocalSessionManager, id: &str) -> bool {
+    use rmcp::transport::streamable_http_server::session::SessionManager;
+    if matches!(
+        tokio::time::timeout(
+            Duration::from_secs(1),
+            manager.close_session(&id.to_owned().into())
+        )
+        .await,
+        Ok(Ok(()))
+    ) {
+        return true;
+    }
+    // A timeout can occur before the SDK write lock is acquired. Retain the
+    // alias admission unless actual manager removal is confirmed; retry later.
+    tokio::time::timeout(Duration::from_millis(100), manager.sessions.read())
+        .await
+        .is_ok_and(|sessions| !sessions.contains_key(id))
+}
+struct CleanupControl {
+    stop: CancellationToken,
+    done: CancellationToken,
+    task: std::sync::Mutex<Option<tokio::task::JoinHandle<()>>>,
+    result: std::sync::Arc<std::sync::Mutex<Option<std::result::Result<(), String>>>>,
+}
+impl CleanupControl {
+    async fn finish(&self) -> Result<()> {
+        self.stop.cancel();
+        self.join().await
+    }
+    async fn join(&self) -> Result<()> {
+        tokio::time::timeout(Duration::from_secs(7), self.done.cancelled()).await?;
+        let task = self.task.lock().unwrap().take();
+        if let Some(task) = task {
+            task.await?;
+        }
+        self.result
+            .lock()
+            .unwrap()
+            .clone()
+            .ok_or("cleanup task did not report completion")?
+            .map_err(Into::into)
+    }
+}
+struct ExpiryOwner {
+    control: std::sync::Arc<CleanupControl>,
+}
+impl Drop for ExpiryOwner {
+    fn drop(&mut self) {
+        self.control.stop.cancel();
+    }
+}
+/// Owns cleanup through explicit Host shutdown; dropping an unhosted router or
+/// abrupt Host triggers the same bounded drain. Probe can join and verify it.
+pub struct ManagedRouter {
+    router: Router,
+    cleanup: Option<std::sync::Arc<CleanupControl>>,
+}
+impl ManagedRouter {
+    pub fn map(self, map: impl FnOnce(Router) -> Router) -> Self {
+        Self {
+            router: map(self.router),
+            cleanup: self.cleanup,
+        }
+    }
+}
+impl From<Router> for ManagedRouter {
+    fn from(router: Router) -> Self {
+        Self {
+            router,
+            cleanup: None,
+        }
+    }
+}
+#[derive(Clone)]
+pub struct SessionProbe {
+    state: OpaqueState,
+    manager: std::sync::Arc<LocalSessionManager>,
+    control: std::sync::Arc<CleanupControl>,
+}
+impl SessionProbe {
+    pub fn available_permits(&self) -> usize {
+        self.state
+            .admission
+            .as_ref()
+            .map_or(128, |s| s.available_permits())
+    }
+    pub fn aliases(&self) -> usize {
+        self.state.sessions.lock().unwrap().len()
+    }
+    pub async fn sdk_sessions(&self) -> usize {
+        self.manager.sessions.read().await.len()
+    }
+    pub async fn stopped(&self) -> Result<()> {
+        self.control.join().await
+    }
+    pub async fn terminate_sdk_session(&self, id: &str) -> Result<()> {
+        use rmcp::transport::streamable_http_server::session::SessionManager;
+        tokio::time::timeout(
+            Duration::from_secs(1),
+            self.manager.close_session(&id.to_owned().into()),
+        )
+        .await??;
+        Ok(())
     }
 }
 type SharedWire = std::sync::Arc<std::sync::Mutex<crate::opaque::WireState>>;
 struct WireLease {
     wire: SharedWire,
     request: String,
+    activity: Option<SessionActivity>,
 }
 impl Drop for WireLease {
     fn drop(&mut self) {
         self.wire.lock().unwrap().abandon(&self.request);
+    }
+}
+struct Activity {
+    active: usize,
+    last: std::time::Instant,
+    closing: bool,
+}
+struct SessionEntry {
+    wire: SharedWire,
+    _permit: tokio::sync::OwnedSemaphorePermit,
+    activity: std::sync::Mutex<Activity>,
+}
+struct SessionActivity(std::sync::Arc<SessionEntry>);
+impl SessionActivity {
+    fn acquire(entry: std::sync::Arc<SessionEntry>) -> Option<Self> {
+        {
+            let mut state = entry.activity.lock().unwrap();
+            if state.closing {
+                return None;
+            }
+            state.active += 1;
+        }
+        Some(Self(entry))
+    }
+}
+impl Drop for SessionActivity {
+    fn drop(&mut self) {
+        let mut state = self.0.activity.lock().unwrap();
+        state.active -= 1;
+        state.last = std::time::Instant::now();
     }
 }
 #[derive(Clone)]
@@ -88,10 +352,17 @@ struct OpaqueState {
     admission: Option<std::sync::Arc<tokio::sync::Semaphore>>,
     catalogs: std::sync::Arc<crate::opaque::Catalogs>,
     sessions: std::sync::Arc<
-        std::sync::Mutex<
-            std::collections::HashMap<String, (SharedWire, tokio::sync::OwnedSemaphorePermit)>,
-        >,
+        std::sync::Mutex<std::collections::HashMap<String, std::sync::Arc<SessionEntry>>>,
     >,
+}
+fn hold_activity(response: Response, activity: Option<SessionActivity>) -> Response {
+    use futures_util::StreamExt;
+    let (parts, body) = response.into_parts();
+    let stream = futures_util::stream::unfold(
+        (body.into_data_stream(), activity),
+        |(mut body, activity)| async move { body.next().await.map(|chunk| (chunk, (body, activity))) },
+    );
+    Response::from_parts(parts, Body::from_stream(stream))
 }
 async fn opaque_catalog(
     axum::extract::State(state): axum::extract::State<OpaqueState>,
@@ -105,26 +376,35 @@ async fn opaque_catalog(
         .map(str::to_owned);
     // Only server-issued sessions are retained; arbitrary client headers never
     // allocate persistent alias state or consume session admission capacity.
-    let wire = session
+    let entry = session
         .as_ref()
-        .and_then(|id| {
-            state
-                .sessions
-                .lock()
-                .unwrap()
-                .get(id)
-                .map(|entry| entry.0.clone())
-        })
+        .and_then(|id| state.sessions.lock().unwrap().get(id).cloned());
+    let wire = entry
+        .as_ref()
+        .map(|entry| entry.wire.clone())
         .unwrap_or_default();
+    let activity = if let Some(entry) = entry {
+        match SessionActivity::acquire(entry) {
+            Some(activity) => Some(activity),
+            None => return StatusCode::NOT_FOUND.into_response(),
+        }
+    } else {
+        None
+    };
     if request.method() == axum::http::Method::DELETE {
         let response = next.run(request).await;
-        if let Some(session) = session {
+        // The pinned SDK closes the manager entry before returning a successful
+        // DELETE response. Rejections (including invalid protocol headers) do
+        // not close it, so must retain both aliases and the admission permit.
+        if response.status().is_success()
+            && let Some(session) = session
+        {
             state.sessions.lock().unwrap().remove(&session);
         }
         return response;
     }
     if request.method() != axum::http::Method::POST {
-        return next.run(request).await;
+        return hold_activity(next.run(request).await, activity);
     }
     let (parts, body) = request.into_parts();
     let bytes = match axum::body::to_bytes(body, 4 * 1024 * 1024).await {
@@ -164,9 +444,10 @@ async fn opaque_catalog(
     } else {
         None
     };
-    let lease = WireLease {
+    let mut lease = WireLease {
         wire: wire.clone(),
         request: String::from_utf8_lossy(&bytes).into_owned(),
+        activity,
     };
     let response = next
         .run(Request::from_parts(parts, Body::from(bytes)))
@@ -180,11 +461,21 @@ async fn opaque_catalog(
             .get("mcp-session-id")
             .and_then(|s| s.to_str().ok())
     {
+        let entry = std::sync::Arc::new(SessionEntry {
+            wire: wire.clone(),
+            _permit: admission,
+            activity: std::sync::Mutex::new(Activity {
+                active: 0,
+                last: std::time::Instant::now(),
+                closing: false,
+            }),
+        });
+        lease.activity = SessionActivity::acquire(entry.clone());
         state
             .sessions
             .lock()
             .unwrap()
-            .insert(issued.to_owned(), (wire.clone(), admission));
+            .insert(issued.to_owned(), entry);
     }
     let (mut parts, body) = response.into_parts();
     if parts
@@ -255,9 +546,14 @@ pub struct Host {
     pub address: SocketAddr,
     pub cancel: CancellationToken,
     task: Option<tokio::task::JoinHandle<std::io::Result<()>>>,
+    cleanup: Option<std::sync::Arc<CleanupControl>>,
 }
 impl Host {
-    pub async fn start(router: Router, cancel: CancellationToken) -> Result<Self> {
+    pub async fn start(
+        router: impl Into<ManagedRouter>,
+        cancel: CancellationToken,
+    ) -> Result<Self> {
+        let ManagedRouter { router, cleanup } = router.into();
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
         let address = listener.local_addr()?;
         let ct = cancel.clone();
@@ -270,17 +566,28 @@ impl Host {
             address,
             cancel,
             task: Some(task),
+            cleanup,
         })
     }
     pub async fn shutdown(mut self) -> Result<()> {
         self.cancel.cancel();
-        if let Some(mut task) = self.task.take()
-            && tokio::time::timeout(Duration::from_secs(3), &mut task)
-                .await
-                .is_err()
-        {
-            task.abort();
-            let _ = task.await;
+        let mut server_deadline = false;
+        if let Some(mut task) = self.task.take() {
+            match tokio::time::timeout(Duration::from_secs(3), &mut task).await {
+                Ok(result) => {
+                    result??;
+                }
+                Err(_) => {
+                    task.abort();
+                    let _ = task.await;
+                    server_deadline = true;
+                }
+            }
+        }
+        if let Some(cleanup) = &self.cleanup {
+            cleanup.finish().await?;
+        }
+        if server_deadline {
             return Err("host shutdown deadline".into());
         }
         Ok(())
@@ -289,8 +596,57 @@ impl Host {
 impl Drop for Host {
     fn drop(&mut self) {
         self.cancel.cancel();
+        if let Some(cleanup) = &self.cleanup {
+            cleanup.stop.cancel();
+        }
         if let Some(task) = self.task.take() {
             task.abort();
         }
+    }
+}
+
+#[cfg(test)]
+mod lifecycle_tests {
+    use super::*;
+    #[tokio::test]
+    async fn sdk_close_lock_timeout_retains_alias_admission_until_actual_removal() -> Result<()> {
+        let cancel = CancellationToken::new();
+        let (router, probe) = http_router_with_session_expiry(
+            Registry::synthetic(),
+            None,
+            cancel.clone(),
+            Duration::from_millis(50),
+        );
+        let host = Host::start(router, cancel).await?;
+        let url = format!("http://{}/mcp", host.address);
+        let http = reqwest::Client::new();
+        let response=http.post(&url).header("accept","application/json, text/event-stream").json(&serde_json::json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"lock-test","version":"1"}}})).send().await?;
+        let session = response.headers()["mcp-session-id"].to_str()?.to_owned();
+        let _ = response.bytes().await?;
+        let response = http
+            .post(&url)
+            .header("mcp-session-id", &session)
+            .header("accept", "application/json, text/event-stream")
+            .json(&serde_json::json!({"jsonrpc":"2.0","method":"notifications/initialized"}))
+            .send()
+            .await?;
+        assert_eq!(response.status(), 202);
+        let sdk_lock = probe.manager.sessions.read().await;
+        tokio::time::sleep(Duration::from_millis(1250)).await;
+        assert_eq!(probe.aliases(), 1);
+        assert_eq!(probe.available_permits(), 127);
+        assert_eq!(sdk_lock.len(), 1);
+        drop(sdk_lock);
+        tokio::time::timeout(Duration::from_secs(3), async {
+            while probe.aliases() != 0
+                || probe.sdk_sessions().await != 0
+                || probe.available_permits() != 128
+            {
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+        })
+        .await?;
+        host.shutdown().await?;
+        Ok(())
     }
 }
