@@ -1258,6 +1258,29 @@ async def test_full_collector_binds_mock_stages_and_preserves_unknowns(tmp_path:
         prepared_selector.operation_ids
     )
 
+    with pytest.raises(
+        resource_evidence.ResourceEvidenceError, match="saved-selector-input-map-expectation-invalid"
+    ):
+        resource_evidence._selector_observations(
+            stage_uuid=stage_uuid,
+            source_revision=source_revision,
+            protocol_sha256=prepared_selector.pins["protocol"],
+            source_closure_sha256=source_closure_sha256,
+            expected_terminal_sha256=_sha(saved_terminal_bytes),
+            terminal_inventory_bytes=saved_terminal_bytes,
+            result_root=selector_roots.result,
+            archive_root=selector_roots.archive,
+            expected_operation_ids=prepared_selector.operation_ids,
+            operation_rows=selector_operation_rows,
+            expected_registration_sha256=prepared_selector.registration_sha256,
+            expected_primary_control=protocol["primary_control"],
+            expected_candidate_source_sha256=protocol["candidate_source_sha256"],
+            expected_selector_input_map_schema="coverage-selector-input-map/2-draft",
+            selector_input_map_bytes=saved_map,
+            expected_selector_input_map_sha256=saved_map_sha,
+            expected_saved_import_map_bindings=saved_origin_bindings,
+        )
+
     # Rehashing an altered saved-origin field does not pass the independent
     # expected-binding comparison, and fresh mode cannot accept saved fields.
     altered_saved_doc = json.loads(saved_map)

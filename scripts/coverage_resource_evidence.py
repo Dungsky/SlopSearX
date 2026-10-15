@@ -877,6 +877,7 @@ def _selector_observations(
             if (
                 type(expected_saved_import_map_bindings) is not dict
                 or set(expected_saved_import_map_bindings) != _SAVED_SELECTOR_MAP_FIELDS
+                or expected_selector_input_map_schema != "coverage-selector-input-map/2-registered"
                 or expected_saved_import_map_bindings.get("pool_input_mode") != "saved-corpus/1"
                 or type(expected_saved_import_map_bindings.get("origin_stage_uuid")) is not str
                 or type(expected_saved_import_map_bindings.get("origin_source_revision")) is not str
