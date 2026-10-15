@@ -20,6 +20,7 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 
 from scripts.coverage_assessment_packets import MAX_GRADER_SUBMISSIONS
+from scripts.coverage_atomic_io import write_new as _atomic_write_new
 from scripts.coverage_grade_closure import GradeSubmission
 
 SCHEMA = "coverage-native-grader-handoff/1"
@@ -89,20 +90,7 @@ def _private_root(root: str | os.PathLike[str]) -> Path:
 
 
 def _write_new(path: Path, raw: bytes) -> None:
-    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
-    descriptor = os.open(path, flags, 0o600)
-    try:
-        with os.fdopen(descriptor, "wb", closefd=False) as stream:
-            stream.write(raw)
-            stream.flush()
-            os.fsync(stream.fileno())
-    finally:
-        os.close(descriptor)
-    parent = os.open(path.parent, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0))
-    try:
-        os.fsync(parent)
-    finally:
-        os.close(parent)
+    _atomic_write_new(path, raw)
 
 
 def _read_private(path: Path, *, max_bytes: int) -> bytes:
@@ -437,7 +425,8 @@ class NativeGraderHandoff:
                 if audit_root.exists() or audit_root.is_symlink():
                     _private_directory(audit_root)
                     summary_path = audit_root / "dispatch-summary.json"
-                    if summary_path.exists():
+                    summary_claim = summary_path.with_name(f".{summary_path.name}.claim")
+                    if summary_path.exists() and not summary_claim.exists():
                         summary_bytes = _read_private(summary_path, max_bytes=1_000_000)
                         summary = _strict(summary_bytes)
                         if (

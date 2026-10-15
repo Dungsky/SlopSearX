@@ -1168,8 +1168,17 @@ class OperatorReceiptHandoffTests(unittest.TestCase):
                 except Exception as exc:
                     answer_result.append(exc)
 
+            real_request_async = source_runner.handoff.request_async
+
+            async def bounded_request_async(**kwargs):
+                kwargs["deadline_monotonic"] = min(kwargs["deadline_monotonic"], time.monotonic() + 15.0)
+                return await real_request_async(**kwargs)
+
+            source_runner.handoff.request_async = bounded_request_async
+            self.addCleanup(setattr, source_runner.handoff, "request_async", real_request_async)
             answer_worker = threading.Thread(target=lambda: asyncio.run(request_answer()))
             answer_worker.start()
+            self.addCleanup(answer_worker.join, 16)
             answer_request_path = handoff_root / plan.stage_uuid / "answer-execution" / "requests" / "permit.json"
             for _ in range(300):
                 if answer_request_path.exists():
@@ -1216,7 +1225,7 @@ class OperatorReceiptHandoffTests(unittest.TestCase):
             answer_pin = answer_request_path.parent.parent / "pins" / "permit.sha256"
             answer_pin.write_text(digest(answer_receipt) + "\n", encoding="ascii")
             answer_pin.chmod(0o600)
-            answer_worker.join(timeout=15)
+            answer_worker.join(timeout=16)
             self.assertFalse(answer_worker.is_alive())
             self.assertEqual(len(answer_result), 1)
             self.assertIsInstance(answer_result[0], dict)

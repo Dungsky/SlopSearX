@@ -116,3 +116,5 @@ protected-capture lab report includes boundary probes and one bounded model
 diagnostic; it reports no scientific evaluation. Runtime metadata and source checks
 were read-only. Private endpoints, addresses, hostnames, paths, permit details, and
 credential values are excluded from these artifacts.
+
+The newest prepared comparison is the [registration after the file-publication repair](atomic-handoff-registration-2026-10-15/README.md). It has not run and adds no ranking-quality evidence. The latest executed outcome above remains unchanged.

@@ -25,6 +25,7 @@ from typing import Any
 
 from jsonschema import Draft202012Validator  # type: ignore[import-untyped]
 
+from scripts.coverage_atomic_io import write_new as _atomic_write_new
 from scripts.coverage_native_grader_handoff import publish_native_tool_result
 
 MODEL = "gpt-6.1-sol"
@@ -546,23 +547,10 @@ def _write_exclusive(path: Path, raw: bytes) -> None:
     path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
     if path.parent.is_symlink() or stat.S_IMODE(path.parent.stat(follow_symlinks=False).st_mode) & 0o077:
         raise NativeHostError("native-transcript-directory-not-private")
-    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
     try:
-        descriptor = os.open(path, flags, 0o600)
+        _atomic_write_new(path, raw)
     except FileExistsError as exc:
         raise NativeHostError("native-packet-already-claimed") from exc
-    try:
-        with os.fdopen(descriptor, "wb", closefd=False) as stream:
-            stream.write(raw)
-            stream.flush()
-            os.fsync(stream.fileno())
-    finally:
-        os.close(descriptor)
-    parent_fd = os.open(path.parent, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0))
-    try:
-        os.fsync(parent_fd)
-    finally:
-        os.close(parent_fd)
 
 
 def _read_private(path: Path, *, maximum: int) -> bytes:

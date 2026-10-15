@@ -19,6 +19,8 @@ import uuid
 from pathlib import Path
 from typing import Mapping
 
+from scripts.coverage_atomic_io import write_new as _atomic_write_new
+
 SCHEMA = "coverage-operator-phase-handoff/1"
 _SHA = re.compile(r"[0-9a-f]{64}\Z")
 _SCOPE = re.compile(r"[a-z][a-z0-9-]{0,47}\Z")
@@ -111,23 +113,7 @@ def _check_no_secret_keys(value: object) -> None:
 
 
 def _write_new(path: Path, raw: bytes) -> None:
-    descriptor = os.open(
-        path,
-        os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0),
-        0o600,
-    )
-    try:
-        with os.fdopen(descriptor, "wb", closefd=False) as stream:
-            stream.write(raw)
-            stream.flush()
-            os.fsync(stream.fileno())
-    finally:
-        os.close(descriptor)
-    parent_fd = os.open(path.parent, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0))
-    try:
-        os.fsync(parent_fd)
-    finally:
-        os.close(parent_fd)
+    _atomic_write_new(path, raw)
 
 
 def _read_private(path: Path, maximum: int) -> bytes:

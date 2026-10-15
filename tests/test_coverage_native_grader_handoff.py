@@ -4,6 +4,8 @@ import hashlib
 import json
 import os
 import stat
+import sys
+import threading
 import time
 import uuid
 from pathlib import Path
@@ -11,6 +13,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from scripts import coverage_atomic_io
 from scripts import coverage_native_grader_handoff as handoff
 from scripts import coverage_native_host_dispatch as native_host
 from tests.test_coverage_assessment_packets import _fixture as assessment_fixture
@@ -494,6 +497,76 @@ def test_required_host_transcripts_bind_complete_fake_protocol_before_submission
             stat.S_IMODE((scope / "native-host" / "transcripts" / f"{row['packet_id']}.transcript.json").stat().st_mode)
             == 0o600
         )
+
+
+def test_summary_claim_cleanup_finishes_before_exact_audit_inventory(tmp_path, monkeypatch):
+    root = tmp_path / "private"
+    stage_uuid = "00000000-0000-0000-0000-000000000339"
+    row = packet("9" * 64)
+    queue = handoff.NativeGraderHandoff(root, require_native_host_transcripts=True)
+    scope = root / stage_uuid / "references"
+    claim_ready = threading.Event()
+    allow_claim_cleanup = threading.Event()
+    publish_errors = []
+
+    async def run():
+        collecting = asyncio.create_task(
+            queue.collect(
+                stage_uuid=stage_uuid,
+                phase="references",
+                prepared_packets=inputs(row),
+                deadline_monotonic=time.monotonic() + 4,
+                poll_interval=0.01,
+            )
+        )
+        requests = await wait_for_requests(scope, 1)
+        real_unlink = os.unlink
+
+        def pause_summary_claim(path, *args, **kwargs):
+            if path == ".dispatch-summary.json.claim":
+                claim_ready.set()
+                if not allow_claim_cleanup.wait(2):
+                    raise TimeoutError("summary claim barrier timed out")
+            return real_unlink(path, *args, **kwargs)
+
+        monkeypatch.setattr(coverage_atomic_io.os, "unlink", pause_summary_claim)
+        real_write_private = _write_private
+
+        def publish_with_production_summary_writer(path, raw):
+            if path.name == "dispatch-summary.json":
+                native_host._write_exclusive(path, raw)
+            else:
+                real_write_private(path, raw)
+
+        monkeypatch.setattr(sys.modules[__name__], "_write_private", publish_with_production_summary_writer)
+
+        def publish():
+            try:
+                publish_synthetic_host_evidence(scope, stage_uuid, requests[0])
+            except BaseException as exc:
+                publish_errors.append(exc)
+
+        publisher = threading.Thread(target=publish)
+        publisher.start()
+        try:
+            ready_until = time.monotonic() + 2
+            while not claim_ready.is_set() and time.monotonic() < ready_until:
+                await asyncio.sleep(0.005)
+            assert claim_ready.is_set(), "summary publisher did not reach post-link cleanup barrier"
+            summary_path = scope / "native-host" / "dispatch-summary.json"
+            summary_claim = summary_path.with_name(f".{summary_path.name}.claim")
+            assert summary_path.exists()
+            assert summary_claim.exists()
+            assert not collecting.done(), "collector audited directory while its summary claim was visible"
+        finally:
+            allow_claim_cleanup.set()
+            publisher.join(timeout=3)
+        assert not publisher.is_alive()
+        assert publish_errors == []
+        return await collecting
+
+    submissions = asyncio.run(run())
+    assert len(submissions) == 1
 
 
 def test_required_host_transcript_missing_is_terminal_without_submission(tmp_path):

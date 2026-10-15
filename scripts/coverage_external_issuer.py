@@ -38,23 +38,13 @@ def read(path, cap=8_000_000):
 
 
 def write(path, raw):
+    from scripts.coverage_atomic_io import write_new as atomic_write_new
+
     path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
     info = path.parent.lstat()
     if not stat.S_ISDIR(info.st_mode) or stat.S_IMODE(info.st_mode) != 0o700 or info.st_uid != os.geteuid():
         raise ValueError("private-parent-invalid")
-    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
-    try:
-        with os.fdopen(fd, "wb", closefd=False) as f:
-            f.write(raw)
-            f.flush()
-            os.fsync(fd)
-    finally:
-        os.close(fd)
-    fd = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
-    try:
-        os.fsync(fd)
-    finally:
-        os.close(fd)
+    atomic_write_new(path, raw)
 
 
 def main():
