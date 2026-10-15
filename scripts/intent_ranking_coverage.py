@@ -169,6 +169,17 @@ def _rounded_score_mean_is_feasible(score: float, probabilities: dict[str, float
     return min_mean <= score_high and max_mean >= score_low
 
 
+def _rounded_probability_mass_is_feasible(probabilities: list[float]) -> bool:
+    """Check whether cent-grid probability displays can represent unit mass."""
+    values = [_canonical_decimal_hundredth(probability) for probability in probabilities]
+    if not values or any(value is None for value in values):
+        return False
+    canonical_values = [value for value in values if value is not None]
+    lower = [max(Decimal(0), value - _PROVIDER_DECIMAL_HALF_UNIT) for value in canonical_values]
+    upper = [min(Decimal(1), value + _PROVIDER_DECIMAL_HALF_UNIT) for value in canonical_values]
+    return sum(lower) <= Decimal(1) <= sum(upper)
+
+
 def _strict_json(raw: bytes) -> object:
     def unique_pairs(pairs):
         out = {}
@@ -419,7 +430,8 @@ def parse_response(raw: bytes, compiled: CompiledRequest) -> ParsedResponse:
             if not _finite_number(probability) or not 0 <= probability <= 1:
                 raise CoverageError("response-probability-range")
             checked[option] = float(probability)
-        if abs(sum(checked.values()) - 1.0) > PROBABILITY_TOLERANCE:
+        probability_mass_valid = abs(sum(checked.values()) - 1.0) <= PROBABILITY_TOLERANCE
+        if not probability_mass_valid and not _rounded_probability_mass_is_feasible(list(checked.values())):
             raise CoverageError("response-probability-sum")
         maximum = max(checked.values())
         one_predecessor = math.nextafter(maximum, 0.0) if maximum > 0 else maximum

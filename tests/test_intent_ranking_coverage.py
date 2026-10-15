@@ -378,6 +378,42 @@ def test_score_rounding_interval_still_rejects_infeasible_mass_and_noncent_mass(
         coverage.parse_response(json.dumps(data, separators=(",", ":")).encode(), compiled)
 
 
+@pytest.mark.parametrize("mass_delta", [-0.01, 0.01])
+def test_choice_rounding_interval_can_reconcile_displayed_mass(mass_delta):
+    compiled = compile_for([card("a"), card("b")], FACETS)
+    data = json.loads(response_for(compiled))
+    answer = data["answers"]["profile:a"]
+    options = compiled.profile_options["profile:a"]
+    answer["choice"] = "none"
+    probabilities = {option: 0.0 for option in options}
+    probabilities["none"] = 0.6
+    probabilities["unknown"] = 0.4 + mass_delta
+    answer["probabilities"] = probabilities
+
+    parsed = coverage.parse_response(json.dumps(data, separators=(",", ":")).encode(), compiled)
+    assert parsed.selected_facets["a"] == ()
+    assert parsed.profile_audit["a"]["choice"] == "none"
+    assert parsed.profile_audit["a"]["probabilities"] == probabilities
+
+
+def test_choice_rounding_interval_still_rejects_infeasible_and_noncent_mass():
+    compiled = compile_for([card("a"), card("b")], FACETS)
+    data = json.loads(response_for(compiled))
+    answer = data["answers"]["profile:a"]
+    options = compiled.profile_options["profile:a"]
+    answer["choice"] = options[0]
+    answer["probabilities"] = {option: 0.12 for option in options}
+    with pytest.raises(coverage.CoverageError, match="response-probability-sum"):
+        coverage.parse_response(json.dumps(data, separators=(",", ":")).encode(), compiled)
+
+    probabilities = {option: 0.0 for option in options}
+    probabilities[options[0]] = 0.6
+    probabilities[options[1]] = 0.401
+    answer["probabilities"] = probabilities
+    with pytest.raises(coverage.CoverageError, match="response-probability-sum"):
+        coverage.parse_response(json.dumps(data, separators=(",", ":")).encode(), compiled)
+
+
 def test_rounding_interval_mass_constraints_and_endpoint_clipping():
     at_zero = {str(index): float(index == 0) for index in range(10)}
     at_nine = {str(index): float(index == 9) for index in range(10)}
