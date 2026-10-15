@@ -13,6 +13,49 @@ use rmcp::transport::streamable_http_server::{
 use std::{net::SocketAddr, time::Duration};
 use subtle::ConstantTimeEq;
 use tokio_util::sync::CancellationToken;
+// Keep unconsumed bytes in a ring: scanning and draining are linear even when
+// one frame arrives bytewise or one chunk contains many short frames.
+#[derive(Default)]
+struct SseFrames {
+    bytes: std::collections::VecDeque<u8>,
+    scanned: usize,
+    #[cfg(test)]
+    inspected: usize,
+}
+impl SseFrames {
+    fn push(&mut self, chunk: &[u8]) -> std::io::Result<()> {
+        if chunk.len() > (4 * 1024 * 1024usize).saturating_sub(self.bytes.len()) {
+            return Err(std::io::Error::other("MCP SSE frame exceeds 4 MiB"));
+        }
+        self.bytes.extend(chunk);
+        Ok(())
+    }
+    fn next_frame(&mut self) -> Option<Vec<u8>> {
+        while self.scanned < self.bytes.len() {
+            self.scanned += 1;
+            #[cfg(test)]
+            {
+                self.inspected += 1;
+            }
+            let end = self.scanned;
+            let lf = end >= 2 && self.bytes[end - 2] == b'\n' && self.bytes[end - 1] == b'\n';
+            let crlf = end >= 4
+                && self.bytes[end - 4] == b'\r'
+                && self.bytes[end - 3] == b'\n'
+                && self.bytes[end - 2] == b'\r'
+                && self.bytes[end - 1] == b'\n';
+            if lf || crlf {
+                self.scanned = 0;
+                return Some(self.bytes.drain(..end).collect());
+            }
+        }
+        None
+    }
+    fn is_empty(&self) -> bool {
+        self.bytes.is_empty()
+    }
+}
+
 async fn bearer(
     axum::extract::State(token): axum::extract::State<String>,
     request: Request<Body>,
@@ -488,20 +531,14 @@ async fn opaque_catalog(
         let stream = futures_util::stream::try_unfold(
             (
                 body.into_data_stream(),
-                Vec::<u8>::new(),
+                SseFrames::default(),
                 overlay,
                 wire,
                 lease,
             ),
             |(mut stream, mut buffer, mut overlay, wire, lease)| async move {
                 loop {
-                    let delimiter = buffer
-                        .windows(4)
-                        .position(|p| p == b"\r\n\r\n")
-                        .map(|p| (p, 4))
-                        .or_else(|| buffer.windows(2).position(|p| p == b"\n\n").map(|p| (p, 2)));
-                    if let Some((end, n)) = delimiter {
-                        let frame: Vec<_> = buffer.drain(..end + n).collect();
+                    if let Some(frame) = buffer.next_frame() {
                         let text = String::from_utf8(frame).map_err(std::io::Error::other)?;
                         let rewritten = crate::opaque::overlay_event(&mut overlay, &text)
                             .map_err(|e| std::io::Error::other(e.to_string()))?;
@@ -520,10 +557,7 @@ async fn opaque_catalog(
                         return Err(std::io::Error::other("incomplete MCP SSE frame"));
                     };
                     let chunk = chunk.map_err(std::io::Error::other)?;
-                    if buffer.len() + chunk.len() > 4 * 1024 * 1024 {
-                        return Err(std::io::Error::other("MCP SSE frame exceeds 4 MiB"));
-                    }
-                    buffer.extend_from_slice(&chunk);
+                    buffer.push(&chunk)?;
                 }
             },
         );
@@ -648,5 +682,51 @@ mod lifecycle_tests {
         .await?;
         host.shutdown().await?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod sse_frame_tests {
+    use super::SseFrames;
+    #[test]
+    fn fragmented_frames_scan_each_byte_once_and_preserve_mixed_boundaries() {
+        let mut frames = SseFrames::default();
+        let mut expected = vec![b'x'; 4 * 1024 * 1024 - 4];
+        expected.extend_from_slice(b"\r\n\r\n");
+        for byte in &expected[..expected.len() - 1] {
+            frames.push(&[*byte]).unwrap();
+            assert!(frames.next_frame().is_none());
+        }
+        frames.push(&expected[expected.len() - 1..]).unwrap();
+        assert_eq!(frames.next_frame().unwrap(), expected);
+        assert_eq!(frames.inspected, expected.len());
+        assert!(frames.is_empty());
+        let mixed = b"data: first\n\ndata: second\r\n\r\ndata: third\n\n";
+        frames.push(mixed).unwrap();
+        for expected in [
+            b"data: first\n\n".as_slice(),
+            b"data: second\r\n\r\n",
+            b"data: third\n\n",
+        ] {
+            assert_eq!(frames.next_frame().unwrap(), expected);
+        }
+        assert_eq!(frames.inspected, 4 * 1024 * 1024 + mixed.len());
+        assert!(frames.is_empty());
+        // A ring buffer must also work after repeated wraparound and draining.
+        for _ in 0..1000 {
+            frames.push(b"data: small\n\n").unwrap();
+            assert_eq!(frames.next_frame().unwrap(), b"data: small\n\n");
+        }
+    }
+    #[test]
+    fn incomplete_frames_and_limit_remain_explicit() {
+        let mut frames = SseFrames::default();
+        frames.push(&vec![b'x'; 4 * 1024 * 1024]).unwrap();
+        assert!(frames.next_frame().is_none());
+        assert!(!frames.is_empty());
+        assert!(frames.push(b"x").is_err());
+        assert_eq!(frames.inspected, 4 * 1024 * 1024);
+        assert!(frames.next_frame().is_none());
+        assert_eq!(frames.inspected, 4 * 1024 * 1024);
     }
 }
