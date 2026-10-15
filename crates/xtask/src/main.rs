@@ -1,4 +1,5 @@
 //! Fail-closed native evidence runner. Owned check implementations are deliberately finite.
+mod o06;
 mod replay;
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -215,6 +216,13 @@ fn source_snapshot(root: &Path, records: &mut Vec<Value>) -> Result<Vec<Value>> 
     for path in paths.split('\0').filter(|p| !p.is_empty()).filter(|p| {
         p.starts_with("crates/")
             || p.starts_with(".cargo/")
+            || p.starts_with(".github/workflows/")
+            || matches!(
+                *p,
+                ".github/pr-review-publisher-policy.json"
+                    | ".github/PULL_REQUEST_TEMPLATE.md"
+                    | ".pre-commit-config.yaml"
+            )
             || matches!(
                 *p,
                 "Cargo.toml"
@@ -412,6 +420,7 @@ fn execute(root: &Path, id: &str, records: &mut Vec<Value>) -> Result<()> {
         return Err(format!("unknown plan id: {id}"));
     }
     match id {
+        "O06" => o06::check(root, records),
         "F01" | "F02" => source_check(root, id, records),
         "F04" => replay::check(root, records),
         "F03" => {
@@ -465,6 +474,13 @@ fn main() {
         .expect("wall clock after epoch")
         .as_millis();
     let args: Vec<_> = std::env::args().skip(1).collect();
+    if args.first().is_some_and(|a| a == "ci-helper") {
+        if let Err(error) = o06::helper(&root, &args[1..]) {
+            eprintln!("{error}");
+            std::process::exit(1);
+        }
+        return;
+    }
     let mut records = Vec::new();
     let id = args.get(1).map(String::as_str).unwrap_or("");
     let mut head_records = Vec::new();
@@ -520,8 +536,13 @@ fn main() {
             }
         }
     }
+    let scope = if id == "O06" {
+        "additive CI inventory, native helpers and protected review trust preparation; pending-owner mappings are not semantic parity or cutover evidence"
+    } else {
+        "foundation checks only; no feature parity certification"
+    };
     let mut evidence = json!
-({"schema_version":1,"started_unix_ms":started_unix_ms,"finished_unix_ms":std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).expect("wall clock after epoch").as_millis(),"plan_id":id,"status":if result.is_ok(){"passed"}else{"failed"},"scope":"foundation checks only; no feature parity certification","source":{"head":head.trim(),"working_tree":tree,"diff":diff,"files":snapshot.unwrap_or_default()},"toolchain":toolchain,"identity_commands":head_records,"commands":records,"output_path":args.get(3),"error":result.err()});
+({"schema_version":1,"started_unix_ms":started_unix_ms,"finished_unix_ms":std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).expect("wall clock after epoch").as_millis(),"plan_id":id,"status":if result.is_ok(){"passed"}else{"failed"},"scope":scope,"source":{"head":head.trim(),"working_tree":tree,"diff":diff,"files":snapshot.unwrap_or_default()},"toolchain":toolchain,"identity_commands":head_records,"commands":records,"output_path":args.get(3),"error":result.err()});
     if args.len() == 4 && args[2] == "--output" {
         let path = PathBuf::from(&args[3]);
         let write = write_evidence(&root, &path, &evidence);

@@ -1,0 +1,6 @@
+{
+  ".github/workflows/pr-publish.yml": "766b73be90a60adad843b71cf8995dbb8eb9c2c1",
+  ".github/workflows/pr-review-analysis.yml": "b2f2519d292e94b291280b323dfa2a366e66c444",
+  ".github/workflows/protected-source-context-probe.yml": "768063de420395c234bbbb5b87af47b33485c8d9",
+  ".github/pr-review-publisher-policy.json": "c8ecda28988b1bb0681a1ce31448a51ae7606c30"
+}
