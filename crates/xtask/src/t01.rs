@@ -121,6 +121,8 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
         "legacy_unsupported_version_negotiates_and_jsonrpc_errors_remain_errors",
         "opaque_large_integer_and_reserved_object_survive_real_http_stdio_sse_and_gateway",
         "selected_raw_gateway_owns_stateful_session_and_closes_it",
+        "selected_raw_gateway_close_retries_failed_and_timed_out_delete",
+        "opaque::close_tests::stale_close_cannot_clear_replaced_session_generation",
         "selected_raw_gateway_request_cancellation_reaches_remote_handler",
         "selected_raw_gateway_accepts_incremental_sse_and_rejects_bad_remote_version",
         "selected_raw_gateway_real_discovery_limits_and_deadline_fail_closed",

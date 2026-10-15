@@ -518,7 +518,7 @@ pub struct RawGateway {
     token: Option<String>,
     pub catalogs: Catalogs,
     deadline: Duration,
-    session: std::sync::Arc<std::sync::Mutex<Option<String>>>,
+    session: std::sync::Arc<std::sync::Mutex<Option<std::sync::Arc<String>>>>,
     initialize_result: Option<Box<RawValue>>,
     protocol: String,
 }
@@ -535,16 +535,18 @@ impl RawGateway {
             request = request.bearer_auth(token);
         }
         if let Some(session) = self.session.lock().unwrap().clone() {
-            request = request.header("mcp-session-id", session);
+            request = request.header("mcp-session-id", session.as_str());
         }
         let mut response = tokio::time::timeout(self.deadline, request.send()).await??;
         if let Some(id) = response.headers().get("mcp-session-id") {
             let id = id.to_str()?.to_owned();
             let mut current = self.session.lock().unwrap();
-            if current.as_ref().is_some_and(|old| old != &id) {
+            if current.as_ref().is_some_and(|old| old.as_str() != id) {
                 return Err("remote MCP session identity changed".into());
             }
-            *current = Some(id);
+            if current.is_none() {
+                *current = Some(std::sync::Arc::new(id));
+            }
         }
         if response.status() == 202 || response.status() == 204 {
             return Ok(None);
@@ -683,24 +685,35 @@ impl RawGateway {
         self.close().await?;
         result
     }
+    fn clear_closed_session(&self, attempted: &std::sync::Arc<String>) {
+        let mut current = self.session.lock().unwrap();
+        if current
+            .as_ref()
+            .is_some_and(|id| std::sync::Arc::ptr_eq(id, attempted))
+        {
+            *current = None;
+        }
+    }
     pub async fn close(&self) -> Result<()> {
-        let session = self.session.lock().unwrap().take();
+        let session = self.session.lock().unwrap().clone();
         if let Some(session) = session {
             let mut request = self
                 .http
                 .delete(&self.url)
-                .header("mcp-session-id", session)
+                .header("mcp-session-id", session.as_str())
                 .header("mcp-protocol-version", self.protocol.as_str());
             if let Some(token) = &self.token {
                 request = request.bearer_auth(token);
             }
             let response = tokio::time::timeout(self.deadline, request.send()).await??;
-            if !response.status().is_success()
-                && response.status() != 404
-                && response.status() != 405
-            {
+            let status = response.status();
+            if status.is_success() || status == 404 {
+                self.clear_closed_session(&session);
+            } else if status != 405 {
                 return Err("remote session cleanup failed".into());
             }
+            // Like rmcp, unsupported DELETE (405) is not a cleanup error. It does
+            // not establish remote closure: retain identity for a later attempt.
         }
         Ok(())
     }
@@ -930,5 +943,35 @@ mod tests {
         assert!(out.contains(r#"" spaces \" retained ""#));
         assert!(out.contains("$serde_json::private::Number"));
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod close_tests {
+    use super::*;
+    #[test]
+    fn stale_close_cannot_clear_replaced_session_generation() {
+        let gateway = RawGateway {
+            http: reqwest::Client::new(),
+            url: String::new(),
+            token: None,
+            catalogs: BTreeMap::new(),
+            deadline: Duration::from_secs(1),
+            session: Default::default(),
+            initialize_result: None,
+            protocol: String::new(),
+        };
+        let old = std::sync::Arc::new("same-remote-id".to_owned());
+        let replacement = std::sync::Arc::new("same-remote-id".to_owned());
+        *gateway.session.lock().unwrap() = Some(replacement.clone());
+        gateway.clear_closed_session(&old);
+        assert!(std::sync::Arc::ptr_eq(
+            gateway.session.lock().unwrap().as_ref().unwrap(),
+            &replacement
+        ));
+        gateway.clear_closed_session(&replacement);
+        assert!(gateway.session.lock().unwrap().is_none());
+        // Repeated completion is harmless.
+        gateway.clear_closed_session(&replacement);
     }
 }

@@ -1806,3 +1806,91 @@ async fn typed_and_raw_template_pagination_forwarding_and_uri_template_identity(
     }
     Ok(())
 }
+
+#[tokio::test]
+async fn selected_raw_gateway_close_retries_failed_and_timed_out_delete() -> Result<()> {
+    use axum::response::IntoResponse;
+    for fault in ["500", "timeout", "405", "404"] {
+        let ct = CancellationToken::new();
+        let attempts = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let ids = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        let observed = attempts.clone();
+        let seen = ids.clone();
+        let router =
+            ssx_mcp::harness::http_router_mode(Registry::synthetic(), None, ct.clone(), true).map(
+                |router| {
+                    router.layer(axum::middleware::from_fn(
+                        move |request: axum::http::Request<axum::body::Body>,
+                              next: axum::middleware::Next| {
+                            let observed = observed.clone();
+                            let seen = seen.clone();
+                            async move {
+                                if request.method() == axum::http::Method::DELETE {
+                                    seen.lock().unwrap().push(
+                                        request.headers()["mcp-session-id"]
+                                            .to_str()
+                                            .unwrap()
+                                            .to_owned(),
+                                    );
+                                    if observed.fetch_add(1, Ordering::SeqCst) == 0 {
+                                        match fault {
+                                            "500" => {
+                                                return axum::http::StatusCode::INTERNAL_SERVER_ERROR
+                                                .into_response();
+                                            }
+                                            "405" => {
+                                                return axum::http::StatusCode::METHOD_NOT_ALLOWED
+                                                    .into_response();
+                                            }
+                                            "timeout" => {
+                                                tokio::time::sleep(Duration::from_millis(350))
+                                                    .await;
+                                                return axum::http::StatusCode::INTERNAL_SERVER_ERROR
+                                                .into_response();
+                                            }
+                                            // Close the real SDK session, but expose its already absent status.
+                                            "404" => {
+                                                let _ = next.run(request).await;
+                                                return axum::http::StatusCode::NOT_FOUND
+                                                    .into_response();
+                                            }
+                                            _ => unreachable!(),
+                                        }
+                                    }
+                                }
+                                next.run(request).await
+                            }
+                        },
+                    ))
+                },
+            );
+        let host = Host::start(router, ct).await?;
+        let gateway = ssx_mcp::opaque::RawGateway::connect(
+            format!("http://{}/mcp", host.address),
+            None,
+            Duration::from_millis(150),
+        )
+        .await?;
+        let first = gateway.close().await;
+        assert_eq!(first.is_err(), matches!(fault, "500" | "timeout"));
+        if fault == "404" {
+            gateway.close().await?;
+            assert_eq!(attempts.load(Ordering::SeqCst), 1);
+        } else {
+            // Both concurrent retries retain the original ID. One may observe 404
+            // after the other successfully terminates the actual SDK session.
+            let (a, b) = tokio::join!(gateway.close(), gateway.close());
+            a?;
+            b?;
+            let after = attempts.load(Ordering::SeqCst);
+            assert!((2..=3).contains(&after));
+            gateway.close().await?;
+            assert_eq!(attempts.load(Ordering::SeqCst), after);
+        }
+        let ids = ids.lock().unwrap().clone();
+        assert!(!ids.is_empty());
+        assert!(ids.iter().all(|id| id == &ids[0]));
+        host.shutdown().await?;
+    }
+    Ok(())
+}
