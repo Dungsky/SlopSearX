@@ -1162,8 +1162,7 @@
       "title": "Classify active experiment tooling and define native evidence contracts",
       "lane": "tooling",
       "depends_on": [
-        "F04",
-        "F14"
+        "F04"
       ],
       "problem": "Experiment runners import Python SearchService and bind evidence to Python runtime hashes; they are not client-only code.",
       "scope": [
