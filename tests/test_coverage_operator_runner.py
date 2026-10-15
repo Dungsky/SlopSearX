@@ -359,14 +359,16 @@ class OperatorRunnerConfigTests(unittest.TestCase):
         config_path.chmod(0o600)
         return config_path, digest(raw_config), config["directories"]
 
-    def _registered_companion_config(self, root: Path) -> tuple[Path, str]:
+    def _registered_companion_config(
+        self, root: Path, *, stage_kind: str = "development", schema4: bool = False
+    ) -> tuple[Path, str]:
         """Build real registered-v2 materials that traverse runner preflight."""
         repo = Path(__file__).parents[1]
         evidence_dir = repo / "docs/experiments/evidence/coverage-first-study"
-        bundle = evidence_dir / "frozen-input-method-materials"
-        stage_dir = evidence_dir / "prospective-2026-10-13-band-companion-v3" / "development"
+        bundle = evidence_dir / ("research-task-use-method-materials" if schema4 else "frozen-input-method-materials")
+        stage_dir = evidence_dir / "prospective-2026-10-13-band-companion-v3" / stage_kind
         old_closure_placeholder = evidence_dir / "registered-2026-10-12-acquisition-v2"
-        fresh_stage_bundle = evidence_dir / "prospective-2026-10-13-band-companion-v3"
+        fresh_stage_bundle = evidence_dir if schema4 else evidence_dir / "prospective-2026-10-13-band-companion-v3"
         external_paths = {
             "cohorts": bundle / "cohorts.json",
             "protocol": bundle / "protocol.json",
@@ -383,9 +385,12 @@ class OperatorRunnerConfigTests(unittest.TestCase):
         }
         config_path, _ = self._config(root, external_paths["protocol"].read_bytes())
         config = json.loads(config_path.read_bytes())
-        # Exercise the real frozen stage shell bindings: unlike the compact
-        # unit-only config, these manifests carry the registered UUID.
-        config["stage_uuid"] = json.loads(external_paths["reference_manifest"].read_bytes())["stage_uuid"]
+        config["stage_kind"] = stage_kind
+        if schema4:
+            config["stage_uuid"] = str(uuid.uuid4())
+        # Exercise stage-bound shells with the configured registered UUID.
+        if not schema4:
+            config["stage_uuid"] = json.loads(external_paths["reference_manifest"].read_bytes())["stage_uuid"]
         config["source_revision"] = subprocess.run(
             ["git", "rev-parse", "--verify", "HEAD^{commit}"],
             cwd=repo,
@@ -399,6 +404,11 @@ class OperatorRunnerConfigTests(unittest.TestCase):
         material_bytes["candidate_identity"] = runner.capture._canonical_json(
             runner.core._strict_json(material_bytes["candidate_identity"], "test-candidate-identity")
         )
+        if schema4:
+            for key in ("reference_manifest", "answer_assessment_plan", "capture_plan"):
+                document = runner.core._strict_json(material_bytes[key], f"test-{key}")
+                document["stage_uuid"] = config["stage_uuid"]
+                material_bytes[key] = runner._canonical(document)
         for key in ("coverage_source", "production_rerank_source", "dependency_lock"):
             path_values[key] = external_paths[key]
 
@@ -522,6 +532,27 @@ class OperatorRunnerConfigTests(unittest.TestCase):
             self.assertEqual(instance.plan.initial_registration_sha256, digest(registration_bytes))
             self.assertEqual(instance.preflight_validation["band_companion_sha256"], digest(companion_bytes))
             self.assertEqual(instance.preflight_validation["initial_registration_sha256"], digest(registration_bytes))
+
+    def test_registered_v4_frozen_pool_preflight_accepts_both_fresh_stage_kinds(self):
+        for stage_kind in ("development", "confirmation"):
+            with self.subTest(stage_kind=stage_kind), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                config_path, config_sha = self._registered_companion_config(root, stage_kind=stage_kind, schema4=True)
+                with (
+                    mock.patch.object(runner, "_verify_checkout_sources"),
+                    mock.patch.object(runner, "_require_source_bootstrap"),
+                    mock.patch.object(runner.runtime_environment, "verify_active_environment", return_value=b"{}"),
+                ):
+                    instance = runner.OperatorStageRunner.preflight_from_file(config_path, config_sha)
+
+                self.assertEqual(instance.plan.stage_kind, stage_kind)
+                self.assertEqual(instance.plan.pool_input_mode, "frozen-pool/1")
+                self.assertIsNone(instance.saved_origin)
+                closure = runner.core._strict_json(
+                    instance.static_materials["qualified_source_closure"], "test-v4-source-closure"
+                )
+                self.assertEqual(closure["schema"], "coverage-study-qualified-source-closure/2")
+                self.assertEqual(len(closure["source_pins"]), 16)
 
     def test_saved_import_preflight_uses_orchestration_canonical_manifest_bytes(self):
         with tempfile.TemporaryDirectory() as temporary:

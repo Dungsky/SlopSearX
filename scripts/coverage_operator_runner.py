@@ -989,7 +989,7 @@ class OperatorStageRunner:
                     "coverage_band_companion": "scripts/coverage_band_companion.py",
                     "coverage_late_registration": "scripts/coverage_late_registration.py",
                 }
-                if protocol.get("pool_input_mode_by_stage") is not None:
+                if "saved-corpus/1" in (protocol.get("pool_input_mode_by_stage") or {}).values():
                     source_names.update(
                         {
                             "coverage_saved_corpus": "scripts/coverage_saved_corpus.py",

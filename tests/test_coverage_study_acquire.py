@@ -307,3 +307,47 @@ async def test_failures_are_retained_without_retry_or_rescue() -> None:
     assert receipt.operations[0].failure_reasons
     assert receipt.physical_request_count == 2
     assert len(transport.exchanges) == 2
+
+
+@pytest.mark.parametrize("stage_kind", ["development", "confirmation"])
+def test_registered_v4_selects_fresh_inputs_for_each_stage(stage_kind):
+    material = (
+        Path(__file__).parents[1]
+        / "docs/experiments/evidence/coverage-first-study/research-task-use-method-materials/protocol.json"
+    )
+    protocol = json.loads(material.read_bytes())
+    assert acquisition.pool_input_mode_for_stage(protocol, stage_kind) == "frozen-pool/1"
+
+
+@pytest.mark.parametrize(
+    "schema", ["coverage-first-study-protocol/1", "coverage-first-study-protocol/2", "coverage-first-study-protocol/3"]
+)
+def test_fresh_stage_map_does_not_change_legacy_contracts(schema):
+    protocol = {
+        "schema": schema,
+        "pool_input_mode": "frozen-pool/1",
+        "pool_input_mode_by_stage": {"development": "frozen-pool/1", "confirmation": "frozen-pool/1"},
+    }
+    with pytest.raises(ValueError, match="unsupported stage input methods"):
+        acquisition.pool_input_mode_for_stage(protocol, "development")
+
+
+@pytest.mark.parametrize("stage_kind", [None, "", "other"])
+def test_fresh_stage_map_requires_a_declared_stage(stage_kind):
+    protocol = {
+        "schema": "coverage-first-study-protocol/4",
+        "pool_input_mode": "frozen-pool/1",
+        "pool_input_mode_by_stage": {"development": "frozen-pool/1", "confirmation": "frozen-pool/1"},
+    }
+    with pytest.raises(ValueError):
+        acquisition.pool_input_mode_for_stage(protocol, stage_kind)
+
+
+def test_fresh_stage_map_rejects_conflicting_global_mode():
+    protocol = {
+        "schema": "coverage-first-study-protocol/4",
+        "pool_input_mode": "saved-corpus/1",
+        "pool_input_mode_by_stage": {"development": "frozen-pool/1", "confirmation": "frozen-pool/1"},
+    }
+    with pytest.raises(ValueError):
+        acquisition.pool_input_mode_for_stage(protocol, "development")
