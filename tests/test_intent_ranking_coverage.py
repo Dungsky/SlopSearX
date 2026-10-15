@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 
 import pytest
 
@@ -275,6 +276,123 @@ def test_score_is_probability_weighted_mean_and_confidence_does_not_rank():
     assert parsed.score_audit["a"]["confidence"] == 0.99
     result = coverage.select(compiled, parsed)
     assert result.ordered_ids == ("b", "a")
+
+
+def test_score_mean_audit_distinguishes_exact_and_tolerance_compatible_values():
+    compiled = compile_for([card("a"), card("b")], FACETS)
+    data = json.loads(response_for(compiled))
+    data["answers"]["score:a"]["score"] = 7.0000005
+    parsed = coverage.parse_response(json.dumps(data, separators=(",", ":")).encode(), compiled)
+    assert parsed.score_audit["a"]["mean_validation"] == "within-tolerance"
+    assert parsed.score_audit["b"]["mean_validation"] == "exact"
+
+
+def test_observed_hundredth_precision_score_tuple_uses_bounded_feasibility_and_keeps_reported_score():
+    cards = [card("probe-2-000"), card("probe-2-001")]
+    compiled = compile_for(cards, FACETS)
+    data = json.loads(response_for(compiled))
+    archived_score_tuples = {
+        "probe-2-000": (
+            1.59,
+            [0.30, 0.30, 0.23, 0.05, 0.03, 0.02, 0.01, 0.02, 0.02, 0.02],
+        ),
+        "probe-2-001": (
+            1.56,
+            [0.32, 0.31, 0.22, 0.04, 0.02, 0.02, 0.01, 0.02, 0.02, 0.02],
+        ),
+    }
+    for cid, (reported, values) in archived_score_tuples.items():
+        answer = data["answers"][f"score:{cid}"]
+        answer["score"] = reported
+        answer["probabilities"] = {str(index): probability for index, probability in enumerate(values)}
+    parsed = coverage.parse_response(json.dumps(data, separators=(",", ":")).encode(), compiled)
+    assert parsed.scores == {"probe-2-000": 1.59, "probe-2-001": 1.56}
+    assert parsed.score_audit["probe-2-000"]["mean_validation"] == "hundredth-rounding-interval"
+    assert parsed.score_audit["probe-2-001"]["mean_validation"] == "hundredth-rounding-interval"
+
+
+def test_rounding_interval_mass_constraints_and_endpoint_clipping():
+    at_zero = {str(index): float(index == 0) for index in range(10)}
+    at_nine = {str(index): float(index == 9) for index in range(10)}
+    uniform = {str(index): 0.1 for index in range(10)}
+    no_mass = {str(index): 0.0 for index in range(10)}
+    assert coverage._rounded_score_mean_is_feasible(0.0, at_zero)
+    assert coverage._rounded_score_mean_is_feasible(9.0, at_nine)
+    assert coverage._rounded_score_mean_is_feasible(4.5, uniform)
+    assert not coverage._rounded_score_mean_is_feasible(0.0, no_mass)
+
+
+def test_score_rounding_feasibility_still_rejects_infeasible_or_non_grid_values():
+    compiled = compile_for([card("a"), card("b")], FACETS)
+    data = json.loads(response_for(compiled))
+    answer = data["answers"]["score:a"]
+    answer["score"] = 2.0
+    answer["probabilities"] = {
+        "0": 0.30,
+        "1": 0.30,
+        "2": 0.23,
+        "3": 0.05,
+        "4": 0.03,
+        "5": 0.02,
+        "6": 0.01,
+        "7": 0.02,
+        "8": 0.02,
+        "9": 0.02,
+    }
+    with pytest.raises(coverage.CoverageError, match="response-score-mean-mismatch"):
+        coverage.parse_response(json.dumps(data, separators=(",", ":")).encode(), compiled)
+
+    answer["score"] = 1.59
+    answer["probabilities"]["0"] = 0.301
+    answer["probabilities"]["1"] = 0.299
+    with pytest.raises(coverage.CoverageError, match="response-score-mean-mismatch"):
+        coverage.parse_response(json.dumps(data, separators=(",", ":")).encode(), compiled)
+
+
+def test_choice_one_ulp_wire_tie_is_unknown_but_nearby_non_ties_remain_invalid():
+    compiled = compile_for([card("a"), card("b")], FACETS)
+    data = json.loads(response_for(compiled))
+    answer = data["answers"]["profile:a"]
+    maximum = 0.28
+    answer["choice"] = "facets:coverage"
+    answer["probabilities"] = {option: 0.0 for option in compiled.profile_options["profile:a"]}
+    answer["probabilities"]["facets:coverage"] = math.nextafter(maximum, 0.0)
+    answer["probabilities"]["none"] = maximum
+    remainder_options = [option for option in answer["probabilities"] if option not in {"facets:coverage", "none"}]
+    for option in remainder_options[:4]:
+        answer["probabilities"][option] = 0.11
+    parsed = coverage.parse_response(json.dumps(data, separators=(",", ":")).encode(), compiled)
+    assert parsed.selected_facets["a"] is None
+    assert parsed.profile_audit["a"]["tied_maximum"] is True
+
+    answer["probabilities"]["facets:coverage"] = 0.27
+    for option in remainder_options[:4]:
+        answer["probabilities"][option] = 0.1125
+    with pytest.raises(coverage.CoverageError, match="response-choice-not-maximum"):
+        coverage.parse_response(json.dumps(data, separators=(",", ":")).encode(), compiled)
+
+
+def test_choice_power_of_two_uses_exactly_one_downward_float_neighbor():
+    compiled = compile_for([card("a"), card("b")], FACETS)
+    data = json.loads(response_for(compiled))
+    answer = data["answers"]["profile:a"]
+    answer["choice"] = "facets:coverage"
+    probabilities = {option: 0.0 for option in compiled.profile_options["profile:a"]}
+    maximum = 0.5
+    first_predecessor = math.nextafter(maximum, 0.0)
+    probabilities["facets:coverage"] = first_predecessor
+    probabilities["none"] = maximum
+    probabilities["unknown"] = 1.0 - maximum - first_predecessor
+    answer["probabilities"] = probabilities
+    parsed = coverage.parse_response(json.dumps(data, separators=(",", ":")).encode(), compiled)
+    assert parsed.selected_facets["a"] is None
+    assert parsed.profile_audit["a"]["tied_maximum"] is True
+
+    second_predecessor = math.nextafter(first_predecessor, 0.0)
+    probabilities["facets:coverage"] = second_predecessor
+    probabilities["unknown"] = 1.0 - maximum - second_predecessor
+    with pytest.raises(coverage.CoverageError, match="response-choice-not-maximum"):
+        coverage.parse_response(json.dumps(data, separators=(",", ":")).encode(), compiled)
 
 
 def test_choice_confidence_is_required_and_bounded_but_not_used_for_policy():
