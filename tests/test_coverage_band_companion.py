@@ -200,6 +200,62 @@ def test_task_use_v4_companion_is_exactly_pinned_and_keeps_its_error_surface():
         )
 
 
+def test_input_corrected_companion_accepts_only_its_exact_protocol_cohort_pair():
+    protocol_sha = companion.INPUT_CORRECTED_PROTOCOL_SHA256
+    cohorts_sha = companion.INPUT_CORRECTED_COHORTS_SHA256
+    contract = {
+        "schema": companion.SCHEMA,
+        "stage_kind": "development_and_confirmation",
+        "protocol_sha256": protocol_sha,
+        "cohorts_sha256": cohorts_sha,
+        "groups": copy.deepcopy(companion.TASK_USE_V4_GROUPS),
+        "claim_scope": "fixed-frozen-cases-only; no population or causal-depth claim",
+    }
+
+    assert companion.contract_sha256_for(protocol_sha, cohorts_sha) == companion.INPUT_CORRECTED_CONTRACT_SHA256
+    assert (
+        companion.validate_contract(
+            contract,
+            stage_kind="development",
+            protocol_sha256=protocol_sha,
+            cohorts_sha256=cohorts_sha,
+        )["groups"]
+        == companion.TASK_USE_V4_GROUPS
+    )
+    assert (
+        companion.validate_contract(
+            contract,
+            stage_kind="confirmation",
+            protocol_sha256=protocol_sha,
+            cohorts_sha256=cohorts_sha,
+        )["groups"]
+        == companion.TASK_USE_V4_GROUPS
+    )
+
+    for mismatched_protocol, mismatched_cohorts in (
+        (protocol_sha, companion.TASK_USE_V4_COHORTS_SHA256),
+        (companion.TASK_USE_V4_PROTOCOL_SHA256, cohorts_sha),
+    ):
+        assert companion.contract_sha256_for(mismatched_protocol, mismatched_cohorts) is None
+        with pytest.raises(companion.BandCompanionError, match="companion-material-pin-mismatch"):
+            companion.validate_contract(
+                contract,
+                stage_kind="development",
+                protocol_sha256=mismatched_protocol,
+                cohorts_sha256=mismatched_cohorts,
+            )
+
+    wrong_groups = copy.deepcopy(contract)
+    wrong_groups["groups"] = companion.ARCHIVAL_GROUPS
+    with pytest.raises(companion.BandCompanionError, match="companion-group-inventory-mismatch"):
+        companion.validate_contract(
+            wrong_groups,
+            stage_kind="development",
+            protocol_sha256=protocol_sha,
+            cohorts_sha256=cohorts_sha,
+        )
+
+
 def test_registered_v2_execution_contract_requires_exact_protocol_and_cohort_pins():
     registered_dir = CONTRACT_PATH.parents[1] / "registered-2026-10-12-acquisition-v2"
     protocol_bytes = (registered_dir / "protocol.json").read_bytes()
