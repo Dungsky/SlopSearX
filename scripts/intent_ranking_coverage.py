@@ -377,13 +377,14 @@ def parse_response(raw: bytes, compiled: CompiledRequest) -> ParsedResponse:
             if not _finite_number(probability) or not 0 <= probability <= 1:
                 raise CoverageError("response-score-probability-range")
             checked_score_probabilities[index] = float(probability)
-        if abs(sum(checked_score_probabilities.values()) - 1.0) > PROBABILITY_TOLERANCE:
-            raise CoverageError("response-score-probability-sum")
+        probability_mass_valid = abs(sum(checked_score_probabilities.values()) - 1.0) <= PROBABILITY_TOLERANCE
         weighted_score = sum(int(index) * probability for index, probability in checked_score_probabilities.items())
         mean_delta = abs(float(score) - weighted_score)
         mean_validation = "exact" if mean_delta == 0 else "within-tolerance"
-        if mean_delta > PROBABILITY_TOLERANCE:
+        if not probability_mass_valid or mean_delta > PROBABILITY_TOLERANCE:
             if not _rounded_score_mean_is_feasible(float(score), checked_score_probabilities):
+                if not probability_mass_valid:
+                    raise CoverageError("response-score-probability-sum")
                 raise CoverageError("response-score-mean-mismatch")
             mean_validation = "hundredth-rounding-interval"
         confidence = score_answer.get("confidence")

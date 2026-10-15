@@ -347,6 +347,37 @@ def test_probability_rounding_rejects_second_float_neighbor():
         coverage.parse_response(json.dumps(data, separators=(",", ":")).encode(), compiled)
 
 
+@pytest.mark.parametrize("mass_delta", [-0.01, 0.01])
+def test_score_rounding_interval_can_reconcile_displayed_mass(mass_delta):
+    compiled = compile_for([card("a"), card("b")], FACETS)
+    data = json.loads(response_for(compiled))
+    answer = data["answers"]["score:a"]
+    answer["score"] = 4.56
+    probabilities = [0.05, 0.05, 0.1, 0.1, 0.2, 0.2, 0.1, 0.1, 0.05, 0.05]
+    probabilities[0] += mass_delta
+    answer["probabilities"] = {str(index): value for index, value in enumerate(probabilities)}
+
+    parsed = coverage.parse_response(json.dumps(data, separators=(",", ":")).encode(), compiled)
+    assert parsed.scores["a"] == 4.56
+    assert parsed.score_audit["a"]["probabilities"] == answer["probabilities"]
+    assert parsed.score_audit["a"]["mean_validation"] == "hundredth-rounding-interval"
+
+
+def test_score_rounding_interval_still_rejects_infeasible_mass_and_noncent_mass():
+    compiled = compile_for([card("a"), card("b")], FACETS)
+    data = json.loads(response_for(compiled))
+    answer = data["answers"]["score:a"]
+    answer["score"] = 4.56
+    answer["probabilities"] = {str(index): 0.11 for index in range(10)}
+    with pytest.raises(coverage.CoverageError, match="response-score-probability-sum"):
+        coverage.parse_response(json.dumps(data, separators=(",", ":")).encode(), compiled)
+
+    answer["probabilities"] = {str(index): 0.1 for index in range(10)}
+    answer["probabilities"]["0"] = 0.111
+    with pytest.raises(coverage.CoverageError, match="response-score-probability-sum"):
+        coverage.parse_response(json.dumps(data, separators=(",", ":")).encode(), compiled)
+
+
 def test_rounding_interval_mass_constraints_and_endpoint_clipping():
     at_zero = {str(index): float(index == 0) for index in range(10)}
     at_nine = {str(index): float(index == 9) for index in range(10)}
