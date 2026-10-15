@@ -144,6 +144,9 @@ where
         loop {
             match listener.accept() {
                 Ok((mut stream, _)) => {
+                    // Darwin accept inherits O_NONBLOCK from the listener; timeouts alone
+                    // do not make the accepted stream blocking. Avoid scheduling-dependent EAGAIN.
+                    stream.set_nonblocking(false).map_err(|e| e.to_string())?;
                     let request = read_request(&mut stream)?;
                     let index = observed.len();
                     observed.push(request.clone());
@@ -395,6 +398,7 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
         records.push(json!({"program":"native-replay","args":[id],"exit_code":0,"stdout":json!({"case":id,"upstream_origin":case["upstream_origin"],"request_count":observed.len(),"requests":observed,"scope":"recorded transcript and candidate observations; no adapter parity certification"}).to_string(),"stderr":""}));
     }
     validate_coverage(cases)?;
+    network_checks(records)?;
     mutation_checks(records)?;
     Ok(())
 }
@@ -406,6 +410,44 @@ pub fn cli() -> bool {
         return false;
     }
     let result = (|| -> Result<()> {
+        if args.first().is_some_and(|v| v == "replay-sleep-child") {
+            std::thread::sleep(Duration::from_secs(20));
+            std::process::exit(0);
+        }
+        if args
+            .first()
+            .is_some_and(|v| v == "replay-held-pipes-candidate")
+        {
+            std::process::Command::new(std::env::current_exe().map_err(|e| e.to_string())?)
+                .arg("replay-sleep-child")
+                .stdout(std::process::Stdio::inherit())
+                .stderr(std::process::Stdio::inherit())
+                .spawn()
+                .map_err(|e| e.to_string())?;
+            std::process::exit(0);
+        }
+        if args
+            .first()
+            .is_some_and(|v| v == "replay-isolation-candidate")
+        {
+            candidate_isolation_canary(&args)?;
+            std::process::exit(0);
+        }
+        if args.first().is_some_and(|v| v == "replay-network-probe") {
+            #[cfg(target_os = "linux")]
+            verify_linux_namespace()?;
+            return network_probe();
+        }
+        if args.first().is_some_and(|v| v == "replay-run-isolated") {
+            #[cfg(target_os = "linux")]
+            {
+                verify_linux_namespace()?;
+                network_probe()?;
+                return run_backend_inner(&args);
+            }
+            #[cfg(not(target_os = "linux"))]
+            return Err("isolated namespace entrypoint is Linux-only".into());
+        }
         if args.first().is_some_and(|v| v == "replay-run") {
             return run_backend(&args);
         }
@@ -489,6 +531,29 @@ mod tests {
                 body: "{}".into(),
             },
         }
+    }
+    #[test]
+    fn accepted_socket_waits_for_a_delayed_request_within_deadline() {
+        let expected = vec![exchange("/delayed")];
+        replay(&expected, |address| {
+            let mut socket = TcpStream::connect(address).map_err(|e| e.to_string())?;
+            socket
+                .set_read_timeout(Some(Duration::from_secs(2)))
+                .map_err(|e| e.to_string())?;
+            std::thread::sleep(Duration::from_millis(30));
+            socket
+                .write_all(b"GET /delayed HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
+                .map_err(|e| e.to_string())?;
+            let mut response = String::new();
+            socket
+                .read_to_string(&mut response)
+                .map_err(|e| e.to_string())?;
+            if !response.starts_with("HTTP/1.1 200 ") {
+                return Err("delayed response missing".into());
+            }
+            Ok(())
+        })
+        .unwrap();
     }
     #[test]
     fn real_loopback_rejects_missing_extra_and_wrong_order() {
@@ -907,6 +972,33 @@ fn difference(a: &Value, b: &Value, path: &str) -> String {
 /// Run an independently implemented client/backend against fixture-only loopback.
 /// Backend must print one observation envelope as JSON and use the supplied seams.
 fn run_backend(args: &[String]) -> Result<()> {
+    #[cfg(target_os = "linux")]
+    {
+        let executable = std::env::current_exe().map_err(|e| e.to_string())?;
+        let mut inner = args.to_vec();
+        inner[0] = "replay-run-isolated".into();
+        let mut command = isolated_command(&executable, &inner)?;
+        let output = bounded_candidate(&mut command, Duration::from_secs(9))?;
+        if !output.status.success() {
+            return Err(format!(
+                "OS-isolated replay failed before/inside candidate: {}",
+                String::from_utf8_lossy(&output.stderr)
+            ));
+        }
+        Ok(())
+    }
+    #[cfg(target_os = "macos")]
+    {
+        verify_os_isolation(&mut Vec::new())?;
+        run_backend_inner(args)
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "linux")))]
+    {
+        let _ = args;
+        Err("OS-enforced offline replay is unsupported on this platform".into())
+    }
+}
+fn run_backend_inner(args: &[String]) -> Result<()> {
     if args.len() < 5 || args[3] != "--" {
         return Err("usage: cargo xtask replay-run CORPUS.json CASE -- PROGRAM [ARGS...]".into());
     }
@@ -922,9 +1014,15 @@ fn run_backend(args: &[String]) -> Result<()> {
         serde_json::from_value(case["exchanges"].clone()).map_err(|e| e.to_string())?;
     let mut actual = None;
     replay(&exchanges, |address| {
-        let mut command = std::process::Command::new(&args[4]);
+        #[cfg(target_os = "macos")]
+        let mut command = isolated_command(Path::new(&args[4]), &args[5..])?;
+        #[cfg(not(target_os = "macos"))]
+        let mut command = {
+            let mut c = std::process::Command::new(&args[4]);
+            c.args(&args[5..]);
+            c
+        };
         command
-            .args(&args[5..])
             .env("SSX_REPLAY_URL", format!("http://{address}"))
             .env(
                 "SSX_REPLAY_ORIGIN",
@@ -1322,7 +1420,9 @@ fn bounded_read(mut reader: impl Read, limit: usize) -> Result<Vec<u8>> {
     let mut bytes = Vec::new();
     let mut buffer = [0; 8192];
     loop {
-        let count = reader.read(&mut buffer).map_err(|e| e.to_string())?;
+        let count = reader
+            .read(&mut buffer)
+            .map_err(|e| format!("candidate pipe read: {e}"))?;
         if count == 0 {
             return Ok(bytes);
         }
@@ -1345,7 +1445,7 @@ fn bounded_candidate(
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
         .spawn()
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| format!("candidate spawn: {e}"))?;
     let pid = child.id();
     let stdout = child.stdout.take().ok_or("missing stdout")?;
     let stderr = child.stderr.take().ok_or("missing stderr")?;
@@ -1372,7 +1472,9 @@ fn bounded_candidate(
                 }
             }
             if status.is_none() {
-                status = child.try_wait().map_err(|e| e.to_string())?;
+                status = child
+                    .try_wait()
+                    .map_err(|e| format!("candidate wait: {e}"))?;
             }
             if let Some(status) = status
                 && out.is_some()
@@ -1446,5 +1548,226 @@ mod process_tests {
         .unwrap_err();
         assert!(error.contains("timeout"));
         assert!(start.elapsed() < Duration::from_secs(2));
+    }
+}
+
+// Every candidate is contained by an OS policy, including arbitrary non-HTTP clients.
+// Linux isolates runner + fixture server together so the private loopback remains usable.
+fn isolated_command(program: &Path, args: &[String]) -> Result<std::process::Command> {
+    #[cfg(target_os = "macos")]
+    {
+        let sandbox = Path::new("/usr/bin/sandbox-exec");
+        require_isolation_tool(sandbox)?;
+        let mut command = std::process::Command::new(sandbox);
+        command.args(["-p","(version 1)(allow default)(deny network*)(allow network-outbound (remote ip \"localhost:*\"))(allow network-inbound (local ip \"localhost:*\"))"]).arg(program).args(args);
+        Ok(command)
+    }
+    #[cfg(target_os = "linux")]
+    {
+        let sandbox = Path::new("/usr/bin/bwrap");
+        require_isolation_tool(sandbox)?;
+        let parent = std::fs::read_link("/proc/self/ns/net")
+            .map_err(|e| format!("cannot identify parent network namespace: {e}"))?;
+        let mut command = std::process::Command::new(sandbox);
+        command
+            .args([
+                "--unshare-user",
+                "--unshare-net",
+                "--unshare-pid",
+                "--disable-userns",
+                "--cap-drop",
+                "ALL",
+                "--new-session",
+                "--die-with-parent",
+                "--ro-bind",
+                "/",
+                "/",
+                "--proc",
+                "/proc",
+                "--dev",
+                "/dev",
+                "--",
+            ])
+            .arg(program)
+            .args(args)
+            .env("SSX_PARENT_NETNS", parent);
+        Ok(command)
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "linux")))]
+    {
+        let _ = (program, args);
+        Err("OS-enforced offline replay is unsupported on this platform".into())
+    }
+}
+#[cfg(target_os = "linux")]
+fn verify_linux_namespace() -> Result<()> {
+    let parent = std::env::var_os("SSX_PARENT_NETNS")
+        .ok_or("missing parent namespace identity; candidate not started")?;
+    let own = std::fs::read_link("/proc/self/ns/net").map_err(|e| e.to_string())?;
+    if own.as_os_str() == parent {
+        return Err("network namespace was not isolated; candidate not started".into());
+    }
+    let devices = std::fs::read_to_string("/proc/net/dev").map_err(|e| e.to_string())?;
+    let names: Vec<_> = devices
+        .lines()
+        .skip(2)
+        .filter_map(|line| line.split_once(':').map(|(name, _)| name.trim()))
+        .collect();
+    if names != ["lo"] {
+        return Err("isolated namespace must contain only loopback; candidate not started".into());
+    }
+    let status = std::fs::read_to_string("/proc/self/status").map_err(|e| e.to_string())?;
+    if status
+        .lines()
+        .find_map(|line| line.strip_prefix("CapEff:"))
+        .is_none_or(|v| v.trim() != "0000000000000000")
+    {
+        return Err("candidate namespace retains effective capabilities".into());
+    }
+    Ok(())
+}
+fn network_probe() -> Result<()> {
+    let exchange = Exchange {
+        request: Request {
+            method: "GET".into(),
+            target: "/isolation-probe".into(),
+            headers: BTreeMap::new(),
+            body: String::new(),
+        },
+        response: Response {
+            status: 200,
+            headers: BTreeMap::new(),
+            body: "offline-loopback".into(),
+        },
+    };
+    replay(std::slice::from_ref(&exchange), |address| {
+        if send(address, &exchange.request)? != exchange.response {
+            return Err("isolated loopback replay differs".into());
+        }
+        Ok(())
+    })?;
+    println!("{}", non_loopback_denied()?);
+    Ok(())
+}
+fn non_loopback_denied() -> Result<Value> {
+    // RFC 5737 documentation-only address; callers establish OS isolation first.
+    let target = "203.0.113.1:9"
+        .parse()
+        .map_err(|_| "invalid probe target")?;
+    let error = TcpStream::connect_timeout(&target, Duration::from_millis(300))
+        .err()
+        .ok_or("non-loopback socket unexpectedly connected")?;
+    let denied = match std::env::consts::OS {
+        "macos" => matches!(error.raw_os_error(), Some(1 | 13)),
+        "linux" => matches!(error.raw_os_error(), Some(1 | 13 | 101)),
+        _ => false,
+    };
+    if !denied {
+        return Err(format!("OS did not prove non-loopback denial: {error}"));
+    }
+    Ok(
+        json!({"isolation":"os-enforced","loopback":"passed","non_loopback":"denied","target":"203.0.113.1:9","os_error":error.raw_os_error()}),
+    )
+}
+fn verify_os_isolation(records: &mut Vec<Value>) -> Result<()> {
+    let executable = std::env::current_exe().map_err(|e| e.to_string())?;
+    let mut command = isolated_command(&executable, &["replay-network-probe".into()])?;
+    let output = bounded_candidate(&mut command, Duration::from_secs(4))?;
+    records.push(json!({"program":"os-network-isolation","args":["loopback-positive","documentation-ip-denial"],"exit_code":output.status.code(),"stdout":String::from_utf8_lossy(&output.stdout),"stderr":String::from_utf8_lossy(&output.stderr)}));
+    if !output.status.success() {
+        return Err(format!(
+            "mandatory OS network isolation unavailable/rejected; candidate not started: {}",
+            String::from_utf8_lossy(&output.stderr)
+        ));
+    }
+    Ok(())
+}
+
+// Explicit plumbing canary: sends fixture requests and echoes the pinned observation.
+// It proves runner containment and transcript enforcement, never adapter transformation parity.
+fn candidate_isolation_canary(args: &[String]) -> Result<()> {
+    if args.len() != 3 {
+        return Err("isolation canary requires corpus and case".into());
+    }
+    non_loopback_denied()?;
+    let corpus = load_json(Path::new(&args[1]))?;
+    let case = corpus["cases"]
+        .as_array()
+        .ok_or("missing cases")?
+        .iter()
+        .find(|c| c["id"] == args[2])
+        .ok_or("unknown canary case")?;
+    let address = std::env::var("SSX_REPLAY_URL")
+        .map_err(|e| e.to_string())?
+        .strip_prefix("http://")
+        .ok_or("invalid loopback fixture URL")?
+        .parse::<std::net::SocketAddr>()
+        .map_err(|e| e.to_string())?;
+    if !address.ip().is_loopback() {
+        return Err("canary URL must be loopback".into());
+    }
+    let exchanges: Vec<Exchange> =
+        serde_json::from_value(case["exchanges"].clone()).map_err(|e| e.to_string())?;
+    for exchange in exchanges {
+        if send(address, &exchange.request)? != exchange.response {
+            return Err("isolated candidate transcript differs".into());
+        }
+    }
+    println!("{}", case["expected"]);
+    Ok(())
+}
+fn network_checks(records: &mut Vec<Value>) -> Result<()> {
+    verify_os_isolation(records)?;
+    let executable = std::env::current_exe().map_err(|e| e.to_string())?;
+    let corpus = Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures/replay/corpus.json");
+    let args = vec![
+        "replay-run".into(),
+        corpus.to_string_lossy().into_owned(),
+        "upstream-npm-captured".into(),
+        "--".into(),
+        executable.to_string_lossy().into_owned(),
+        "replay-isolation-candidate".into(),
+        corpus.to_string_lossy().into_owned(),
+        "upstream-npm-captured".into(),
+    ];
+    run_backend(&args)?;
+    for mode in ["replay-sleep-child", "replay-held-pipes-candidate"] {
+        let mut timeout_args = args[..5].to_vec();
+        timeout_args.push(mode.into());
+        let started = Instant::now();
+        let error = run_backend(&timeout_args)
+            .err()
+            .ok_or("isolated timeout candidate unexpectedly passed")?;
+        if !error.contains("timeout") || started.elapsed() > Duration::from_secs(11) {
+            return Err(format!(
+                "isolated candidate cleanup did not meet deadline: {error}"
+            ));
+        }
+        records.push(json!({"program":"isolated-candidate-deadline","args":[mode],"exit_code":1,"stdout":"expected timeout and bounded process/pipe cleanup","stderr":error}));
+    }
+    records.push(json!({"program":"isolated-replay-candidate-canary","args":["upstream-npm-captured","documentation-ip-denial","loopback-transcript"],"exit_code":0,"stdout":"runner containment canary passed; observation echoed deliberately, not adapter parity","stderr":""}));
+    Ok(())
+}
+
+fn require_isolation_tool(path: &Path) -> Result<()> {
+    if !path.is_absolute() || !path.is_file() {
+        return Err(format!(
+            "mandatory OS network isolation executable {} unavailable; candidate not started",
+            path.display()
+        ));
+    }
+    Ok(())
+}
+#[cfg(test)]
+mod isolation_tests {
+    use super::*;
+    #[test]
+    fn unavailable_isolation_fails_before_candidate() {
+        assert!(
+            require_isolation_tool(Path::new("/nonexistent/ssx-isolation-executable"))
+                .unwrap_err()
+                .contains("candidate not started")
+        );
+        assert!(require_isolation_tool(Path::new("sandbox-exec")).is_err());
     }
 }

@@ -33,6 +33,12 @@ jobs:
       - name: Confirm pinned toolchain
         run: rustc --version --verbose
 
+      - name: Install mandatory offline replay isolation
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes bubblewrap
+          /usr/bin/bwrap --version
+
       - name: Formatting
         run: cargo fmt --all --check
 

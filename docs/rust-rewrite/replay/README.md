@@ -43,3 +43,35 @@ The exporter command is optional developer tooling. Python is never invoked by R
 ## Temporary Python oracle boundary
 
 The exporter imports the historical backend only in a developer process. It consumes fixture outputs and writes JSON; it does not bridge Python into Rust or provide a fallback runtime. Rust adapter and surface work must retain native tests and compare their actual outputs against this corpus. Once all consumers use accepted native evidence, Python oracle invocation can be retired while keeping the historical fixture bytes and their provenance. This path adds one developer-only Python file, `docs/rust-rewrite/replay/oracle/export.py`, for inclusion in the rewrite's Python invocation/source inventory.
+
+## OS-enforced offline candidates
+
+`replay-run` requires OS network confinement before starting any candidate; setting
+`SSX_REPLAY_URL` alone is insufficient. The native F04 gate exercises both the
+actual confined runner with a native plumbing canary and an isolated socket
+probe: loopback replay must succeed, while a connection to the RFC 5737
+reserved documentation address `203.0.113.1:9` must fail with an OS permission
+or isolated-network routing error. Timeouts and refused connections are not
+accepted as proof of confinement. The canary deliberately echoes a fixture
+observation and establishes containment/transcript behavior only.
+
+On macOS, `/usr/bin/sandbox-exec` applies a mandatory inherited Seatbelt policy
+that denies network operations except inbound/outbound loopback IP sockets.
+The command fails before the candidate if this platform facility is absent or
+rejected. Its deprecated status does not authorize an unrestricted fallback.
+
+On Linux, install `bubblewrap` at `/usr/bin/bwrap`. The complete runner and
+fixture server execute together in a private user/network/PID namespace with
+only loopback networking, no effective capabilities, and a read-only root
+mount. Bubblewrap brings loopback up before dropping capabilities. Before
+starting the candidate, the inner runner verifies that its network namespace
+differs from the outer one, `/proc/net/dev` contains only `lo`, effective
+capabilities are zero, and the real loopback/egress probes pass. A command-line
+marker alone cannot bypass these checks. Nested user namespaces are disabled.
+
+The Rust CI installs bubblewrap on both Linux matrix targets. Hosts must permit
+its user namespaces through their kernel and LSM policy. If an AppArmor policy
+blocks the packaged binary, use a reviewed executable-specific policy for
+`/usr/bin/bwrap`; do not disable host protections globally. Namespace/LSM
+rejection, missing tools, and unsupported platforms stop execution before the
+candidate. There is no proxy-only, environment-only, or unrestricted fallback.
