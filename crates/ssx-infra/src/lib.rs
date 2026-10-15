@@ -1,4 +1,5 @@
-//! In-process foundation fixtures only; not a production store or engine.
+//! Infrastructure adapters and deterministic foundation fixtures.
+pub mod valkey;
 use ssx_application::{
     Audit, Clock, Engine, Metrics, NoopSink, PortFuture, Runtime, Store, Supervisor, TaskEvent,
 };
