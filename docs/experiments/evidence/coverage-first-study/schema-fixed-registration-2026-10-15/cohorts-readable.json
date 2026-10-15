@@ -1,5 +1,5 @@
 {
-  "decision_context": "Prospectively locked fresh cohorts for the approved frozen-input acquisition-method amendment; stage/source registration and external admission remain required before calls.",
+  "decision_context": "Prospectively locked fresh cohorts for the frozen-input acquisition method; stage and source registration remain required before calls.",
   "global_contract": {
     "allowed_engines": [
       "arxiv",
@@ -27,7 +27,7 @@
       "status": "completed_metadata_only"
     },
     "natural_count_definition": "Number of eligible cards naturally present after the frozen production acquisition, grouping, and deduplication path, before ranking or presentation slicing.",
-    "navigation_target_contract": "Navigation targets are exact official GitHub repository landing pages, not vendor documentation pages. Each target has an explicit GitHub-only reference-category pool plan and a 2-4 keyword repository-search query. Root confirmed this target kind matches the prior approved EXP-077 development navigation targets and preserves the exact-target rank-1 gate. Each target URL remains subject to source qualification during the separately authorized registration process.",
+    "navigation_target_contract": "Navigation targets are exact official GitHub repository landing pages, not vendor documentation pages. Each target has an explicit GitHub-only reference-category pool plan and a 2-4 keyword repository-search query. The exact-target rank-1 gate applies. Each target URL remains subject to source qualification before execution.",
     "paired_query_contract": "Each research case has three distinct fields. search_query is a predeclared concise topical retrieval query of one to four terms and is sent unchanged to every selected engine and to both W0 and coverage candidate ranking. The coverage candidate additionally receives the full purpose and critical facets. task_question is the bounded task-use question for answer assessment; it is not substituted into the search API query.",
     "per_engine_limit_per_pool": 20,
     "pool_band_rules": {
