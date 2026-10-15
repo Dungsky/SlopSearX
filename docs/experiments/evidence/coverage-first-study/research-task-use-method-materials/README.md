@@ -1,6 +1,6 @@
 # Fresh research-task comparison proposal
 
-This folder contains a prospective schema-4 method and two fresh cohorts. It is not a registration or a result. No stage identities have been allocated, and no acquisition, provider, or grading calls have been made. The D27 development cohort deliberately reuses the definitions from the earlier, uninvoked C26 proposal; C27 is a separately authored confirmation cohort.
+This folder fixes the schema-4 test method and defines two fresh cohorts. The protocol is pinned with `status: registered` so validators can check these exact settings. No execution stage is registered or admitted to run, no stage identities have been allocated, and no acquisition, provider, or grading calls have been made. These files contain no experimental result. The D27 development cohort deliberately reuses the definitions from the earlier, uninvoked C26 proposal; C27 is a separately authored confirmation cohort.
 
 Schema 4 makes completion of useful research tasks the primary user outcome. Useful-card-count changes remain visible in the report as diagnostics and cannot independently veto a result. Ranking still has independent hard guards: mean nDCG@10 gain of at least 0.02, a strictly positive 95% bootstrap lower bound, a per-case floor of -0.03, and no loss of useful facets. The task-use correctness, navigation, stability, resource, and terminal checks remain hard requirements. Both stages use a newly acquired frozen pool. The exact hashes and policy are recorded in `material-lock.json`.
 

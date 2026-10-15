@@ -1,7 +1,7 @@
 {
   "schema": "coverage-first-study-method-material-lock/1",
-  "status": "prospective-unregistered-no-stage-identities",
-  "purpose": "Fresh schema-4 task-use comparison proposal; no acquisition, provider calls, grading, or admission has occurred.",
+  "status": "method-pinned-no-execution-stage-registration",
+  "purpose": "Pinned schema-4 task-use comparison method; no execution stage registration, acquisition, provider calls, grading, or admission has occurred.",
   "protocol_sha256": "7e4babae1fde5ec46f7834dc17ce3a61777cfdd338afa674930c82ce598a3ded",
   "cohorts_sha256": "4ae302eaebd54d9fe2c3bbd49d243811d07ffd2135c207698db1742644355b72",
   "band_companion_sha256": "e55ca941ed07e5d1905e0474622c1bc69b833f0f787d1bbf224a84357ed69c8f",
