@@ -16,3 +16,4 @@ ssx-http.workspace = true
 ssx-mcp.workspace = true
 sha2.workspace = true
 ssx-json.workspace = true
+ssx-application.workspace = true
