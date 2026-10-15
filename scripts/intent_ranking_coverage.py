@@ -491,6 +491,8 @@ def select(compiled: CompiledRequest, parsed: ParsedResponse) -> RankingResult:
     candidate_by_id = {candidate["id"]: candidate for candidate in compiled.candidates}
     tie_key = compiled.tie_key_by_id
     chosen = set()
+    reserved_facets = {}
+    unreserved_facets = []
     for facet_id in facet_ids:
         leads = [
             cid
@@ -500,18 +502,10 @@ def select(compiled: CompiledRequest, parsed: ParsedResponse) -> RankingResult:
             and facet_id in parsed.selected_facets[cid]
         ]
         if not leads:
-            return RankingResult(
-                compiled.incumbent_order,
-                "fallback",
-                "missing_facet_lead",
-                {
-                    "scores": parsed.scores,
-                    "score_audit": parsed.score_audit,
-                    "profiles": parsed.profile_audit,
-                    "usage": parsed.usage,
-                },
-            )
+            unreserved_facets.append({"facet_id": facet_id, "reason": "no_eligible_lead"})
+            continue
         best = min(leads, key=lambda cid: (-parsed.scores[cid], tie_key[cid]))
+        reserved_facets[facet_id] = best
         chosen.add(best)
     reserved = sorted(chosen, key=lambda cid: (-parsed.scores[cid], tie_key[cid]))
     tail = sorted(
@@ -520,14 +514,31 @@ def select(compiled: CompiledRequest, parsed: ParsedResponse) -> RankingResult:
     result = tuple(reserved + tail)
     if len(result) != len(candidate_by_id) or set(result) != set(candidate_by_id):
         return RankingResult(compiled.incumbent_order, "fallback", "selection-permutation-invalid", {})
+    unknown_profile_ids = sorted(
+        (cid for cid, profile in parsed.selected_facets.items() if profile is None), key=lambda cid: cid.encode("utf-8")
+    )
+    none_profile_ids = sorted(
+        (cid for cid, profile in parsed.selected_facets.items() if profile == ()), key=lambda cid: cid.encode("utf-8")
+    )
+    reason = (
+        "facet_leads_reserved"
+        if not unreserved_facets
+        else "partial_facet_lead_reservation"
+        if reserved_facets
+        else "no_eligible_facet_leads_score_ranked"
+    )
     return RankingResult(
         result,
         "selected",
-        "facet_leads_reserved",
+        reason,
         {
             "scores": parsed.scores,
             "score_audit": parsed.score_audit,
             "profiles": parsed.profile_audit,
+            "reserved_facets": reserved_facets,
+            "unreserved_facets": unreserved_facets,
+            "unknown_profile_ids": unknown_profile_ids,
+            "none_profile_ids": none_profile_ids,
             "usage": parsed.usage,
         },
     )

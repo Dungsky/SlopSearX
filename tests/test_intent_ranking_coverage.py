@@ -161,21 +161,71 @@ def test_missing_score_or_profile_question_is_rejected():
         coverage.parse_response(json.dumps(document).encode(), compiled)
 
 
-def test_missing_facet_or_unknown_profiles_preserve_incumbent():
-    cards = [card("a"), card("b"), card("c")]
-    compiled = compile_for(cards, FACETS[:2])
-    profiles = {"a": "facets:coverage", "b": "unknown", "c": "none"}
-    result = coverage.rank_offline(
-        query="public query",
-        purpose="compare useful evidence",
-        facets=FACETS[:2],
-        candidates=cards,
-        incumbent_order=["a", "b", "c"],
-        raw_response=response_for(compiled, profiles=profiles),
+def test_partial_facet_reservations_rank_tail_and_audit_unknown_separately_from_none():
+    cards = [card("a"), card("b"), card("c"), card("d")]
+    compiled = compile_for(cards, FACETS)
+    profiles = {"a": "facets:coverage", "b": "none", "c": "unknown", "d": "facets:coverage"}
+    result = coverage.select(
+        compiled,
+        coverage.parse_response(
+            response_for(compiled, scores={"a": 6, "b": 9, "c": 8, "d": 5}, profiles=profiles), compiled
+        ),
     )
-    assert result.status == "fallback"
-    assert result.reason == "missing_facet_lead"
-    assert result.ordered_ids == ("a", "b", "c")
+    assert result.status == "selected"
+    assert result.reason == "partial_facet_lead_reservation"
+    assert result.ordered_ids == ("a", "b", "c", "d")
+    assert result.audit["reserved_facets"] == {"coverage": "a"}
+    assert result.audit["unreserved_facets"] == [
+        {"facet_id": "cost", "reason": "no_eligible_lead"},
+        {"facet_id": "risk", "reason": "no_eligible_lead"},
+    ]
+    assert result.audit["unknown_profile_ids"] == ["c"]
+    assert result.audit["none_profile_ids"] == ["b"]
+
+
+def test_no_eligible_facet_leads_still_score_ranks_and_keeps_canonical_ties():
+    cards = [card("u", url="https://b.test"), card("z", url="https://a.test"), card("a")]
+    compiled = compile_for(cards, FACETS[:2])
+    result = coverage.select(
+        compiled,
+        coverage.parse_response(
+            response_for(
+                compiled,
+                scores={"u": 9, "z": 9, "a": 7},
+                profiles={"u": "none", "z": "unknown", "a": "none"},
+            ),
+            compiled,
+        ),
+    )
+    assert result.status == "selected"
+    assert result.reason == "no_eligible_facet_leads_score_ranked"
+    assert result.ordered_ids == ("z", "u", "a")
+    assert result.audit["reserved_facets"] == {}
+    assert result.audit["unreserved_facets"] == [
+        {"facet_id": "cost", "reason": "no_eligible_lead"},
+        {"facet_id": "coverage", "reason": "no_eligible_lead"},
+    ]
+    assert result.audit["unknown_profile_ids"] == ["z"]
+    assert result.audit["none_profile_ids"] == ["a", "u"]
+
+
+def test_existing_useful_lead_cutoff_still_controls_facet_reservation():
+    cards = [card("coverage"), card("cost"), card("tail")]
+    compiled = compile_for(cards, FACETS[:2])
+    result = coverage.select(
+        compiled,
+        coverage.parse_response(
+            response_for(
+                compiled,
+                scores={"coverage": 4, "cost": 5, "tail": 6},
+                profiles={"coverage": "facets:coverage", "cost": "facets:cost", "tail": "none"},
+            ),
+            compiled,
+        ),
+    )
+    assert result.ordered_ids == ("cost", "tail", "coverage")
+    assert result.audit["reserved_facets"] == {"cost": "cost"}
+    assert result.audit["unreserved_facets"] == [{"facet_id": "coverage", "reason": "no_eligible_lead"}]
 
 
 def test_tied_maximum_is_policy_unknown_and_original_probabilities_remain_audit():
@@ -211,6 +261,8 @@ def test_multifacet_lead_is_reserved_once_and_full_pool_tail_is_preserved():
     )
     result = coverage.select(compiled, coverage.parse_response(raw, compiled))
     assert result.ordered_ids == ("both", "cost", "low", "rest")
+    assert result.audit["reserved_facets"] == {"coverage": "both", "cost": "both"}
+    assert result.audit["unreserved_facets"] == []
     assert len(result.ordered_ids) == len(cards)
     assert set(result.ordered_ids) == {row["id"] for row in cards}
 
@@ -228,6 +280,7 @@ def test_score_then_canonical_tie_break_and_candidate_input_reversal_invariance(
     result = coverage.select(compiled, coverage.parse_response(raw, compiled))
     reverse_result = coverage.select(reversed_compiled, coverage.parse_response(reverse_raw, reversed_compiled))
     assert result.ordered_ids == reverse_result.ordered_ids == ("a", "z", "tail")
+    assert result.audit["reserved_facets"] == {"coverage": "a", "cost": "a"}
 
 
 def test_eighty_cards_compile_to_exactly_160_questions_and_keep_full_pool():
