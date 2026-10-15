@@ -92,7 +92,7 @@ def test_wire_float_method_changes_only_candidate_parser_pin_and_locks_exact_pai
     protocol = json.loads(raw)
     assert {key for key in previous if previous[key] != protocol.get(key)} == {"candidate_source_sha256"}
     assert protocol["candidate_source_sha256"] == (
-        "2e9d7c73e469d8c56fa19de63b303c4f3fe5c252ef4746aee7163c8e076db5eb"
+        "3be05771ebd32fcf18433ee87db031bd190ee9615237a95e4bbd96108487067a"
     )
     cohort_bytes = (SAVED_WIRE_FLOAT / "cohorts.json").read_bytes()
     assert cohort_bytes == (SAVED_WIRE_COMPAT / "cohorts.json").read_bytes()

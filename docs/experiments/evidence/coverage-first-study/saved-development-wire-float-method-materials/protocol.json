@@ -39,7 +39,7 @@
     "new_stage_uuid_and_durable_one_shot_identity_required": true,
     "preflight_helpers_create_authority": false
   },
-  "candidate_source_sha256": "2e9d7c73e469d8c56fa19de63b303c4f3fe5c252ef4746aee7163c8e076db5eb",
+  "candidate_source_sha256": "3be05771ebd32fcf18433ee87db031bd190ee9615237a95e4bbd96108487067a",
   "capture": {
     "context_unicode_characters": 8000,
     "internal_scraper_fanout": "unknown unless exposed, not counted as zero",
