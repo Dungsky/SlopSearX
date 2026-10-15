@@ -32,6 +32,8 @@ FROZEN_COHORTS_SHA256 = "377450c59f2b8498c8a7f923bb7b6d05a0b780300467cc9b9f8ef0b
 FROZEN_CONTRACT_SHA256 = "359f0899a2afcec711352fa5bc673de6cb94d308cf69e013347e24aebb4814e7"
 SAVED_PROTOCOL_SHA256 = "647d1a09b9594f04798a9b891e609ed710c37111da62ecbf3e8e34d1b183c2bb"
 SAVED_CONTRACT_SHA256 = "e71660f3dbabe03c7d15e983f3c8b8cc666560d5f900a3323508b407cdef87b6"
+SAVED_WIRE_COMPAT_PROTOCOL_SHA256 = "5b40c497b0871a575c07eff18b8c8f8a54dcb417d1028e61815ab9a77887a604"
+SAVED_WIRE_COMPAT_CONTRACT_SHA256 = "8d807e655098848762c6c76ed7f862d24a8d256b38b7ada55d246a0fb01561fc"
 ARCHIVAL_GROUPS = {
     "research_le_40": {
         "development": ["D-R01", "D-R02", "D-R03", "D-R04"],
@@ -54,6 +56,16 @@ FROZEN_GROUPS = {
 }
 # Backward-compatible name for archived-contract tests and consumers.
 GROUPS = ARCHIVAL_GROUPS
+
+
+def contract_sha256_for(protocol_sha256: str, cohorts_sha256: str) -> str | None:
+    """Return the exact allowlisted companion digest for a material pair."""
+    allowed = {
+        (FROZEN_PROTOCOL_SHA256, FROZEN_COHORTS_SHA256): FROZEN_CONTRACT_SHA256,
+        (SAVED_PROTOCOL_SHA256, FROZEN_COHORTS_SHA256): SAVED_CONTRACT_SHA256,
+        (SAVED_WIRE_COMPAT_PROTOCOL_SHA256, FROZEN_COHORTS_SHA256): SAVED_WIRE_COMPAT_CONTRACT_SHA256,
+    }
+    return allowed.get((protocol_sha256, cohorts_sha256))
 
 
 class BandCompanionError(ValueError):
@@ -95,6 +107,11 @@ def validate_contract(contract: object, *, stage_kind: str, protocol_sha256: str
         SAVED_PROTOCOL_SHA256,
         FROZEN_COHORTS_SHA256,
     ) and (protocol_sha256, cohorts_sha256) == (SAVED_PROTOCOL_SHA256, FROZEN_COHORTS_SHA256):
+        expected_groups = FROZEN_GROUPS
+    elif (contract["protocol_sha256"], contract["cohorts_sha256"]) == (
+        SAVED_WIRE_COMPAT_PROTOCOL_SHA256,
+        FROZEN_COHORTS_SHA256,
+    ) and (protocol_sha256, cohorts_sha256) == (SAVED_WIRE_COMPAT_PROTOCOL_SHA256, FROZEN_COHORTS_SHA256):
         expected_groups = FROZEN_GROUPS
     else:
         raise BandCompanionError("companion-material-pin-mismatch")
