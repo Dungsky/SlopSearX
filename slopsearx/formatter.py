@@ -1079,6 +1079,11 @@ def format_yaml_markdown(
             "deadline_exceeded": meta.get("deadline_exceeded", False),
             "query_id": meta.get("query_id", ""),
         }
+        if "date_filter" in meta:
+            yaml_section["meta"]["date_filter"] = meta["date_filter"]
+            # Bounded clients must distinguish successful empty acquisition
+            # from upstream failure, just as they do for the JSON contract.
+            yaml_section["meta"]["engine_status"] = meta.get("engine_status", {})
         if "advisories" in meta:
             yaml_section["meta"]["advisories"] = meta["advisories"]
         if "jev_routing" in meta:

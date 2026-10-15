@@ -785,6 +785,7 @@ async def test_completed_search_records_unhandled_failure_without_swallowing(
     assert m.http_search_completed._values[key] == before + 1
 
 
+@pytest.mark.parametrize("output_format", ["json", "yaml"])
 @pytest.mark.parametrize("path", ["/", "/search"])
 @pytest.mark.parametrize("method", ["get", "post"])
 @pytest.mark.parametrize(
@@ -795,7 +796,7 @@ async def test_completed_search_records_unhandled_failure_without_swallowing(
         {"date_to": "2024-02-29"},
     ],
 )
-def test_absolute_dates_forward_and_prove_audited_scope(client, monkeypatch, path, method, bounds):
+def test_absolute_dates_forward_and_prove_audited_scope(client, monkeypatch, path, method, bounds, output_format):
     import slopsearx.server as server_mod
     from engines.openalex import OpenAlexAdapter
 
@@ -807,13 +808,15 @@ def test_absolute_dates_forward_and_prove_audited_scope(client, monkeypatch, pat
 
     monkeypatch.setattr(OpenAlexAdapter, "search", search)
     monkeypatch.setattr(server_mod, "_active_engines", {"openalex": OpenAlexAdapter()})
-    params = {"q": "climate", "format": "json", "engines": "openalex", **bounds}
+    params = {"q": "climate", "format": output_format, "engines": "openalex", **bounds}
     result = client.get(path, params=params) if method == "get" else client.post(path, data=params)
     assert result.status_code == 200
     assert len(seen) == 1
     assert seen[0]["date_from"] == bounds.get("date_from")
     assert seen[0]["date_to"] == bounds.get("date_to")
-    proof = result.json()["meta"]["date_filter"]
+    data = result.json() if output_format == "json" else yaml.safe_load(result.text.split("\n---\n", 1)[0])
+    assert data["meta"]["engine_status"]["openalex"]["status"] == "ok"
+    proof = data["meta"]["date_filter"]
     assert proof["requested"] == {
         "date_from": bounds.get("date_from"),
         "date_to": bounds.get("date_to"),
