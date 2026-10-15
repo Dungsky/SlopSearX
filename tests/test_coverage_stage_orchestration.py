@@ -4,6 +4,7 @@ import asyncio
 import hashlib
 import json
 import os
+import tarfile
 import tempfile
 import time
 import unittest
@@ -18,11 +19,15 @@ import httpx
 from scripts import coverage_answer_execution as answer_execution
 from scripts import coverage_band_companion as companion
 from scripts import (
+    coverage_frozen_pool_inputs as frozen_pool,
+)
+from scripts import (
     coverage_jev_execution,
     coverage_resource_evidence,
 )
 from scripts import coverage_live_acquire as live_acquire
 from scripts import coverage_resource_evidence as resource_evidence
+from scripts import coverage_saved_corpus as saved_corpus
 from scripts import coverage_source_capture as source_capture
 from scripts import coverage_stage_finalization as stage_finalization
 from scripts import coverage_stage_orchestration as stage
@@ -154,6 +159,7 @@ def plan_fixture(*, selector_map_registered: bool = False, pool_input_mode: str 
             ],
         }
     )
+
     source_closure_sha = digest(
         _source_closure_bytes(
             "a" * 40,
@@ -241,6 +247,229 @@ def plan_fixture(*, selector_map_registered: bool = False, pool_input_mode: str 
         initial_registration_sha256=initial_registration_sha256,
         band_companion_source_pins=band_companion_source_pins,
     )
+
+
+def _saved_plan_from_private_archive(
+    root: Path, archive_path: Path, source_sidecar_path: Path, source_preparation_path: Path
+) -> tuple[stage.StagePlan, saved_corpus.SavedCorpusImportResult]:
+    """Load the pinned origin package privately and build a fresh no-call stage plan."""
+    materials = (
+        Path(__file__).parents[1] / "docs/experiments/evidence/coverage-first-study/saved-development-method-materials"
+    )
+    protocol_bytes = (materials / "protocol.json").read_bytes()
+    cohorts_bytes = (materials / "cohorts.json").read_bytes()
+    protocol = json.loads(protocol_bytes)
+    cohort_document = json.loads(cohorts_bytes)
+    development = next(row for row in cohort_document["stages"] if row["stage"] == "development")
+    cases = development["research_cases"]
+    navigation = development["navigation_targets"]
+
+    root.mkdir(mode=0o700)
+    with tarfile.open(archive_path) as archive:
+        members = archive.getmembers()
+        if any(
+            Path(item.name).is_absolute() or ".." in Path(item.name).parts or item.issym() or item.islnk()
+            for item in members
+        ):
+            raise AssertionError("saved replay archive contains unsafe members")
+        archive.extractall(root, filter="data")
+    for path in root.rglob("*"):
+        if path.is_dir():
+            os.chmod(path, 0o700)
+        elif path.is_file():
+            os.chmod(path, 0o600)
+
+    origin_uuid = protocol["saved_development_origin"]["stage_uuid"]
+    prefix = f"prospective-{origin_uuid}"
+    source_root = root / f"{prefix}-stage_inventory" / origin_uuid
+    capture_root = root / f"{prefix}-capture_receipts" / origin_uuid
+    handoff_root = root / f"{prefix}-operator_handoff" / origin_uuid
+    collection_root = source_root / "collection"
+    collection_manifest_raw = (collection_root / "acquisition-manifest.json").read_bytes()
+    collection_manifest = json.loads(collection_manifest_raw)
+    frozen_index = json.loads((collection_root / "frozen-pool-index.json").read_bytes())
+    evidence_raw = (collection_root / "frozen-pool-evidence.json").read_bytes()
+    collector_raw = (collection_root / "collector-receipt.json").read_bytes()
+    availability_raw = (collection_root / "engine-availability.json").read_bytes()
+    source_manifest_raw = (capture_root / "source-manifest.json").read_bytes()
+    capture_inventory_raw = (capture_root / "inventory.json").read_bytes()
+    candidate_identity = (handoff_root / "source-capture/artifacts/permit/candidate-identity.bin").read_bytes()
+    origin_acquisition_plan_sidecar = handoff_root / "frozen-pool-collection/artifacts/permit/acquisition-plan.bin"
+    origin_acquisition_plan = origin_acquisition_plan_sidecar.read_bytes()
+    source_preparation = json.loads(source_preparation_path.read_bytes())
+    if (
+        source_preparation.get("schema") != "historical-source-preparation/1"
+        or source_preparation.get("source_revision") != collection_manifest["source_revision"]
+        or source_preparation.get("git_path") != "scripts/coverage_study_acquire.py"
+        or source_preparation.get("prepared_from") != "local-git-object"
+        or source_preparation.get("provider_calls") != 0
+        or source_preparation.get("scientific_credit") is not False
+    ):
+        raise AssertionError("historical runner source preparation does not match the saved origin")
+    historical_source_bytes = source_sidecar_path.read_bytes()
+    if len(historical_source_bytes) != source_preparation.get("bytes") or digest(
+        historical_source_bytes
+    ) != source_preparation.get("sha256"):
+        raise AssertionError("historical runner source sidecar differs from its preparation receipt")
+
+    origin_registration = frozen_pool.FrozenPoolRegistrationContext(
+        stage_uuid=collection_manifest["stage_uuid"],
+        stage_kind=collection_manifest["stage"],
+        source_revision=collection_manifest["source_revision"],
+        source_closure_sha256=collection_manifest["source_closure_sha256"],
+        protocol_sha256=collection_manifest["protocol_sha256"],
+        cohorts_sha256=collection_manifest["cohorts_sha256"],
+        candidate_identity_sha256=frozen_index["candidate_identity_sha256"],
+        candidate_endpoint_sha256=frozen_index["candidate_endpoint_sha256"],
+        acquisition_plan_sha256=collection_manifest["acquisition_plan_sha256"],
+        task_ids=tuple(row["task_id"] for row in collection_manifest["research_cases"]),
+        navigation_ids=tuple(row["target_id"] for row in collection_manifest["navigation_targets"]),
+        evidence_sha256=digest(evidence_raw),
+        collector_receipt_sha256=digest(collector_raw),
+        availability_sha256=digest(availability_raw),
+    )
+    origin = saved_corpus.SavedCorpusOrigin(
+        registration=origin_registration,
+        research_cases=tuple(collection_manifest["research_cases"]),
+        navigation_targets=tuple(collection_manifest["navigation_targets"]),
+        collection_directory=collection_root,
+        expected_collection_receipt_inventory_sha256=resource_evidence.receipt_inventory_sha256(collection_root),
+        capture_stage_directory=capture_root,
+        expected_capture_inventory_sha256=digest(capture_inventory_raw),
+        expected_capture_manifest_sha256=digest(source_manifest_raw),
+        expected_package_sha256=saved_corpus.package_sha256(collection_root, capture_root),
+        acquisition_plan_sidecar=origin_acquisition_plan_sidecar,
+        operation_runner_source_sidecar=source_sidecar_path,
+        operation_runner_source_sha256=source_preparation["sha256"],
+    )
+    if origin.expected_package_sha256 != protocol["saved_development_origin"]["package_sha256"]:
+        raise AssertionError("saved replay origin package differs from pinned protocol")
+    if origin.research_cases != tuple(cases) or origin.navigation_targets != tuple(navigation):
+        raise AssertionError("saved replay origin cohort differs from pinned cohorts")
+    if digest(candidate_identity) != origin.registration.candidate_identity_sha256:
+        raise AssertionError("saved replay candidate identity differs from pinned origin")
+    if digest(origin_acquisition_plan) != origin.registration.acquisition_plan_sha256:
+        raise AssertionError("saved replay acquisition plan differs from the pinned origin registration")
+
+    stage_uuid, packet_uuid = str(uuid.uuid4()), str(uuid.uuid4())
+    source_revision = "6808451f81459db6b28878f44d5c5a8ee91186ba"
+    candidate_endpoint_sha = origin.registration.candidate_endpoint_sha256
+    protocol_sha, cohorts_sha = digest(protocol_bytes), digest(cohorts_bytes)
+    companion_bytes = (materials / "band-companion-contract.json").read_bytes()
+    companion_sha = digest(companion_bytes)
+    source_closure_sha = digest(
+        _source_closure_bytes(source_revision, registered=True, band_companion_bytes=companion_bytes)
+    )
+    initial_registration = canonical(
+        {
+            "schema": core.REGISTRATION_SCHEMA,
+            "stage_uuid": stage_uuid,
+            "stage_kind": "development",
+            "source_revision": source_revision,
+            "pins": {"protocol": protocol_sha},
+            "operation_ids": [],
+            "navigation_skip_reasons": [],
+            "task_ids": [],
+            "band_companion_sha256": companion_sha,
+        }
+    )
+    initial_registration_sha = digest(initial_registration)
+    task_ids = [row["task_id"] for row in cases] + [row["target_id"] for row in navigation]
+    acquisition_plan = canonical(
+        {
+            "schema": core.ACQUISITION_SCHEMA,
+            "stage_uuid": stage_uuid,
+            "tasks": [
+                {
+                    "task_id": row["task_id"],
+                    "engine_calls": {engine: 0 for engine in ("wikipedia", "arxiv", "github", "openalex")},
+                }
+                for row in cases
+            ]
+            + [
+                {
+                    "task_id": row["target_id"],
+                    "engine_calls": {engine: 0 for engine in ("wikipedia", "arxiv", "github", "openalex")},
+                }
+                for row in navigation
+            ],
+        }
+    )
+    input_manifest_sha = digest(
+        canonical(
+            {
+                "schema": "coverage-preacquisition-input-manifest/1",
+                "stage_uuid": stage_uuid,
+                "protocol_sha256": protocol_sha,
+                "cohorts_sha256": cohorts_sha,
+                "task_ids": task_ids,
+                "band_companion_sha256": companion_sha,
+                "initial_registration_sha256": initial_registration_sha,
+            }
+        )
+    )
+    manifest = canonical(
+        {
+            "schema": "coverage-saved-import-plan/1",
+            "stage": "development",
+            "stage_uuid": stage_uuid,
+            "source_revision": source_revision,
+            "source_closure_sha256": source_closure_sha,
+            "protocol_sha256": protocol_sha,
+            "cohorts_sha256": cohorts_sha,
+            "input_manifest_sha256": input_manifest_sha,
+            "acquisition_plan_sha256": digest(acquisition_plan),
+            "research_cases": cases,
+            "navigation_targets": navigation,
+            "packet_stage_uuid": packet_uuid,
+            "origin_package_sha256": origin.expected_package_sha256,
+        }
+    )
+    plan = stage.StagePlan(
+        stage_uuid=stage_uuid,
+        stage_kind="development",
+        source_revision=source_revision,
+        protocol_bytes=protocol_bytes,
+        cohorts_bytes=cohorts_bytes,
+        acquisition_plan_bytes=acquisition_plan,
+        acquisition_manifest_bytes=manifest,
+        source_closure_sha256=source_closure_sha,
+        research_cases=tuple(cases),
+        navigation_targets=tuple(navigation),
+        candidate_identity_bytes=candidate_identity,
+        candidate_endpoint_sha256=candidate_endpoint_sha,
+        packet_stage_uuid=packet_uuid,
+        stage_started_monotonic=time.monotonic(),
+        stage_deadline_monotonic=time.monotonic() + 28_799,
+        expected_acquisition_manifest_sha256=digest(manifest),
+        pool_input_mode="saved-corpus/1",
+        saved_origin=origin,
+        band_companion_bytes=companion_bytes,
+        band_companion_sha256=companion_sha,
+        band_companion_source_pins={
+            "coverage_band_companion": digest(
+                (Path(__file__).parents[1] / "scripts/coverage_band_companion.py").read_bytes()
+            )
+        },
+        initial_registration_bytes=initial_registration,
+        initial_registration_sha256=initial_registration_sha,
+    )
+    stage._validate_plan_static(plan)
+    binding = saved_corpus.SavedCorpusStageBinding(
+        stage_uuid=stage_uuid,
+        stage_kind="development",
+        source_revision=source_revision,
+        source_closure_sha256=source_closure_sha,
+        protocol_sha256=protocol_sha,
+        cohorts_sha256=cohorts_sha,
+        candidate_identity_sha256=digest(candidate_identity),
+        candidate_endpoint_sha256=candidate_endpoint_sha,
+        packet_stage_uuid=packet_uuid,
+        origin_package_sha256=origin.expected_package_sha256,
+        import_authority_receipt_sha256=digest(b"synthetic saved import authority"),
+    )
+    imported = saved_corpus.verify_and_import_saved_corpus(origin, binding, cases, navigation)
+    return plan, imported
 
 
 def _search_result(index: int, *, namespace: str, engines: list[str], url: str | None = None) -> SearchResult:
@@ -404,12 +633,19 @@ def _late_preflight(plan: stage.StagePlan, evidence, pipeline_inputs):
             operation_id: artifact["operation"]
             for operation_id, artifact in evidence.phase_result.verified.operations.items()
         }
+    elif isinstance(evidence, stage.SavedCorpusStageEvidence):
+        operations = {
+            operation_id: row["operation"]
+            for operation_id, row in evidence.imported.origin_pool_verified.operations.items()
+        }
     else:
         operations = {row.operation_id: row for row in evidence.result.operations}
     navigation_rows = []
     for target in plan.navigation_targets:
         operation = operations[target["target_id"]]
-        pool_count = operation["pool_count"] if type(operation) is dict else operation.pool_count
+        pool_count = operation.get("pool_count") if type(operation) is dict else operation.pool_count
+        if type(pool_count) is not int:
+            raise AssertionError("verified pool operation lacks its validated card count")
         pool = [f"c{index}" for index in range(pool_count)]
         navigation_rows.append(
             {
@@ -876,6 +1112,28 @@ class StageOrchestrationTests(unittest.TestCase):
     def test_integrated_synthetic_stage_completes_inconclusive_without_live_authority(self):
         self._run_integrated_synthetic_stage(deadline_cross=False)
 
+    @unittest.skipUnless(
+        all(
+            os.environ.get(name)
+            for name in (
+                "COVERAGE_SAVED_ORIGIN_ARCHIVE",
+                "COVERAGE_SAVED_ORIGIN_SOURCE_SIDECAR",
+                "COVERAGE_SAVED_ORIGIN_SOURCE_PREPARATION",
+            )
+        ),
+        "private saved-origin archive is supplied only for local deterministic replay",
+    )
+    def test_saved_origin_archive_replays_full_stage_without_live_authorities(self):
+        """Engineering replay only: real saved-origin verification, synthetic downstream outputs."""
+        self._run_integrated_synthetic_stage(
+            deadline_cross=False,
+            selector_map_registered=True,
+            runtime_bound_admission=True,
+            saved_origin_archive=Path(os.environ["COVERAGE_SAVED_ORIGIN_ARCHIVE"]),
+            saved_origin_source_sidecar=Path(os.environ["COVERAGE_SAVED_ORIGIN_SOURCE_SIDECAR"]),
+            saved_origin_source_preparation=Path(os.environ["COVERAGE_SAVED_ORIGIN_SOURCE_PREPARATION"]),
+        )
+
     def test_frozen_pool_partial_availability_reaches_same_downstream_chain(self):
         self._run_integrated_synthetic_stage(
             deadline_cross=False,
@@ -902,10 +1160,19 @@ class StageOrchestrationTests(unittest.TestCase):
         admission_mode: str = "valid",
         frozen_mode: bool = False,
         runtime_bound_admission: bool = False,
+        saved_origin_archive: Path | None = None,
+        saved_origin_source_sidecar: Path | None = None,
+        saved_origin_source_preparation: Path | None = None,
     ):
-        plan = plan_fixture(
-            selector_map_registered=selector_map_registered,
-            pool_input_mode="frozen-pool/1" if frozen_mode else None,
+        if saved_origin_archive is not None and frozen_mode:
+            raise AssertionError("saved-origin replay and frozen-pool collection are distinct inputs")
+        plan = (
+            None
+            if saved_origin_archive is not None
+            else plan_fixture(
+                selector_map_registered=selector_map_registered,
+                pool_input_mode="frozen-pool/1" if frozen_mode else None,
+            )
         )
         if frozen_mode:
             protocol_bytes = plan.protocol_bytes
@@ -944,6 +1211,74 @@ class StageOrchestrationTests(unittest.TestCase):
             )
         with tempfile.TemporaryDirectory() as temporary:
             base = Path(temporary)
+            saved_imported = None
+            if saved_origin_archive is not None:
+                if saved_origin_source_sidecar is None or saved_origin_source_preparation is None:
+                    raise AssertionError(
+                        "saved-origin replay requires an independently pinned historical source sidecar"
+                    )
+                plan, saved_imported = _saved_plan_from_private_archive(
+                    base / "origin-extract",
+                    saved_origin_archive,
+                    saved_origin_source_sidecar,
+                    saved_origin_source_preparation,
+                )
+                if (
+                    json.loads(plan.protocol_bytes).get("selector_input_map_schema")
+                    != "coverage-selector-input-map/2-registered"
+                ):
+                    raise AssertionError("saved-origin replay protocol must use the registered selector map")
+                self.assertIsNotNone(plan.saved_origin.acquisition_plan_sidecar)
+                missing_sidecar = replace(
+                    plan,
+                    saved_origin=replace(plan.saved_origin, acquisition_plan_sidecar=None),
+                )
+                with self.assertRaises(stage.OrchestrationError) as caught:
+                    stage._validate_plan_static(missing_sidecar)
+                self.assertIn("saved-corpus-file-unavailable", str(caught.exception.__cause__))
+                wrong_sidecar = replace(
+                    plan,
+                    saved_origin=replace(
+                        plan.saved_origin,
+                        acquisition_plan_sidecar=(
+                            base
+                            / "origin-extract"
+                            / f"prospective-{plan.saved_origin.registration.stage_uuid}-operator_handoff"
+                            / plan.saved_origin.registration.stage_uuid
+                            / "source-capture/artifacts/permit/candidate-identity.bin"
+                        ),
+                    ),
+                )
+                with self.assertRaises(stage.OrchestrationError):
+                    stage._validate_plan_static(wrong_sidecar)
+                missing_source = replace(
+                    plan,
+                    saved_origin=replace(
+                        plan.saved_origin,
+                        operation_runner_source_sidecar=None,
+                    ),
+                )
+                with self.assertRaises(stage.OrchestrationError) as missing_source_error:
+                    stage._validate_plan_static(missing_source)
+                self.assertIn(
+                    "origin-operation-runner-source-sidecar-required", str(missing_source_error.exception.__cause__)
+                )
+                tampered_source_path = base / "tampered-historical-runner.py"
+                tampered_source_path.write_bytes(plan.saved_origin.operation_runner_source_sidecar.read_bytes() + b"\n")
+                os.chmod(tampered_source_path, 0o600)
+                tampered_source = replace(
+                    plan,
+                    saved_origin=replace(
+                        plan.saved_origin,
+                        operation_runner_source_sidecar=tampered_source_path,
+                    ),
+                )
+                with self.assertRaises(stage.OrchestrationError) as tampered_source_error:
+                    stage._validate_plan_static(tampered_source)
+                self.assertIn(
+                    "origin-operation-runner-source-pin-mismatch", str(tampered_source_error.exception.__cause__)
+                )
+            assert plan is not None
             inventory_root = base / "inventory"
             inventory_root.mkdir(mode=0o700)
             os.chmod(inventory_root, 0o700)
@@ -1217,6 +1552,20 @@ class StageOrchestrationTests(unittest.TestCase):
 
             async def prepare_after_acquisition(_plan, evidence, pipeline_inputs):
                 calls.append("late_preflight")
+                return _late_preflight(plan, evidence, pipeline_inputs)
+
+            async def import_saved_corpus(plan_arg):
+                calls.append("saved_import")
+                if plan_arg is not plan or saved_imported is None:
+                    raise AssertionError("unexpected saved-origin import executor call")
+                return stage.SavedCorpusStageEvidence(
+                    origin=plan.saved_origin,
+                    imported=saved_imported,
+                    receipt_directory=plan.saved_origin.collection_directory,
+                )
+
+            async def prepare_after_saved_corpus(_plan, evidence, pipeline_inputs):
+                calls.append("saved_late_preflight")
                 return _late_preflight(plan, evidence, pipeline_inputs)
 
             async def verify_late_preflight(_plan, evidence):
@@ -1529,6 +1878,8 @@ class StageOrchestrationTests(unittest.TestCase):
                 "collect_frozen_pool": collect_frozen_pool if frozen_mode else None,
                 "verify_frozen_pool": verify_frozen_pool if frozen_mode else None,
                 "prepare_after_frozen_pool": prepare_after_acquisition if frozen_mode else None,
+                "import_saved_corpus": import_saved_corpus if saved_origin_archive is not None else None,
+                "prepare_after_saved_corpus": prepare_after_saved_corpus if saved_origin_archive is not None else None,
             }
             if runtime_bound_admission:
                 from scripts import (
@@ -1603,20 +1954,30 @@ class StageOrchestrationTests(unittest.TestCase):
                     stage.coordinate_coverage_stage(plan=plan, executors=executors, inventory_root=inventory_root)
                 )
             inventory = json.loads(result.inventory_path.read_bytes())
-            if frozen_mode:
+            saved_mode = saved_origin_archive is not None
+            companion_mode = frozen_mode or saved_mode
+            if companion_mode:
                 self.assertEqual(inventory["band_companion_sha256"], plan.band_companion_sha256)
                 self.assertEqual(inventory["initial_registration_sha256"], plan.initial_registration_sha256)
-                self.assertIn(inventory["band_companion_status"], {"pass", "fail", "inconclusive"})
+                self.assertIn(
+                    inventory.get("band_companion_status"),
+                    {"pass", "fail", "inconclusive"},
+                    {
+                        "status": inventory.get("status"),
+                        "reason": inventory.get("terminal_reason"),
+                        "phases": inventory["phases"],
+                    },
+                )
             else:
                 self.assertNotIn("band_companion_sha256", inventory)
                 self.assertNotIn("initial_registration_sha256", inventory)
                 self.assertNotIn("band_companion_status", inventory)
-            if frozen_mode:
+            if frozen_mode or saved_mode:
                 self.assertIn(inventory["release_qualification_status"], {"pass", "fail", "inconclusive"})
             else:
                 self.assertNotIn("release_qualification_status", inventory)
             if "gate_metrics" in inventory:
-                if frozen_mode:
+                if companion_mode:
                     companion_metrics = inventory["gate_metrics"]["band_companion"]
                     self.assertEqual(
                         set(companion_metrics["groups"]["research_le_40"]["task_ids"]),
@@ -1645,7 +2006,7 @@ class StageOrchestrationTests(unittest.TestCase):
                 gate_input = json.loads(
                     (result.inventory_path.parent / inventory["gate_input_manifest_file"]).read_bytes()
                 )
-                if frozen_mode:
+                if companion_mode:
                     self.assertEqual(gate_input["band_companion_sha256"], plan.band_companion_sha256)
                     self.assertEqual(gate_input["initial_registration_sha256"], plan.initial_registration_sha256)
                 else:
@@ -1670,7 +2031,7 @@ class StageOrchestrationTests(unittest.TestCase):
             closeout_document = json.loads(closeout_bytes)
             self.assertEqual(closeout_document["final_inventory_sha256"], result.inventory_sha256)
             self.assertIn("closeout receipt fsync excluded", closeout_document["measurement_basis"])
-            if frozen_mode:
+            if frozen_mode or saved_mode:
                 self.assertIn("gate_calculation_receipt_file", inventory)
                 self.assertEqual(result.status, "pending-independent-closeout")
                 self.assertEqual(inventory["terminal_reason"], "gate-inconclusive")
@@ -1774,7 +2135,24 @@ class StageOrchestrationTests(unittest.TestCase):
         self.assertFalse(result.scientific_calls_made_by_coordinator)
         self.assertEqual([row["status"] for row in inventory["phases"]], ["complete"] * 16)
         self.assertEqual(inventory["per_band_qualification"], "diagnostic-only")
-        self.assertEqual(len(calls), 10 if selector_map_registered else 9)
+        if saved_mode:
+            self.assertEqual(
+                calls,
+                [
+                    "saved_import",
+                    "saved_late_preflight",
+                    "verify_late_preflight",
+                    "reference_grading",
+                    "verify_selector_admission",
+                    "selector",
+                    "answerer",
+                    "answer_grading",
+                ],
+            )
+            self.assertNotIn("acquisition", calls)
+            self.assertNotIn("capture", calls)
+        else:
+            self.assertEqual(len(calls), 10 if selector_map_registered else 9)
         self.assertEqual(
             inventory["gate_metrics"]["navigation"],
             {row["target_id"]: True for row in plan.navigation_targets},
