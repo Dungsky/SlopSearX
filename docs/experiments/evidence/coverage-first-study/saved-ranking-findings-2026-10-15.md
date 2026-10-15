@@ -31,6 +31,14 @@ Across all 17 candidate operations, 16 fell back because a lead was unavailable 
 
 These are exploratory findings from exposed development data. They do not establish completed research-task gains, untouched confirmation, navigation, stability, or every finalization requirement. They cannot rescue the stopped primary study.
 
+## One fixed facet-probability revision
+
+A subsequent bounded offline check tested whether the existing profile probabilities could preserve coverage without the whole-question score cutoff. For each facet, it reserved the candidate with the largest summed probability across profiles containing that facet, breaking ties by the original score and canonical key. It deduplicated and score-sorted the reserved leads, then score-sorted the remaining candidates. It introduced no new questions, thresholds, normalization, per-case exceptions, model calls, or searches. The rule was fixed before computing its order on the exposed development data.
+
+Against actual W0, mean nDCG@10 changes were +0.1917 and +0.2319, with bootstrap intervals [0.0704, 0.3021] and [0.1501, 0.3081]. It passed only 6/8 and 7/8 per-case checks. Both assessors still lost one useful result in R01; assessor A's R05 ranking quality fell by 0.1471. It retained useful facets relative to both W0 and original search order, but that does not excuse the other regressions. This revision also fails qualification. No further ordering variants were swept.
+
+Source inspection identified a question-target mismatch worth addressing before another comparison: the independent primary rubric measures whether a result is worth opening, while the candidate's imported Score rubric and facet instructions ask for substantive evidence visible in the card. Useful sparse documentation or publication leads may therefore be penalized. Revising the questions requires new responses and fresh qualification; the saved responses cannot be treated as answers to revised questions. The independent reference rubric and release gates remain unchanged.
+
 ## Delivery decision
 
 Keep the production ranking unchanged. Do not ship either tested policy or start confirmation. The remaining product question is specific: can a ranking preserve necessary evidence while retaining the usefulness gains in the existing scores? Any revised policy must be specified before its evaluation and must preserve the failed results above. A development-only improvement is insufficient for release.
