@@ -31,6 +31,10 @@ REGISTERED_SAVED_WIRE_COMPAT_PROTOCOL_SHA256 = "5b40c497b0871a575c07eff18b8c8f8a
 REGISTERED_SAVED_WIRE_COMPAT_EXECUTION_CONTRACT_SHA256 = (
     "cd468faf4a4e99e248a9bc9a90e176c356e912017351ce34330b027cc64767ce"
 )
+REGISTERED_SAVED_WIRE_FLOAT_PROTOCOL_SHA256 = "a6ba5d2538c88de221d3389627a78e532f90514ad429d1e17ba34f24a213c882"
+REGISTERED_SAVED_WIRE_FLOAT_EXECUTION_CONTRACT_SHA256 = (
+    "56e18e7cdd30a8882491e5978e400b0f0fac4b8b82975a113e712960b778d246"
+)
 REGISTERED_FROZEN_POOL_COHORTS_SHA256 = "377450c59f2b8498c8a7f923bb7b6d05a0b780300467cc9b9f8ef0bd69522595"
 REGISTERED_FROZEN_POOL_EXECUTION_CONTRACT_SHA256 = "f00916c32a52ded954967db15f82427dfbaffa57f5c8a24416408885a31ad3ff"
 REGISTERED_V2_EXECUTION_CONTRACT_SHA256 = "e114b172d4eba352897ea8dfe3fc83568097bf154425aaecfaa6690f6c3e8bf3"
@@ -725,11 +729,23 @@ def calculate_coverage_gate_report(
             == {"development": "saved-corpus/1", "confirmation": "frozen-pool/1"}
             and stage_kind in {"development", "confirmation"}
         )
+        registered_saved_wire_float_allowed = (
+            execution_contract_sha256 == REGISTERED_SAVED_WIRE_FLOAT_EXECUTION_CONTRACT_SHA256
+            and protocol_sha256 == REGISTERED_SAVED_WIRE_FLOAT_PROTOCOL_SHA256
+            and cohorts_sha256 == REGISTERED_FROZEN_POOL_COHORTS_SHA256
+            and protocol.get("schema") == "coverage-first-study-protocol/3"
+            and protocol.get("status") == "registered"
+            and protocol.get("cohorts_sha256") == REGISTERED_FROZEN_POOL_COHORTS_SHA256
+            and protocol.get("pool_input_mode_by_stage")
+            == {"development": "saved-corpus/1", "confirmation": "frozen-pool/1"}
+            and stage_kind in {"development", "confirmation"}
+        )
         if not (
             registered_v2_allowed
             or registered_frozen_pool_allowed
             or registered_saved_allowed
             or registered_saved_wire_compat_allowed
+            or registered_saved_wire_float_allowed
         ):
             raise GateCalculationError("frozen-execution-contract-mismatch")
     refs, answers = _closed_outputs(reference_closure, answer_closure)

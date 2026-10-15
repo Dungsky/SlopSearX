@@ -16,6 +16,7 @@ from tests.test_coverage_gate_calculation import _fixture
 ROOT = Path(__file__).parents[1] / "docs/experiments/evidence/coverage-first-study"
 SAVED = ROOT / "saved-development-method-materials"
 SAVED_WIRE_COMPAT = ROOT / "saved-development-wire-compatibility-method-materials"
+SAVED_WIRE_FLOAT = ROOT / "saved-development-wire-float-method-materials"
 ORIGINAL = ROOT / "frozen-input-method-materials"
 
 
@@ -83,6 +84,93 @@ def test_wire_compatibility_method_changes_only_candidate_parser_pin():
     assert lock["parser_wire_compatibility"]["ranking_instructions_changed"] is False
     assert lock["parser_wire_compatibility"]["quality_thresholds_changed"] is False
     assert lock["parser_wire_compatibility"]["existing_results_rescued"] is False
+
+
+def test_wire_float_method_changes_only_candidate_parser_pin_and_locks_exact_pair():
+    previous = json.loads((SAVED_WIRE_COMPAT / "protocol.json").read_bytes())
+    raw = (SAVED_WIRE_FLOAT / "protocol.json").read_bytes()
+    protocol = json.loads(raw)
+    assert {key for key in previous if previous[key] != protocol.get(key)} == {"candidate_source_sha256"}
+    assert protocol["candidate_source_sha256"] == (
+        "2e9d7c73e469d8c56fa19de63b303c4f3fe5c252ef4746aee7163c8e076db5eb"
+    )
+    cohort_bytes = (SAVED_WIRE_FLOAT / "cohorts.json").read_bytes()
+    assert cohort_bytes == (SAVED_WIRE_COMPAT / "cohorts.json").read_bytes()
+    contract_bytes = (SAVED_WIRE_FLOAT / "band-companion-contract.json").read_bytes()
+    lock = json.loads((SAVED_WIRE_FLOAT / "material-lock.json").read_bytes())
+    assert _sha(raw) == companion.SAVED_WIRE_FLOAT_PROTOCOL_SHA256
+    assert _sha(cohort_bytes) == companion.FROZEN_COHORTS_SHA256
+    assert _sha(contract_bytes) == companion.SAVED_WIRE_FLOAT_CONTRACT_SHA256
+    assert lock["protocol_sha256"] == _sha(raw)
+    assert lock["cohorts_sha256"] == _sha(cohort_bytes)
+    assert lock["band_companion_sha256"] == _sha(contract_bytes)
+    assert lock["candidate_source_sha256"] == protocol["candidate_source_sha256"]
+    assert lock["execution_contract_sha256"] == _sha(
+        gates._canonical(
+            {
+                key: protocol[key]
+                for key in (
+                    "quality",
+                    "task_use",
+                    "provider_schedule",
+                    "acquisition",
+                    "capture",
+                    "consumer",
+                    "phase_limits",
+                    "variants",
+                    "primary_control",
+                    "candidate_source_sha256",
+                )
+            }
+        )
+    )
+    assert lock["reported_scores_and_ranking_instructions_unchanged"] is True
+    assert lock["parser_wire_compatibility"]["score_policy_changed"] is False
+    assert lock["parser_wire_compatibility"]["existing_results_rescued"] is False
+
+    inputs = _fixture()
+    inputs.update(
+        protocol=protocol,
+        protocol_sha256=_sha(raw),
+        cohorts_sha256=_sha(cohort_bytes),
+        stage_kind="development",
+    )
+    inputs["resource_evidence"].update(
+        candidate_source_sha256=protocol["candidate_source_sha256"],
+        acquisition_timeout_seconds=protocol["acquisition"]["timeout_seconds"],
+        acquisition_retries=protocol["acquisition"]["retries"],
+        acquisition_pacing_seconds=protocol["acquisition"]["pacing_seconds"],
+        arxiv_pacing_seconds=protocol["acquisition"]["arxiv_physical_pacing_seconds"],
+    )
+    report = gates.calculate_coverage_gate_report(**inputs)
+    assert report.evaluation.status == "pass"
+    contract = json.loads(contract_bytes)
+    validated = companion.validate_contract(
+        contract,
+        stage_kind="development",
+        protocol_sha256=_sha(raw),
+        cohorts_sha256=_sha(cohort_bytes),
+    )
+    assert validated["groups"] == companion.FROZEN_GROUPS
+
+    changed = copy.deepcopy(inputs)
+    changed["protocol"]["candidate_source_sha256"] = "0" * 64
+    with pytest.raises(gates.GateCalculationError, match="frozen-execution-contract-mismatch"):
+        gates.calculate_coverage_gate_report(**changed)
+    with pytest.raises(companion.BandCompanionError, match="companion-material-pin-mismatch"):
+        companion.validate_contract(
+            contract,
+            stage_kind="development",
+            protocol_sha256=companion.SAVED_WIRE_COMPAT_PROTOCOL_SHA256,
+            cohorts_sha256=companion.FROZEN_COHORTS_SHA256,
+        )
+    assert (
+        companion.contract_sha256_for(
+            companion.SAVED_WIRE_FLOAT_PROTOCOL_SHA256,
+            companion.FROZEN_COHORTS_SHA256,
+        )
+        == companion.SAVED_WIRE_FLOAT_CONTRACT_SHA256
+    )
 
 
 def test_wire_compatibility_method_uses_exact_gate_and_band_allowlists():
