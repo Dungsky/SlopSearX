@@ -13,3 +13,6 @@ workspace = true
 ssx-application.workspace = true
 ssx-wire.workspace = true
 rmcp.workspace = true
+ssx-domain.workspace = true
+serde_json.workspace = true
+ssx-json.workspace = true

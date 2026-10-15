@@ -96,6 +96,30 @@
       "source": "https://docs.rs/clap/4.6.7/clap/",
       "retrieval_source": "https://docs.rs/clap/latest/clap/",
       "retrieved_identity": "docs.rs latest page displayed clap 4.6.7 on 2026-10-15"
+    },
+    "sha2": {
+      "version": "=0.11.1",
+      "source": "https://docs.rs/sha2/0.11.1/sha2/",
+      "retrieval_source": "https://docs.rs/sha2/latest/sha2/",
+      "retrieved_identity": "docs.rs latest page displayed sha2 0.11.1 on 2026-10-15"
+    },
+    "ryu": {
+      "version": "=1.0.23",
+      "source": "https://docs.rs/ryu/1.0.23/ryu/",
+      "retrieval_source": "https://docs.rs/ryu/latest/ryu/",
+      "retrieved_identity": "docs.rs latest page displayed ryu 1.0.23 on 2026-10-15"
+    },
+    "url": {
+      "version": "=2.5.8",
+      "source": "https://docs.rs/url/2.5.8/url/",
+      "retrieval_source": "https://docs.rs/url/2.5.8/url/",
+      "retrieved_identity": "Pinned version already resolved in accepted Cargo.lock; inspected public form_urlencoded API 2026-10-15"
+    },
+    "indexmap": {
+      "version": "=2.14.2",
+      "source": "https://docs.rs/indexmap/2.14.2/indexmap/",
+      "retrieval_source": "https://docs.rs/indexmap/2.14.2/indexmap/",
+      "retrieved_identity": "Pinned version already resolved in accepted Cargo.lock; official docs verified insertion-order/serde API 2026-10-15"
     }
   },
   "lock_gate": "F03 resolves Cargo.lock and compiles mandatory targets with --locked; T01 qualifies rmcp and SSE against real clients"

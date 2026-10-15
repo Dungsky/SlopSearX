@@ -1690,6 +1690,10 @@
               "run": "cargo xtask check F04 --output target/rust-evidence/F04.json"
             },
             {
+              "name": "Typed records and stable serialization evidence",
+              "run": "cargo xtask check F05 --output target/rust-evidence/F05.json"
+            },
+            {
               "env": {
                 "SSX_SERVER_BIN": "target/${{ matrix.target }}/debug/ssx-server"
               },
@@ -1703,7 +1707,7 @@
               "with": {
                 "if-no-files-found": "warn",
                 "name": "rust-foundation-${{ matrix.target }}-${{ github.sha }}",
-                "path": "target/rust-evidence/F03.json\ntarget/rust-evidence/F04.json\ntarget/rust-feature-graph.txt\n"
+                "path": "target/rust-evidence/F03.json\ntarget/rust-evidence/F04.json\ntarget/rust-evidence/F05.json\ntarget/rust-feature-graph.txt\n"
               }
             }
           ],

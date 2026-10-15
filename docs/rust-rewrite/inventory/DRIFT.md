@@ -88,3 +88,39 @@ remain unchanged; this ledger records the reviewed post-baseline addition.
 The three adapter and two surface observations prove replay infrastructure
 coverage only; native implementation parity remains assigned to successor
 issues. No live provider capture or experiment is authorized by this addition.
+
+## F05 temporary pure-function oracle addition
+
+F05 adds `docs/rust-rewrite/f05/oracle/export.py` against accepted F04
+revision `16f03be656f34d90edd8285f9c81dfb1c4626b0a`. The exporter observes
+pinned Python storage codecs, HTTP/MCP projections and canonical identities
+using local inputs. It is backend-coupled developer tooling; it does not
+qualify for the client-only exception. F05 owns capture provenance and G08
+owns executable retirement. Native F05 checks consume portable JSON without
+launching Python. No provider calls or deployment are authorized.
+
+This branch adds one path to the accepted 364-path manifest: 365 total,
+including 242 backend-coupled tooling/test paths. Historical F01 baseline
+reports remain unchanged. The reference environment uses Python 3.14.7 and
+Unicode 16.0.0 to match the production image's Python version; the Unicode
+identity cases include mappings absent from Python 3.12's Unicode 15 tables.
+
+## F05 explicit native input differences
+
+The F05 implementation introduces the following differences for review with
+ADR 003; final acceptance requires the F05 negative tests and reviewed PR.
+Pure JSON parsing rejects input larger than 4 MiB or nested more than 100
+levels, and rejects floating-point tokens that cannot be represented as a
+finite f64. Arbitrary-width integer digits remain lossless. These are explicit
+native input bounds, not a claim that every legacy record fits. Payload and
+storage codecs apply their narrower record limits, including source-compatible
+omission where applicable. Persisted-data compatibility still requires the
+later store and migration qualification; these parser tests do not prove it.
+
+Native artifact-reference decoding requires integer JSON version `1` and
+rejects boolean `true`. The Python equality check accepts `true`, although
+its producers write integer `1`. Negative tests must cover this rejection
+and each parser bound. Existing opaque identifiers remain unchanged; this
+change migrates no durable identity namespace. Public numeric values retain
+integer-versus-float representation; comparator tolerance must not conceal
+changes in payload values, timing fields, or canonical identity bytes.

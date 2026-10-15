@@ -296,12 +296,14 @@
       "scope": [
         "Port URL normalization, presence ranking, optional RRF, deduplication and stable tie rules",
         "Port bounded scholarly identifier/version grouping, conflict rejection, same-manifestation metadata and representative selection",
-        "Keep immutable evidence distinct from views and preserve all source-member attribution"
+        "Keep immutable evidence distinct from views and preserve all source-member attribution",
+        "Port the complete structural retrieval URL classifier from slopsearx/retrieval_url.py; provide preclassified retrieval metadata to surface projections without embedding partial classifiers in DTO code."
       ],
       "acceptance": [
         "Golden ordered results and provenance match for default/RRF modes and conflicting/partial identifiers",
         "Grouping respects member/byte bounds and declines lossy merges",
-        "No new relevance policy is bundled into the port; identity versus version relationships remain distinct"
+        "No new relevance policy is bundled into the port; identity versus version relationships remain distinct",
+        "Retrieval classification matches source fixtures for unsafe/non-HTTP schemes, malformed authorities and ports, canonical and WHATWG numeric IP forms, IPv6 transition/site-local ranges, and eligible hostnames. Preserve exact status/reason/URL output and perform no DNS or fetch; downstream post-resolution checks remain a separate responsibility."
       ],
       "sources": [
         "slopsearx/merger.py",
@@ -309,7 +311,8 @@
         "slopsearx/retrieval_url.py",
         "tests/test_rank_fusion.py",
         "tests/test_scholarly.py",
-        "tests/test_scholarly_arxiv_html_identity.py"
+        "tests/test_scholarly_arxiv_html_identity.py",
+        "tests/test_retrieval_handoff.py"
       ],
       "handoff": "Pure ranking/grouping APIs and deterministic corpus for core execution."
     },
@@ -497,12 +500,14 @@
       "scope": [
         "Port GET/form POST on root/search, format negotiation/allowlist, validation errors and HTTP middleware",
         "Implement JSON, YAML+Markdown, CSV and RSS projections plus health/healthz/config/metrics route contracts",
-        "Preserve parsed_url, headers, redaction and readiness-versus-upstream-health distinction"
+        "Preserve parsed_url, headers, redaction and readiness-versus-upstream-health distinction",
+        "Complete formatter derivation as well as DTO serialization: preserve Python _iso_to_epoch and _parsed_url behavior, including accepted date/time grammars, timezone offsets and six-part URL tuples."
       ],
       "acceptance": [
         "Pinned SearXNG corpus passes on a real Rust HTTP server for success and all error classes",
         "Invalid filters and disabled formats have matching status/media/body behavior; sensitive paths never dispatch",
-        "Independent client smoke runs without Python installed in the server image"
+        "Independent client smoke runs without Python installed in the server image",
+        "Actual HTTP responses preserve time-of-day and timezone offsets, invalid-date/null behavior, non-ASCII input handling, scheme normalization and final-segment URL parameters. Reuse accepted F05 projections but do not treat injected/precomputed fields or limited golden examples as a complete formatter implementation."
       ],
       "sources": [
         "slopsearx/server.py",
