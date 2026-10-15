@@ -10,20 +10,24 @@ The runner copied a ranking outcome such as `selected` or `fallback` into a fiel
 
 There were no answer calls, answer assessments, confirmation calls, retries, or new search/capture calls. Development and unused confirmation identities are retired. Deployments were unchanged.
 
-## What the saved rankings show
+## Correction: distinguish the production baseline from original search order
 
-Two offline analyses used the saved responses and completed independent reference assessments. Neither made model or search calls. Both included all eight base research cases and used the registered nDCG@10 calculation, 10,000 bootstrap samples, seed 7701, and unchanged quality thresholds. W0 is the matched query-only incumbent order from the saved task manifest; this analysis does not establish a separate live native-order baseline.
+The first version of this report incorrectly labeled the task manifest's `incumbent_order` as W0. That field is the original search order. The actual registered production baseline is each sealed W0 result's `native_ordered_ids` prefix, followed by the untouched tail from the original search order. All eight reconstructed W0 orders differ from the original search order. The figures and interpretation below correct that error; the first published version is retained in Git history.
 
-| Policy | Mean nDCG@10 improvement over W0, assessor A / B | Important limitation |
+Two offline analyses used the saved responses and completed independent reference assessments. Neither made model or search calls. Both included all eight base research cases and used the registered nDCG@10 calculation, 10,000 bootstrap samples, seed 7701, and unchanged quality thresholds.
+
+| Policy | Mean nDCG@10 improvement over actual W0, assessor A / B | Per-case checks passed, A / B |
 | --- | --- | --- |
-| Original candidate, including its fallbacks | +0.0447 / +0.0416 | Seven of eight cases kept W0 unchanged; both confidence intervals include zero |
-| Sort by the existing usefulness scores | +0.4348 / +0.4266 | One case lost both required useful evidence facets |
+| Original candidate, including its fallbacks | −0.1874 / −0.1465 | 2 of 8 / 2 of 8 |
+| Sort by the existing usefulness scores | +0.2026 / +0.2385 | 6 of 8 / 7 of 8 |
 
-For the original candidate, the bootstrap intervals were [0, 0.1340] and [0, 0.1247]. The one changed case improved, but the positive-lower-bound requirement did not pass. No per-case useful-result count or useful-facet loss was observed.
+For the original candidate, bootstrap intervals were [−0.3395, −0.0566] and [−0.2837, −0.0369]. Seven of eight base cases fell back to the original search order, not W0's reranked order. This candidate therefore underperformed the actual production control.
 
-The single fixed Score-only analysis sorted the original reported scores descending with the existing canonical tie-break, without changing scores, questions, facets, or thresholds. Its intervals were [0.3362, 0.5593] and [0.3325, 0.5551]. Seven cases passed the per-case checks for both assessors. In R05, however, the top results lost both required useful facets, despite an increase in aggregate ranking quality. That fails the coverage requirement.
+The single fixed Score-only analysis sorted the original reported scores descending with the existing canonical tie-break, without changing scores, questions, facets, or thresholds. Its intervals against actual W0 were [0.0896, 0.3100] and [0.1611, 0.3160]. It improved the mean but failed the required per-case checks: R01 reduced useful results from ten to nine for both assessors; R05's ranking quality fell by 0.1156 for assessor A. There was no R05 facet loss relative to W0: both had zero useful facets in their top results.
 
-Across all 17 candidate operations, 16 fell back because a lead was unavailable for at least one required facet; only one selected a new order. The all-or-nothing safeguard usually discarded the useful scoring signal. Removing it entirely produced the R05 evidence loss.
+For comparison only, against the original search order, the original candidate gained +0.0447 / +0.0416, and Score-only gained +0.4348 / +0.4266. Those are not improvements over production. Score-only lost R05's two useful facets relative to the original search order. The original published narrative conflated these baselines.
+
+Across all 17 candidate operations, 16 fell back because a lead was unavailable for at least one required facet; only one selected a new order. Offline diagnosis found that all reference-positive R05 card/facet pairs had usefulness scores below the candidate's minimum lead score of five. The facet-profile judgments also missed some evidence. Removing the cutoff or changing the policy has not been qualified by these observations.
 
 These are exploratory findings from exposed development data. They do not establish completed research-task gains, untouched confirmation, navigation, stability, or every finalization requirement. They cannot rescue the stopped primary study.
 
