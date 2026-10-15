@@ -552,6 +552,12 @@ impl RawGateway {
         if !response.status().is_success() {
             return Err(format!("remote MCP HTTP status {}", response.status()).into());
         }
+        if response
+            .content_length()
+            .is_some_and(|bytes| bytes > crate::http_client::MAX_RPC_BYTES as u64)
+        {
+            return Err("remote MCP Content-Length exceeds 4 MiB".into());
+        }
         let sse = response
             .headers()
             .get("content-type")
@@ -641,11 +647,13 @@ impl RawGateway {
             if !["2024-11-05","2025-03-26","2025-06-18","2025-11-25"].contains(&version.as_str()){return Err("unsupported remote initialize protocol version".into());}
             gateway.protocol=version;
             gateway.exchange(r#"{"jsonrpc":"2.0","method":"notifications/initialized"}"#).await?;
+            let mut budget=crate::gateway::DiscoveryBudget::default();
             for (method,field) in [("tools/list","tools"),("resources/list","resources"),("prompts/list","prompts"),("resources/templates/list","resourceTemplates")] {
                 let mut items:Vec<Box<RawValue>>=Vec::new();let mut names=HashSet::new();let mut cursors=HashSet::new();let mut cursor=None;let mut complete=false;
                 for page in 0..128 {
                     let params=cursor.as_ref().map(|c|json!({"cursor":c})).unwrap_or(json!({}));
                     let body=gateway.exchange(&json!({"jsonrpc":"2.0","id":page+1,"method":method,"params":params}).to_string()).await?.ok_or("empty catalog response")?;
+                    budget.charge(body.len())?;
                     let envelope:BTreeMap<String,Box<RawValue>>=serde_json::from_str(&body)?;
                     if envelope.contains_key("error"){return Err("remote catalog error".into());}
                     let result:BTreeMap<String,Box<RawValue>>=serde_json::from_str(envelope.get("result").ok_or("catalog result missing")?.get())?;

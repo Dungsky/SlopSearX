@@ -2072,6 +2072,7 @@ dependencies = [
  "rmcp",
  "serde",
  "serde_json",
+ "sse-stream",
  "ssx-application",
  "ssx-wire",
  "subtle",

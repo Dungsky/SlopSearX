@@ -1,6 +1,7 @@
 //! T01 protocol qualification surface. Synthetic handlers; no production search wiring.
 pub mod gateway;
 pub mod harness;
+pub mod http_client;
 pub mod legacy;
 pub mod opaque;
 use rmcp::{ErrorData, RoleServer, ServerHandler, model::*, service::RequestContext};
@@ -156,6 +157,15 @@ impl ServerHandler for Registry {
         _: RequestContext<RoleServer>,
     ) -> std::result::Result<ListPromptsResult, ErrorData> {
         Self::parse(json!({"prompts":self.descriptors["prompts"]}))
+    }
+    async fn list_resource_templates(
+        &self,
+        _: Option<PaginatedRequestParams>,
+        _: RequestContext<RoleServer>,
+    ) -> std::result::Result<ListResourceTemplatesResult, ErrorData> {
+        Self::parse(
+            json!({"resourceTemplates":self.descriptors.get("resourceTemplates").cloned().unwrap_or_else(||json!([]))}),
+        )
     }
     async fn read_resource(
         &self,

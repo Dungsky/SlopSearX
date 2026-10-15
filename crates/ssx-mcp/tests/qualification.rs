@@ -1572,3 +1572,237 @@ async fn rejected_delete_retains_actual_sdk_session_aliases_and_capacity() -> Re
     assert_eq!(probe.available_permits(), 128);
     Ok(())
 }
+
+#[derive(Clone, Copy)]
+enum CatalogSizeFault {
+    ContentLength,
+    Chunked,
+    ManyPages,
+    CrossCatalog,
+    TemplatePages,
+}
+async fn catalog_size_fixture(
+    fault: CatalogSizeFault,
+) -> Result<(Host, std::sync::Arc<std::sync::atomic::AtomicUsize>)> {
+    use axum::response::IntoResponse;
+    let pages = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let observed = pages.clone();
+    let router=axum::Router::new().route("/mcp",axum::routing::post(move |axum::Json(body):axum::Json<Value>|{let pages=observed.clone();async move{
+        let method=body["method"].as_str().unwrap_or("");
+        if method=="notifications/initialized" {return axum::http::StatusCode::ACCEPTED.into_response();}
+        let id=body["id"].clone();
+        if method=="initialize" {return axum::Json(json!({"jsonrpc":"2.0","id":id,"result":{"protocolVersion":"2025-11-25","capabilities":{"tools":{},"resources":{},"prompts":{}},"serverInfo":{"name":"size-fixture","version":"1"}}})).into_response();}
+        if method=="tools/list" && matches!(fault,CatalogSizeFault::ContentLength|CatalogSizeFault::Chunked) {
+            let stream=futures_util::stream::repeat_with(||Ok::<_,std::io::Error>(axum::body::Bytes::from_static(&[b'x';16384])));
+            let mut response=axum::body::Body::from_stream(stream).into_response();response.headers_mut().insert("content-type",axum::http::HeaderValue::from_static("application/json"));
+            if matches!(fault,CatalogSizeFault::ContentLength){response.headers_mut().insert("content-length",axum::http::HeaderValue::from_str(&(ssx_mcp::http_client::MAX_RPC_BYTES+1).to_string()).unwrap());}
+            return response;
+        }
+        let page=body["params"]["cursor"].as_str().and_then(|s|s.parse::<usize>().ok()).unwrap_or(0);
+        let active=if matches!(fault,CatalogSizeFault::TemplatePages){method=="resources/templates/list"}else{method=="tools/list" || matches!(fault,CatalogSizeFault::CrossCatalog) && matches!(method,"resources/list"|"prompts/list")};
+        let last=if matches!(fault,CatalogSizeFault::ManyPages|CatalogSizeFault::TemplatePages){63}else{11};
+        let description="x".repeat(512*1024);
+        let result=match method {
+            "tools/list"=>if active{json!({"tools":[{"name":format!("tool-{page}"),"description":description,"inputSchema":{"type":"object"}}]})}else{json!({"tools":[]})},
+            "resources/list"=>if active{json!({"resources":[{"name":format!("resource-{page}"),"uri":format!("t01://resource/{page}"),"description":description}]})}else{json!({"resources":[]})},
+            "prompts/list"=>if active{json!({"prompts":[{"name":format!("prompt-{page}"),"description":description}]})}else{json!({"prompts":[]})},
+            "resources/templates/list"=>if active{json!({"resourceTemplates":[{"name":format!("template-{page}"),"uriTemplate":format!("t01://{page}/{{id}}"),"description":description}]})}else{json!({"resourceTemplates":[]})},
+            _=>return axum::http::StatusCode::BAD_REQUEST.into_response(),
+        };
+        let mut result=result;
+        if active {pages.fetch_add(1,Ordering::SeqCst);if page<last{result["nextCursor"]=json!((page+1).to_string());}}
+        axum::Json(json!({"jsonrpc":"2.0","id":id,"result":result})).into_response()
+    }}));
+    let host = Host::start(router, CancellationToken::new()).await?;
+    Ok((host, pages))
+}
+#[tokio::test]
+async fn real_catalog_response_and_shared_discovery_byte_limits_fail_closed() -> Result<()> {
+    for fault in [
+        CatalogSizeFault::ContentLength,
+        CatalogSizeFault::Chunked,
+        CatalogSizeFault::ManyPages,
+        CatalogSizeFault::CrossCatalog,
+        CatalogSizeFault::TemplatePages,
+    ] {
+        for typed in [false, true] {
+            let (host, pages) = catalog_size_fixture(fault).await?;
+            let url = format!("http://{}/mcp", host.address);
+            let error = if typed {
+                match Gateway::connect(url, None, Duration::from_secs(10)).await {
+                    Ok(gateway) => {
+                        gateway.shutdown().await?;
+                        panic!("oversized catalog accepted");
+                    }
+                    Err(error) => error.to_string(),
+                }
+            } else {
+                match ssx_mcp::opaque::RawGateway::connect(url, None, Duration::from_secs(10)).await
+                {
+                    Ok(gateway) => {
+                        gateway.close().await?;
+                        panic!("oversized raw catalog accepted");
+                    }
+                    Err(error) => error.to_string(),
+                }
+            };
+            let expected = if matches!(
+                fault,
+                CatalogSizeFault::ContentLength | CatalogSizeFault::Chunked
+            ) {
+                "4 MiB"
+            } else {
+                "16 MiB"
+            };
+            assert!(
+                error.contains(expected),
+                "wrong failure for typed={typed}: {error}"
+            );
+            if matches!(
+                fault,
+                CatalogSizeFault::ManyPages
+                    | CatalogSizeFault::CrossCatalog
+                    | CatalogSizeFault::TemplatePages
+            ) {
+                let count = pages.load(Ordering::SeqCst);
+                assert!(
+                    (32..128).contains(&count),
+                    "byte limit must precede page/item limit: {count}"
+                );
+            }
+            host.shutdown().await?;
+        }
+    }
+    Ok(())
+}
+#[tokio::test]
+async fn legacy_global_admission_recovers_after_disconnect_expiry_and_shutdown() -> Result<()> {
+    let cancel = CancellationToken::new();
+    let legacy = Legacy::new(
+        Registry::synthetic(),
+        "/messages/",
+        Duration::from_secs(30),
+        cancel.clone(),
+    )?;
+    let host = Host::start(legacy.clone().router("/sse")?, cancel).await?;
+    let base = format!("http://{}", host.address);
+    let mut clients = Vec::new();
+    for _ in 0..128 {
+        clients.push(SseClient::connect(base.clone(), "/sse").await?);
+    }
+    assert_eq!(legacy.active_sessions(), 128);
+    assert_eq!(legacy.available_permits(), 0);
+    let rejected = reqwest::get(format!("{base}/sse")).await?;
+    assert_eq!(rejected.status(), 503);
+    assert_eq!(legacy.active_sessions(), 128);
+    // A malformed handshake does not free a live connection's admission.
+    let mut client = clients.pop().unwrap();
+    assert_eq!(
+        client
+            .post(json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}))
+            .await?["status"],
+        202
+    );
+    let (_, body) = client.event().await?;
+    assert_eq!(
+        serde_json::from_str::<Value>(&body)?["error"]["code"],
+        -32602
+    );
+    assert_eq!(legacy.available_permits(), 0);
+    drop(client);
+    tokio::time::timeout(Duration::from_secs(3), async {
+        while legacy.available_permits() != 1 || legacy.active_sessions() != 127 {
+            tokio::time::sleep(Duration::from_millis(5)).await;
+        }
+    })
+    .await?;
+    clients.push(SseClient::connect(base, "/sse").await?);
+    assert_eq!(legacy.active_sessions(), 128);
+    host.shutdown().await?;
+    assert_eq!(legacy.active_sessions(), 0);
+    assert_eq!(legacy.available_permits(), 128);
+    drop(clients);
+    let cancel = CancellationToken::new();
+    let legacy = Legacy::new(
+        Registry::synthetic(),
+        "/messages/",
+        Duration::from_millis(50),
+        cancel.clone(),
+    )?;
+    let host = Host::start(legacy.clone().router("/sse")?, cancel).await?;
+    let client = SseClient::connect(format!("http://{}", host.address), "/sse").await?;
+    tokio::time::timeout(Duration::from_secs(2), async {
+        while legacy.active_sessions() != 0 || legacy.available_permits() != 128 {
+            tokio::time::sleep(Duration::from_millis(5)).await;
+        }
+    })
+    .await?;
+    drop(client);
+    host.shutdown().await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn typed_and_raw_template_pagination_forwarding_and_uri_template_identity() -> Result<()> {
+    use axum::response::IntoResponse;
+    for duplicate in [false, true] {
+        let expected = json!([{"name":"same","uriTemplate":"t01://one/{id}","description":"first template","mimeType":"text/plain","_meta":{"nested":{"nullable":null}}},{"name":if duplicate{"different"}else{"same"},"uriTemplate":if duplicate{"t01://one/{id}"}else{"t01://two/{id}"},"description":"second template"}]);
+        let rows = expected.clone();
+        let pages = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let observed = pages.clone();
+        let router=axum::Router::new().route("/mcp",axum::routing::post(move |axum::Json(body):axum::Json<Value>|{let rows=rows.clone();let observed=observed.clone();async move{
+            let result=match body["method"].as_str().unwrap_or("") {
+                "initialize"=>json!({"protocolVersion":"2025-11-25","capabilities":{"tools":{},"resources":{},"prompts":{}},"serverInfo":{"name":"templates-peer","version":"1"}}),
+                "notifications/initialized"=>return axum::http::StatusCode::ACCEPTED.into_response(),
+                "tools/list"=>json!({"tools":[]}),"resources/list"=>json!({"resources":[]}),"prompts/list"=>json!({"prompts":[]}),
+                "resources/templates/list"=>{observed.fetch_add(1,Ordering::SeqCst);if body["params"]["cursor"]=="next"{json!({"resourceTemplates":[rows[1]]})}else{json!({"resourceTemplates":[rows[0]],"nextCursor":"next"})}},
+                _=>return axum::http::StatusCode::BAD_REQUEST.into_response(),
+            };axum::Json(json!({"jsonrpc":"2.0","id":body["id"],"result":result})).into_response()
+        }}));
+        let host = Host::start(router, CancellationToken::new()).await?;
+        let url = format!("http://{}/mcp", host.address);
+        let typed = Gateway::connect(url.clone(), None, Duration::from_secs(3)).await;
+        if duplicate {
+            assert!(typed.is_err());
+            assert!(
+                ssx_mcp::opaque::RawGateway::connect(url, None, Duration::from_secs(3))
+                    .await
+                    .is_err()
+            );
+        } else {
+            let typed = typed?;
+            assert_eq!(typed.catalog["resourceTemplates"], expected);
+            let handler = typed.handler();
+            let (server_io, client_io) = tokio::io::duplex(65536);
+            let server = tokio::spawn(async move {
+                handler.serve(server_io).await?.waiting().await?;
+                Ok::<_, ssx_mcp::Error>(())
+            });
+            let client = config().serve(client_io).await?;
+            assert_eq!(
+                serde_json::to_value(
+                    client
+                        .list_resource_templates(None)
+                        .await?
+                        .resource_templates
+                )?,
+                expected
+            );
+            client.cancel().await?;
+            server.await??;
+            typed.shutdown().await?;
+            let raw = raw_process_request(
+                &["gateway", &url],
+                r#"{"jsonrpc":"2.0","id":2,"method":"resources/templates/list","params":{}}"#,
+            )
+            .await?;
+            assert_eq!(
+                serde_json::from_str::<Value>(&raw)?["result"]["resourceTemplates"],
+                expected
+            );
+        }
+        assert_eq!(pages.load(Ordering::SeqCst), 4);
+        host.shutdown().await?;
+    }
+    Ok(())
+}

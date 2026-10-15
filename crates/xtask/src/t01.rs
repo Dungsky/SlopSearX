@@ -2,7 +2,31 @@
 use crate::{Result, command, load_json};
 use serde_json::Value;
 use std::path::Path;
+// Independently reproduced under the locked Python 3.14.7 oracle; bytes matched
+// the parent's pre-pin capture. This pin is outside the mutable fixture metadata.
+const ORACLE_FIXTURE_BLOB: &str = "75829eb63be037686f7016be542f9f4138878f82";
+fn verify_fixture(root: &Path, path: &Path, records: &mut Vec<Value>) -> Result<()> {
+    let digest = command(
+        root,
+        "git",
+        &[
+            "hash-object",
+            "--",
+            path.to_str().ok_or("non-UTF8 fixture path")?,
+        ],
+        records,
+    )?;
+    if digest.trim() != ORACLE_FIXTURE_BLOB {
+        return Err("T01 observation fixture differs from independently captured byte pin".into());
+    }
+    Ok(())
+}
 pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
+    verify_fixture(
+        root,
+        &root.join("crates/ssx-mcp/fixtures/python-sse.json"),
+        records,
+    )?;
     let fixture = load_json(&root.join("crates/ssx-mcp/fixtures/python-sse.json"))?;
     if fixture["schema_version"] != 1
         || fixture["baseline"] != "7b2d876307189d7a62000d1f289b3ef4b65eaff6"
@@ -47,6 +71,14 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
         if fixture["oracle"][key].as_str() != Some(actual.trim()) {
             return Err(format!("T01 exporter provenance differs: {path}"));
         }
+    }
+    let pins = load_json(&root.join("docs/rust-rewrite/architecture/pins.json"))?;
+    if pins["t01_qualified_dependencies"]["sse-stream"]["version"] != "=0.2.6"
+        || !std::fs::read_to_string(root.join("crates/ssx-mcp/Cargo.toml"))
+            .map_err(|e| e.to_string())?
+            .contains("sse-stream = \"=0.2.6\"")
+    {
+        return Err("T01 bounded SSE parser pin differs".into());
     }
     let listed = command(
         root,
@@ -97,6 +129,9 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
         "real_http_and_legacy_preserve_adjacent_large_request_ids",
         "invalid_http_session_flood_does_not_consume_accepted_session_capacity",
         "rejected_delete_retains_actual_sdk_session_aliases_and_capacity",
+        "real_catalog_response_and_shared_discovery_byte_limits_fail_closed",
+        "legacy_global_admission_recovers_after_disconnect_expiry_and_shutdown",
+        "typed_and_raw_template_pagination_forwarding_and_uri_template_identity",
         "typed_gateway_cancels_tools_resources_and_prompts_upstream",
         "stateful_idle_expiry_reclaims_sdk_aliases_and_permits_but_keeps_active_work",
         "sdk_termination_and_abrupt_host_or_router_drop_drain_actual_session_state",
@@ -119,4 +154,47 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
         records,
     )?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn changed_observations_fail_independent_pin_with_provenance_unchanged() -> Result<()> {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .parent()
+            .unwrap();
+        let original =
+            std::fs::read_to_string(root.join("crates/ssx-mcp/fixtures/python-sse.json"))
+                .map_err(|e| e.to_string())?;
+        let changed = original.replace(
+            "Echo nested values for transport qualification",
+            "Altered correlated schema description",
+        );
+        assert_ne!(original, changed);
+        let before: Value = serde_json::from_str(&original).map_err(|e| e.to_string())?;
+        let after: Value = serde_json::from_str(&changed).map_err(|e| e.to_string())?;
+        for key in ["oracle", "sources", "versions", "baseline", "python"] {
+            assert_eq!(before[key], after[key]);
+        }
+        let path = std::env::temp_dir().join(format!(
+            "ssx-t01-pin-{}-{}.json",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::write(&path, changed).map_err(|e| e.to_string())?;
+        let result = verify_fixture(root, &path, &mut Vec::new());
+        std::fs::remove_file(path).map_err(|e| e.to_string())?;
+        assert!(result.is_err_and(|error| error.contains("independently captured byte pin")));
+        verify_fixture(
+            root,
+            &root.join("crates/ssx-mcp/fixtures/python-sse.json"),
+            &mut Vec::new(),
+        )
+    }
 }

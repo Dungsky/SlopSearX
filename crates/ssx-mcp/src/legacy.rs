@@ -35,6 +35,7 @@ pub struct Legacy {
     pub message_path: String,
     pub ttl: Duration,
     cancel: CancellationToken,
+    admission: Arc<tokio::sync::Semaphore>,
 }
 impl Legacy {
     pub fn new(
@@ -56,7 +57,11 @@ impl Legacy {
             message_path: message_path.into(),
             ttl,
             cancel,
+            admission: Arc::new(tokio::sync::Semaphore::new(128)),
         })
+    }
+    pub fn available_permits(&self) -> usize {
+        self.admission.available_permits()
     }
     pub fn active_sessions(&self) -> usize {
         self.sessions.lock().unwrap().len()
@@ -79,6 +84,7 @@ struct StreamState {
     rx: mpsc::Receiver<std::result::Result<Event, Infallible>>,
     session: String,
     state: Legacy,
+    _admission: Arc<tokio::sync::OwnedSemaphorePermit>,
 }
 impl Drop for StreamState {
     fn drop(&mut self) {
@@ -88,6 +94,11 @@ impl Drop for StreamState {
     }
 }
 async fn connect(State(state): State<Legacy>) -> Response {
+    let admission = match state.admission.clone().try_acquire_owned() {
+        Ok(permit) => Arc::new(permit),
+        Err(_) => return StatusCode::SERVICE_UNAVAILABLE.into_response(),
+    };
+    let pump_admission = admission.clone();
     let id = uuid::Uuid::new_v4().simple().to_string();
     let cancel = state.cancel.child_token();
     let (input, mut incoming) = mpsc::channel::<String>(32);
@@ -111,6 +122,7 @@ async fn connect(State(state): State<Legacy>) -> Response {
     let id_cleanup = id.clone();
     let ct = cancel.clone();
     tokio::spawn(async move {
+        let _admission = pump_admission;
         let serving = async {
             let service = registry.serve(server_io).await?;
             service.waiting().await?;
@@ -137,6 +149,7 @@ async fn connect(State(state): State<Legacy>) -> Response {
         rx,
         session: id,
         state,
+        _admission: admission,
     };
     let mut response = Sse::new(stream::unfold(state, |mut s| async move {
         s.rx.recv().await.map(|e| (e, s))

@@ -10,6 +10,34 @@ use rmcp::{
 };
 use serde_json::{Value, json};
 use std::{collections::HashSet, sync::Arc, time::Duration};
+pub const MAX_DISCOVERY_BYTES: usize = 16 * 1024 * 1024;
+#[derive(Default)]
+pub struct DiscoveryBudget {
+    used: usize,
+}
+impl DiscoveryBudget {
+    pub fn charge(&mut self, bytes: usize) -> Result<()> {
+        if bytes > MAX_DISCOVERY_BYTES.saturating_sub(self.used) {
+            return Err("catalog exceeds 16 MiB aggregate discovery budget".into());
+        }
+        self.used += bytes;
+        Ok(())
+    }
+    fn value(&mut self, value: &Value) -> Result<()> {
+        struct Counter<'a>(&'a mut DiscoveryBudget);
+        impl std::io::Write for Counter<'_> {
+            fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+                self.0.charge(bytes.len()).map_err(std::io::Error::other)?;
+                Ok(bytes.len())
+            }
+            fn flush(&mut self) -> std::io::Result<()> {
+                Ok(())
+            }
+        }
+        serde_json::to_writer(Counter(self), value).map_err(|e| e.to_string())?;
+        Ok(())
+    }
+}
 pub struct Gateway {
     pub service: RunningService<RoleClient, ClientConfig>,
     pub catalog: Value,
@@ -23,7 +51,11 @@ impl Gateway {
         let http = reqwest::Client::builder()
             .redirect(reqwest::redirect::Policy::none())
             .build()?;
-        let transport = StreamableHttpClientTransport::with_client(http, config);
+        config.max_sse_event_size = crate::http_client::MAX_RPC_BYTES;
+        let transport = StreamableHttpClientTransport::with_client(
+            crate::http_client::BoundedClient(http),
+            config,
+        );
         let service = tokio::time::timeout(
             deadline,
             ClientConfig::default()
@@ -32,7 +64,8 @@ impl Gateway {
         )
         .await??;
         let discovery = async {
-            let tools = collect_pages(|cursor| {
+            let mut budget = DiscoveryBudget::default();
+            let tools = collect_pages_budget("name", &mut budget, |cursor| {
                 let s = &service;
                 async move {
                     let page = s
@@ -44,19 +77,22 @@ impl Gateway {
                 }
             })
             .await?;
-            let resources = collect_pages_by(catalog_identity("resources/list")?, |cursor| {
-                let s = &service;
-                async move {
-                    let page = s
-                        .list_resources(
-                            cursor.map(|c| PaginatedRequestParams::default().with_cursor(Some(c))),
-                        )
-                        .await?;
-                    Ok((serde_json::to_value(page.resources)?, page.next_cursor))
-                }
-            })
-            .await?;
-            let prompts = collect_pages(|cursor| {
+            let resources =
+                collect_pages_budget(catalog_identity("resources/list")?, &mut budget, |cursor| {
+                    let s = &service;
+                    async move {
+                        let page = s
+                            .list_resources(
+                                cursor.map(|c| {
+                                    PaginatedRequestParams::default().with_cursor(Some(c))
+                                }),
+                            )
+                            .await?;
+                        Ok((serde_json::to_value(page.resources)?, page.next_cursor))
+                    }
+                })
+                .await?;
+            let prompts = collect_pages_budget("name", &mut budget, |cursor| {
                 let s = &service;
                 async move {
                     let page = s
@@ -68,7 +104,28 @@ impl Gateway {
                 }
             })
             .await?;
-            Ok::<_, crate::Error>(json!({"tools":tools,"resources":resources,"prompts":prompts}))
+            let templates = collect_pages_budget(
+                catalog_identity("resources/templates/list")?,
+                &mut budget,
+                |cursor| {
+                    let service = &service;
+                    async move {
+                        let page = service
+                            .list_resource_templates(cursor.map(|cursor| {
+                                PaginatedRequestParams::default().with_cursor(Some(cursor))
+                            }))
+                            .await?;
+                        Ok((
+                            serde_json::to_value(page.resource_templates)?,
+                            page.next_cursor,
+                        ))
+                    }
+                },
+            )
+            .await?;
+            Ok::<_, crate::Error>(
+                json!({"tools":tools,"resources":resources,"prompts":prompts,"resourceTemplates":templates}),
+            )
         };
         match tokio::time::timeout(deadline, discovery).await {
             Ok(Ok(catalog)) => Ok(Self { service, catalog }),
@@ -103,7 +160,18 @@ where
 {
     collect_pages_by("name", fetch).await
 }
-pub async fn collect_pages_by<F, Fut>(identity: &str, mut fetch: F) -> Result<Vec<Value>>
+pub async fn collect_pages_by<F, Fut>(identity: &str, fetch: F) -> Result<Vec<Value>>
+where
+    F: FnMut(Option<String>) -> Fut,
+    Fut: std::future::Future<Output = Result<(Value, Option<String>)>>,
+{
+    collect_pages_budget(identity, &mut DiscoveryBudget::default(), fetch).await
+}
+pub async fn collect_pages_budget<F, Fut>(
+    identity: &str,
+    budget: &mut DiscoveryBudget,
+    mut fetch: F,
+) -> Result<Vec<Value>>
 where
     F: FnMut(Option<String>) -> Fut,
     Fut: std::future::Future<Output = Result<(Value, Option<String>)>>,
@@ -114,6 +182,7 @@ where
     let mut cursor = None;
     for _ in 0..128 {
         let (items, next) = fetch(cursor).await?;
+        budget.value(&items)?;
         for item in items.as_array().ok_or("catalog page must be an array")? {
             let name = item
                 .get(identity)
@@ -200,6 +269,15 @@ impl rmcp::ServerHandler for Forwarder {
         c: rmcp::service::RequestContext<rmcp::RoleServer>,
     ) -> std::result::Result<ListPromptsResult, rmcp::ErrorData> {
         self.registry.list_prompts(r, c).await
+    }
+    async fn list_resource_templates(
+        &self,
+        request: Option<PaginatedRequestParams>,
+        context: rmcp::service::RequestContext<rmcp::RoleServer>,
+    ) -> std::result::Result<ListResourceTemplatesResult, rmcp::ErrorData> {
+        self.registry
+            .list_resource_templates(request, context)
+            .await
     }
     async fn call_tool(
         &self,

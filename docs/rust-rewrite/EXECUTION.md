@@ -30,6 +30,9 @@ review findings and exact-head CI, and verify the merged artifact before closure
 | F02 | [#881](https://github.com/magnus919/SlopSearX/issues/881) | Accepted | [PR #952](https://github.com/magnus919/SlopSearX/pull/952), merged `562b6ce1ce9f798104311e8f3a213daefeddc795`; ADR 003–005 and state/pin registers; corrected membership classification, positive Droid re-review and exact-head CI passed |
 | F03 | [#882](https://github.com/magnus919/SlopSearX/issues/882) | Accepted | [PR #955](https://github.com/magnus919/SlopSearX/pull/955), merged `7b2d876307189d7a62000d1f289b3ef4b65eaff6`; exact-head CI and completed Droid re-review; [accepted handoff](https://github.com/magnus919/SlopSearX/issues/882#issuecomment-6200997449), retained Linux amd64/arm64 native evidence |
 | F04 | [#883](https://github.com/magnus919/SlopSearX/issues/883) | In progress | Portable corpus/oracle and native replay/comparator implementation from accepted F03 |
+| F05 | [#884](https://github.com/magnus919/SlopSearX/issues/884) | Accepted | [PR #960](https://github.com/magnus919/SlopSearX/pull/960), merged `7cc420f7ffb61127750e77bf6130e225925f9186`; [accepted handoff](https://github.com/magnus919/SlopSearX/issues/884#issuecomment-6203899560) |
+| F06 | [#885](https://github.com/magnus919/SlopSearX/issues/885) | In progress | Dispatched after accepted F05 handoff; isolated implementation and acceptance pending |
+| F07 | [#886](https://github.com/magnus919/SlopSearX/issues/886) | In progress | Dispatched after accepted F05 handoff; isolated implementation and acceptance pending |
 | O06 | [#935](https://github.com/magnus919/SlopSearX/issues/935) | Accepted | [PR #958](https://github.com/magnus919/SlopSearX/pull/958), merged `f539c0c2f597cd2fcfc382d343d08465baf11283`; exact-head CI and independent/Droid reviews passed; O09 owns gate activation |
 
 All other packages remain pending. [The dependency index](ISSUES.md) and native
