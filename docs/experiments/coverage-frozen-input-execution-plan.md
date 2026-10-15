@@ -93,6 +93,13 @@ at most 640 scrapes plus one health request. Acquisition retains its declared
 physical-call ceiling. Unknown usage and integrity/security failures stop the
 study. Eight of ten campaign Brave attempts are used; two remain reserved.
 
+For a saved origin, prepare any acquisition-plan or historical runner-module
+sidecars from the registered source revision before execution. Verify the
+runner-module bytes against that revision during preparation, then record the
+sidecar path and digest in the current private operator configuration. The
+runtime checks those bytes against the origin registration and package; it
+does not use the archived control record as source authority or query Git.
+
 ## Shipping decision
 
 Both stages passing supports implementation of the entire acceptance checklist,

@@ -1354,6 +1354,8 @@ def collect_acquisition_observations(
     configured_arxiv_pacing_seconds: int | float | None = None,
     deadline_monotonic: float | None = None,
     verified_pool_source: object | None = None,
+    verified_historical_operation_runner_module: object | None = None,
+    verified_saved_origin: object | None = None,
 ) -> dict[str, object]:
     if _sha(acquisition_manifest_bytes) != expected_manifest_sha256:
         raise ResourceEvidenceError("acquisition-manifest-pin-mismatch")
@@ -1367,6 +1369,38 @@ def collect_acquisition_observations(
     if profile.identifier != expected_execution_profile:
         raise ResourceEvidenceError("acquisition-profile-protocol-mismatch")
     frozen_mode = verified_pool_source is not None
+    operation_runner_module_sha256 = execution_controls.module_source_sha256(offline_acquisition.__file__)
+    if verified_historical_operation_runner_module is not None or verified_saved_origin is not None:
+        from scripts import coverage_saved_corpus
+        from scripts.coverage_frozen_pool_inputs import is_verified_pool_snapshot_source
+
+        historical = verified_historical_operation_runner_module
+        if (
+            not frozen_mode
+            or not is_verified_pool_snapshot_source(verified_pool_source)
+            or type(verified_saved_origin) is not coverage_saved_corpus.SavedCorpusOrigin
+            or type(historical) is not coverage_saved_corpus.VerifiedHistoricalOperationRunnerModule
+            or verified_pool_source.pool_index.get("stage_uuid") != verified_saved_origin.registration.stage_uuid
+            or verified_pool_source.pool_index.get("source_revision")
+            != verified_saved_origin.registration.source_revision
+            or verified_pool_source.pool_index.get("source_closure_sha256")
+            != verified_saved_origin.registration.source_closure_sha256
+            or verified_pool_source.snapshot_index_sha256 is None
+            or verified_saved_origin.registration.stage_uuid != stage_uuid
+            or verified_saved_origin.registration.source_revision != source_revision
+            or coverage_saved_corpus.package_sha256(
+                Path(verified_saved_origin.collection_directory), Path(verified_saved_origin.capture_stage_directory)
+            )
+            != verified_saved_origin.expected_package_sha256
+            or historical != coverage_saved_corpus.verify_historical_operation_runner_module(verified_saved_origin)
+            or historical.origin_package_sha256 != verified_saved_origin.expected_package_sha256
+            or historical.origin_stage_uuid != stage_uuid
+            or historical.origin_source_revision != source_revision
+            or type(historical.module_bytes) is not bytes
+            or _sha(historical.module_bytes) != historical.module_sha256
+        ):
+            raise ResourceEvidenceError("historical-acquisition-source-proof-invalid")
+        operation_runner_module_sha256 = historical.module_sha256
     if frozen_mode:
         from scripts.coverage_frozen_pool_inputs import is_verified_pool_snapshot_source
 
@@ -1793,7 +1827,7 @@ def collect_acquisition_observations(
             "acquisition_plan_sha256": acquisition_plan_sha256,
             "stage_manifest_sha256": expected_manifest_sha256,
             "producer_module_sha256": execution_controls.module_source_sha256(coverage_live_acquire.__file__),
-            "operation_runner_module_sha256": execution_controls.module_source_sha256(offline_acquisition.__file__),
+            "operation_runner_module_sha256": operation_runner_module_sha256,
             "control_identity": "coverage-acquisition-one-shot/1",
             "query_pacing_seconds_enforced": coverage_live_acquire.QUERY_PACING_SECONDS,
             "arxiv_physical_pacing_seconds_enforced": coverage_live_acquire.ARXIV_PHYSICAL_PACING_SECONDS,
@@ -2676,6 +2710,9 @@ def _saved_origin_resource_observations(
         or collection_inventory_sha != origin.expected_collection_receipt_inventory_sha256
     ):
         raise ResourceEvidenceError("saved-origin-package-pin-mismatch")
+    historical_operation_runner_module = coverage_saved_corpus.verify_historical_operation_runner_module(origin)
+    if imported.historical_operation_runner_module != historical_operation_runner_module:
+        raise ResourceEvidenceError("saved-origin-operation-runner-source-proof-mismatch")
 
     collection_root = Path(origin.collection_directory)
     try:
@@ -2776,6 +2813,8 @@ def _saved_origin_resource_observations(
         configured_arxiv_pacing_seconds=origin_acquisition["arxiv_physical_pacing_seconds"],
         deadline_monotonic=origin_deadline,
         verified_pool_source=verified_origin_pool,
+        verified_historical_operation_runner_module=historical_operation_runner_module,
+        verified_saved_origin=origin,
     )
     original_capture = imported.origin_capture_result
     try:

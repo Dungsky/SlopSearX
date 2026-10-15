@@ -78,6 +78,11 @@ def _origin_package(tmp_path: Path):
     acquisition_plan = b'{"schema":"coverage-acquisition-plan/1","operations":[]}'
     acquisition_plan_sha256 = _sha(acquisition_plan)
     collection = tmp_path / "collection"
+    historical_source_dir = tmp_path / "historical-source"
+    _mkdir_private(historical_source_dir)
+    historical_source_bytes = b"# historical operation runner\n"
+    historical_source_path = historical_source_dir / "coverage_study_acquire.py"
+    _write_private(historical_source_path, historical_source_bytes)
     evidence = fixtures._fresh_frozen_evidence(
         collection, stage, cases, acquisition_plan_sha256=acquisition_plan_sha256
     )
@@ -280,6 +285,8 @@ def _origin_package(tmp_path: Path):
         expected_capture_inventory_sha256=_sha(inventory_raw),
         expected_capture_manifest_sha256=_sha(source_manifest_raw),
         expected_package_sha256=package_sha,
+        operation_runner_source_sidecar=historical_source_path,
+        operation_runner_source_sha256=_sha(historical_source_bytes),
     )
     return origin, cases, list(origin.navigation_targets), collection, capture_root
 

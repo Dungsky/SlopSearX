@@ -49,6 +49,9 @@ def _origin(tmp_path: Path, plan: bytes, *, sidecar: Path | None) -> saved.Saved
         collector_receipt_sha256="2" * 64,
         availability_sha256="3" * 64,
     )
+    historical_dir = _private_dir(tmp_path / "historical-source")
+    historical_bytes = b"# verified historical operation runner source\n"
+    historical_sidecar = _private_file(historical_dir / "coverage_study_acquire.py", historical_bytes)
     return saved.SavedCorpusOrigin(
         registration=registration,
         research_cases=(),
@@ -60,6 +63,8 @@ def _origin(tmp_path: Path, plan: bytes, *, sidecar: Path | None) -> saved.Saved
         expected_capture_manifest_sha256="6" * 64,
         expected_package_sha256=saved.package_sha256(collection, capture),
         acquisition_plan_sidecar=sidecar,
+        operation_runner_source_sidecar=historical_sidecar,
+        operation_runner_source_sha256=_sha(historical_bytes),
     )
 
 
@@ -72,6 +77,7 @@ def _config(origin: saved.SavedCorpusOrigin, *, include_sidecar: bool = True) ->
     value["navigation_targets"] = []
     value["collection_directory"] = str(origin.collection_directory)
     value["capture_stage_directory"] = str(origin.capture_stage_directory)
+    value["operation_runner_source_sidecar"] = str(origin.operation_runner_source_sidecar)
     if origin.acquisition_plan_sidecar is not None:
         value["acquisition_plan_sidecar"] = str(origin.acquisition_plan_sidecar)
     elif not include_sidecar:
@@ -90,6 +96,11 @@ def test_registered_sidecar_is_verified_before_import_without_changing_package(t
 
     assert parsed.acquisition_plan_sidecar == sidecar
     assert saved.origin_acquisition_plan_bytes(parsed) == plan
+    verified_historical = saved.verify_historical_operation_runner_module(parsed)
+    assert verified_historical.origin_stage_uuid == parsed.registration.stage_uuid
+    assert verified_historical.origin_source_revision == parsed.registration.source_revision
+    assert verified_historical.origin_package_sha256 == parsed.expected_package_sha256
+    assert verified_historical.module_bytes == parsed.operation_runner_source_sidecar.read_bytes()
     assert saved.package_sha256(parsed.collection_directory, parsed.capture_stage_directory) == package_before
 
 
@@ -129,6 +140,27 @@ def test_sidecar_parent_symlink_into_package_is_rejected(tmp_path):
 
     with pytest.raises(saved.SavedCorpusError, match="origin-acquisition-plan-sidecar-inside-package"):
         saved.origin_acquisition_plan_bytes(origin)
+
+
+@pytest.mark.parametrize("mutation", ["missing", "wrong-pin", "permissions", "symlink"])
+def test_historical_source_module_sidecar_fails_closed(tmp_path, mutation):
+    plan = b'{"schema":"synthetic-plan/1","tasks":[]}\n'
+    origin = _origin(tmp_path, plan, sidecar=None)
+    source_path = origin.operation_runner_source_sidecar
+    config = _config(origin)
+    if mutation == "missing":
+        source_path.unlink()
+    elif mutation == "wrong-pin":
+        config["operation_runner_source_sha256"] = "9" * 64
+    elif mutation == "permissions":
+        source_path.chmod(0o640)
+    elif mutation == "symlink":
+        actual = source_path.with_name("actual.py")
+        source_path.rename(actual)
+        source_path.symlink_to(actual)
+
+    with pytest.raises(runner.OperatorRunnerError, match="saved-origin-control-source-invalid"):
+        runner._saved_origin_from_config(config)
 
 
 @pytest.mark.parametrize(

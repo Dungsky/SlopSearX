@@ -512,6 +512,12 @@ class OperatorRunnerConfigTests(unittest.TestCase):
             origin_plan = b'{"schema":"coverage-acquisition-plan/1","operations":[]}'
             (origin_collection / "acquisition-plan.json").write_bytes(origin_plan)
             (origin_collection / "acquisition-plan.json").chmod(0o600)
+            origin_source_dir = root / "origin-source"
+            origin_source_dir.mkdir(mode=0o700)
+            origin_source_bytes = b"# historical operation runner\n"
+            origin_source_path = origin_source_dir / "coverage_study_acquire.py"
+            origin_source_path.write_bytes(origin_source_bytes)
+            origin_source_path.chmod(0o600)
             origin_registration = coverage_frozen_pool_inputs.FrozenPoolRegistrationContext(
                 stage_uuid=origin_doc["stage_uuid"],
                 stage_kind="development",
@@ -538,6 +544,8 @@ class OperatorRunnerConfigTests(unittest.TestCase):
                 expected_capture_inventory_sha256="b" * 64,
                 expected_capture_manifest_sha256="c" * 64,
                 expected_package_sha256=origin_doc["package_sha256"],
+                operation_runner_source_sidecar=origin_source_path,
+                operation_runner_source_sha256=digest(origin_source_bytes),
             )
             with (
                 mock.patch.object(runner, "_verify_checkout_sources"),

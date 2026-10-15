@@ -305,15 +305,27 @@ def _saved_origin_from_config(value: object) -> saved_corpus.SavedCorpusOrigin:
     from scripts import coverage_frozen_pool_inputs
 
     origin_fields = {field.name for field in fields(saved_corpus.SavedCorpusOrigin)}
-    legacy_origin_fields = origin_fields - {"acquisition_plan_sidecar"}
+    optional_origin_fields = {
+        "acquisition_plan_sidecar",
+        "operation_runner_source_sidecar",
+        "operation_runner_source_sha256",
+    }
+    legacy_origin_fields = origin_fields - optional_origin_fields
+    acquisition_plan_fields = legacy_origin_fields | {"acquisition_plan_sidecar"}
+    historical_source_fields = legacy_origin_fields | {
+        "operation_runner_source_sidecar",
+        "operation_runner_source_sha256",
+    }
     if type(value) is not dict or frozenset(value) not in {
         frozenset(legacy_origin_fields),
+        frozenset(acquisition_plan_fields),
+        frozenset(historical_source_fields),
         frozenset(origin_fields),
     }:
         raise OperatorRunnerError("saved-origin-config-shape-invalid")
     args = dict(value)
-    if "acquisition_plan_sidecar" not in args:
-        args["acquisition_plan_sidecar"] = None
+    for optional_field in optional_origin_fields:
+        args.setdefault(optional_field, None)
     registration = args["registration"]
     if type(registration) is not dict or set(registration) != {
         field.name for field in fields(coverage_frozen_pool_inputs.FrozenPoolRegistrationContext)
@@ -338,6 +350,11 @@ def _saved_origin_from_config(value: object) -> saved_corpus.SavedCorpusOrigin:
         if type(sidecar) is not str or not Path(sidecar).is_absolute():
             raise OperatorRunnerError("saved-origin-acquisition-plan-sidecar-path-invalid")
         args["acquisition_plan_sidecar"] = Path(sidecar)
+    source_sidecar = args["operation_runner_source_sidecar"]
+    if source_sidecar is not None:
+        if type(source_sidecar) is not str or not Path(source_sidecar).is_absolute():
+            raise OperatorRunnerError("saved-origin-operation-runner-sidecar-path-invalid")
+        args["operation_runner_source_sidecar"] = Path(source_sidecar)
     origin = saved_corpus.SavedCorpusOrigin(**args)
     if (
         saved_corpus.package_sha256(origin.collection_directory, origin.capture_stage_directory)
@@ -348,6 +365,10 @@ def _saved_origin_from_config(value: object) -> saved_corpus.SavedCorpusOrigin:
         saved_corpus.origin_acquisition_plan_bytes(origin)
     except saved_corpus.SavedCorpusError as exc:
         raise OperatorRunnerError("saved-origin-acquisition-plan-invalid") from exc
+    try:
+        saved_corpus.verify_historical_operation_runner_module(origin)
+    except saved_corpus.SavedCorpusError as exc:
+        raise OperatorRunnerError("saved-origin-control-source-invalid") from exc
     return origin
 
 
