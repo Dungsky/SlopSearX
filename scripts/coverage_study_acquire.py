@@ -96,6 +96,15 @@ def pool_input_mode_for_stage(protocol: Mapping[str, object], stage_kind: str | 
     modes = protocol.get("pool_input_mode_by_stage")
     if modes is None:
         return str(protocol.get("pool_input_mode", "live-acquisition/1"))
+    if modes == {"development": "frozen-pool/1", "confirmation": "frozen-pool/1"}:
+        if (
+            protocol.get("schema") != "coverage-first-study-protocol/4"
+            or protocol.get("pool_input_mode") != "frozen-pool/1"
+        ):
+            raise ValueError("unsupported stage input methods")
+        if stage_kind not in {"development", "confirmation"}:
+            raise ValueError("stage kind required for fresh inputs")
+        return modes[stage_kind]
     if modes != {"development": "saved-corpus/1", "confirmation": "frozen-pool/1"}:
         raise ValueError("unsupported stage input methods")
     if stage_kind not in {"development", "confirmation"}:
