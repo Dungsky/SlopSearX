@@ -25,7 +25,8 @@ review findings and exact-head CI, and verify the merged artifact before closure
 
 | Plan | Issue | State | Evidence / next gate |
 | --- | --- | --- | --- |
-| F01 | [#880](https://github.com/magnus919/SlopSearX/issues/880) | In progress | Baseline `20109f9083babd014971951e8c02565ae51c2326`; inventory manifests undergoing source-based reconciliation |
+| F01 | [#880](https://github.com/magnus919/SlopSearX/issues/880) | Accepted | [PR #950](https://github.com/magnus919/SlopSearX/pull/950), merged `2e0026b4e471c9309a898665169578333074015e`; [inventory evidence](inventory/validation.json), exact-head CI passed, independent Sol corrections and Luna final audit accepted |
+| F02 | [#881](https://github.com/magnus919/SlopSearX/issues/881) | In progress | Architecture ADRs based on accepted F01; implementation and independent acceptance pending |
 
 All other packages remain pending. [The dependency index](ISSUES.md) and native
 GitHub dependencies determine readiness. Update this ledger with merged PR and
