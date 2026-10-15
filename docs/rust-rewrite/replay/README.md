@@ -75,3 +75,33 @@ blocks the packaged binary, use a reviewed executable-specific policy for
 `/usr/bin/bwrap`; do not disable host protections globally. Namespace/LSM
 rejection, missing tools, and unsupported platforms stop execution before the
 candidate. There is no proxy-only, environment-only, or unrestricted fallback.
+
+### Ubuntu CI user-namespace policy
+
+Run `38802073443` failed on both Ubuntu 24.04 architectures before candidate
+execution: bubblewrap `0.9.0-1ubuntu0.3` could not configure loopback
+(`RTM_NEWADDR: Operation not permitted`). This identifies a namespace setup
+permission failure; the historical logs do not establish which installed
+AppArmor profile caused it. The next CI setup records existing attachments,
+the same bubblewrap command before and after loading the targeted policy, and
+available kernel-denial diagnostics. Unexpected attachment identities fail.
+
+Ubuntu's [user-namespace restriction guidance](https://discourse.ubuntu.com/t/understanding-apparmor-user-namespace-restriction/58007)
+recommends a purpose-built bubblewrap profile rather than a broad unconfined
+user-namespace exemption. The inline CI policy follows the setup/stacked-child
+pattern in [AppArmor's bwrap-userns-restrict policy](https://gitlab.com/apparmor/apparmor/-/raw/master/profiles/apparmor/profiles/extras/bwrap-userns-restrict)
+(retrieved 2026-10-15; source SHA-256
+`d61facde27707b9c47ffe47921b7273e788784484cb5530eb819e6daac1f1990`),
+using Noble's ABI 4.0 and the existing `bwrap`
+executable-attachment identity. Setup can use capabilities needed for namespace
+and loopback creation; the child profile explicitly denies every capability.
+The runner additionally keeps `--cap-drop ALL`, verifies `CapEff` is zero,
+and disables further user namespaces. No global AppArmor or user-namespace
+sysctl is weakened.
+
+The released [bubblewrap 0.9.0 setup source](https://github.com/containers/bubblewrap/blob/v0.9.0/bubblewrap.c)
+retains required setup capabilities for `loopback_setup` and drops privileges
+before executing the program. Removing the runner's capability drop would
+therefore be an unsupported response to the observed failure. Successful
+before/after CI probes and the mandatory native isolation cases must establish
+the corrected runtime behavior; installing a profile alone is not acceptance.

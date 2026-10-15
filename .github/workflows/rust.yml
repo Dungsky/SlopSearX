@@ -36,8 +36,65 @@ jobs:
       - name: Install mandatory offline replay isolation
         run: |
           sudo apt-get update
-          sudo apt-get install --yes bubblewrap
+          sudo apt-get install --yes bubblewrap apparmor
           /usr/bin/bwrap --version
+          # Same namespace/capability flags as the native runner; no candidate runs here.
+          replay_setup_probe() {
+            /usr/bin/bwrap --unshare-user --unshare-net --unshare-pid --disable-userns \
+              --cap-drop ALL --new-session --die-with-parent --ro-bind / / \
+              --proc /proc --dev /dev -- /bin/sh -c \
+              'cat /proc/self/attr/current; grep "^CapEff:" /proc/self/status; cat /proc/net/dev'
+          }
+          sudo cat /sys/kernel/security/apparmor/profiles | grep -E '^(bwrap|unpriv_bwrap)' || true
+          # Refuse an unexpected executable attachment instead of layering a second profile.
+          for policy in /etc/apparmor.d/*; do
+            if [ -f "$policy" ] && grep -Eq '^[[:space:]]*(profile[[:space:]]+[^[:space:]]+[[:space:]]+)?/usr/bin/bwrap([[:space:]]|$)' "$policy"; then
+              echo "Existing bubblewrap policy: $policy"
+              cat "$policy"
+              if ! grep -Eq '^[[:space:]]*profile[[:space:]]+bwrap[[:space:]]+/usr/bin/bwrap([[:space:]]|$)' "$policy"; then
+                echo "Unexpected bwrap attachment identity; refusing policy replacement" >&2
+                exit 1
+              fi
+            fi
+          done
+          if ! replay_setup_probe; then
+            sudo journalctl -k --no-pager -n 100 | grep -E 'apparmor|userns|bwrap' || true
+          fi
+          # Purpose-built bwrap setup profile plus capability-denied child stack.
+          # See docs/rust-rewrite/replay/README.md for upstream policy provenance.
+          sudo apparmor_parser --replace --warn <<'PROFILE'
+          abi <abi/4.0>,
+          include <tunables/global>
+          profile bwrap /usr/bin/bwrap flags=(attach_disconnected,mediate_deleted) {
+            capability,
+            file rwlkm /{**,},
+            network,
+            unix,
+            ptrace,
+            signal,
+            userns,
+            mount,
+            umount,
+            pivot_root,
+            dbus,
+            pix /** -> &bwrap//&ssx_replay_unpriv,
+          }
+          profile ssx_replay_unpriv flags=(attach_disconnected,mediate_deleted) {
+            file rwlkm /{**,},
+            network,
+            unix,
+            ptrace,
+            signal,
+            userns,
+            mount,
+            umount,
+            pivot_root,
+            dbus,
+            pix /** -> &ssx_replay_unpriv,
+            audit deny capability,
+          }
+          PROFILE
+          replay_setup_probe
 
       - name: Formatting
         run: cargo fmt --all --check
