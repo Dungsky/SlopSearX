@@ -96,6 +96,12 @@ jobs:
           PROFILE
           replay_setup_probe
 
+      - name: Build pinned disposable native Valkey
+        timeout-minutes: 15
+        run: |
+          sh scripts/rust-valkey-build.sh "$RUNNER_TEMP/ssx-valkey/bin"
+          echo "$RUNNER_TEMP/ssx-valkey/bin" >> "$GITHUB_PATH"
+
       - name: Formatting
         run: cargo fmt --all --check
 
@@ -126,6 +132,12 @@ jobs:
       - name: Typed records and stable serialization evidence
         run: cargo xtask check F05 --output target/rust-evidence/F05.json
 
+      - name: Deterministic ranking, scholarly grouping and retrieval evidence
+        run: cargo xtask check F11 --output target/rust-evidence/F11.json
+
+      - name: Native Valkey ownership and lifecycle evidence
+        run: cargo xtask check F07 --output target/rust-evidence/F07.json
+
       - name: Native readiness and Python bridge smoke
         env:
           SSX_SERVER_BIN: target/${{ matrix.target }}/debug/ssx-server
@@ -140,6 +152,8 @@ jobs:
             target/rust-evidence/F03.json
             target/rust-evidence/F04.json
             target/rust-evidence/F05.json
+            target/rust-evidence/F07.json
+            target/rust-evidence/F11.json
             target/rust-feature-graph.txt
           if-no-files-found: warn
 

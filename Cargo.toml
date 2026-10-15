@@ -18,7 +18,7 @@ reqwest = { version = "=0.13.5", features = ["json"] }
 rustls = { version = "=0.23.46" }
 tokio-rustls = { version = "=0.26.6" }
 rmcp = { version = "=3.5.1" }
-redis = { version = "=1.7.1" }
+redis = { version = "=1.7.1", features = ["tokio-comp"] }
 serde = { version = "=1.0.229", features = ["derive"] }
 serde_json = { version = "=1.0.154", features = ["raw_value"] }
 schemars = { version = "=1.2.3" }
