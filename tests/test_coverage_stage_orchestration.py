@@ -47,6 +47,11 @@ from tests.test_coverage_live_acquire import FakePacer, FakePermitVerifier, OneS
 from tests.test_coverage_source_capture import _Lease as CaptureLease
 from tests.test_coverage_source_capture import _Verifier as CaptureVerifier
 
+WIRE_COMPAT_METHOD_DIR = (
+    Path(__file__).parents[1]
+    / "docs/experiments/evidence/coverage-first-study/saved-development-wire-compatibility-method-materials"
+)
+
 
 def canonical(value: object) -> bytes:
     return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
@@ -99,12 +104,18 @@ def _source_closure_bytes(
     )
 
 
-def plan_fixture(*, selector_map_registered: bool = False, pool_input_mode: str | None = None) -> stage.StagePlan:
+def plan_fixture(
+    *,
+    selector_map_registered: bool = False,
+    pool_input_mode: str | None = None,
+    stage_kind: str = "development",
+    method_material_dir: Path | None = None,
+) -> stage.StagePlan:
     stage_id = str(uuid.UUID(int=8001))
     packet_id = str(uuid.UUID(int=8002))
     evidence_dir = Path(__file__).parents[1] / "docs/experiments/evidence/coverage-first-study"
     if pool_input_mode is not None:
-        fresh_material_dir = (
+        fresh_material_dir = method_material_dir or (
             Path(__file__).parents[1] / "docs/experiments/evidence/coverage-first-study/frozen-input-method-materials"
         )
         protocol_bytes = (fresh_material_dir / "protocol.json").read_bytes()
@@ -128,8 +139,8 @@ def plan_fixture(*, selector_map_registered: bool = False, pool_input_mode: str 
         protocol_value["selector_input_map_status"] = "registered"
         protocol_bytes = canonical(protocol_value)
     cohort_doc = json.loads(cohorts_bytes)
-    dev = next(row for row in cohort_doc["stages"] if row["stage"] == "development")
-    cases, navigation = dev["research_cases"], dev["navigation_targets"]
+    cohort_stage = next(row for row in cohort_doc["stages"] if row["stage"] == stage_kind)
+    cases, navigation = cohort_stage["research_cases"], cohort_stage["navigation_targets"]
     acquisition_plan = canonical(
         {
             "schema": core.ACQUISITION_SCHEMA,
@@ -174,7 +185,7 @@ def plan_fixture(*, selector_map_registered: bool = False, pool_input_mode: str 
             {
                 "schema": core.REGISTRATION_SCHEMA,
                 "stage_uuid": stage_id,
-                "stage_kind": "development",
+                "stage_kind": stage_kind,
                 "source_revision": "a" * 40,
                 "pins": {"protocol": digest(protocol_bytes)},
                 "operation_ids": [],
@@ -205,7 +216,7 @@ def plan_fixture(*, selector_map_registered: bool = False, pool_input_mode: str 
     )
     acq_manifest = {
         "schema": "coverage-live-acquisition-manifest/1",
-        "stage": "development",
+        "stage": stage_kind,
         "stage_uuid": stage_id,
         "source_revision": "a" * 40,
         "source_closure_sha256": source_closure_sha,
@@ -220,10 +231,28 @@ def plan_fixture(*, selector_map_registered: bool = False, pool_input_mode: str 
         acq_manifest["schema"] = acquisition.CONTINUE_ACQUISITION_PROFILE.manifest_schema
         acq_manifest["execution_profile"] = acquisition.CONTINUE_ACQUISITION_PROFILE.identifier
     acquisition_manifest_bytes = live_acquire._canonical(acq_manifest)
+    development_stage_uuid = None
+    development_receipt_bytes = None
+    development_receipt_sha256 = None
+    if stage_kind == "confirmation":
+        development_stage_uuid = str(uuid.UUID(int=7999))
+        development_receipt_bytes = canonical(
+            {
+                "schema": core.DEVELOPMENT_RECEIPT_SCHEMA,
+                "stage_uuid": development_stage_uuid,
+                "stage_kind": "development",
+                "status": "passed",
+                "protocol_sha256": digest(protocol_bytes),
+                "source_revision": "a" * 40,
+                "source_closure_sha256": source_closure_sha,
+                "result_sha256": digest(b"synthetic orchestration confirmation fixture"),
+            }
+        )
+        development_receipt_sha256 = digest(development_receipt_bytes)
     now = time.monotonic()
     return stage.StagePlan(
         stage_uuid=stage_id,
-        stage_kind="development",
+        stage_kind=stage_kind,
         source_revision="a" * 40,
         protocol_bytes=protocol_bytes,
         cohorts_bytes=cohorts_bytes,
@@ -246,6 +275,9 @@ def plan_fixture(*, selector_map_registered: bool = False, pool_input_mode: str 
         initial_registration_bytes=initial_registration_bytes,
         initial_registration_sha256=initial_registration_sha256,
         band_companion_source_pins=band_companion_source_pins,
+        development_receipt_bytes=development_receipt_bytes,
+        development_receipt_sha256=development_receipt_sha256,
+        development_stage_uuid=development_stage_uuid,
     )
 
 
@@ -254,7 +286,8 @@ def _saved_plan_from_private_archive(
 ) -> tuple[stage.StagePlan, saved_corpus.SavedCorpusImportResult]:
     """Load the pinned origin package privately and build a fresh no-call stage plan."""
     materials = (
-        Path(__file__).parents[1] / "docs/experiments/evidence/coverage-first-study/saved-development-method-materials"
+        Path(__file__).parents[1]
+        / "docs/experiments/evidence/coverage-first-study/saved-development-wire-compatibility-method-materials"
     )
     protocol_bytes = (materials / "protocol.json").read_bytes()
     cohorts_bytes = (materials / "cohorts.json").read_bytes()
@@ -726,6 +759,9 @@ def _late_preflight(plan: stage.StagePlan, evidence, pipeline_inputs):
         capture_plan_bytes=materials["capture_plan"],
         task_ids=tuple(task_ids),
         navigation_skip_reasons=skips,
+        development_receipt_bytes=plan.development_receipt_bytes,
+        expected_development_receipt_sha256=plan.development_receipt_sha256,
+        expected_development_stage_uuid=plan.development_stage_uuid,
         band_companion_bytes=plan.band_companion_bytes,
         expected_band_companion_sha256=plan.band_companion_sha256,
         expected_source_pins=plan.band_companion_source_pins,
@@ -1139,6 +1175,8 @@ class StageOrchestrationTests(unittest.TestCase):
             deadline_cross=False,
             frozen_mode=True,
             selector_map_registered=True,
+            method_material_dir=WIRE_COMPAT_METHOD_DIR,
+            stage_kind="confirmation",
         )
 
     def test_acquisition_receipts_replaced_after_phase_seal_stop_collection(self):
@@ -1163,6 +1201,8 @@ class StageOrchestrationTests(unittest.TestCase):
         saved_origin_archive: Path | None = None,
         saved_origin_source_sidecar: Path | None = None,
         saved_origin_source_preparation: Path | None = None,
+        method_material_dir: Path | None = None,
+        stage_kind: str = "development",
     ):
         if saved_origin_archive is not None and frozen_mode:
             raise AssertionError("saved-origin replay and frozen-pool collection are distinct inputs")
@@ -1172,6 +1212,8 @@ class StageOrchestrationTests(unittest.TestCase):
             else plan_fixture(
                 selector_map_registered=selector_map_registered,
                 pool_input_mode="frozen-pool/1" if frozen_mode else None,
+                stage_kind=stage_kind,
+                method_material_dir=method_material_dir,
             )
         )
         if frozen_mode:
@@ -1925,6 +1967,8 @@ class StageOrchestrationTests(unittest.TestCase):
                     native_handoff=coverage_native_grader_handoff.NativeGraderHandoff(
                         base / "unused-grader-handoff", require_native_host_transcripts=True
                     ),
+                    frozen_pool_collection_authority=lambda _plan: {},
+                    prepare_after_frozen_pool=unused_async,
                 )
                 runtime_executors = coverage_stage_runtime.build_stage_executors(plan, bindings)
                 executor_values["verify_selector_admission"] = runtime_executors.verify_selector_admission
@@ -2171,13 +2215,22 @@ class StageOrchestrationTests(unittest.TestCase):
             self.assertIsNone(resource_receipt["observations"].get("selector_usage"))
 
     def test_registered_map_executes_full_offline_graph_after_external_admission(self):
-        self._run_integrated_synthetic_stage(deadline_cross=False, selector_map_registered=True)
+        self._run_integrated_synthetic_stage(
+            deadline_cross=False,
+            frozen_mode=True,
+            selector_map_registered=True,
+            method_material_dir=WIRE_COMPAT_METHOD_DIR,
+            stage_kind="confirmation",
+        )
 
     def test_runtime_bound_admission_reaches_offline_registered_selector(self):
         self._run_integrated_synthetic_stage(
             deadline_cross=False,
+            frozen_mode=True,
             selector_map_registered=True,
             runtime_bound_admission=True,
+            method_material_dir=WIRE_COMPAT_METHOD_DIR,
+            stage_kind="confirmation",
         )
 
     def test_registered_map_missing_or_wrong_admission_has_zero_selector_dispatch(self):
