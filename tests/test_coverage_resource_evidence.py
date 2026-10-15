@@ -932,6 +932,11 @@ async def test_full_collector_binds_mock_stages_and_preserves_unknowns(tmp_path:
     # by an in-process mock transport; the full collector must derive usage and
     # elapsed values from these archived receipts, ignoring lookalike caller
     # fields passed below.
+    # This checks evidence joins, not the production one-second latency gate.
+    # Compilation and fsync can exceed one second under hosted-runner coverage.
+    # Keep real elapsed measurements and a finite fixture deadline; dedicated
+    # execution tests exercise the production deadline with controlled clocks.
+    monkeypatch.setattr(selector_execution, "SELECTOR_PHASE_SECONDS", 30.0)
     selector_ledger = study_core.StudyRun(prepared_selector)
     selector_roots = PrivateRoots()
     candidate_compiled = compile_small()
@@ -955,7 +960,8 @@ async def test_full_collector_binds_mock_stages_and_preserves_unknowns(tmp_path:
                 candidate_compiled,
                 transport,
             )
-        await selector_execution.execute_selector_call(**call)
+        result = await selector_execution.execute_selector_call(**call)
+        assert result.terminal_reason is None, (operation_id, result.status, result.terminal_reason)
     selector_terminal = selector_execution.close_stage(
         prepared=prepared_selector, ledger=selector_ledger, result_root=selector_roots.result
     )
