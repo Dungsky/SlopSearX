@@ -8,7 +8,7 @@
     },
     {
       "path": "docs/rust-rewrite/inventory/DRIFT.md",
-      "git_blob": "fef996dbae226a8c2f44644c25d6e9dc7f9c9e3b"
+      "git_blob": "2dfd651426d9854a82acfd3757b6e7d616340402"
     },
     {
       "path": "docs/rust-rewrite/inventory/README.md",
@@ -276,7 +276,7 @@
     },
     {
       "path": "scripts/coverage_band_companion.py",
-      "git_blob": "642572f6c6f2c1493a974ea0afdb098f80d470b6"
+      "git_blob": "56ebb97f03358fd843fe564060d40a6c9c1848c7"
     },
     {
       "path": "scripts/coverage_consumer_inputs.py",
@@ -312,7 +312,7 @@
     },
     {
       "path": "scripts/coverage_gate_calculation.py",
-      "git_blob": "d2dae29bdd1a5f652aaf774b8a0ff90598543cc7"
+      "git_blob": "6a3a84003f3d40d0baacadd8d2f8804309cca330"
     },
     {
       "path": "scripts/coverage_grade_closure.py",
@@ -828,7 +828,7 @@
     },
     {
       "path": "tests/test_coverage_band_companion.py",
-      "git_blob": "85e76168fba317fbc6143fde2b0e85d90498d9f8"
+      "git_blob": "898e0746dd656b22b0edfa57197450effaeef50a"
     },
     {
       "path": "tests/test_coverage_consumer_inputs.py",
@@ -856,7 +856,7 @@
     },
     {
       "path": "tests/test_coverage_gate_calculation.py",
-      "git_blob": "ce6a246044abb3f0f8951995af60ad8e16b007e4"
+      "git_blob": "abe504a212fb133c8846bef80bd798445a67185c"
     },
     {
       "path": "tests/test_coverage_grade_closure.py",
@@ -988,7 +988,7 @@
     },
     {
       "path": "tests/test_coverage_stage_orchestration.py",
-      "git_blob": "a8da813c78e2b36d14c22f2dc60b7bd6ee2e32e3"
+      "git_blob": "0f5c264c01086f75ec2aa4f2942a0ea4e4ef1dce"
     },
     {
       "path": "tests/test_coverage_stage_runtime.py",
@@ -1008,7 +1008,7 @@
     },
     {
       "path": "tests/test_coverage_task_use_materials.py",
-      "git_blob": "4bff96e8e608196bb63997cbc0feabd89b0e9d93"
+      "git_blob": "29f24bcaa20a642c1f851abda644b26adaca7e22"
     },
     {
       "path": "tests/test_coverage_v2_snapshot_consumers.py",
