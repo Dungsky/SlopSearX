@@ -2,6 +2,11 @@
 
 Run `cargo xtask check F01`, `cargo xtask check F02`, or
 `cargo xtask check F03 --output target/rust-evidence/F03.json` from the workspace.
+Before dispatching acceptance checks, every invocation verifies that the actual
+`rustc --version --verbose` header and release match the accepted F02 Rust 1.99.0
+pin in both `architecture/pins.json` and `rust-toolchain.toml`. Missing, malformed,
+duplicate or mismatched release identity fails, including compiler overrides via
+`RUSTUP_TOOLCHAIN`.
 Every invocation emits one JSON object on stdout and exits nonzero on failure.
 Without `--output`, stdout is the artifact; the optional path is explicit and a
 write error fails acceptance. Output destinations are resolved through existing

@@ -41,6 +41,52 @@ fn load_json(path: &Path) -> Result<Value> {
     serde_json::from_slice(&fs::read(path).map_err(|e| format!("{}: {e}", path.display()))?)
         .map_err(|e| format!("{}: {e}", path.display()))
 }
+// F02 accepts this exact stable release; environment overrides must not bypass it.
+const ACCEPTED_RUST: &str = "1.99.0";
+fn validate_toolchain(pins: &Value, configuration: &str, actual: &str) -> Result<()> {
+    if pins["toolchain"]["rust"].as_str() != Some(ACCEPTED_RUST) {
+        return Err("Rust architecture pin differs from accepted F02 release".into());
+    }
+    let mut in_toolchain = false;
+    let mut channels = Vec::new();
+    for line in configuration.lines() {
+        let line = line.split('#').next().unwrap_or_default().trim();
+        if line.starts_with('[') {
+            in_toolchain = line == "[toolchain]";
+        } else if in_toolchain
+            && let Some((key, value)) = line.split_once('=')
+            && key.trim() == "channel"
+        {
+            channels.push(value.trim());
+        }
+    }
+    if channels != [format!("\"{ACCEPTED_RUST}\"")] {
+        return Err("rust-toolchain.toml must select the accepted F02 Rust release".into());
+    }
+    let mut lines = actual.lines();
+    let header = lines.next().unwrap_or_default();
+    let header_release = header
+        .strip_prefix("rustc ")
+        .and_then(|s| s.split_once(" ("));
+    let releases: Vec<_> = lines
+        .filter_map(|line| line.strip_prefix("release: "))
+        .collect();
+    if !header_release.is_some_and(|(release, build)| {
+        release == ACCEPTED_RUST && build.ends_with(')') && build.len() > 1
+    }) || releases != [ACCEPTED_RUST]
+    {
+        return Err(format!(
+            "actual rustc identity must report accepted F02 release {ACCEPTED_RUST}"
+        ));
+    }
+    Ok(())
+}
+fn check_toolchain(root: &Path, actual: &str) -> Result<()> {
+    let pins = load_json(&root.join("docs/rust-rewrite/architecture/pins.json"))?;
+    let configuration = fs::read_to_string(root.join("rust-toolchain.toml"))
+        .map_err(|e| format!("Rust toolchain configuration: {e}"))?;
+    validate_toolchain(&pins, &configuration, actual)
+}
 fn validate_fixture(f: &Fixture, id: &str) -> Result<()> {
     if f.schema_version != 1 || f.plan_id != id || f.sources.is_empty() {
         return Err("invalid or empty fixture".into());
@@ -447,6 +493,8 @@ fn main() {
     } else {
         if head.is_empty() || toolchain.is_empty() || snapshot.is_err() {
             Err("source/toolchain identity unavailable".into())
+        } else if let Err(error) = check_toolchain(&root, &toolchain) {
+            Err(error)
         } else {
             if args.len() == 4 {
                 validate_output(&root, Path::new(&args[3]))
@@ -488,6 +536,39 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn compiler_identity_must_match_both_accepted_pins() {
+        let pins = json!({"toolchain":{"rust":"1.99.0"}});
+        let configuration = "[toolchain]\nchannel = \"1.99.0\"\n";
+        let actual = "rustc 1.99.0 (abc123 2026-10-01)\nbinary: rustc\nrelease: 1.99.0\n";
+        assert!(validate_toolchain(&pins, configuration, actual).is_ok());
+        for invalid in [
+            "".to_string(),
+            "some nonempty output".to_string(),
+            actual.replace("1.99.0", "1.98.0"),
+            actual.replace("1.99.0", "1.99.0-nightly"),
+            actual.replace("release: 1.99.0\n", ""),
+            actual.replace("release: 1.99.0", "release: 1.98.0"),
+            format!("{actual}release: 1.99.0\n"),
+        ] {
+            assert!(
+                validate_toolchain(&pins, configuration, &invalid).is_err(),
+                "{invalid}"
+            );
+        }
+        for invalid in [json!({}), json!({"toolchain":{"rust":"1.98.0"}})] {
+            assert!(validate_toolchain(&invalid, configuration, actual).is_err());
+        }
+        for invalid in [
+            "",
+            "[toolchain]",
+            "[other]\nchannel = \"1.99.0\"",
+            "[toolchain]\nchannel = \"1.98.0\"",
+            "[toolchain]\nchannel = \"1.99.0\"\nchannel = \"1.99.0\"",
+        ] {
+            assert!(validate_toolchain(&pins, invalid, actual).is_err());
+        }
+    }
     #[test]
     fn output_cannot_overwrite_source_even_for_failure_reports() {
         let root = std::env::temp_dir().join(format!("ssx-output-{}", std::process::id()));
