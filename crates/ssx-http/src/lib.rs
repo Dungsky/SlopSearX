@@ -1,4 +1,5 @@
 //! Real native transport for foundation readiness; feature routes fail explicitly.
+pub mod projection;
 use axum::{Json, Router, extract::State, http::StatusCode, routing::get};
 use ssx_application::Runtime;
 use ssx_wire::Readiness;
