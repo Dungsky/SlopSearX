@@ -1,5 +1,7 @@
 # Retry the research-ranking comparison
 
+**Historical attempt:** this replacement finished during collection without a quality result. The [corrected-input plan](coverage-first-input-correction.md) defines the next separately registered attempt; it retains this failure and the original one.
+
 The latest development attempt stopped during search collection, before any ranking or answer evaluation. This amendment permits one replacement development attempt, followed by one confirmation attempt only if development passes every check. It changes the no-retry restriction for this specific collection failure; it does not relax the quality requirements or authorize production deployment.
 
 ## Keep the failed attempt

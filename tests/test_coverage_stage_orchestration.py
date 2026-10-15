@@ -1248,7 +1248,9 @@ class StageOrchestrationTests(unittest.TestCase):
                     }
                 )
             )
-            frozen_start_monotonic = time.monotonic()
+            # Use an exactly representable origin for the eight-hour boundary.
+            # Arbitrary fractional origins can round the duration above its limit.
+            frozen_start_monotonic = float(int(time.monotonic()))
             plan = replace(
                 plan,
                 protocol_bytes=protocol_bytes,

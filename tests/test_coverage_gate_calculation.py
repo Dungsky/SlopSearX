@@ -614,11 +614,8 @@ def test_missing_navigation_rank_observation_remains_inconclusive():
     assert report.evaluation.status == "inconclusive"
 
 
-def _task_use_v4_inputs():
-    materials = (
-        Path(gates.__file__).parents[1]
-        / "docs/experiments/evidence/coverage-first-study/research-task-use-method-materials"
-    )
+def _task_use_v4_inputs(materials_name="research-task-use-method-materials"):
+    materials = Path(gates.__file__).parents[1] / "docs/experiments/evidence/coverage-first-study" / materials_name
     protocol_bytes = (materials / "protocol.json").read_bytes()
     cohorts_bytes = (materials / "cohorts.json").read_bytes()
     inputs = _fixture()
@@ -740,3 +737,61 @@ def test_v4_registration_check_does_not_use_legacy_execution_hash_fast_path(monk
     inputs["protocol_sha256"] = "0" * 64
     with pytest.raises(gates.GateCalculationError, match="frozen-execution-contract-mismatch"):
         gates.calculate_coverage_gate_report(**inputs)
+
+
+def test_input_corrected_v4_allows_only_exact_protocol_cohort_pair_with_unchanged_gates():
+    old = _task_use_v4_inputs()
+    corrected = _task_use_v4_inputs("input-corrected-method-materials")
+
+    assert corrected["protocol_sha256"] == gates.TASK_USE_V4_INPUT_CORRECTED_PROTOCOL_SHA256
+    assert corrected["cohorts_sha256"] == gates.TASK_USE_V4_INPUT_CORRECTED_COHORTS_SHA256
+    assert corrected["protocol"]["quality"] == old["protocol"]["quality"]
+    assert corrected["protocol"]["task_use"] == old["protocol"]["task_use"]
+    assert gates.quality_task_use_sha256(corrected["protocol"]) == gates.TASK_USE_V4_QUALITY_TASK_USE_SHA256
+    execution_keys = (
+        "quality",
+        "task_use",
+        "provider_schedule",
+        "acquisition",
+        "capture",
+        "consumer",
+        "phase_limits",
+        "variants",
+        "primary_control",
+        "candidate_source_sha256",
+    )
+    old_execution = gates._sha(gates._canonical({key: old["protocol"][key] for key in execution_keys}))
+    corrected_execution = gates._sha(gates._canonical({key: corrected["protocol"][key] for key in execution_keys}))
+    assert old_execution == corrected_execution == gates.TASK_USE_V4_EXECUTION_CONTRACT_SHA256
+
+    report = gates.calculate_coverage_gate_report(**corrected)
+    assert report.evaluation.status == "pass"
+    corrected_confirmation = _task_use_v4_inputs("input-corrected-method-materials")
+    confirmation_report = gates.calculate_coverage_gate_report(stage_kind="confirmation", **corrected_confirmation)
+    assert confirmation_report.evaluation.status == "pass"
+
+    cross_mixed = _task_use_v4_inputs("input-corrected-method-materials")
+    cross_mixed["cohorts_sha256"] = old["cohorts_sha256"]
+    with pytest.raises(gates.GateCalculationError, match="frozen-execution-contract-mismatch"):
+        gates.calculate_coverage_gate_report(**cross_mixed)
+
+    reverse_mixed = _task_use_v4_inputs()
+    reverse_mixed["cohorts_sha256"] = corrected["cohorts_sha256"]
+    with pytest.raises(gates.GateCalculationError, match="frozen-execution-contract-mismatch"):
+        gates.calculate_coverage_gate_report(**reverse_mixed)
+
+    unknown = _task_use_v4_inputs("input-corrected-method-materials")
+    unknown["protocol_sha256"] = "f" * 64
+    with pytest.raises(gates.GateCalculationError, match="frozen-execution-contract-mismatch"):
+        gates.calculate_coverage_gate_report(**unknown)
+
+    changed_gate = _task_use_v4_inputs("input-corrected-method-materials")
+    changed_gate["protocol"]["quality"]["mean_ndcg10_gain_minimum"] = 0.0
+    with pytest.raises(gates.GateCalculationError, match="frozen-quality-task-use-contract-mismatch"):
+        gates.calculate_coverage_gate_report(**changed_gate)
+
+    hard_failure = _task_use_v4_inputs("input-corrected-method-materials")
+    hard_failure["navigation_observations"]["N01"]["candidate_top1_url"] = "https://example.org/other"
+    failed_report = gates.calculate_coverage_gate_report(**hard_failure)
+    assert failed_report.evaluation.gates["exact_navigation_top1"] is False
+    assert failed_report.evaluation.status == "fail"

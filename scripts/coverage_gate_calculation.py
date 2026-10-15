@@ -39,6 +39,8 @@ TASK_USE_V4_QUALITY_TASK_USE_SHA256 = "7d3038ec9409f0f3178f02f0afa731a0df0ed6d7c
 TASK_USE_V4_PROTOCOL_SHA256 = "9278fa98aa0de47fcb9a83a0f7067ef002671012e7995a6907b144ce66ecd37f"
 TASK_USE_V4_COHORTS_SHA256 = "4ae302eaebd54d9fe2c3bbd49d243811d07ffd2135c207698db1742644355b72"
 TASK_USE_V4_EXECUTION_CONTRACT_SHA256 = "cd1b06727b7d740750cf2694e232e345d3b4c49cdd66c33dd389fdc6e964b2ee"
+TASK_USE_V4_INPUT_CORRECTED_PROTOCOL_SHA256 = "cfac29e7d406dc4c7e45030fafeb6ba466923cfeb19b34e427d344507c9d9ba9"
+TASK_USE_V4_INPUT_CORRECTED_COHORTS_SHA256 = "ad731b5d99907242dbc7c6be0c671049e179df76d50a2148886e7e34b6b28b30"
 REGISTERED_FROZEN_POOL_COHORTS_SHA256 = "377450c59f2b8498c8a7f923bb7b6d05a0b780300467cc9b9f8ef0bd69522595"
 REGISTERED_FROZEN_POOL_EXECUTION_CONTRACT_SHA256 = "f00916c32a52ded954967db15f82427dfbaffa57f5c8a24416408885a31ad3ff"
 REGISTERED_V2_EXECUTION_CONTRACT_SHA256 = "e114b172d4eba352897ea8dfe3fc83568097bf154425aaecfaa6690f6c3e8bf3"
@@ -809,6 +811,20 @@ def calculate_coverage_gate_report(
             and "useful_count_loss_allowed" not in quality
             and stage_kind in {"development", "confirmation"}
         )
+        registered_task_use_v4_input_corrected_allowed = (
+            execution_contract_sha256 == TASK_USE_V4_EXECUTION_CONTRACT_SHA256
+            and protocol_sha256 == TASK_USE_V4_INPUT_CORRECTED_PROTOCOL_SHA256
+            and cohorts_sha256 == TASK_USE_V4_INPUT_CORRECTED_COHORTS_SHA256
+            and protocol.get("schema") == "coverage-first-study-protocol/4"
+            and protocol.get("status") == "registered"
+            and protocol.get("cohorts_sha256") == TASK_USE_V4_INPUT_CORRECTED_COHORTS_SHA256
+            and protocol.get("pool_input_mode") == "frozen-pool/1"
+            and protocol.get("pool_input_mode_by_stage")
+            == {"development": "frozen-pool/1", "confirmation": "frozen-pool/1"}
+            and quality.get("useful_count_role") == "diagnostic_only"
+            and "useful_count_loss_allowed" not in quality
+            and stage_kind in {"development", "confirmation"}
+        )
         if not (
             registered_v2_allowed
             or registered_frozen_pool_allowed
@@ -816,6 +832,7 @@ def calculate_coverage_gate_report(
             or registered_saved_wire_compat_allowed
             or registered_saved_wire_float_allowed
             or registered_task_use_v4_allowed
+            or registered_task_use_v4_input_corrected_allowed
         ):
             raise GateCalculationError("frozen-execution-contract-mismatch")
     refs, answers = _closed_outputs(reference_closure, answer_closure)
