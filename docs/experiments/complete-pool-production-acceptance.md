@@ -8,6 +8,12 @@ Implementation acceptance plan inspected against SlopSearX `3d5e8bac38b619aec1bd
 
 The cross-service boundary follows accepted X ADR-0082: GroktoCrawl owns the caller's question, constraints, evidence sufficiency and completion; SlopSearX owns bounded search dispatch, merge/ranking and immutable result snapshots. Keep the SlopSearX ordinary HTTP behavior unchanged when the option is absent. The proposed ADR-0093 provenance work is not an accepted substitute for candidate quality evidence.
 
+## Current production baseline
+
+Source comparison shows that, for inputs accepted by both versions, the frozen W0 control and current Jev provider use the same model, scoring instructions, top-40 projection and stable score ordering; the remaining results stay in place. Current production adds stricter input/JSON validation and a 2 MB response cap. Those protections must remain in any integration and are not candidate relevance improvements. Four targeted offline tests (14 cases) checked projection, top-40/tail ordering, malformed-response fallback and strict parsing without provider calls. The control's age alone therefore does not require another relevance study; the existing frozen comparison still needs to pass its registered gates.
+
+The product already supports generic Jev reranking. The remaining proposed change is carrying an explicit caller purpose and critical facets consistently through the shared request, provider, cache, HTTP, MCP, portal and research paths, if the comparison qualifies it. Routing intent continues to select engines and categories; it is not a ranking objective.
+
 ## Latest delivery state (2026-10-15)
 
 The earlier study passed import and late registration. All 53 required native grading calls returned; 52 responses passed schema validation and one failed. The independent grade validator closed that study as incomplete. No ranking, answer or confirmation call ran. This earlier failure remains historical evidence; its responses were not reused in later attempts. The native adapter repair added structured-output schema binding and early response validation; it is engineering hardening, not ranking-quality evidence. The next attempt stopped on two rejected schema requests before any grades completed. The latest attempt completed 54 reference grades and their independent closure, then stopped at selector-map admission without producing a ranking result.
