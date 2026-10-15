@@ -1,5 +1,6 @@
 //! Fail-closed native evidence runner. Owned check implementations are deliberately finite.
 mod f05;
+mod f07;
 mod o06;
 mod replay;
 mod t01;
@@ -430,6 +431,7 @@ fn execute(root: &Path, id: &str, records: &mut Vec<Value>) -> Result<()> {
         "T01" => t01::check(root, records),
 
         "F05" => f05::check(root, records),
+        "F07" => f07::check(root, records),
         "F03" => {
             source_check(root, "F01", records)?;
             source_check(root, "F02", records)?;
