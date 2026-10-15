@@ -380,6 +380,15 @@ def _verified_selector_operation_states(*, prepared, results, terminal, terminal
         or len(set(result_ids)) != len(result_ids)
     ):
         raise OperatorRunnerError("selector-result-inventory-mismatch")
+    successful_result_statuses = {"complete-original-v1", "fallback", "selected"}
+    if any(
+        type(getattr(row, "status", None)) is not str
+        or row.status not in successful_result_statuses
+        or not hasattr(row, "terminal_reason")
+        or row.terminal_reason is not None
+        for row in results
+    ):
+        raise OperatorRunnerError("selector-result-outcome-invalid")
     return states
 
 

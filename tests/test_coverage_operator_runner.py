@@ -105,7 +105,7 @@ class OperatorRunnerConfigTests(unittest.TestCase):
         statuses = (selected.status, fallback.status, "complete-original-v1")
         self.assertEqual(statuses, ("selected", "fallback", "complete-original-v1"))
         results = [
-            SimpleNamespace(operation_id=operation_id, status=status)
+            SimpleNamespace(operation_id=operation_id, status=status, terminal_reason=None)
             for operation_id, status in zip(operation_ids, statuses)
         ]
         document = {
@@ -173,6 +173,23 @@ class OperatorRunnerConfigTests(unittest.TestCase):
                 runner._verified_selector_operation_states(
                     prepared=prepared,
                     results=invalid_results,
+                    terminal=terminal,
+                    terminal_bytes=terminal_bytes,
+                )
+
+        for invalid_first_result in (
+            SimpleNamespace(operation_id=operation_ids[0], status="terminal-failure", terminal_reason=None),
+            SimpleNamespace(
+                operation_id=operation_ids[0], status=results[0].status, terminal_reason="unexpected-failure"
+            ),
+            SimpleNamespace(operation_id=operation_ids[0], status="unknown-success-label", terminal_reason=None),
+            SimpleNamespace(operation_id=operation_ids[0], terminal_reason=None),
+            SimpleNamespace(operation_id=operation_ids[0], status=results[0].status),
+        ):
+            with self.assertRaisesRegex(runner.OperatorRunnerError, "selector-result-outcome-invalid"):
+                runner._verified_selector_operation_states(
+                    prepared=prepared,
+                    results=[invalid_first_result, *results[1:]],
                     terminal=terminal,
                     terminal_bytes=terminal_bytes,
                 )
