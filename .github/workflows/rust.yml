@@ -123,6 +123,9 @@ jobs:
       - name: Portable replay and differential evidence
         run: cargo xtask check F04 --output target/rust-evidence/F04.json
 
+      - name: MCP transport and gateway qualification
+        run: cargo xtask check T01 --output target/rust-evidence/T01.json
+
       - name: Native readiness and Python bridge smoke
         env:
           SSX_SERVER_BIN: target/${{ matrix.target }}/debug/ssx-server
@@ -136,6 +139,7 @@ jobs:
           path: |
             target/rust-evidence/F03.json
             target/rust-evidence/F04.json
+            target/rust-evidence/T01.json
             target/rust-feature-graph.txt
           if-no-files-found: warn
 

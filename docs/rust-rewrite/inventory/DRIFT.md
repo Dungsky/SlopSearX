@@ -88,3 +88,23 @@ remain unchanged; this ledger records the reviewed post-baseline addition.
 The three adapter and two surface observations prove replay infrastructure
 coverage only; native implementation parity remains assigned to successor
 issues. No live provider capture or experiment is authorized by this addition.
+
+## T01 developer oracle and runtime transport correction
+
+T01 adds `docs/rust-rewrite/replay/oracle/export_mcp.py`, importing the
+accepted F04 isolation helpers and observing the clean pinned Python source
+at `7b2d876307189d7a62000d1f289b3ef4b65eaff6`. The reference runtime is
+Python 3.14.7, FastMCP 4.0.11 and MCP 2.3.0. Injected fixture state and
+loopback-only transport observations require no providers or shared store.
+This is temporary backend-coupled developer tooling owned by T01, with G08
+responsible for executable retirement. Native gates consume captured JSON.
+This branch adds one path to the accepted 364-path inventory (365 total;
+242 backend-coupled tooling/test). Concurrent F05 additions must be combined
+when integrating the branches, not overwritten.
+
+The earlier F01 SSE description inspected the Starlette Mount, which has
+no method list, and incorrectly inferred that its handler had no explicit
+method guard. T01 actual runtime captures show HTTP 405 for non-POST
+message requests and request-body size enforcement. The surface inventory
+now reflects the handler behavior. This is an evidence correction, not an
+intentional compatibility change; original baseline evidence remains in Git.

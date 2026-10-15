@@ -507,7 +507,7 @@
         "T06"
       ],
       "parity_status": "pending",
-      "conditional": "Mounted only when MCP_TRANSPORT=sse. The Starlette Mount itself has no method list; its configured advertised message prefix is /messages/, and the actual Starlette route.path is /messages; handler expects POST with session_id and a JSON-RPC message. Missing session_id or invalid JSON returns 400, unknown session returns 404, accepted messages return 202. No auth is installed by the current SSE CLI branch. Technically the Mount accepts all HTTP methods; the handler is POST-oriented and does not declare an explicit method guard.",
+      "conditional": "Mounted only when MCP_TRANSPORT=sse. The Starlette Mount itself has no method list; its configured advertised message prefix is /messages/, and the actual Starlette route.path is /messages; handler expects POST with session_id and a JSON-RPC message. Missing session_id or invalid JSON returns 400, unknown session returns 404, accepted messages return 202. No auth is installed by the current SSE CLI branch. T01 runtime capture corrects the earlier route-only inspection: the Mount has no method list, but the locked SDK handler rejects non-POST requests with 405 and enforces its request-body size limit.",
       "regression_gap": "No SSE transport tests exist at the pinned baseline; T01/T06 must add route, message handling and unauthenticated-mode contract coverage.",
       "route_kind": "ASGI Mount; the route itself declares no HTTP method allowlist",
       "handler_method_contract": [
