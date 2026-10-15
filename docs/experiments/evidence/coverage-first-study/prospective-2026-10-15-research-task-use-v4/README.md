@@ -1,5 +1,7 @@
 # Test registration: usefulness of research results
 
+**Subsequent outcome:** development stopped during retrieval after 26 requests. No ranking, answer or grading calls followed; confirmation remains unstarted. See the [terminal record](../completed-2026-10-15-task-use-collection/README.md). The registration files below preserve the pre-run snapshot.
+
 This comparison asks whether purpose-aware Jev ranking helps a researcher complete a task using the sources returned. It compares the candidate with the production ranking on identical result pools. It has not produced a quality result yet.
 
 The test uses the [version-4 method](../research-task-use-method-materials/README.md) without changing its questions, thresholds, or budgets. Development has eight research questions and five exact-document navigation cases. A separate confirmation set has the same size. Development reserves at most 40 physical search requests; confirmation reserves at most 41. Neither uses Brave. Results are collected once and then frozen for the comparison. Failures remain in the record; there are no replacement pools or scientific retries.

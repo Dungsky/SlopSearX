@@ -4,7 +4,7 @@ Status: **candidate amendment approved by the maintainer on 2026-10-09**.
 Related to [#516](https://github.com/magnus919/SlopSearX/issues/516).
 This records a prospective decision, not a registered or admitted invocation.
 
-**Current study status (2026-10-15):** the [fresh research-task comparison](evidence/coverage-first-study/prospective-2026-10-15-research-task-use-v4/README.md) is registered for source `943f0b7ef670b3ffe4a3abb03b2aee54570e6a0c`. Both stages passed the real runner and issuer preflights. Neither has started, and no quality result is available. The [version-4 method](evidence/coverage-first-study/research-task-use-method-materials/README.md) makes research-task completion primary while retaining ranking, facet, navigation, stability, resource and completion checks; useful-card-count loss is an explicit diagnostic. Historical attempts and their original gates remain unchanged. Shared-service delivery and production readiness remain pending.
+**Current study status (2026-10-15):** the [fresh research-task comparison](evidence/coverage-first-study/completed-2026-10-15-task-use-collection/README.md) ended during input collection after 26 requests. arXiv returned HTTP 429, three pools missed their required size band, and one official navigation target was absent from its returned pool. No ranking, capture, model or grading phase followed; confirmation was not started. This gives no ranking-quality result. Issue #516 remains unqualified and production ranking is unchanged.
 
 The remainder records the earlier candidate amendment and its original conditions. It is historical context, not the current execution registration.
 
