@@ -1108,8 +1108,11 @@ The remote gateway owns its upstream MCP session in a dedicated task and awaits
 its cleanup during shutdown. Startup failures remain fail closed; cancelling
 startup also closes the pending upstream connection.
 
-The remote gateway applies its configured connection timeout independently to
-the MCP initialization handshake and tool discovery. A remote that accepts HTTP
+For static-token or unauthenticated connections, the remote gateway applies its
+configured connection timeout independently to the MCP initialization handshake
+and tool discovery. A remote that accepts HTTP
 but does not finish initialization within that budget fails startup before any
 proxy tools or ready session are published. This is a per-phase timeout; it is
-not an end-to-end deadline for interactive OAuth authorization.
+not an end-to-end deadline for interactive OAuth authorization. OAuth mode keeps
+its existing authorization timeout during initialization; it is excluded from
+this shorter initialization deadline, while discovery remains bounded.
