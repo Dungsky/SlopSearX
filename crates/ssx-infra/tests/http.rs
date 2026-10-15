@@ -191,6 +191,28 @@ async fn wait_open(s: &Server, count: usize) {
     .unwrap();
 }
 
+// Pool-contract cases exercise the default trust store. Environment CA overrides
+// deliberately select isolated clients; test those separately. Re-exec rather
+// than mutating process-global environment alongside parallel Tokio tests.
+fn default_ca_environment(test: &str) -> bool {
+    if std::env::var_os("SSL_CERT_FILE").is_none() && std::env::var_os("SSL_CERT_DIR").is_none() {
+        return false;
+    }
+    let output = std::process::Command::new(std::env::current_exe().unwrap())
+        .args(["--exact", test, "--nocapture"])
+        .env_remove("SSL_CERT_FILE")
+        .env_remove("SSL_CERT_DIR")
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "default-CA pool subprocess failed: {} {}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    true
+}
+
 fn session(http: &AdapterHttp) -> Session {
     http.session(
         Options {
@@ -218,6 +240,9 @@ fn pooled(http: &AdapterHttp, server: &Server) -> Session {
 }
 #[tokio::test]
 async fn tcp_reuse_and_search_identity_isolation() {
+    if default_ca_environment("tcp_reuse_and_search_identity_isolation") {
+        return;
+    }
     let s = server().await;
     let http = AdapterHttp::default();
     for n in 0..20 {
@@ -350,6 +375,9 @@ async fn truncated_and_wire_limit_no_retry() {
 }
 #[tokio::test]
 async fn proxy_churn_bounded_overflow_ephemeral() {
+    if default_ca_environment("proxy_churn_bounded_overflow_ephemeral") {
+        return;
+    }
     let http = AdapterHttp::default();
     let mut servers = Vec::new();
     for _ in 0..10 {
@@ -544,6 +572,9 @@ async fn request_count_and_redirect_limits() {
 }
 #[tokio::test]
 async fn twenty_active_ten_idle_and_shutdown_closes_sockets() {
+    if default_ca_environment("twenty_active_ten_idle_and_shutdown_closes_sockets") {
+        return;
+    }
     let s = server().await;
     let http = AdapterHttp::default();
     let mut tasks = tokio::task::JoinSet::new();
@@ -567,6 +598,9 @@ async fn twenty_active_ten_idle_and_shutdown_closes_sockets() {
 }
 #[tokio::test]
 async fn queue_time_counts_toward_aggregate_deadline() {
+    if default_ca_environment("queue_time_counts_toward_aggregate_deadline") {
+        return;
+    }
     let s = server().await;
     let http = AdapterHttp::default();
     let mut tasks = tokio::task::JoinSet::new();
@@ -594,6 +628,9 @@ async fn queue_time_counts_toward_aggregate_deadline() {
 }
 #[tokio::test]
 async fn idle_expiry_reconnects() {
+    if default_ca_environment("idle_expiry_reconnects") {
+        return;
+    }
     let s = server().await;
     let http = AdapterHttp::default();
     pooled(&http, &s)
@@ -893,6 +930,9 @@ async fn environment_ca_override_explicit_ignore_and_no_proxy_only() {
 
 #[tokio::test]
 async fn empty_roots_only_rejected_before_pool_reuse() {
+    if default_ca_environment("empty_roots_only_rejected_before_pool_reuse") {
+        return;
+    }
     for prior_use in [false, true] {
         let server = server().await;
         let http = AdapterHttp::default();
