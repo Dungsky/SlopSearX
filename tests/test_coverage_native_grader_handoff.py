@@ -172,7 +172,7 @@ def publish_synthetic_host_evidence(
                     "threadId": thread_id,
                     "model": "gpt-6.1-sol",
                     "input": [{"type": "text", "text": text}],
-                    "outputSchema": json.loads(text)["output_schema"],
+                    "outputSchema": host._provider_output_schema(host._packet_output_schema(packet_raw)),
                 },
             },
         },

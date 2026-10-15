@@ -96,14 +96,21 @@ This is an availability result, not a negative ranking-quality finding.
 
 ## Current delivery plan: frozen-input method amendment
 
-The v3 acquisition result remains terminal and unqualified. The maintainer has
-requested a concrete amended plan and end-to-end delivery. The
+The v3 acquisition result remains terminal and unqualified. The
 [frozen-input execution amendment](coverage-frozen-input-execution-plan.md)
-is the current execution plan in preparation: complete the actual collector
-and runner together, preserve provider availability separately from corpus
-eligibility, then register and execute fresh development and confirmation
-stages under the unchanged quality bar. No new scientific invocation or
-production qualification is implied by this planning update.
+defines the acquisition method: preserve provider availability separately
+from corpus eligibility, then evaluate fresh development and confirmation
+stages under the unchanged quality bar. The later schema-fixed registration
+used that method; its development outcome is recorded below.
+
+The later schema-fixed registration was invoked once for development and is
+terminal. Two grading requests were rejected because the strict output
+schema used an unsupported `propertyNames` keyword; no grades were completed,
+and the other 52 prepared packets were not started. Jev, answer, search, and
+capture phases did not run; confirmation remains uninvoked. The old run will
+not be resumed; its failure is preserved in the new
+[terminal record](evidence/coverage-first-study/completed-2026-10-15-native-schema-rejection/README.md).
+Coverage-first remains unqualified for product implementation.
 
 A complete pass of both stages leads to the full
 [production acceptance checklist](complete-pool-production-acceptance.md),

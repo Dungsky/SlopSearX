@@ -35,6 +35,11 @@ MAX_EVENT_LINE_BYTES = 3_000_000
 _TRANSCRIPT_ENVELOPE_RESERVE_BYTES = 64_000
 _EVENT_MEMORY_OVERHEAD_BYTES = 512
 MAX_IN_FLIGHT = 2
+# OpenAI strict structured outputs support finite explicit schemas, not
+# JSON-Schema's propertyNames/schema-valued additionalProperties map form.
+# Expanding a bounded map with at most six keys produces at most 64 exact
+# object alternatives, which keeps this transport adaptation predictable.
+_MAX_BOUNDED_MAP_KEYS = 6
 DISABLED_FEATURES = (
     "apps",
     "browser_use",
@@ -148,6 +153,349 @@ def _packet_output_schema(packet_bytes: bytes) -> dict[str, object]:
     except Exception as exc:
         raise NativeHostError("native-output-schema-invalid") from exc
     return schema
+
+
+def _provider_output_schema(schema: dict[str, object]) -> dict[str, object]:
+    """Project a packet schema into strict Structured Outputs' supported subset.
+
+    This is a transport schema only. The packet bytes and the original schema
+    remain authoritative for local post-validation. Bounded maps are expanded
+    into exact closed-object alternatives. Optional declared fields are
+    rejected: the frozen packet families have none, and adding a null/omission
+    codec would weaken transcript fidelity without benefit. Unreachable local
+    definitions are pruned before projection, preserving the schema language
+    while avoiding irrelevant unsupported constructs. Subset and limits:
+    https://developers.openai.com/api/docs/guides/structured-outputs#supported-schemas
+    """
+    supported = {
+        "$defs",
+        "$id",
+        "$ref",
+        "$schema",
+        "additionalProperties",
+        "anyOf",
+        "const",
+        "description",
+        "enum",
+        "exclusiveMaximum",
+        "exclusiveMinimum",
+        "format",
+        "items",
+        "maximum",
+        "maxItems",
+        "maxLength",
+        "minimum",
+        "minItems",
+        "minLength",
+        "multipleOf",
+        "pattern",
+        "properties",
+        "propertyNames",
+        "required",
+        "title",
+        "type",
+        "uniqueItems",
+    }
+
+    def project(node: object, *, root: bool = False) -> dict[str, object]:
+        if type(node) is not dict:
+            raise NativeHostError("native-output-schema-unrepresentable")
+        if root and node.get("type") != "object":
+            raise NativeHostError("native-output-schema-root-not-object")
+        unknown = set(node) - supported
+        if unknown:
+            raise NativeHostError("native-output-schema-unsupported-keyword")
+        if "propertyNames" in node:
+            names = node.get("propertyNames")
+            extra = node.get("additionalProperties")
+            if (
+                node.get("type") != "object"
+                or type(names) is not dict
+                or set(names) != {"enum"}
+                or type(names.get("enum")) is not list
+                or not names["enum"]
+                or any(type(name) is not str or not name for name in names["enum"])
+                or len(set(names["enum"])) != len(names["enum"])
+                or type(extra) is not dict
+                or set(node) - {"type", "propertyNames", "additionalProperties", "description", "title"}
+                or len(names["enum"]) > _MAX_BOUNDED_MAP_KEYS
+            ):
+                raise NativeHostError("native-output-schema-unrepresentable-map")
+            keys = names["enum"]
+            value_schema = project(extra)
+            alternatives = []
+            for mask in range(1 << len(keys)):
+                properties = {key: value_schema for index, key in enumerate(keys) if mask & (1 << index)}
+                alternatives.append(
+                    {
+                        "type": "object",
+                        "properties": properties,
+                        "required": list(properties),
+                        "additionalProperties": False,
+                    }
+                )
+            result: dict[str, object] = {"anyOf": alternatives}
+            for key in ("description", "title"):
+                if key in node:
+                    result[key] = node[key]
+            return result
+
+        result: dict[str, object] = {}
+        props = node.get("properties")
+        if "properties" in node:
+            if node.get("type") != "object" or type(props) is not dict:
+                raise NativeHostError("native-output-schema-unrepresentable-object")
+            if set(node) - {
+                "type",
+                "properties",
+                "required",
+                "additionalProperties",
+                "$defs",
+                "$id",
+                "$schema",
+                "description",
+                "title",
+            }:
+                raise NativeHostError("native-output-schema-unsupported-object-keyword")
+            original_required = node.get("required", [])
+            if (
+                type(original_required) is not list
+                or any(type(name) is not str for name in original_required)
+                or len(set(original_required)) != len(original_required)
+                or set(original_required) != set(props)
+                or node.get("additionalProperties") is not False
+            ):
+                raise NativeHostError("native-output-schema-open-object")
+            projected_props: dict[str, object] = {}
+            for name, child in props.items():
+                projected_child = project(child)
+                projected_props[name] = projected_child
+            result["type"] = "object"
+            result["properties"] = projected_props
+            result["required"] = list(projected_props)
+            result["additionalProperties"] = False
+            for key in ("$defs", "description", "title"):
+                if key in node:
+                    value = node[key]
+                    if key == "$defs":
+                        if type(value) is not dict:
+                            raise NativeHostError("native-output-schema-unrepresentable")
+                        result[key] = {name: project(child) for name, child in value.items()}
+                    else:
+                        result[key] = value
+        else:
+            if node.get("type") == "object" and node.get("additionalProperties") is not False:
+                raise NativeHostError("native-output-schema-open-object")
+            for key, value in node.items():
+                if key in {"uniqueItems", "propertyNames", "additionalProperties"}:
+                    # uniqueItems remains enforced by the frozen local schema.
+                    # propertyNames is handled only by the exact bounded-map case.
+                    if key == "uniqueItems":
+                        continue
+                    if key == "additionalProperties" and node.get("type") == "object" and value is False:
+                        result[key] = False
+                        continue
+                    raise NativeHostError("native-output-schema-unrepresentable")
+                if key in {"items", "$defs"}:
+                    if key == "items":
+                        result[key] = project(value)
+                    elif type(value) is dict:
+                        result[key] = {name: project(child) for name, child in value.items()}
+                    else:
+                        raise NativeHostError("native-output-schema-unrepresentable")
+                elif key == "const":
+                    if "enum" in node:
+                        if value not in node["enum"]:
+                            raise NativeHostError("native-output-schema-contradictory-const")
+                        result["enum"] = [value]
+                    else:
+                        result["enum"] = [value]
+                elif key == "anyOf":
+                    if type(value) is not list or not value:
+                        raise NativeHostError("native-output-schema-invalid-anyof")
+                    result[key] = [project(child) for child in value]
+                elif key in {"$id", "$schema"}:
+                    # Draft declaration is meta-information, not a constraint.
+                    continue
+                elif key in {
+                    "type",
+                    "$ref",
+                    "enum",
+                    "description",
+                    "title",
+                    "format",
+                    "pattern",
+                    "minimum",
+                    "maximum",
+                    "exclusiveMinimum",
+                    "exclusiveMaximum",
+                    "multipleOf",
+                    "minItems",
+                    "maxItems",
+                    "minLength",
+                    "maxLength",
+                }:
+                    result[key] = value
+                else:
+                    raise NativeHostError("native-output-schema-unrepresentable")
+        if "const" in node:
+            value = node["const"]
+            if "enum" in node and value not in node["enum"]:
+                raise NativeHostError("native-output-schema-contradictory-const")
+            result["enum"] = [value]
+        if "type" not in result and "enum" in result:
+            inferred_types = {_provider_json_type(value) for value in result["enum"]}
+            if len(inferred_types) != 1:
+                raise NativeHostError("native-output-schema-heterogeneous-enum")
+            result["type"] = inferred_types.pop()
+        if root and result.get("type") != "object":
+            raise NativeHostError("native-output-schema-root-not-object")
+        return result
+
+    projected = project(_prune_unreachable_definitions(schema), root=True)
+    try:
+        Draft202012Validator.check_schema(projected)
+    except Exception as exc:
+        raise NativeHostError("native-output-schema-projection-invalid") from exc
+    _check_provider_schema_limits(projected)
+    return projected
+
+
+def _prune_unreachable_definitions(schema: dict[str, object]) -> dict[str, object]:
+    """Remove only definitions unreachable from the root through local refs."""
+    definitions = schema.get("$defs", {})
+    if type(definitions) is not dict:
+        raise NativeHostError("native-output-schema-invalid-definitions")
+    reachable: set[str] = set()
+
+    def scan(node: object) -> None:
+        if type(node) is dict:
+            ref = node.get("$ref")
+            if ref is not None:
+                if type(ref) is not str or not ref.startswith("#/$defs/"):
+                    raise NativeHostError("native-output-schema-reference-unsupported")
+                tokens = ref[2:].split("/")
+                if len(tokens) != 2:
+                    raise NativeHostError("native-output-schema-reference-unsupported")
+                name = tokens[1].replace("~1", "/").replace("~0", "~")
+                if name not in definitions:
+                    raise NativeHostError("native-output-schema-reference-invalid")
+                if name not in reachable:
+                    reachable.add(name)
+                    scan(definitions[name])
+            for key, value in node.items():
+                if key not in {"$defs", "$ref"}:
+                    scan(value)
+        elif type(node) is list:
+            for value in node:
+                scan(value)
+
+    scan({key: value for key, value in schema.items() if key != "$defs"})
+    cleaned: dict[str, object] = {key: value for key, value in schema.items() if key != "$defs"}
+    if reachable:
+        cleaned["$defs"] = {key: value for key, value in definitions.items() if key in reachable}
+    return cleaned
+
+
+def _provider_json_type(value: object) -> str:
+    if value is None:
+        return "null"
+    if type(value) is bool:
+        return "boolean"
+    if type(value) is int:
+        return "integer"
+    if type(value) is float:
+        return "number"
+    if type(value) is str:
+        return "string"
+    if type(value) is list:
+        return "array"
+    if type(value) is dict:
+        return "object"
+    raise NativeHostError("native-output-schema-enum-value-invalid")
+
+
+def _check_provider_schema_limits(schema: dict[str, object]) -> None:
+    """Enforce Structured Outputs shape/size limits before any batch dispatch."""
+    allowed = {
+        "$defs",
+        "$ref",
+        "additionalProperties",
+        "anyOf",
+        "description",
+        "enum",
+        "exclusiveMaximum",
+        "exclusiveMinimum",
+        "format",
+        "items",
+        "maximum",
+        "maxItems",
+        "maxLength",
+        "minimum",
+        "minItems",
+        "minLength",
+        "multipleOf",
+        "pattern",
+        "properties",
+        "required",
+        "title",
+        "type",
+    }
+    properties = 0
+    enum_values = 0
+    string_size = 0
+    largest_string_enum = 0
+
+    def walk(node: object, object_depth: int = 0) -> None:
+        nonlocal properties, enum_values, string_size, largest_string_enum
+        if type(node) is not dict:
+            raise NativeHostError("native-output-schema-projection-invalid")
+        if set(node) - allowed:
+            raise NativeHostError("native-output-schema-unsupported-keyword")
+        is_object = node.get("type") == "object"
+        depth = object_depth + int(is_object)
+        if depth > 10:
+            raise NativeHostError("native-output-schema-nesting-limit")
+        props = node.get("properties")
+        if is_object:
+            if type(props) is not dict or node.get("additionalProperties") is not False:
+                raise NativeHostError("native-output-schema-open-object")
+            required = node.get("required")
+            if type(required) is not list or set(required) != set(props):
+                raise NativeHostError("native-output-schema-required-fields")
+            properties += len(props)
+            string_size += sum(len(key) for key in props)
+            for child in props.values():
+                walk(child, depth)
+        elif "properties" in node or "required" in node or "additionalProperties" in node:
+            raise NativeHostError("native-output-schema-invalid-object-keywords")
+        if "enum" in node:
+            values = node["enum"]
+            if type(values) is not list or not values:
+                raise NativeHostError("native-output-schema-invalid-enum")
+            enum_values += len(values)
+            string_chars = sum(len(value) for value in values if type(value) is str)
+            string_size += string_chars
+            largest_string_enum = max(largest_string_enum, string_chars if len(values) > 250 else 0)
+        if "$defs" in node:
+            defs = node["$defs"]
+            if type(defs) is not dict:
+                raise NativeHostError("native-output-schema-invalid-definitions")
+            string_size += sum(len(key) for key in defs)
+            for child in defs.values():
+                walk(child, depth)
+        if "items" in node:
+            walk(node["items"], depth)
+        if "anyOf" in node:
+            variants = node["anyOf"]
+            if type(variants) is not list or not variants:
+                raise NativeHostError("native-output-schema-invalid-anyof")
+            for child in variants:
+                walk(child, depth)
+
+    walk(schema)
+    if properties > 5_000 or enum_values > 1_000 or string_size > 120_000 or largest_string_enum > 15_000:
+        raise NativeHostError("native-output-schema-provider-limit")
 
 
 def _tool_policy(mcp_server_ids: list[str]) -> dict[str, object]:
@@ -401,7 +749,7 @@ def verify_transcript(
         or turn_params["input"][0].get("type") != "text"
         or type(turn_params["input"][0].get("text")) is not str
         or type(output_schema) is not dict
-        or turn_params.get("outputSchema") != output_schema
+        or turn_params.get("outputSchema") != _provider_output_schema(output_schema)
     ):
         raise NativeHostError("native-turn-start-binding")
     input_bytes = turn_params["input"][0]["text"].encode("utf-8")
@@ -715,7 +1063,7 @@ async def _invoke_codex(
                     "threadId": thread_id,
                     "model": MODEL,
                     "input": [{"type": "text", "text": packet_text}],
-                    "outputSchema": _packet_output_schema(packet_bytes),
+                    "outputSchema": _provider_output_schema(_packet_output_schema(packet_bytes)),
                 },
             }
             if time.monotonic() >= deadline:
@@ -1140,6 +1488,10 @@ async def dispatch_handoff_scope(
         raise NativeHostError("native-stage-deadline-expired")
     executable_path, cli_version = _cli_identity(codex_executable, expected_cli_sha256)
     manifest_raw, _manifest, requests = _load_scope(scope, stage_uuid=stage_uuid, phase=phase)
+    # Reject an unrepresentable packet anywhere in the immutable phase before
+    # reserving packets or making any app-server calls for the batch.
+    for request in requests:
+        _provider_output_schema(_packet_output_schema(request["bytes"]))
     mcp_server_ids, tool_policy_evidence = await _configured_mcp_server_ids(
         executable_path, deadline=deadline_monotonic
     )
