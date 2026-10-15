@@ -415,6 +415,26 @@ def test_main_refuses_duplicate_receipt_and_preserves_existing_pin(offline_issue
     assert fixture.dispatch_mocks[0].call_count == dispatch_count_before_duplicate == 1
 
 
+def test_external_issuer_rejects_confirmation_with_missing_or_malformed_receipt():
+    module = load_issuer_module()
+    with pytest.raises(ValueError, match="confirmation-development-receipt-required"):
+        module._require_confirmation_receipt(
+            SimpleNamespace(
+                development_receipt_bytes=None,
+                development_receipt_sha256=None,
+                development_stage_uuid=None,
+            )
+        )
+    with pytest.raises(ValueError, match="confirmation-development-receipt-required"):
+        module._require_confirmation_receipt(
+            SimpleNamespace(
+                development_receipt_bytes=b"receipt",
+                development_receipt_sha256="0" * 64,
+                development_stage_uuid="00000000-0000-0000-0000-000000000001",
+            )
+        )
+
+
 def test_main_rejects_request_scope_tampering_before_dispatch(offline_issuer):
     fixture = offline_issuer
     runner = fixture.runner

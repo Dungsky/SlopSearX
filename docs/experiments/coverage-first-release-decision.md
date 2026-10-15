@@ -112,6 +112,8 @@ not be resumed; its failure is preserved in the new
 [terminal record](evidence/coverage-first-study/completed-2026-10-15-native-schema-rejection/README.md).
 Coverage-first remains unqualified for product implementation.
 
+The [registration after the file-publication repair](evidence/coverage-first-study/atomic-handoff-registration-2026-10-15/README.md) completed 54 native reference grades and independent closure, then stopped at selector-map admission. The coordinator inventory remains in progress, so there is no finalized stage decision or quality result. Confirmation remains unstarted. See the [terminal record](evidence/coverage-first-study/completed-2026-10-15-selector-map-admission/README.md) and the [execution plan](coverage-frozen-input-execution-plan.md).
+
 A complete pass of both stages leads to the full
 [production acceptance checklist](complete-pool-production-acceptance.md),
 including SlopSearX API/MCP/portal/cache/fallback behavior and GroktoCrawl X

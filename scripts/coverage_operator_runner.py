@@ -68,7 +68,12 @@ _CONFIG_KEYS = {
     "private_paths",
     "directories",
 }
-_OPTIONAL_CONFIG_KEYS = {"allow_trusted_private_http", "saved_origin"}
+_OPTIONAL_CONFIG_KEYS = {
+    "allow_trusted_private_http",
+    "saved_origin",
+    "development_receipt_sha256",
+    "development_stage_uuid",
+}
 _PATH_KEYS = {
     "cohorts",
     "protocol",
@@ -84,7 +89,7 @@ _PATH_KEYS = {
 }
 _OPTIONAL_PATH_KEYS = {"band_companion"}
 _PRIVATE_PATH_KEYS = {"candidate_operator_token", "selector_api_key", "answer_api_key"}
-_OPTIONAL_PRIVATE_PATH_KEYS = {"capture_ca_bundle"}
+_OPTIONAL_PRIVATE_PATH_KEYS = {"capture_ca_bundle", "development_pass_receipt"}
 _DIRECTORY_KEYS = {
     "operator_handoff",
     "stage_inventory",
@@ -142,6 +147,13 @@ _SAFE_PREFLIGHT_ERRORS = {
     "initial-registration-pins-invalid",
     "initial-registration-dynamic-pin-invalid:task_input_manifest",
     "initial-registration-dynamic-pin-invalid:source_capture_manifest",
+    "config-development-receipt-binding-incomplete",
+    "config-development-receipt-pin-invalid",
+    "config-development-stage-uuid-invalid",
+    "config-development-receipt-unexpected",
+    "confirmation-development-receipt-required",
+    "confirmation-development-receipt-pin-mismatch",
+    "confirmation-development-receipt-invalid",
     "configured-private-root-inventory-invalid",
     "configured-private-root-path-invalid",
     "configured-private-root-parent-unavailable",
@@ -358,6 +370,28 @@ def _load_config(path: str | os.PathLike[str], expected_sha256: str) -> dict[str
         raise OperatorRunnerError("config-path-inventory-invalid")
     if "allow_trusted_private_http" in value and type(value["allow_trusted_private_http"]) is not bool:
         raise OperatorRunnerError("config-private-http-option-invalid")
+    receipt_fields_present = (
+        "development_pass_receipt" in value["private_paths"],
+        "development_receipt_sha256" in value,
+        "development_stage_uuid" in value,
+    )
+    if any(receipt_fields_present) and not all(receipt_fields_present):
+        raise OperatorRunnerError("config-development-receipt-binding-incomplete")
+    if "development_receipt_sha256" in value and (
+        type(value["development_receipt_sha256"]) is not str or not _SHA.fullmatch(value["development_receipt_sha256"])
+    ):
+        raise OperatorRunnerError("config-development-receipt-pin-invalid")
+    if "development_stage_uuid" in value:
+        try:
+            if (
+                type(value["development_stage_uuid"]) is not str
+                or str(uuid.UUID(value["development_stage_uuid"])) != value["development_stage_uuid"]
+            ):
+                raise ValueError
+        except ValueError as exc:
+            raise OperatorRunnerError("config-development-stage-uuid-invalid") from exc
+    if value["stage_kind"] == "development" and any(receipt_fields_present):
+        raise OperatorRunnerError("config-development-receipt-unexpected")
     for key in (*_PATH_KEYS, *_OPTIONAL_PATH_KEYS, *_PRIVATE_PATH_KEYS, *_OPTIONAL_PRIVATE_PATH_KEYS, *_DIRECTORY_KEYS):
         collection = (
             value["paths"]
@@ -975,6 +1009,33 @@ class OperatorStageRunner:
         for name in ("task_input_manifest", "source_capture_manifest"):
             if type(pins.get(name)) is not str or not _SHA.fullmatch(pins[name]):
                 raise OperatorRunnerError(f"initial-registration-dynamic-pin-invalid:{name}")
+        development_receipt_bytes = None
+        development_receipt_sha256 = self.config.get("development_receipt_sha256")
+        development_stage_uuid = self.config.get("development_stage_uuid")
+        receipt_path = self.private_paths.get("development_pass_receipt")
+        if self.config["stage_kind"] == "confirmation":
+            if receipt_path is None:
+                if not preflight_only:
+                    raise OperatorRunnerError("confirmation-development-receipt-required")
+            else:
+                development_receipt_bytes = _read_file(receipt_path, 64_000, private=True)
+                if _sha(development_receipt_bytes) != development_receipt_sha256:
+                    raise OperatorRunnerError("confirmation-development-receipt-pin-mismatch")
+                try:
+                    core._verify_development_receipt(
+                        development_receipt_bytes,
+                        expected_sha256=development_receipt_sha256,
+                        current_stage_uuid=self.config["stage_uuid"],
+                        expected_development_stage_uuid=development_stage_uuid,
+                        forbidden_stage_uuids=tuple(self.config["forbidden_stage_uuids"]),
+                        protocol_sha256=_sha(path_bytes["protocol"]),
+                        source_revision=self.config["source_revision"],
+                        source_closure_sha256=_sha(path_bytes["qualified_source_closure"]),
+                    )
+                except core.StudyError as exc:
+                    raise OperatorRunnerError("confirmation-development-receipt-invalid") from exc
+        elif receipt_path is not None:
+            raise OperatorRunnerError("development-stage-receipt-unexpected")
         if preflight_only:
             # This path verifies configured roots and all source-bound plan
             # content without starting a clock, creating directories, or
@@ -1004,6 +1065,9 @@ class OperatorStageRunner:
                 initial_registration_sha256=self.initial_registration_sha256 if companion_sha is not None else None,
                 band_companion_source_pins=self.band_companion_source_pins,
                 saved_origin=self.saved_origin,
+                development_receipt_bytes=development_receipt_bytes,
+                development_receipt_sha256=development_receipt_sha256,
+                development_stage_uuid=development_stage_uuid,
             )
             self.preflight_validation = orchestration._validate_plan_static(self.plan)
             return
@@ -1042,6 +1106,9 @@ class OperatorStageRunner:
             initial_registration_sha256=self.initial_registration_sha256 if companion_sha is not None else None,
             band_companion_source_pins=self.band_companion_source_pins,
             saved_origin=self.saved_origin,
+            development_receipt_bytes=development_receipt_bytes,
+            development_receipt_sha256=development_receipt_sha256,
+            development_stage_uuid=development_stage_uuid,
         )
         orchestration._validate_plan(self.plan)
 
@@ -1069,6 +1136,25 @@ class OperatorStageRunner:
             "active_python_environment": json.loads(self.active_environment_receipt_bytes),
             "active_python_environment_sha256": _sha(self.active_environment_receipt_bytes),
         }
+        if self.plan.stage_kind == "confirmation":
+            if (
+                type(self.plan.development_receipt_bytes) is not bytes
+                or type(self.plan.development_receipt_sha256) is not str
+                or type(self.plan.development_stage_uuid) is not str
+            ):
+                raise OperatorRunnerError("confirmation-development-receipt-required")
+            bindings.update(
+                {
+                    "development_receipt_sha256": self.plan.development_receipt_sha256,
+                    "development_stage_uuid": self.plan.development_stage_uuid,
+                }
+            )
+            artifacts = dict(artifacts or {})
+            existing = artifacts.setdefault("development-pass-receipt", self.plan.development_receipt_bytes)
+            if existing != self.plan.development_receipt_bytes:
+                raise OperatorRunnerError("phase-artifact-development-receipt-collision")
+        elif self.plan.development_receipt_bytes is not None:
+            raise OperatorRunnerError("development-stage-receipt-unexpected")
         reference = None
         reference_bytes = self._saved_corpus_reference_bytes
         if self.plan.pool_input_mode == "saved-corpus/1" and reference_bytes is not None:

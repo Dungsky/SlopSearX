@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Mapping
 
-from scripts import coverage_resource_evidence
+from scripts import coverage_atomic_io, coverage_resource_evidence
 from scripts import intent_ranking_receipts as receipts
 
 _SHA = re.compile(r"[0-9a-f]{64}\Z")
@@ -128,6 +128,7 @@ def verify_stage_finalization(
     expected_protocol_sha256: str,
     expected_cohorts_sha256: str,
     expected_band_companion_sha256: str | None = None,
+    expected_source_closure_sha256: str | None = None,
 ) -> FinalizationResult:
     """Join all v2 pins and return eligibility only after actual end-time proof.
 
@@ -151,6 +152,8 @@ def verify_stage_finalization(
         raise StageFinalizationError("finalization-pin-invalid")
     if expected_band_companion_sha256 is not None and not _SHA.fullmatch(expected_band_companion_sha256):
         raise StageFinalizationError("finalization-companion-pin-invalid")
+    if expected_source_closure_sha256 is not None and not _SHA.fullmatch(expected_source_closure_sha256):
+        raise StageFinalizationError("finalization-source-closure-pin-invalid")
     if _sha(protocol_bytes) != expected_protocol_sha256 or _sha(cohorts_bytes) != expected_cohorts_sha256:
         raise StageFinalizationError("finalization-source-pin-mismatch")
     try:
@@ -393,6 +396,10 @@ def verify_stage_finalization(
         or inventory.get("gate_scope") != "mixed-workload-only"
         or gate_input.get("protocol_sha256") != expected_protocol_sha256
         or gate_input.get("cohorts_sha256") != expected_cohorts_sha256
+        or (
+            expected_source_closure_sha256 is not None
+            and gate_input.get("source_closure_sha256") != expected_source_closure_sha256
+        )
         or gate_input.get("pending_time_receipt_sha256") != expected_pending_time_receipt_sha256
         or type(input_resources) is not dict
         or input_resources.get("stage_elapsed_seconds") != pending_elapsed
@@ -427,6 +434,10 @@ def verify_stage_finalization(
         or type(collector_observations) is not dict
         or input_resources != expected_gate_resource_observations
         or type(resource.get("provenance")) is not dict
+        or (
+            expected_source_closure_sha256 is not None
+            and resource["provenance"].get("selector_source_closure_sha256") != expected_source_closure_sha256
+        )
         or inventory.get("resource_evidence_receipt_file") != resource_path.name
         or gate_input.get("resource_evidence_receipt_sha256") != resource_sha
         or not _SHA.fullmatch(resource.get("collector_receipt_sha256", ""))
@@ -488,6 +499,11 @@ def verify_stage_finalization(
         "source_revision": expected_source_revision,
         "protocol_sha256": expected_protocol_sha256,
         "cohorts_sha256": expected_cohorts_sha256,
+        **(
+            {"source_closure_sha256": expected_source_closure_sha256}
+            if expected_source_closure_sha256 is not None
+            else {}
+        ),
         "inventory_sha256": expected_inventory_sha256,
         "pending_time_receipt_sha256": expected_pending_time_receipt_sha256,
         "gate_calculation_receipt_sha256": expected_gate_calculation_receipt_sha256,
@@ -520,3 +536,176 @@ def verify_stage_finalization(
         receipt_bytes=receipt_bytes,
         eligible_for_independent_decision=eligible,
     )
+
+
+def issue_development_pass_receipt(
+    *,
+    plan: object,
+    inventory_path: Path,
+    expected_inventory_sha256: str,
+    closeout_receipt_path: Path,
+    expected_closeout_receipt_sha256: str,
+    output_path: Path,
+    expected_band_companion_sha256: str | None = None,
+) -> bytes:
+    """Re-verify a closed development stage, then seal its independent pass.
+
+    ``plan`` must be the statically preflighted plan returned by
+    ``OperatorStageRunner.preflight_from_file``. The inventory and closeout
+    pins must be carried forward from the completed coordinator result. This
+    function never dispatches work or grants product authorization.
+    """
+    stage_uuid = getattr(plan, "stage_uuid", None)
+    stage_kind = getattr(plan, "stage_kind", None)
+    source_revision = getattr(plan, "source_revision", None)
+    source_closure_sha256 = getattr(plan, "source_closure_sha256", None)
+    protocol_bytes = getattr(plan, "protocol_bytes", None)
+    cohorts_bytes = getattr(plan, "cohorts_bytes", None)
+    if (
+        stage_kind != "development"
+        or type(stage_uuid) is not str
+        or type(source_revision) is not str
+        or type(source_closure_sha256) is not str
+        or not _SHA.fullmatch(source_closure_sha256)
+        or type(protocol_bytes) is not bytes
+        or type(cohorts_bytes) is not bytes
+    ):
+        raise StageFinalizationError("development-pass-plan-invalid")
+    # Registration status lives in the source-bound operator config and its
+    # initial registration, not in the immutable protocol document's status
+    # label. The CLI obtains this plan from the runner's static preflight.
+    registered_companion_sha256 = getattr(plan, "band_companion_sha256", None)
+    if registered_companion_sha256 is not None:
+        if not _SHA.fullmatch(registered_companion_sha256):
+            raise StageFinalizationError("development-pass-companion-pin-invalid")
+        if expected_band_companion_sha256 is not None and expected_band_companion_sha256 != registered_companion_sha256:
+            raise StageFinalizationError("development-pass-companion-pin-mismatch")
+        expected_band_companion_sha256 = registered_companion_sha256
+    elif expected_band_companion_sha256 is not None:
+        raise StageFinalizationError("development-pass-companion-not-registered")
+    if (
+        type(expected_inventory_sha256) is not str
+        or not _SHA.fullmatch(expected_inventory_sha256)
+        or type(expected_closeout_receipt_sha256) is not str
+        or not _SHA.fullmatch(expected_closeout_receipt_sha256)
+    ):
+        raise StageFinalizationError("development-pass-outer-pin-invalid")
+
+    # The outer inventory pin makes its child digests authoritative. The
+    # verifier still checks every fixed filename, digest and cross-artifact
+    # binding before any receipt is written.
+    stage_dir = inventory_path.parent
+    inventory_raw = _read(inventory_path, 4_000_000)
+    if _sha(inventory_raw) != expected_inventory_sha256:
+        raise StageFinalizationError("finalization-inventory-pin-mismatch")
+    inventory = _json(inventory_raw)
+    if (
+        inventory.get("stage_kind") != "development"
+        or inventory.get("stage_uuid") != stage_uuid
+        or inventory.get("source_revision") != source_revision
+        or inventory.get("protocol_sha256") != _sha(protocol_bytes)
+        or inventory.get("cohorts_sha256") != _sha(cohorts_bytes)
+    ):
+        raise StageFinalizationError("development-pass-inventory-identity-mismatch")
+    names = (
+        inventory.get("pending_time_receipt_file"),
+        inventory.get("gate_input_manifest_file"),
+        inventory.get("gate_calculation_receipt_file"),
+    )
+    if names != (
+        "stage-pending-time.json",
+        "gate-input-manifest.json",
+        "gate-calculation-receipt.json",
+    ):
+        raise StageFinalizationError("development-pass-inventory-artifact-names-invalid")
+    finalization = verify_stage_finalization(
+        inventory_path=inventory_path,
+        expected_inventory_sha256=expected_inventory_sha256,
+        closeout_receipt_path=closeout_receipt_path,
+        expected_closeout_receipt_sha256=expected_closeout_receipt_sha256,
+        pending_time_receipt_path=stage_dir / names[0],
+        expected_pending_time_receipt_sha256=inventory.get("pending_time_receipt_sha256"),
+        gate_input_manifest_path=stage_dir / names[1],
+        expected_gate_input_manifest_sha256=inventory.get("gate_input_manifest_sha256"),
+        gate_calculation_receipt_path=stage_dir / names[2],
+        expected_gate_calculation_receipt_sha256=inventory.get("gate_calculation_receipt_sha256"),
+        expected_stage_uuid=stage_uuid,
+        expected_source_revision=source_revision,
+        protocol_bytes=protocol_bytes,
+        cohorts_bytes=cohorts_bytes,
+        expected_protocol_sha256=_sha(protocol_bytes),
+        expected_cohorts_sha256=_sha(cohorts_bytes),
+        expected_band_companion_sha256=expected_band_companion_sha256,
+        expected_source_closure_sha256=source_closure_sha256,
+    )
+    if (
+        not finalization.eligible_for_independent_decision
+        or finalization.status != "gates-pass-awaiting-independent-decision"
+        or finalization.stage_uuid != stage_uuid
+    ):
+        raise StageFinalizationError("development-pass-not-eligible")
+
+    from scripts import coverage_study_core
+
+    receipt = {
+        "schema": coverage_study_core.DEVELOPMENT_RECEIPT_SCHEMA,
+        "stage_uuid": stage_uuid,
+        "stage_kind": "development",
+        "status": "passed",
+        "protocol_sha256": _sha(protocol_bytes),
+        "source_revision": source_revision,
+        "source_closure_sha256": source_closure_sha256,
+        "result_sha256": finalization.finalization_receipt_sha256,
+    }
+    raw = json.dumps(receipt, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    try:
+        coverage_resource_evidence._require_private_directory(output_path.parent)
+        coverage_atomic_io.write_new(output_path, raw)
+    except FileExistsError as exc:
+        raise StageFinalizationError("development-pass-output-already-exists-no-resume") from exc
+    except (OSError, coverage_resource_evidence.ResourceEvidenceError) as exc:
+        raise StageFinalizationError("development-pass-output-write-failed") from exc
+    return raw
+
+
+def main(argv: list[str] | None = None) -> int:
+    """One-shot independent issuer CLI; it does not start or dispatch a stage."""
+    import argparse
+    import sys
+
+    if (
+        getattr(sys, "_coverage_operator_source_bootstrap", None) != "coverage-source-bootstrap/1"
+        or not sys.dont_write_bytecode
+    ):
+        print(json.dumps({"status": "refused-or-terminal", "error_class": "source-bootstrap-required"}, sort_keys=True))
+        return 1
+
+    parser = argparse.ArgumentParser(description="Independently seal a registered development-stage pass.")
+    parser.add_argument("--config", required=True)
+    parser.add_argument("--config-sha256", required=True)
+    parser.add_argument("--inventory-sha256", required=True, help="out-of-band pin returned by the completed run")
+    parser.add_argument("--closeout-sha256", required=True, help="out-of-band pin returned by the completed run")
+    parser.add_argument("--output", required=True)
+    parser.add_argument("--band-companion-sha256")
+    args = parser.parse_args(argv)
+    try:
+        from scripts.coverage_operator_runner import OperatorStageRunner
+
+        runner = OperatorStageRunner.preflight_from_file(args.config, args.config_sha256)
+        if runner.plan.stage_kind != "development":
+            raise StageFinalizationError("development-pass-plan-invalid")
+        stage_dir = Path(runner.directories["stage_inventory"]) / runner.plan.stage_uuid
+        issue_development_pass_receipt(
+            plan=runner.plan,
+            inventory_path=stage_dir / "inventory.json",
+            expected_inventory_sha256=args.inventory_sha256,
+            closeout_receipt_path=stage_dir / "stage-closeout.json",
+            expected_closeout_receipt_sha256=args.closeout_sha256,
+            output_path=Path(args.output),
+            expected_band_companion_sha256=args.band_companion_sha256,
+        )
+    except Exception as exc:
+        print(json.dumps({"status": "refused-or-terminal", "error_class": type(exc).__name__}, sort_keys=True))
+        return 1
+    print(json.dumps({"status": "development-pass-receipt-issued", "product_authorized": False}, sort_keys=True))
+    return 0

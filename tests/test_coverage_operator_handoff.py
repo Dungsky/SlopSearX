@@ -23,6 +23,58 @@ from scripts import coverage_selector_input_map
 from tests.test_coverage_selector_input_map import _materials
 
 
+def test_confirmation_receipt_context_requires_plan_from_registered_stage_kind() -> None:
+    from types import SimpleNamespace
+
+    registration = {"stage_kind": "confirmation"}
+    with unittest.TestCase().assertRaisesRegex(
+        authority.LocalAuthorityError, "phase-artifact-confirmation-plan-required"
+    ):
+        authority._verified_development_receipt_context(None, registration, {}, {})
+
+    development = {"stage_kind": "development"}
+    assert authority._verified_development_receipt_context(None, development, {}, {}) == {}
+
+    current_stage = str(uuid.UUID(int=731))
+    development_stage = str(uuid.UUID(int=730))
+    protocol = canonical({"protocol": "fixed"})
+    closure = "a" * 64
+    receipt = canonical(
+        {
+            "schema": "coverage-study-development-gate-receipt/1",
+            "stage_uuid": development_stage,
+            "stage_kind": "development",
+            "status": "passed",
+            "protocol_sha256": digest(protocol),
+            "source_revision": "1" * 40,
+            "source_closure_sha256": closure,
+            "result_sha256": "2" * 64,
+        }
+    )
+    plan = SimpleNamespace(
+        stage_kind="confirmation",
+        stage_uuid=current_stage,
+        development_receipt_bytes=receipt,
+        development_receipt_sha256=digest(receipt),
+        development_stage_uuid=development_stage,
+        protocol_bytes=protocol,
+        source_revision="1" * 40,
+        source_closure_sha256=closure,
+    )
+    bindings = {"development_receipt_sha256": digest(receipt), "development_stage_uuid": development_stage}
+    artifacts = {"development-pass-receipt": receipt}
+    assert authority._verified_development_receipt_context(plan, registration, bindings, artifacts) == bindings
+    with unittest.TestCase().assertRaisesRegex(authority.LocalAuthorityError, "development-receipt-mismatch"):
+        authority._verified_development_receipt_context(
+            plan,
+            registration,
+            {**bindings, "development_receipt_sha256": "0" * 64},
+            artifacts,
+        )
+    with unittest.TestCase().assertRaisesRegex(authority.LocalAuthorityError, "development-receipt-mismatch"):
+        authority._verified_development_receipt_context(plan, registration, bindings, {})
+
+
 def canonical(value: object) -> bytes:
     return json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()
 
@@ -37,6 +89,7 @@ def registered_context(
     protocol: bytes,
     closure_sha256: str,
     extra_pins: dict[str, str] | None = None,
+    stage_kind: str = "development",
 ) -> bytes:
     from scripts import coverage_study_core as core
 
@@ -48,7 +101,7 @@ def registered_context(
         {
             "schema": core.REGISTRATION_SCHEMA,
             "stage_uuid": stage,
-            "stage_kind": "development",
+            "stage_kind": stage_kind,
             "source_revision": source_revision,
             "pins": pins,
             "operation_ids": [],
@@ -527,7 +580,7 @@ class OperatorReceiptHandoffTests(unittest.TestCase):
             acquisition_manifest = live._canonical(
                 {
                     "stage_uuid": stage,
-                    "stage": "development",
+                    "stage": "confirmation",
                     "source_revision": revision,
                     "source_closure_sha256": closure,
                     "protocol_sha256": digest(protocol),
@@ -536,11 +589,25 @@ class OperatorReceiptHandoffTests(unittest.TestCase):
                     "acquisition_plan_sha256": digest(acquisition_plan),
                 }
             )
-            registration = registered_context(stage, revision, protocol, closure)
+            registration = registered_context(stage, revision, protocol, closure, stage_kind="confirmation")
+            development_stage = str(uuid.UUID(int=8127))
+            development_receipt = canonical(
+                {
+                    "schema": "coverage-study-development-gate-receipt/1",
+                    "stage_uuid": development_stage,
+                    "stage_kind": "development",
+                    "status": "passed",
+                    "protocol_sha256": digest(protocol),
+                    "source_revision": revision,
+                    "source_closure_sha256": closure,
+                    "result_sha256": "9" * 64,
+                }
+            )
             plan = SimpleNamespace(
                 stage_uuid=stage,
-                stage_kind="development",
+                stage_kind="confirmation",
                 source_revision=revision,
+                source_closure_sha256=closure,
                 pool_input_mode="frozen-pool/1",
                 protocol_bytes=protocol,
                 cohorts_bytes=cohorts,
@@ -551,6 +618,9 @@ class OperatorReceiptHandoffTests(unittest.TestCase):
                 stage_started_monotonic=started,
                 stage_deadline_monotonic=deadline,
                 expected_acquisition_manifest_sha256=digest(acquisition_manifest),
+                development_receipt_bytes=development_receipt,
+                development_receipt_sha256=digest(development_receipt),
+                development_stage_uuid=development_stage,
             )
             bindings = {
                 "stage_uuid": stage,
@@ -566,6 +636,8 @@ class OperatorReceiptHandoffTests(unittest.TestCase):
                 "stage_clock_sha256": digest(clock_raw),
                 "candidate_identity_sha256": digest(identity),
                 "candidate_endpoint_sha256": endpoint_sha,
+                "development_receipt_sha256": digest(development_receipt),
+                "development_stage_uuid": development_stage,
             }
             result: list[object] = []
 
@@ -587,6 +659,7 @@ class OperatorReceiptHandoffTests(unittest.TestCase):
                                 "acquisition-plan": acquisition_plan,
                                 "acquisition-manifest": acquisition_manifest,
                                 "stage-clock": clock_raw,
+                                "development-pass-receipt": development_receipt,
                             },
                         )
                     )
@@ -1359,6 +1432,36 @@ class OperatorReceiptHandoffTests(unittest.TestCase):
                 stage_runner = runner.OperatorStageRunner.from_file(config_path, config_sha)
 
             plan = stage_runner.plan
+            development_stage = str(uuid.UUID(int=9127))
+            development_receipt = canonical(
+                {
+                    "schema": "coverage-study-development-gate-receipt/1",
+                    "stage_uuid": development_stage,
+                    "stage_kind": "development",
+                    "status": "passed",
+                    "protocol_sha256": digest(plan.protocol_bytes),
+                    "source_revision": plan.source_revision,
+                    "source_closure_sha256": plan.source_closure_sha256,
+                    "result_sha256": "8" * 64,
+                }
+            )
+            from dataclasses import replace
+
+            plan = replace(
+                plan,
+                stage_kind="confirmation",
+                development_receipt_bytes=development_receipt,
+                development_receipt_sha256=digest(development_receipt),
+                development_stage_uuid=development_stage,
+            )
+            stage_runner.plan = plan
+            initial_registration_doc = json.loads(stage_runner.initial_registration)
+            initial_registration_doc["stage_kind"] = "confirmation"
+            stage_runner.initial_registration = canonical(initial_registration_doc)
+            stage_runner.initial_registration_sha256 = digest(stage_runner.initial_registration)
+            active_registration_doc = json.loads(stage_runner.initial_registration)
+            active_registration_doc["stage_kind"] = "confirmation"
+            stage_runner._active_registration_bytes = canonical(active_registration_doc)
             endpoint = stage_runner.config["candidate_base_url"]
             _health_url, _scrape_url, endpoint_sha = capture._candidate_endpoints(endpoint)
             manifest = {
@@ -1413,6 +1516,7 @@ class OperatorReceiptHandoffTests(unittest.TestCase):
                 "expected_active_registration_sha256": expected_active_sha,
                 "candidate_base_url": endpoint,
                 "ca_bundle_sha256": None,
+                "plan": plan,
             }
             evidence = {
                 "grok_image_digest": "sha256:" + "a" * 64,
@@ -1423,7 +1527,14 @@ class OperatorReceiptHandoffTests(unittest.TestCase):
             scope_bindings = {
                 key: value
                 for key, value in qualification_envelope["bindings"].items()
-                if key not in {"source_closure_sha256", "active_python_environment", "active_python_environment_sha256"}
+                if key
+                not in {
+                    "source_closure_sha256",
+                    "active_python_environment",
+                    "active_python_environment_sha256",
+                    "development_receipt_sha256",
+                    "development_stage_uuid",
+                }
             }
             qualification_receipt = canonical(
                 {
@@ -1496,6 +1607,7 @@ class OperatorReceiptHandoffTests(unittest.TestCase):
                 expected_initial_registration_sha256=stage_runner.initial_registration_sha256,
                 expected_active_registration_sha256=expected_active_sha,
                 expected_capture_manifest_bytes=manifest_bytes,
+                plan=plan,
             )
             source_scope = handoff_root / plan.stage_uuid / "source-capture"
             source_response = source_scope / "responses" / "permit.receipt"

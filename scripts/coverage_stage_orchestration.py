@@ -89,6 +89,9 @@ class StagePlan:
     initial_registration_sha256: str | None = None
     band_companion_source_pins: Mapping[str, str] | None = None
     saved_origin: saved_corpus.SavedCorpusOrigin | None = None
+    development_receipt_bytes: bytes | None = None
+    development_receipt_sha256: str | None = None
+    development_stage_uuid: str | None = None
 
 
 @dataclass(frozen=True)
@@ -416,6 +419,15 @@ def _validate_plan_static(plan: StagePlan) -> dict[str, object]:
         raise OrchestrationError("preacquisition-plan-required")
     if plan.stage_kind not in {"development", "confirmation"}:
         raise OrchestrationError("stage-kind-invalid")
+    receipt_values = (
+        plan.development_receipt_bytes,
+        plan.development_receipt_sha256,
+        plan.development_stage_uuid,
+    )
+    if any(value is not None for value in receipt_values) and not all(value is not None for value in receipt_values):
+        raise OrchestrationError("development-receipt-binding-incomplete")
+    if plan.stage_kind == "development" and any(value is not None for value in receipt_values):
+        raise OrchestrationError("development-receipt-unexpected")
     if str(uuid.UUID(plan.stage_uuid)) != plan.stage_uuid:
         raise OrchestrationError("stage-uuid-invalid")
     if type(plan.source_revision) is not str or not re.fullmatch(r"[0-9a-f]{40}", plan.source_revision):
@@ -439,6 +451,28 @@ def _validate_plan_static(plan: StagePlan) -> dict[str, object]:
         raise OrchestrationError("acquisition-manifest-pin-invalid")
     if _sha(plan.acquisition_manifest_bytes) != plan.expected_acquisition_manifest_sha256:
         raise OrchestrationError("acquisition-manifest-pin-mismatch")
+    if plan.development_receipt_bytes is not None:
+        if (
+            type(plan.development_receipt_bytes) is not bytes
+            or len(plan.development_receipt_bytes) > core.MAX_MANIFEST_BYTES
+            or type(plan.development_receipt_sha256) is not str
+            or not _SHA256.fullmatch(plan.development_receipt_sha256)
+            or type(plan.development_stage_uuid) is not str
+        ):
+            raise OrchestrationError("development-receipt-binding-invalid")
+        try:
+            core._verify_development_receipt(
+                plan.development_receipt_bytes,
+                expected_sha256=plan.development_receipt_sha256,
+                current_stage_uuid=plan.stage_uuid,
+                expected_development_stage_uuid=plan.development_stage_uuid,
+                forbidden_stage_uuids=(),
+                protocol_sha256=protocol_sha,
+                source_revision=plan.source_revision,
+                source_closure_sha256=plan.source_closure_sha256,
+            )
+        except core.StudyError as exc:
+            raise OrchestrationError("development-receipt-invalid") from exc
     if (plan.band_companion_bytes is None) != (plan.band_companion_sha256 is None):
         raise OrchestrationError("band-companion-binding-incomplete")
     if (plan.band_companion_bytes is None) != (plan.initial_registration_bytes is None):
@@ -671,6 +705,8 @@ def _validate_plan(plan: StagePlan) -> dict[str, object]:
     """Validate a static plan and its active runtime deadline."""
     if type(plan) is not StagePlan:
         raise OrchestrationError("preacquisition-plan-required")
+    if plan.stage_kind == "confirmation" and plan.development_receipt_bytes is None:
+        raise OrchestrationError("confirmation-development-receipt-required")
     if (
         type(plan.stage_started_monotonic) not in {int, float}
         or type(plan.stage_deadline_monotonic) not in {int, float}
@@ -680,7 +716,8 @@ def _validate_plan(plan: StagePlan) -> dict[str, object]:
         raise OrchestrationError("stage-deadline-invalid")
     if not plan.stage_started_monotonic <= _monotonic() < plan.stage_deadline_monotonic:
         raise OrchestrationError("stage-deadline-inactive")
-    return _validate_plan_static(plan)
+    validated = _validate_plan_static(plan)
+    return validated
 
 
 def _private_root(path: str | os.PathLike[str]) -> Path:

@@ -4,6 +4,7 @@ import hashlib
 import json
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 
 from scripts import coverage_late_registration as late
 from scripts import coverage_study_core as core
@@ -15,6 +16,103 @@ def digest(raw: bytes) -> str:
 
 
 class LateRegistrationTests(unittest.TestCase):
+    def test_development_receipt_transport_rejects_phase_context_collisions(self):
+        raw = b"sealed-test-receipt"
+        plan = SimpleNamespace(
+            stage_kind="confirmation",
+            development_receipt_bytes=raw,
+            development_receipt_sha256=digest(raw),
+            development_stage_uuid="00000000-0000-0000-0000-000000000099",
+        )
+        bindings = {"development_receipt_sha256": "0" * 64}
+        with self.assertRaisesRegex(late.LateRegistrationError, "binding-collision"):
+            late._bind_development_receipt(plan, bindings, {})
+        artifacts = {"development-pass-receipt": b"different"}
+        with self.assertRaisesRegex(late.LateRegistrationError, "artifact-collision"):
+            late._bind_development_receipt(plan, {}, artifacts)
+        bindings, artifacts = {}, {}
+        late._bind_development_receipt(plan, bindings, artifacts)
+        self.assertEqual(bindings["development_receipt_sha256"], digest(raw))
+        self.assertEqual(artifacts["development-pass-receipt"], raw)
+
+    def test_composed_confirmation_preflight_requires_pinned_source_bound_development_receipt(self):
+        args, materials, _pins, initial = make_fixture(stage_kind="confirmation")
+        late_materials = dict(materials)
+        reseal_fixture(args, late_materials, stage_kind="confirmation")
+        initial = args["registration_bytes"]
+        late_registration = initial
+        common = dict(
+            initial_registration_bytes=initial,
+            expected_initial_registration_sha256=digest(initial),
+            late_registration_bytes=late_registration,
+            expected_late_registration_sha256=digest(late_registration),
+            materials=late_materials,
+            expected_source_revision=SOURCE_REVISION,
+            expected_stage_uuid=args["expected_stage_uuid"],
+            forbidden_stage_uuids=(OLD_STAGE,),
+            task_ids=TASKS,
+            navigation_skip_reasons=args["navigation_skip_reasons"],
+        )
+        with self.assertRaisesRegex(late.LateRegistrationError, "core-preflight-failed"):
+            late.verify_late_registration(**common)
+
+        receipt = canonical(
+            {
+                "schema": core.DEVELOPMENT_RECEIPT_SCHEMA,
+                "stage_uuid": "00000000-0000-0000-0000-000000000099",
+                "stage_kind": "development",
+                "status": "passed",
+                "protocol_sha256": digest(materials["protocol"]),
+                "source_revision": SOURCE_REVISION,
+                "source_closure_sha256": digest(materials["qualified_source_closure"]),
+                "result_sha256": "e" * 64,
+            }
+        )
+        verified = late.verify_late_registration(
+            **common,
+            development_receipt_bytes=receipt,
+            expected_development_receipt_sha256=digest(receipt),
+            expected_development_stage_uuid="00000000-0000-0000-0000-000000000099",
+        )
+        self.assertEqual(verified.prepared.stage_kind, "confirmation")
+        self.assertFalse(verified.prepared.fresh_execution_authorized)
+
+        failed = json.loads(receipt)
+        failed["status"] = "inconclusive"
+        failed_bytes = canonical(failed)
+        with self.assertRaisesRegex(late.LateRegistrationError, "core-preflight-failed"):
+            late.verify_late_registration(
+                **common,
+                development_receipt_bytes=failed_bytes,
+                expected_development_receipt_sha256=digest(failed_bytes),
+                expected_development_stage_uuid=failed["stage_uuid"],
+            )
+
+        for field, value in (
+            ("source_revision", "b" * 40),
+            ("protocol_sha256", "d" * 64),
+            ("source_closure_sha256", "c" * 64),
+        ):
+            with self.subTest(field=field):
+                mismatched = json.loads(receipt)
+                mismatched[field] = value
+                mismatched_bytes = canonical(mismatched)
+                with self.assertRaisesRegex(late.LateRegistrationError, "core-preflight-failed"):
+                    late.verify_late_registration(
+                        **common,
+                        development_receipt_bytes=mismatched_bytes,
+                        expected_development_receipt_sha256=digest(mismatched_bytes),
+                        expected_development_stage_uuid=mismatched["stage_uuid"],
+                    )
+
+        with self.assertRaisesRegex(late.LateRegistrationError, "core-preflight-failed"):
+            late.verify_late_registration(
+                **common,
+                development_receipt_bytes=receipt,
+                expected_development_receipt_sha256="0" * 64,
+                expected_development_stage_uuid="00000000-0000-0000-0000-000000000099",
+            )
+
     def test_composed_v2_initial_to_late_preflight_preserves_companion_and_source_pins(self):
         args, materials, _pins, _legacy_registration = make_fixture()
         evidence_dir = Path(__file__).parents[1] / "docs/experiments/evidence/coverage-first-study"

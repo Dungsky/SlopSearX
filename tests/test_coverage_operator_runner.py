@@ -994,6 +994,56 @@ class OperatorRunnerConfigTests(unittest.TestCase):
             loaded = runner._load_config(config_path, digest(raw))
             self.assertEqual(loaded["private_paths"]["capture_ca_bundle"], str(ca_path))
 
+    def test_confirmation_receipt_config_requires_complete_independent_binding(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            config_path, _pin = self._config(root, b"{}")
+            config = json.loads(config_path.read_bytes())
+            config["stage_kind"] = "confirmation"
+            config["private_paths"]["development_pass_receipt"] = str(root / "development-pass.json")
+            raw = canonical(config)
+            config_path.write_bytes(raw)
+            config_path.chmod(0o600)
+            with self.assertRaisesRegex(runner.OperatorRunnerError, "config-development-receipt-binding-incomplete"):
+                runner._load_config(config_path, digest(raw))
+
+    def test_confirmation_phase_context_transports_receipt_bytes_hash_and_stage(self):
+        base_plan = plan_fixture()
+        receipt = canonical(
+            {
+                "schema": runner.core.DEVELOPMENT_RECEIPT_SCHEMA,
+                "stage_uuid": str(uuid.UUID(int=8100)),
+                "stage_kind": "development",
+                "status": "passed",
+                "protocol_sha256": digest(base_plan.protocol_bytes),
+                "source_revision": base_plan.source_revision,
+                "source_closure_sha256": base_plan.source_closure_sha256,
+                "result_sha256": "e" * 64,
+            }
+        )
+        plan = replace(
+            base_plan,
+            stage_kind="confirmation",
+            development_receipt_bytes=receipt,
+            development_receipt_sha256=digest(receipt),
+            development_stage_uuid=str(uuid.UUID(int=8100)),
+        )
+        instance = object.__new__(runner.OperatorStageRunner)
+        instance.plan = plan
+        instance.active_environment_receipt_bytes = b"{}"
+        instance._saved_corpus_reference_bytes = None
+        instance._frozen_pool_reference_bytes = None
+        instance._active_registration_bytes = None
+        instance._active_input_manifest_bytes = None
+        instance._frozen_stage_clock_bytes = None
+        instance._pipeline_inputs = None
+        instance.static_materials = {"qualified_source_closure": b"closure"}
+        instance.initial_registration = b"initial"
+        bindings, artifacts = runner.OperatorStageRunner._phase_request_context(instance, {})
+        self.assertEqual(bindings["development_receipt_sha256"], digest(receipt))
+        self.assertEqual(bindings["development_stage_uuid"], str(uuid.UUID(int=8100)))
+        self.assertEqual(artifacts["development-pass-receipt"], receipt)
+
     def test_fresh_runtime_handoff_requires_native_host_transcripts(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
