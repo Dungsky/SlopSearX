@@ -8,6 +8,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
@@ -64,6 +65,31 @@ class StageFinalizationTests(unittest.TestCase):
             self.assertEqual(receipt["status"], "gates-inconclusive")
             self.assertFalse(receipt["eligible_for_independent_decision"])
             self.assertFalse(receipt["product_authorized"])
+
+    def test_v4_d27_reaches_independent_decision_through_full_composed_path(self):
+        materials = (
+            Path(gate_calculation.__file__).parents[1]
+            / "docs/experiments/evidence/coverage-first-study/research-task-use-method-materials"
+        )
+        task_id_map = {f"D-R{index:02d}": f"D27-R{index:02d}" for index in range(1, 9)}
+        with tempfile.TemporaryDirectory() as temporary:
+            paths, plan = self._fixture(
+                Path(temporary),
+                elapsed=7.5,
+                protocol_bytes_override=(materials / "protocol.json").read_bytes(),
+                cohorts_bytes_override=(materials / "cohorts.json").read_bytes(),
+                band_companion_bytes_override=(materials / "band-companion-contract.json").read_bytes(),
+                task_id_map=task_id_map,
+                additional_candidate_complete_task_ids=("D27-R06",),
+            )
+            result = self._verify(paths, plan)
+            receipt = json.loads(result.receipt_bytes)
+            self.assertEqual(receipt["status"], "gates-pass-awaiting-independent-decision")
+            self.assertEqual(receipt["release_qualification_status"], "pass")
+            self.assertTrue(all(receipt["band_companion_gates"].values()))
+            self.assertTrue(receipt["eligible_for_independent_decision"])
+            self.assertFalse(receipt["product_authorized"])
+            self.assertFalse(receipt["admission_created"])
 
     def test_verified_complete_pins_allow_only_independent_decision(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -400,6 +426,8 @@ class StageFinalizationTests(unittest.TestCase):
         cohorts_bytes_override: bytes | None = None,
         gate_input_extra: dict[str, str] | None = None,
         band_companion_bytes_override: bytes | None = None,
+        task_id_map: dict[str, str] | None = None,
+        additional_candidate_complete_task_ids: tuple[str, ...] = (),
     ):
         os.chmod(root, 0o700)
         root = root / "stage"
@@ -414,6 +442,12 @@ class StageFinalizationTests(unittest.TestCase):
             protocol_bytes = protocol_bytes_override
         cohorts_bytes = cohorts_bytes_override or (evidence_dir / "cohorts.json").read_bytes()
         calculated = gate_fixture()
+        if task_id_map is not None:
+            self._remap_calculated_task_ids(
+                calculated,
+                task_id_map,
+                additional_candidate_complete_task_ids=additional_candidate_complete_task_ids,
+            )
         prepared = calculated["prepared_assessments"]
         stage_id = prepared.source_stage_uuid
         packet_stage_id = prepared.packet_stage_uuid
@@ -619,6 +653,54 @@ class StageFinalizationTests(unittest.TestCase):
             },
             plan,
         )
+
+    @staticmethod
+    def _remap_calculated_task_ids(calculated, task_id_map, *, additional_candidate_complete_task_ids=()):
+        task_inputs = calculated["task_inputs"]
+        for task in task_inputs:
+            task["task_id"] = task_id_map.get(task["task_id"], task["task_id"])
+
+        prepared = calculated["prepared_assessments"]
+        prepared.task_catalogs = {
+            task_id_map.get(task_id, task_id): catalogs for task_id, catalogs in prepared.task_catalogs.items()
+        }
+
+        reference_outputs = calculated["reference_closure"].outputs()
+        reference_outputs["cards"] = {
+            task_id_map.get(task_id, task_id): records for task_id, records in reference_outputs["cards"].items()
+        }
+        reference = _closure("preassessment", calculated["reference_closure"].stage_uuid, reference_outputs)
+
+        answer_outputs = calculated["answer_closure"].outputs()
+        remapped_answers = {}
+        for task_id, arms in answer_outputs["answers"].items():
+            mapped_task_id = task_id_map.get(task_id, task_id)
+            for arm_id, assessors in arms.items():
+                for assessor_data in assessors.values():
+                    for task_result in assessor_data.get("tasks", []):
+                        task_result["task_id"] = mapped_task_id
+                        if mapped_task_id in additional_candidate_complete_task_ids and arm_id == "candidate":
+                            for arm_result in task_result.get("arms", []):
+                                for assessment in arm_result.get("facet_assessments", []):
+                                    assessment["status"] = "complete"
+            remapped_answers[mapped_task_id] = arms
+        answer_outputs["answers"] = remapped_answers
+        answer_outputs["preassessment_receipt_sha256"] = reference.receipt_sha256
+        answer = _closure("answer", calculated["answer_closure"].stage_uuid, answer_outputs)
+
+        selector = calculated["selector_evidence"]
+        orders = {task_id_map.get(task_id, task_id): value for task_id, value in selector.research_orders.items()}
+        stability = {
+            task_id_map.get(task_id, task_id): value for task_id, value in calculated["stability_orders"].items()
+        }
+        calculated["reference_closure"] = reference
+        calculated["answer_closure"] = answer
+        calculated["selector_evidence"] = replace(
+            selector,
+            research_orders=orders,
+            reference_grade_receipt_sha256=reference.receipt_sha256,
+        )
+        calculated["stability_orders"] = stability
 
     @staticmethod
     def _write_private(path: Path, raw: bytes) -> None:
