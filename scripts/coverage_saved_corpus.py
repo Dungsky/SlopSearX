@@ -49,6 +49,20 @@ class SavedCorpusOrigin:
     expected_capture_inventory_sha256: str
     expected_capture_manifest_sha256: str
     expected_package_sha256: str
+    acquisition_plan_sidecar: Path | None = None
+    operation_runner_source_sidecar: Path | None = None
+    operation_runner_source_sha256: str | None = None
+
+
+@dataclass(frozen=True)
+class VerifiedHistoricalOperationRunnerModule:
+    """Pinned historical source identity used only for saved-origin accounting."""
+
+    origin_stage_uuid: str
+    origin_source_revision: str
+    origin_package_sha256: str
+    module_sha256: str
+    module_bytes: bytes
 
 
 @dataclass(frozen=True)
@@ -108,6 +122,8 @@ class SavedCorpusImportResult:
     historical_failed_sources: int
     current_search_calls: int = 0
     current_capture_calls: int = 0
+    acquisition_plan_bytes: bytes | None = None
+    historical_operation_runner_module: VerifiedHistoricalOperationRunnerModule | None = None
 
 
 def _sha(raw: bytes) -> str:
@@ -219,6 +235,112 @@ def package_sha256(collection_directory: Path, capture_stage_directory: Path) ->
         {"tree": "capture", **row} for row in _tree_rows(Path(capture_stage_directory), "capture")
     ]
     return _sha(_canonical(rows))
+
+
+def origin_acquisition_plan_bytes(origin: SavedCorpusOrigin) -> bytes:
+    """Load the origin plan from its explicit sidecar or fixed legacy package path.
+
+    A sidecar remains outside the immutable package and is trusted only through
+    the acquisition-plan digest already present in the origin registration.
+    No discovery or alternate-path search is performed.
+    """
+    if type(origin) is not SavedCorpusOrigin:
+        raise SavedCorpusError("origin-acquisition-plan-origin-invalid")
+    registration = origin.registration
+    package_roots = (Path(origin.collection_directory), Path(origin.capture_stage_directory))
+    embedded_path = package_roots[0] / "acquisition-plan.json"
+    sidecar = origin.acquisition_plan_sidecar
+    if sidecar is None:
+        raw = _private_file(embedded_path, max_bytes=2_000_000)
+    else:
+        if not isinstance(sidecar, Path) or not sidecar.is_absolute():
+            raise SavedCorpusError("origin-acquisition-plan-sidecar-path-invalid")
+        try:
+            if stat.S_ISLNK(sidecar.lstat().st_mode):
+                raise SavedCorpusError("saved-corpus-file-unsafe")
+            normalized_sidecar = sidecar.resolve(strict=True)
+        except SavedCorpusError:
+            raise
+        except OSError as exc:
+            raise SavedCorpusError("saved-corpus-file-unavailable") from exc
+        for root in package_roots:
+            try:
+                normalized_root = root.resolve(strict=True)
+            except OSError as exc:
+                raise SavedCorpusError("saved-corpus-file-unavailable") from exc
+            try:
+                normalized_sidecar.relative_to(normalized_root)
+            except ValueError:
+                continue
+            raise SavedCorpusError("origin-acquisition-plan-sidecar-inside-package")
+        raw = _private_file(normalized_sidecar, max_bytes=2_000_000)
+        try:
+            embedded_raw = _private_file(embedded_path, max_bytes=2_000_000)
+        except SavedCorpusError as exc:
+            if exc.args != ("saved-corpus-file-unavailable",):
+                raise
+        else:
+            if embedded_raw != raw:
+                raise SavedCorpusError("origin-acquisition-plan-sidecar-conflicts-with-package")
+    if _sha(raw) != registration.acquisition_plan_sha256:
+        raise SavedCorpusError("origin-acquisition-plan-pin-mismatch")
+    return raw
+
+
+def verify_historical_operation_runner_module(origin: SavedCorpusOrigin) -> VerifiedHistoricalOperationRunnerModule:
+    """Verify the explicitly supplied historical runner module sidecar.
+
+    The expected digest is part of the current saved-origin registration/config.
+    Preparation must verify that digest against the original source revision;
+    runtime deliberately performs no Git or network lookup.
+    """
+    if type(origin) is not SavedCorpusOrigin:
+        raise SavedCorpusError("origin-operation-runner-source-origin-invalid")
+    registration = origin.registration
+    sidecar = origin.operation_runner_source_sidecar
+    expected_sha = origin.operation_runner_source_sha256
+    if not isinstance(sidecar, Path) or not sidecar.is_absolute():
+        raise SavedCorpusError("origin-operation-runner-source-sidecar-required")
+    if type(expected_sha) is not str or not _SHA.fullmatch(expected_sha):
+        raise SavedCorpusError("origin-operation-runner-source-pin-invalid")
+    try:
+        if stat.S_ISLNK(sidecar.lstat().st_mode):
+            raise SavedCorpusError("saved-corpus-file-unsafe")
+        normalized_sidecar = sidecar.resolve(strict=True)
+        collection_root = Path(origin.collection_directory).resolve(strict=True)
+        capture_root = Path(origin.capture_stage_directory).resolve(strict=True)
+    except SavedCorpusError:
+        raise
+    except OSError as exc:
+        raise SavedCorpusError("origin-operation-runner-source-unavailable") from exc
+    for root in (collection_root, capture_root):
+        try:
+            normalized_sidecar.relative_to(root)
+        except ValueError:
+            continue
+        raise SavedCorpusError("origin-operation-runner-source-sidecar-inside-package")
+    module_bytes = _private_file(normalized_sidecar, max_bytes=2_000_000)
+    if _sha(module_bytes) != expected_sha:
+        raise SavedCorpusError("origin-operation-runner-source-pin-mismatch")
+    if (
+        type(registration) is not frozen.FrozenPoolRegistrationContext
+        or type(registration.stage_uuid) is not str
+        or _UUID.fullmatch(registration.stage_uuid) is None
+        or type(registration.source_revision) is not str
+        or re.fullmatch(r"[0-9a-f]{40}", registration.source_revision) is None
+        or type(registration.source_closure_sha256) is not str
+        or not _SHA.fullmatch(registration.source_closure_sha256)
+        or type(origin.expected_package_sha256) is not str
+        or not _SHA.fullmatch(origin.expected_package_sha256)
+    ):
+        raise SavedCorpusError("origin-operation-runner-source-registration-invalid")
+    return VerifiedHistoricalOperationRunnerModule(
+        origin_stage_uuid=registration.stage_uuid,
+        origin_source_revision=registration.source_revision,
+        origin_package_sha256=origin.expected_package_sha256,
+        module_sha256=expected_sha,
+        module_bytes=module_bytes,
+    )
 
 
 def _verify_archive_response(
@@ -340,6 +462,11 @@ def verify_and_import_saved_corpus(
     observed_package_sha = package_sha256(origin.collection_directory, origin.capture_stage_directory)
     if observed_package_sha != origin.expected_package_sha256:
         raise SavedCorpusError("origin-package-integrity-mismatch")
+    try:
+        acquisition_plan_bytes = origin_acquisition_plan_bytes(origin)
+    except SavedCorpusError as exc:
+        raise SavedCorpusError("origin-acquisition-plan-unavailable") from exc
+    historical_operation_runner_module = verify_historical_operation_runner_module(origin)
     try:
         observed_collection_inventory = resource_evidence.receipt_inventory_sha256(Path(origin.collection_directory))
     except Exception as exc:
@@ -680,6 +807,8 @@ def verify_and_import_saved_corpus(
         historical_health_calls=1,
         historical_captured_sources=captured_count,
         historical_failed_sources=failed_count,
+        acquisition_plan_bytes=acquisition_plan_bytes,
+        historical_operation_runner_module=historical_operation_runner_module,
     )
 
 

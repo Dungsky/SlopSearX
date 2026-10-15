@@ -31,7 +31,9 @@ def _mkdir_private(path: Path) -> None:
     os.chmod(path, 0o700)
 
 
-def _registration(cases: list[dict[str, object]]) -> frozen.FrozenPoolRegistrationContext:
+def _registration(
+    cases: list[dict[str, object]], *, acquisition_plan_sha256: str = "4" * 64
+) -> frozen.FrozenPoolRegistrationContext:
     return frozen.FrozenPoolRegistrationContext(
         stage_uuid=str(uuid.UUID(int=123)),
         stage_kind="development",
@@ -41,7 +43,7 @@ def _registration(cases: list[dict[str, object]]) -> frozen.FrozenPoolRegistrati
         cohorts_sha256="2" * 64,
         candidate_identity_sha256="3" * 64,
         candidate_endpoint_sha256="4" * 64,
-        acquisition_plan_sha256="4" * 64,
+        acquisition_plan_sha256=acquisition_plan_sha256,
         task_ids=tuple(row["task_id"] for row in cases),
         navigation_ids=tuple(f"D-N{i:02d}" for i in range(1, 6)),
         evidence_sha256="",
@@ -73,13 +75,23 @@ def _origin_package(tmp_path: Path):
         ]
         operation.pool_count = size
 
+    acquisition_plan = b'{"schema":"coverage-acquisition-plan/1","operations":[]}'
+    acquisition_plan_sha256 = _sha(acquisition_plan)
     collection = tmp_path / "collection"
-    evidence = fixtures._fresh_frozen_evidence(collection, stage, cases)
+    historical_source_dir = tmp_path / "historical-source"
+    _mkdir_private(historical_source_dir)
+    historical_source_bytes = b"# historical operation runner\n"
+    historical_source_path = historical_source_dir / "coverage_study_acquire.py"
+    _write_private(historical_source_path, historical_source_bytes)
+    evidence = fixtures._fresh_frozen_evidence(
+        collection, stage, cases, acquisition_plan_sha256=acquisition_plan_sha256
+    )
+    _write_private(collection / "acquisition-plan.json", acquisition_plan)
     _write_private(collection / "frozen-pool-evidence.json", evidence.evidence_bytes)
     _write_private(collection / "collector-receipt.json", evidence.collector_receipt_bytes)
     _write_private(collection / "engine-availability.json", evidence.availability_bytes)
 
-    original_registration = _registration(cases)
+    original_registration = _registration(cases, acquisition_plan_sha256=acquisition_plan_sha256)
     original_registration = replace(
         original_registration,
         evidence_sha256=evidence.expected_evidence_sha256,
@@ -273,6 +285,8 @@ def _origin_package(tmp_path: Path):
         expected_capture_inventory_sha256=_sha(inventory_raw),
         expected_capture_manifest_sha256=_sha(source_manifest_raw),
         expected_package_sha256=package_sha,
+        operation_runner_source_sidecar=historical_source_path,
+        operation_runner_source_sha256=_sha(historical_source_bytes),
     )
     return origin, cases, list(origin.navigation_targets), collection, capture_root
 

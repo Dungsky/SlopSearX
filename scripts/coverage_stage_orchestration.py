@@ -606,6 +606,17 @@ def _validate_plan_static(plan: StagePlan) -> dict[str, object]:
     acquisition_manifest = _strict_json(plan.acquisition_manifest_bytes, "acquisition-manifest")
     if type(acquisition_manifest) is not dict:
         raise OrchestrationError("acquisition-manifest-shape")
+    if protocol_pool_mode == "saved-corpus/1" and type(plan.saved_origin) is saved_corpus.SavedCorpusOrigin:
+        try:
+            # Validate the fixed package plan or its explicitly pinned sidecar
+            # before stage execution can reach any assessment provider.
+            saved_corpus.origin_acquisition_plan_bytes(plan.saved_origin)
+        except saved_corpus.SavedCorpusError as exc:
+            raise OrchestrationError("saved-origin-acquisition-plan-invalid") from exc
+        try:
+            saved_corpus.verify_historical_operation_runner_module(plan.saved_origin)
+        except saved_corpus.SavedCorpusError as exc:
+            raise OrchestrationError("saved-origin-control-source-invalid") from exc
     try:
         from scripts import coverage_live_acquire
 

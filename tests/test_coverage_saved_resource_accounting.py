@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from dataclasses import replace
 from pathlib import Path
 from urllib.parse import parse_qs
 
@@ -13,6 +14,7 @@ from scripts import (
     coverage_resource_evidence,
     coverage_saved_corpus,
     coverage_source_capture,
+    coverage_study_acquire,
 )
 from scripts import (
     coverage_frozen_pool_inputs as frozen_pool,
@@ -148,8 +150,17 @@ async def test_saved_origin_resource_observer_replays_pinned_collection_and_capt
         pacer=pacer,
     )
     collection_root = collected.collection_directory
-    (collection_root / "acquisition-plan.json").write_bytes(plan_bytes)
-    (collection_root / "acquisition-plan.json").chmod(0o600)
+    operator_handoff_root = tmp_path / "operator-handoff"
+    operator_handoff_root.mkdir(mode=0o700)
+    acquisition_plan_sidecar = operator_handoff_root / "acquisition-plan.bin"
+    acquisition_plan_sidecar.write_bytes(plan_bytes)
+    acquisition_plan_sidecar.chmod(0o600)
+    historical_source_dir = tmp_path / "historical-source"
+    historical_source_dir.mkdir(mode=0o700)
+    historical_source_bytes = Path(coverage_study_acquire.__file__).read_bytes()
+    historical_source_sidecar = historical_source_dir / "coverage_study_acquire.py"
+    historical_source_sidecar.write_bytes(historical_source_bytes)
+    historical_source_sidecar.chmod(0o600)
     receipt_inventory_sha = coverage_resource_evidence.receipt_inventory_sha256(collection_root)
     registration = frozen_pool.FrozenPoolRegistrationContext(
         stage_uuid=manifest["stage_uuid"],
@@ -233,8 +244,15 @@ async def test_saved_origin_resource_observer_replays_pinned_collection_and_capt
         expected_capture_inventory_sha256=_sha((captured.receipt_directory / "inventory.json").read_bytes()),
         expected_capture_manifest_sha256=_sha(capture_manifest_bytes),
         expected_package_sha256=package_sha,
+        acquisition_plan_sidecar=acquisition_plan_sidecar,
+        operation_runner_source_sidecar=historical_source_sidecar,
+        operation_runner_source_sha256=_sha(historical_source_bytes),
     )
     current_protocol = json.loads((evidence_root / "saved-development-method-materials/protocol.json").read_bytes())
+    origin_acquisition = json.loads(origin_protocol_bytes)["acquisition"]
+    origin_profile = coverage_resource_evidence.offline_acquisition.execution_profile_from_protocol(
+        origin_acquisition, pool_input_mode="frozen-pool/1"
+    )
     current_stage_uuid = "00000000-0000-0000-0000-000000000991"
     packet_stage_uuid = "00000000-0000-0000-0000-000000000992"
     current_source_revision = "e" * 40
@@ -311,24 +329,51 @@ async def test_saved_origin_resource_observer_replays_pinned_collection_and_capt
         historical_health_calls=1,
         historical_captured_sources=captured.captured_count,
         historical_failed_sources=captured.failed_count,
+        acquisition_plan_bytes=plan_bytes,
+        historical_operation_runner_module=coverage_saved_corpus.verify_historical_operation_runner_module(origin),
     )
+    resource_kwargs = {
+        "stage_uuid": current_stage_uuid,
+        "stage_kind": "development",
+        "source_revision": current_source_revision,
+        "source_closure_sha256": current_source_closure,
+        "protocol_bytes": current_protocol_bytes,
+        "cohorts_bytes": cohorts_bytes,
+        "candidate_identity_sha256": identity_sha,
+        "candidate_endpoint_sha256": endpoint_sha,
+        "packet_stage_uuid": packet_stage_uuid,
+        "saved_origin": origin,
+        "saved_corpus_import": imported,
+        "candidate_identity_bytes": identity,
+        "stage_started_monotonic": 100.0,
+    }
+    with pytest.raises(
+        coverage_resource_evidence.ResourceEvidenceError,
+        match="historical-acquisition-source-proof-invalid",
+    ):
+        coverage_resource_evidence.collect_acquisition_observations(
+            snapshots_directory=collection_root,
+            receipt_directory=collection_root,
+            expected_receipt_inventory_sha256=receipt_inventory_sha,
+            acquisition_manifest_bytes=stage_bytes,
+            acquisition_plan_bytes=plan_bytes,
+            expected_index_sha256=collected.pool_index_sha256,
+            expected_manifest_sha256=collected.pool_manifest_sha256,
+            stage_uuid=manifest["stage_uuid"],
+            source_revision=manifest["source_revision"],
+            protocol_sha256=manifest["protocol_sha256"],
+            cohorts_sha256=manifest["cohorts_sha256"],
+            source_closure_sha256=manifest["source_closure_sha256"],
+            acquisition_plan_sha256=manifest["acquisition_plan_sha256"],
+            configured_timeout_seconds=origin_profile.request_timeout_seconds,
+            expected_execution_profile=origin_profile.identifier,
+            configured_query_pacing_seconds=origin_acquisition["pacing_seconds"],
+            configured_arxiv_pacing_seconds=origin_acquisition["arxiv_physical_pacing_seconds"],
+            verified_historical_operation_runner_module=imported.historical_operation_runner_module,
+            verified_saved_origin=origin,
+        )
     acquisition, capture, provenance = coverage_resource_evidence._saved_origin_resource_observations(
-        {
-            "stage_uuid": current_stage_uuid,
-            "stage_kind": "development",
-            "source_revision": current_source_revision,
-            "source_closure_sha256": current_source_closure,
-            "protocol_bytes": current_protocol_bytes,
-            "cohorts_bytes": cohorts_bytes,
-            "candidate_identity_sha256": identity_sha,
-            "candidate_endpoint_sha256": endpoint_sha,
-            "packet_stage_uuid": packet_stage_uuid,
-            "saved_origin": origin,
-            "saved_corpus_import": imported,
-            "candidate_identity_bytes": identity,
-            "stage_started_monotonic": 100.0,
-        },
-        current_protocol,
+        resource_kwargs, current_protocol
     )
     assert acquisition["acquisition_physical_http_calls"] == len(calls)
     assert capture["capture_owned_http_calls"] == captured.owned_http_calls
@@ -336,27 +381,29 @@ async def test_saved_origin_resource_observer_replays_pinned_collection_and_capt
     assert provenance["historical_input_costs"] is True
     assert provenance["origin_stage_uuid"] == registration.stage_uuid
 
-    summary_path = collection_root / "collection-summary.json"
-    summary_path.write_bytes(summary_path.read_bytes() + b" ")
-    with pytest.raises(coverage_resource_evidence.ResourceEvidenceError, match="saved-origin-package-pin-mismatch"):
+    wrong_source_identity = coverage_saved_corpus.VerifiedHistoricalOperationRunnerModule(
+        origin_stage_uuid=registration.stage_uuid,
+        origin_source_revision=registration.source_revision,
+        origin_package_sha256="0" * 64,
+        module_sha256=imported.historical_operation_runner_module.module_sha256,
+        module_bytes=imported.historical_operation_runner_module.module_bytes,
+    )
+    with pytest.raises(
+        coverage_resource_evidence.ResourceEvidenceError,
+        match="saved-origin-operation-runner-source-proof-mismatch",
+    ):
         coverage_resource_evidence._saved_origin_resource_observations(
             {
-                "stage_uuid": current_stage_uuid,
-                "stage_kind": "development",
-                "source_revision": current_source_revision,
-                "source_closure_sha256": current_source_closure,
-                "protocol_bytes": current_protocol_bytes,
-                "cohorts_bytes": cohorts_bytes,
-                "candidate_identity_sha256": identity_sha,
-                "candidate_endpoint_sha256": endpoint_sha,
-                "packet_stage_uuid": packet_stage_uuid,
-                "saved_origin": origin,
-                "saved_corpus_import": imported,
-                "candidate_identity_bytes": identity,
-                "stage_started_monotonic": 100.0,
+                **resource_kwargs,
+                "saved_corpus_import": replace(imported, historical_operation_runner_module=wrong_source_identity),
             },
             current_protocol,
         )
+
+    summary_path = collection_root / "collection-summary.json"
+    summary_path.write_bytes(summary_path.read_bytes() + b" ")
+    with pytest.raises(coverage_resource_evidence.ResourceEvidenceError, match="saved-origin-package-pin-mismatch"):
+        coverage_resource_evidence._saved_origin_resource_observations(resource_kwargs, current_protocol)
 
 
 @pytest.mark.asyncio
