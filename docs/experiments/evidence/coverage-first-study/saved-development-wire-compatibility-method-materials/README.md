@@ -1,20 +1,20 @@
-# Saved-development wire-compatibility method
+# Saved-corpus test settings for the corrected Jev parser
 
-This separately versioned material set keeps the registered cohorts, scoring
-instructions, provider schedule, numerical limits, quality thresholds, and
-band gates fixed. Its protocol changes only `candidate_source_sha256` to bind
-the bounded parser-wire compatibility fix. That fix validates rounded score
-means against feasible two-decimal intervals with unit probability mass and
-treats only a one-ULP difference at the maximum as a tie. Reported scores and
-ranking instructions remain unchanged.
+These settings identify the corrected response parser. The questions, saved
+corpus, ranking instructions, request schedule, budgets and pass/fail thresholds
+stay the same. The previous settings and results remain unchanged.
 
-The companion contract binds the same `D26-R` and `C26-R` four-case groups.
-The old saved-development materials remain valid only for their original exact
-protocol/cohort pair. Neither this method nor its engineering fixtures rescue
-or reuse earlier results. The lock records zero search/capture calls and no
-study admission; it is not a stage registration or authorization.
+The parser accepts a small score discrepancy only when rounding the displayed
+probabilities and score could explain it. It keeps the reported score. A choice
+separated from the highest probability by one adjacent floating-point value is
+treated as uncertain, so it cannot claim a research facet. The provider's [Score reference](https://docs.typesafe.ai/primitives/score)
+does not promise a rounding precision; this is an explicit, bounded compatibility
+rule tested against an archived synthetic response.
 
-`material-lock.json` records the protocol, cohorts, candidate parser, and
-companion digests. The candidate parser digest was computed from the reviewed
-source bytes; runtime checks still require the exact source and registration
-pins before any stage can proceed.
+The [lock file](material-lock.json) records the exact parser, protocol, cohort
+and companion versions. Only the candidate source hash changes in the protocol;
+the companion identifies that updated protocol and keeps the same case groups.
+
+This folder contains test settings. There are no new comparison results. Offline
+fixtures verify the software path; a new model-backed comparison still needs
+fresh identities and its complete checks before it can establish ranking quality.

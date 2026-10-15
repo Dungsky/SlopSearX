@@ -10,11 +10,11 @@
   "historical_grades_reused": false,
   "numeric_quality_and_task_use_unchanged": true,
   "parser_wire_compatibility": {
-    "choice_ties": "permit only a one-ULP difference at the maximum; otherwise reject a non-maximum choice",
+    "choice_ties": "accept only the maximum or its immediately preceding float; treat adjacent maxima as unknown",
     "existing_results_rescued": false,
     "quality_thresholds_changed": false,
     "ranking_instructions_changed": false,
-    "score_mean": "accept only exact weighted mean or feasible two-decimal rounding intervals with unit probability mass",
+    "score_mean": "preserve the existing 1e-6 mean tolerance; otherwise require feasible hundredth-rounding intervals with unit probability mass",
     "score_policy_changed": false
   },
   "protocol_sha256": "5b40c497b0871a575c07eff18b8c8f8a54dcb417d1028e61815ab9a77887a604",
