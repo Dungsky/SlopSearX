@@ -620,6 +620,8 @@ def _portal_state(
         "engines": engine_selection,
         "language": language,
         "time_range": time_range,
+        "date_from": response.date_filter["applied"]["date_from"] if response.date_filter else None,
+        "date_to": response.date_filter["applied"]["date_to"] if response.date_filter else None,
         "safesearch": safesearch,
         "page": page,
         "category_options": sorted(category_options),

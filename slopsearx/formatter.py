@@ -499,6 +499,8 @@ def _portal_hidden_inputs(
         "engines": _portal_state_value(state, "engines"),
         "language": _portal_state_value(state, "language", "en"),
         "time_range": _portal_state_value(state, "time_range"),
+        "date_from": _portal_state_value(state, "date_from"),
+        "date_to": _portal_state_value(state, "date_to"),
         "safesearch": str(_portal_state_value(state, "safesearch", 0)),
         "pageno": str(page),
     }
@@ -517,6 +519,8 @@ def _portal_page_url(state: dict[str, Any] | None, page: int) -> str:
         "engines": _portal_state_value(state, "engines"),
         "language": _portal_state_value(state, "language", "en"),
         "time_range": _portal_state_value(state, "time_range"),
+        "date_from": _portal_state_value(state, "date_from"),
+        "date_to": _portal_state_value(state, "date_to"),
         "safesearch": str(_portal_state_value(state, "safesearch", 0)),
         "pageno": str(page),
     }
@@ -531,6 +535,8 @@ def _portal_format_url(state: dict[str, Any] | None, output_format: str) -> str:
         "engines": _portal_state_value(state, "engines"),
         "language": _portal_state_value(state, "language", "en"),
         "time_range": _portal_state_value(state, "time_range"),
+        "date_from": _portal_state_value(state, "date_from"),
+        "date_to": _portal_state_value(state, "date_to"),
         "safesearch": str(_portal_state_value(state, "safesearch", 0)),
         "pageno": str(_portal_state_value(state, "page", 1)),
         "format": output_format,

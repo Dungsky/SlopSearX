@@ -928,3 +928,18 @@ async def test_http_dates_reach_real_openalex_and_preserve_publication_dates(cli
     assert seen == ["from_publication_date:2024-02-29,to_publication_date:2024-02-29"]
     assert [item["publishedDate"] for item in response.json()["results"]] == ["2024-02-29"]
     assert response.json()["meta"]["engine_status"]["openalex"]["status"] == "ok"
+
+
+def test_portal_keeps_absolute_bounds_in_forms_and_machine_links(client, monkeypatch):
+    import slopsearx.server as server_mod
+    from engines.openalex import OpenAlexAdapter
+
+    async def empty(*args, **kwargs):
+        return AdapterResponse(results=[], status=EngineStatus.OK)
+
+    monkeypatch.setattr(OpenAlexAdapter, "search", empty)
+    monkeypatch.setattr(server_mod, "_active_engines", {"openalex": OpenAlexAdapter()})
+    response = client.get("/search", params={"q": "climate", "engines": "openalex", "date_from": "2024-02-29"})
+    assert response.status_code == 200
+    assert 'name="date_from" value="2024-02-29"' in response.text
+    assert "date_from=2024-02-29" in response.text

@@ -70,4 +70,5 @@ success. Clients must validate both transport/outcome and matching proof.
 
 Portal impact: no date picker is added. Date parameters arriving via portal URLs
 use this same validation and shared service; JSON/YAML expose the proof while
-HTML retains existing result rendering and explicit invalid-filter errors.
+HTML retains bounds in forms, pagination and machine-view links, existing result
+rendering and explicit invalid-filter errors.
