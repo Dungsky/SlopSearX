@@ -287,28 +287,23 @@ def test_score_mean_audit_distinguishes_exact_and_tolerance_compatible_values():
     assert parsed.score_audit["b"]["mean_validation"] == "exact"
 
 
-def test_observed_hundredth_precision_score_tuple_uses_bounded_feasibility_and_keeps_reported_score():
-    cards = [card("probe-2-000"), card("probe-2-001")]
+def test_constructed_hundredth_precision_tuples_keep_reported_scores():
+    cards = [card("generated-low"), card("generated-high")]
     compiled = compile_for(cards, FACETS)
     data = json.loads(response_for(compiled))
-    archived_score_tuples = {
-        "probe-2-000": (
-            1.59,
-            [0.30, 0.30, 0.23, 0.05, 0.03, 0.02, 0.01, 0.02, 0.02, 0.02],
-        ),
-        "probe-2-001": (
-            1.56,
-            [0.32, 0.31, 0.22, 0.04, 0.02, 0.02, 0.01, 0.02, 0.02, 0.02],
-        ),
+    # Independently constructed symmetric distributions both have mean 4.5.
+    constructed_tuples = {
+        "generated-low": (4.45, [0.1] * 10),
+        "generated-high": (4.56, [0.05, 0.05, 0.1, 0.1, 0.2, 0.2, 0.1, 0.1, 0.05, 0.05]),
     }
-    for cid, (reported, values) in archived_score_tuples.items():
+    for cid, (reported, values) in constructed_tuples.items():
         answer = data["answers"][f"score:{cid}"]
         answer["score"] = reported
         answer["probabilities"] = {str(index): probability for index, probability in enumerate(values)}
     parsed = coverage.parse_response(json.dumps(data, separators=(",", ":")).encode(), compiled)
-    assert parsed.scores == {"probe-2-000": 1.59, "probe-2-001": 1.56}
-    assert parsed.score_audit["probe-2-000"]["mean_validation"] == "hundredth-rounding-interval"
-    assert parsed.score_audit["probe-2-001"]["mean_validation"] == "hundredth-rounding-interval"
+    assert parsed.scores == {"generated-low": 4.45, "generated-high": 4.56}
+    for cid in constructed_tuples:
+        assert parsed.score_audit[cid]["mean_validation"] == "hundredth-rounding-interval"
 
 
 def test_rounding_interval_mass_constraints_and_endpoint_clipping():
@@ -327,24 +322,13 @@ def test_score_rounding_feasibility_still_rejects_infeasible_or_non_grid_values(
     data = json.loads(response_for(compiled))
     answer = data["answers"]["score:a"]
     answer["score"] = 2.0
-    answer["probabilities"] = {
-        "0": 0.30,
-        "1": 0.30,
-        "2": 0.23,
-        "3": 0.05,
-        "4": 0.03,
-        "5": 0.02,
-        "6": 0.01,
-        "7": 0.02,
-        "8": 0.02,
-        "9": 0.02,
-    }
+    answer["probabilities"] = {str(index): 0.1 for index in range(10)}
     with pytest.raises(coverage.CoverageError, match="response-score-mean-mismatch"):
         coverage.parse_response(json.dumps(data, separators=(",", ":")).encode(), compiled)
 
-    answer["score"] = 1.59
-    answer["probabilities"]["0"] = 0.301
-    answer["probabilities"]["1"] = 0.299
+    answer["score"] = 4.45
+    answer["probabilities"]["0"] = 0.101
+    answer["probabilities"]["1"] = 0.099
     with pytest.raises(coverage.CoverageError, match="response-score-mean-mismatch"):
         coverage.parse_response(json.dumps(data, separators=(",", ":")).encode(), compiled)
 
@@ -353,21 +337,21 @@ def test_choice_one_ulp_wire_tie_is_unknown_but_nearby_non_ties_remain_invalid()
     compiled = compile_for([card("a"), card("b")], FACETS)
     data = json.loads(response_for(compiled))
     answer = data["answers"]["profile:a"]
-    maximum = 0.28
+    maximum = 0.30
     answer["choice"] = "facets:coverage"
     answer["probabilities"] = {option: 0.0 for option in compiled.profile_options["profile:a"]}
     answer["probabilities"]["facets:coverage"] = math.nextafter(maximum, 0.0)
     answer["probabilities"]["none"] = maximum
     remainder_options = [option for option in answer["probabilities"] if option not in {"facets:coverage", "none"}]
     for option in remainder_options[:4]:
-        answer["probabilities"][option] = 0.11
+        answer["probabilities"][option] = 0.10
     parsed = coverage.parse_response(json.dumps(data, separators=(",", ":")).encode(), compiled)
     assert parsed.selected_facets["a"] is None
     assert parsed.profile_audit["a"]["tied_maximum"] is True
 
-    answer["probabilities"]["facets:coverage"] = 0.27
+    answer["probabilities"]["facets:coverage"] = 0.29
     for option in remainder_options[:4]:
-        answer["probabilities"][option] = 0.1125
+        answer["probabilities"][option] = 0.1025
     with pytest.raises(coverage.CoverageError, match="response-choice-not-maximum"):
         coverage.parse_response(json.dumps(data, separators=(",", ":")).encode(), compiled)
 
