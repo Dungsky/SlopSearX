@@ -1,6 +1,8 @@
 # Coverage-first ranking: prospective qualification checklist
 
-Status: **NO-CALL DESIGN CHECKPOINT / NOT REGISTERED / NOT ADMITTED**.
+**Current registration:** see the [fresh research-task comparison](evidence/coverage-first-study/prospective-2026-10-15-research-task-use-v4/README.md) and its [version-4 method](evidence/coverage-first-study/research-task-use-method-materials/README.md). Both real setup preflights passed for development and confirmation; neither stage has started. The checklist below preserves the earlier design checkpoint and its original gates. It is not the current run status.
+
+Historical checkpoint status: **NO-CALL DESIGN CHECKPOINT / NOT REGISTERED / NOT ADMITTED**.
 Related to [#516](https://github.com/magnus919/SlopSearX/issues/516).
 
 The maintainer approved the [coverage-first candidate amendment](coverage-first-release-decision.md)

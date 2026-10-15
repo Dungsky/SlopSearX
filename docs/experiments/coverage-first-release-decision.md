@@ -4,7 +4,9 @@ Status: **candidate amendment approved by the maintainer on 2026-10-09**.
 Related to [#516](https://github.com/magnus919/SlopSearX/issues/516).
 This records a prospective decision, not a registered or admitted invocation.
 
-**Current study status (2026-10-15):** the executor-fixed development attempt is terminal-incomplete. All 54 reference grades and independent closure completed, then selector execution stopped after two dispatches; 37 planned selector operations were not invoked. The [terminal record](evidence/coverage-first-study/executor-fixed-development-terminal-2026-10-15/README.md) describes the guard suppression and its limits. There is no ranking or quality result, and confirmation was not invoked. The original quality gates and product-acceptance requirements remain unchanged.
+**Current study status (2026-10-15):** the [fresh research-task comparison](evidence/coverage-first-study/prospective-2026-10-15-research-task-use-v4/README.md) is registered for source `943f0b7ef670b3ffe4a3abb03b2aee54570e6a0c`. Both stages passed the real runner and issuer preflights. Neither has started, and no quality result is available. The [version-4 method](evidence/coverage-first-study/research-task-use-method-materials/README.md) makes research-task completion primary while retaining ranking, facet, navigation, stability, resource and completion checks; useful-card-count loss is an explicit diagnostic. Historical attempts and their original gates remain unchanged. Shared-service delivery and production readiness remain pending.
+
+The remainder records the earlier candidate amendment and its original conditions. It is historical context, not the current execution registration.
 
 The maintainer approved replacing the failed complete-pool dual-Score/RRF
 candidate with the [coverage-first prototype](intent-ranking-coverage-prototype.md)
