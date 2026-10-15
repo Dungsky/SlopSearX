@@ -4,6 +4,8 @@ Status: **candidate amendment approved by the maintainer on 2026-10-09**.
 Related to [#516](https://github.com/magnus919/SlopSearX/issues/516).
 This records a prospective decision, not a registered or admitted invocation.
 
+**Current setup status (2026-10-15):** the new [saved-handoff registration](evidence/coverage-first-study/saved-handoff-registration-2026-10-15/README.md) passed full static preflight for development and confirmation. Development has not started; neither stage is admitted or invoked, and there is no ranking-quality result. The setup checks do not change the approved quality gates or product-acceptance requirements. Confirmation requires a valid passing development receipt.
+
 The maintainer approved replacing the failed complete-pool dual-Score/RRF
 candidate with the [coverage-first prototype](intent-ranking-coverage-prototype.md)
 for a new bounded study. This supersedes only the sole-candidate constraint in

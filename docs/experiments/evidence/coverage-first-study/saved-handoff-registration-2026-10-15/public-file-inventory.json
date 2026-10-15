@@ -1,9 +1,9 @@
 {
   "files": [
     {
-      "bytes": 1748,
+      "bytes": 2196,
       "path": "README.md",
-      "sha256": "51ce5e5bff5c3e504e836b5e34017d41c60e758acfad3838deb1cb4425617b6d"
+      "sha256": "349038e5e1c776dfe451fc73ee89ab1d31d07814f9b6bf7011e0494b6ad1bc63"
     },
     {
       "bytes": 609,
@@ -104,6 +104,11 @@
       "bytes": 194,
       "path": "development/task-input-late-placeholder.json",
       "sha256": "36652c4bdaa64fd76f73ca80377f60dfb3186ce1823fe1f5a6ece3c826ae0142"
+    },
+    {
+      "bytes": 842,
+      "path": "full-static-preflight.json",
+      "sha256": "cf99173e105ab188712d5904c52f9ee018e798f48a1d20dabde439c9ee2ba0d1"
     },
     {
       "bytes": 612,
