@@ -1,0 +1,19 @@
+{
+  "admission_permits_issued": false,
+  "full_static_preflight": "not_run",
+  "quality_credit": false,
+  "schema": "coverage-static-preflight-summary/1",
+  "scientific_calls": 0,
+  "source_revision": "cb7f3c20e1b2e263bea5d37291c737e97ed9b9bb",
+  "stage_directories_created": false,
+  "stages": {
+    "confirmation": {
+      "admitted": false,
+      "invoked": false
+    },
+    "development": {
+      "admitted": false,
+      "invoked": false
+    }
+  }
+}
