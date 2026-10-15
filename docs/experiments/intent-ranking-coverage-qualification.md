@@ -1,5 +1,7 @@
 # Coverage-first ranking: prospective qualification checklist
 
+**Retry amendment:** follow the [bounded retry plan](coverage-first-retry-plan.md) for the replacement registration. The failed collection remains terminal; quality requirements and the development-before-confirmation condition are unchanged.
+
 **Latest outcome:** the [registered fresh comparison](evidence/coverage-first-study/prospective-2026-10-15-research-task-use-v4/README.md) passed setup but [stopped during input collection](evidence/coverage-first-study/completed-2026-10-15-task-use-collection/README.md). No ranking or grading phase ran, and confirmation remains unstarted. The [version-4 method](evidence/coverage-first-study/research-task-use-method-materials/README.md) and earlier results retain their original rules. The checklist below preserves the earlier design checkpoint; it is not a current passing result.
 
 Historical checkpoint status: **NO-CALL DESIGN CHECKPOINT / NOT REGISTERED / NOT ADMITTED**.

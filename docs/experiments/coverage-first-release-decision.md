@@ -6,6 +6,8 @@ This records a prospective decision, not a registered or admitted invocation.
 
 **Current study status (2026-10-15):** the [fresh research-task comparison](evidence/coverage-first-study/completed-2026-10-15-task-use-collection/README.md) ended during input collection after 26 requests. arXiv returned HTTP 429, three pools missed their required size band, and one official navigation target was absent from its returned pool. No ranking, capture, model or grading phase followed; confirmation was not started. This gives no ranking-quality result. Issue #516 remains unqualified and production ranking is unchanged.
 
+**Next step:** the [bounded retry plan](coverage-first-retry-plan.md) permits one replacement development attempt and one conditional confirmation attempt. It supersedes the no-retry rule only for the latest pre-evaluation collection failure. All quality requirements remain in force.
+
 The remainder records the earlier candidate amendment and its original conditions. It is historical context, not the current execution registration.
 
 The maintainer approved replacing the failed complete-pool dual-Score/RRF
