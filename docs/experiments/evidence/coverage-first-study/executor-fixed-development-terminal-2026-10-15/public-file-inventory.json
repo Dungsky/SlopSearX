@@ -1,14 +1,16 @@
 {
   "files": [
     {
-      "bytes": 1681,
+      "bytes": 1711,
       "path": "README.md",
-      "sha256": "e65408c7c38af410a43814a6d4f0e018183c4c6e027f371d8cdc82ba5e4cee1d"
+      "sha256": "368107a078db608795e2e400b841efb462888c56fbdbfcc904ec773d1eb53811"
     },
     {
-      "bytes": 1209,
+      "bytes": 1244,
       "path": "summary.json",
-      "sha256": "4dc639506b52600364fef9022a26f6e3d8a5a161c89ef98bce35188a5f85f217"
+      "sha256": "5d708fccb4afabfdc54f6b7c7cc1c9e2bf10dd455781858540a3d21ccece42fb"
     }
-  ]
+  ],
+  "schema": "coverage-public-static-file-inventory/1",
+  "self_hash": "omitted"
 }

@@ -18,6 +18,7 @@
     "candidate": {
       "status": "suppressed_by_credential_reflection_guard",
       "input_card_count": 80,
+      "http_status_metadata": 200,
       "elapsed_ms_approx": 375,
       "usage": "unknown",
       "protected_response_body": "cleared"
