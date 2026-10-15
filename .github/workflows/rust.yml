@@ -62,7 +62,7 @@ jobs:
           fi
           # Purpose-built bwrap setup profile plus capability-denied child stack.
           # See docs/rust-rewrite/replay/README.md for upstream policy provenance.
-          sudo apparmor_parser --replace --warn <<'PROFILE'
+          sudo apparmor_parser --replace <<'PROFILE'
           abi <abi/4.0>,
           include <tunables/global>
           profile bwrap /usr/bin/bwrap flags=(attach_disconnected,mediate_deleted) {
