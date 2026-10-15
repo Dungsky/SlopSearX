@@ -783,3 +783,109 @@ async def test_completed_search_records_unhandled_failure_without_swallowing(
     with pytest.raises(error):
         await server_mod._search_endpoint(request)
     assert m.http_search_completed._values[key] == before + 1
+
+
+@pytest.mark.parametrize("path", ["/", "/search"])
+@pytest.mark.parametrize("method", ["get", "post"])
+@pytest.mark.parametrize(
+    "bounds",
+    [
+        {"date_from": "2024-02-29", "date_to": "2024-02-29"},
+        {"date_from": "2024-02-29"},
+        {"date_to": "2024-02-29"},
+    ],
+)
+def test_absolute_dates_forward_and_prove_audited_scope(client, monkeypatch, path, method, bounds):
+    import slopsearx.server as server_mod
+    from engines.openalex import OpenAlexAdapter
+
+    seen = []
+
+    async def search(self, query, params=None):
+        seen.append(params)
+        return AdapterResponse(results=[], status=EngineStatus.OK)
+
+    monkeypatch.setattr(OpenAlexAdapter, "search", search)
+    monkeypatch.setattr(server_mod, "_active_engines", {"openalex": OpenAlexAdapter()})
+    params = {"q": "climate", "format": "json", "engines": "openalex", **bounds}
+    result = client.get(path, params=params) if method == "get" else client.post(path, data=params)
+    assert result.status_code == 200
+    assert len(seen) == 1
+    assert seen[0]["date_from"] == bounds.get("date_from")
+    assert seen[0]["date_to"] == bounds.get("date_to")
+    proof = result.json()["meta"]["date_filter"]
+    assert proof["requested"] == {
+        "date_from": bounds.get("date_from"),
+        "date_to": bounds.get("date_to"),
+        "time_range": None,
+    }
+    assert proof["applied"] == bounds | {key: bounds.get(key) for key in ("date_from", "date_to")}
+    assert proof["status"] == "enforced"
+    assert proof["engines"] == ["openalex"]
+    assert proof["enforced_by"] == ["upstream:openalex"]
+    assert proof["warnings"] == []
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [
+        {"date_from": ""},
+        {"date_from": "2023-02-29"},
+        {"date_to": "2024-02-30"},
+        {"date_from": "2024-03-01", "date_to": "2024-02-29"},
+        {"date_from": "2024-02-29", "time_range": "day"},
+        {"date_from": "2024-02-29", "engines": "mocktest"},
+        {"date_from": "2024-02-29", "engines": "openalex,mocktest"},
+        {"fromDate": "2024-02-29"},
+        {"timeRange": "week"},
+        {"DateFrom": "2024-02-29"},
+        {"dateFrom": "2024-02-29"},
+        {"date_start": "2024-02-29"},
+    ],
+)
+@pytest.mark.parametrize("method", ["get", "post"])
+def test_absolute_dates_reject_before_dispatch(client, monkeypatch, bad, method):
+    async def forbidden(*args, **kwargs):
+        pytest.fail("invalid bounded search dispatched")
+
+    monkeypatch.setattr(_MockEngine, "search", forbidden)
+    params = {"q": "climate", "format": "json", "engines": "openalex", **bad}
+    result = client.get("/search", params=params) if method == "get" else client.post("/search", data=params)
+    assert result.status_code == 400
+    assert result.json()["error"] == "invalid_filter"
+
+
+def test_absolute_dates_upstream_failure_is_not_zero_matches(client, monkeypatch):
+    import slopsearx.server as server_mod
+    from engines.openalex import OpenAlexAdapter
+
+    async def failed(*args, **kwargs):
+        return AdapterResponse(results=[], status=EngineStatus.TIMEOUT)
+
+    monkeypatch.setattr(OpenAlexAdapter, "search", failed)
+    monkeypatch.setattr(server_mod, "_active_engines", {"openalex": OpenAlexAdapter()})
+    result = client.get(
+        "/search", params={"q": "climate", "format": "json", "engines": "openalex", "date_from": "2024-02-29"}
+    )
+    assert result.status_code == 503
+    assert result.json()["meta"]["engine_status"]["openalex"]["status"] == "timeout"
+
+
+def test_absolute_dates_are_discoverable_in_openapi(client):
+    schema = client.get("/openapi.json").json()
+    for method in ("get", "post"):
+        params = {item["name"]: item for item in schema["paths"]["/search"][method]["parameters"]}
+        assert params["date_from"]["schema"]["format"] == "date"
+        assert params["date_to"]["schema"]["format"] == "date"
+
+
+@pytest.mark.parametrize("method", ["get", "post"])
+def test_repeated_date_bounds_reject(client, method):
+    query = "q=climate&format=json&engines=openalex&date_from=bad&date_from=2024-02-29"
+    result = (
+        client.get("/search?" + query)
+        if method == "get"
+        else client.post("/search", content=query, headers={"content-type": "application/x-www-form-urlencoded"})
+    )
+    assert result.status_code == 400
+    assert result.json()["field"] == "date_from"
