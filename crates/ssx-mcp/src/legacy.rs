@@ -2,12 +2,10 @@
 use crate::Registry;
 use axum::{
     Router,
-    extract::{DefaultBodyLimit, RawQuery, State},
+    body::{Body, Bytes},
+    extract::{DefaultBodyLimit, FromRequest, RawQuery, Request, State},
     http::{HeaderMap, HeaderValue, StatusCode},
-    response::{
-        IntoResponse, Response,
-        sse::{Event, Sse},
-    },
+    response::{IntoResponse, Response},
     routing::{get, post},
 };
 use futures_util::stream;
@@ -19,14 +17,138 @@ use std::{
     time::Duration,
 };
 use tokio::{
-    io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
+    io::{AsyncBufReadExt, AsyncRead, AsyncWriteExt, BufReader},
     sync::mpsc,
 };
 use tokio_util::sync::CancellationToken;
 #[derive(Clone)]
 struct Session {
-    input: mpsc::Sender<String>,
+    input: mpsc::Sender<AdmittedMessage>,
     cancel: CancellationToken,
+}
+// A permit follows the body into the queue and through pump consumption.
+struct AdmittedMessage {
+    body: String,
+    _permit: tokio::sync::OwnedSemaphorePermit,
+}
+const MESSAGE_CAPACITY: usize = 32;
+const OUTPUT_CAPACITY: usize = 64 * 1024 * 1024;
+const OUTPUT_FRAME_LIMIT: usize = 16 * 1024 * 1024;
+struct ChargedLine {
+    text: String,
+    _permits: Vec<tokio::sync::OwnedSemaphorePermit>,
+}
+struct OutputEvent {
+    bytes: Vec<u8>,
+    _permit: Option<tokio::sync::OwnedSemaphorePermit>,
+}
+// State lives outside next_line's future, preserving partial bytes when select
+// chooses incoming input. BufReader's uncharged scratch is fixed at 8 KiB.
+struct OutputReader<R> {
+    reader: BufReader<R>,
+    bytes: Vec<u8>,
+    permits: Vec<tokio::sync::OwnedSemaphorePermit>,
+    budget: Arc<tokio::sync::Semaphore>,
+}
+impl<R: AsyncRead + Unpin> OutputReader<R> {
+    fn new(reader: R, budget: Arc<tokio::sync::Semaphore>) -> Self {
+        Self {
+            reader: BufReader::with_capacity(8192, reader),
+            bytes: Vec::new(),
+            permits: Vec::new(),
+            budget,
+        }
+    }
+    async fn next_line(&mut self) -> crate::Result<Option<ChargedLine>> {
+        loop {
+            let chunk = self.reader.fill_buf().await?;
+            if chunk.is_empty() {
+                if self.bytes.is_empty() {
+                    return Ok(None);
+                }
+                return Err("incomplete legacy output frame".into());
+            }
+            let end = chunk.iter().position(|b| *b == b'\n').map(|n| n + 1);
+            let count = end.unwrap_or(chunk.len());
+            if self.bytes.len() + count > OUTPUT_FRAME_LIMIT {
+                return Err("legacy output frame limit".into());
+            }
+            let permit = self
+                .budget
+                .clone()
+                .try_acquire_many_owned(count as u32)
+                .map_err(|_| "legacy aggregate output saturation")?;
+            self.bytes.extend_from_slice(&chunk[..count]);
+            self.permits.push(permit);
+            self.reader.consume(count);
+            if end.is_some() {
+                let mut bytes = std::mem::take(&mut self.bytes);
+                bytes.pop();
+                if bytes.last() == Some(&b'\r') {
+                    bytes.pop();
+                }
+                return Ok(Some(ChargedLine {
+                    text: String::from_utf8(bytes)?,
+                    _permits: std::mem::take(&mut self.permits),
+                }));
+            }
+        }
+    }
+}
+impl AsRef<[u8]> for OutputEvent {
+    fn as_ref(&self) -> &[u8] {
+        &self.bytes
+    }
+}
+fn event_bytes(
+    kind: &str,
+    text: &str,
+    budget: &Arc<tokio::sync::Semaphore>,
+) -> crate::Result<OutputEvent> {
+    if text.len() > OUTPUT_FRAME_LIMIT {
+        return Err("legacy output frame limit".into());
+    }
+    let count = text.len()
+        + text.bytes().filter(|b| matches!(b, b'\n' | b'\r')).count() * 6
+        + kind.len()
+        + 16;
+    let permit = budget
+        .clone()
+        .try_acquire_many_owned(count.try_into()?)
+        .map_err(|_| "legacy aggregate output saturation")?;
+    let mut bytes = Vec::with_capacity(count);
+    bytes.extend_from_slice(b"event: ");
+    bytes.extend_from_slice(kind.as_bytes());
+    bytes.extend_from_slice(b"\ndata: ");
+    for byte in text.bytes() {
+        bytes.push(byte);
+        if matches!(byte, b'\n' | b'\r') {
+            bytes.extend_from_slice(b"data: ");
+        }
+    }
+    bytes.extend_from_slice(b"\n\n");
+    debug_assert_eq!(bytes.len(), count);
+    Ok(OutputEvent {
+        bytes,
+        _permit: Some(permit),
+    })
+}
+fn request_id(text: &str) -> crate::Result<Option<String>> {
+    #[derive(serde::Deserialize)]
+    struct Id {
+        id: Option<Box<serde_json::value::RawValue>>,
+    }
+    let id: Id = serde_json::from_str(text)?;
+    id.id
+        .map(|id| {
+            serde_json::from_str::<serde_json::Value>(if id.get() == "-0" { "0" } else { id.get() })
+                .and_then(|id| serde_json::to_string(&id))
+        })
+        .transpose()
+        .map_err(Into::into)
+}
+fn output_event(text: &str, budget: &Arc<tokio::sync::Semaphore>) -> crate::Result<OutputEvent> {
+    event_bytes("message", text, budget)
 }
 #[derive(Clone)]
 pub struct Legacy {
@@ -36,6 +158,8 @@ pub struct Legacy {
     pub ttl: Duration,
     cancel: CancellationToken,
     admission: Arc<tokio::sync::Semaphore>,
+    messages: Arc<tokio::sync::Semaphore>,
+    output: Arc<tokio::sync::Semaphore>,
 }
 impl Legacy {
     pub fn new(
@@ -58,10 +182,18 @@ impl Legacy {
             ttl,
             cancel,
             admission: Arc::new(tokio::sync::Semaphore::new(128)),
+            messages: Arc::new(tokio::sync::Semaphore::new(MESSAGE_CAPACITY)),
+            output: Arc::new(tokio::sync::Semaphore::new(OUTPUT_CAPACITY)),
         })
     }
     pub fn available_permits(&self) -> usize {
         self.admission.available_permits()
+    }
+    pub fn available_message_permits(&self) -> usize {
+        self.messages.available_permits()
+    }
+    pub fn available_output_bytes(&self) -> usize {
+        self.output.available_permits()
     }
     pub fn active_sessions(&self) -> usize {
         self.sessions.lock().unwrap().len()
@@ -81,7 +213,7 @@ impl Legacy {
     }
 }
 struct StreamState {
-    rx: mpsc::Receiver<std::result::Result<Event, Infallible>>,
+    rx: mpsc::Receiver<OutputEvent>,
     session: String,
     state: Legacy,
     _admission: Arc<tokio::sync::OwnedSemaphorePermit>,
@@ -94,6 +226,9 @@ impl Drop for StreamState {
     }
 }
 async fn connect(State(state): State<Legacy>) -> Response {
+    if state.cancel.is_cancelled() {
+        return StatusCode::SERVICE_UNAVAILABLE.into_response();
+    }
     let admission = match state.admission.clone().try_acquire_owned() {
         Ok(permit) => Arc::new(permit),
         Err(_) => return StatusCode::SERVICE_UNAVAILABLE.into_response(),
@@ -101,7 +236,7 @@ async fn connect(State(state): State<Legacy>) -> Response {
     let pump_admission = admission.clone();
     let id = uuid::Uuid::new_v4().simple().to_string();
     let cancel = state.cancel.child_token();
-    let (input, mut incoming) = mpsc::channel::<String>(32);
+    let (input, mut incoming) = mpsc::channel::<AdmittedMessage>(32);
     let (events, rx) = mpsc::channel(32);
     state.sessions.lock().unwrap().insert(
         id.clone(),
@@ -111,9 +246,14 @@ async fn connect(State(state): State<Legacy>) -> Response {
         },
     );
     let endpoint = format!("{}?session_id={id}", state.message_path);
-    let _ = events
-        .send(Ok(Event::default().event("endpoint").data(endpoint)))
-        .await;
+    let endpoint = match event_bytes("endpoint", &endpoint, &state.output) {
+        Ok(event) => event,
+        Err(_) => {
+            state.sessions.lock().unwrap().remove(&id);
+            return StatusCode::SERVICE_UNAVAILABLE.into_response();
+        }
+    };
+    let _ = events.send(endpoint).await;
     let (server_io, client_io) = tokio::io::duplex(65536);
     let (reader, mut writer) = tokio::io::split(client_io);
     let registry = state.registry.clone();
@@ -129,14 +269,48 @@ async fn connect(State(state): State<Legacy>) -> Response {
             Ok::<(), crate::Error>(())
         };
         let pump = async {
-            let mut lines = BufReader::new(reader).lines();
+            let mut lines = OutputReader::new(reader, state_cleanup.output.clone());
             let mut overlay = crate::opaque::Overlay::default();
             let mut lifecycle = crate::opaque::Lifecycle::default();
             let mut wire = crate::opaque::WireState::default();
+            let mut pending = HashMap::new();
             loop {
                 tokio::select! {
-                    input=incoming.recv()=>match input {Some(s)=>{if let Some(reply)=lifecycle.request(&s)?{if let Some(reply)=reply&& events.send(Ok(Event::default().event("message").data(reply))).await.is_err(){break;}continue;}let rewritten=wire.request(&s)?;lifecycle.remap(&s,&rewritten)?;let s=rewritten;overlay.request(&catalogs,&s)?;writer.write_all(s.as_bytes()).await?;writer.write_all(b"\n").await?;}None=>break},
-                    line=lines.next_line()=>match line? {Some(s)=>{if lifecycle.response(&s)?{writer.write_all(crate::opaque::INITIALIZED).await?;}let s=overlay.response(&s)?;let s=wire.response(&s)?;if events.send(Ok(Event::default().event("message").data(s))).await.is_err(){break;}}None=>break}
+                    input = incoming.recv() => {
+                        let Some(message) = input else { break };
+                        let s = &message.body;
+                        if let Some(reply) = lifecycle.request(s)? {
+                            if let Some(reply) = reply
+                                && events.send(output_event(&reply, &state_cleanup.output)?).await.is_err()
+                            { break; }
+                            continue;
+                        }
+                        let rewritten = wire.request(s)?;
+                        lifecycle.remap(s, &rewritten)?;
+                        let id = request_id(&rewritten)?;
+                        if id.as_ref().is_some_and(|id| pending.contains_key(id)) {
+                            return Err("duplicate SDK request identity".into());
+                        }
+                        overlay.request(&catalogs, &rewritten)?;
+                        writer.write_all(rewritten.as_bytes()).await?;
+                        writer.write_all(b"\n").await?;
+                        // SDK/opaque state retains request copies until its reply;
+                        // do not release aggregate ownership merely after writing.
+                        if let Some(id) = id {
+                            pending.insert(id, message._permit);
+                        }
+                    }
+                    line = lines.next_line() => {
+                        let Some(line) = line? else { break };
+                        let response_id = request_id(&line.text)?;
+                        if lifecycle.response(&line.text)? {
+                            writer.write_all(crate::opaque::INITIALIZED).await?;
+                        }
+                        let response = overlay.response(&line.text)?;
+                        let response = wire.response(&response)?;
+                        if events.send(output_event(&response, &state_cleanup.output)?).await.is_err() { break; }
+                        if let Some(id) = response_id { pending.remove(&id); }
+                    }
                 }
             }
             Ok::<(), crate::Error>(())
@@ -151,10 +325,22 @@ async fn connect(State(state): State<Legacy>) -> Response {
         state,
         _admission: admission,
     };
-    let mut response = Sse::new(stream::unfold(state, |mut s| async move {
-        s.rx.recv().await.map(|e| (e, s))
-    }))
-    .into_response();
+    // Bytes owns the lease until the HTTP consumer drops its last clone, rather
+    // than releasing it when an event is merely dequeued by the stream.
+    let mut response = Response::new(Body::from_stream(stream::unfold(
+        state,
+        |mut s| async move {
+            s.rx.recv()
+                .await
+                .map(|e| (Ok::<_, Infallible>(Bytes::from_owner(e)), s))
+        },
+    )));
+    response
+        .headers_mut()
+        .insert("cache-control", HeaderValue::from_static("no-cache"));
+    response
+        .headers_mut()
+        .insert("connection", HeaderValue::from_static("keep-alive"));
     response.headers_mut().insert(
         "content-type",
         HeaderValue::from_static("text/event-stream; charset=utf-8"),
@@ -165,8 +351,22 @@ async fn message(
     State(state): State<Legacy>,
     RawQuery(query): RawQuery,
     headers: HeaderMap,
-    body: std::result::Result<String, axum::extract::rejection::StringRejection>,
+    request: Request,
 ) -> Response {
+    if state.cancel.is_cancelled() {
+        return StatusCode::SERVICE_UNAVAILABLE.into_response();
+    }
+    // The final extractor is the unbuffered request: reject aggregate saturation
+    // before polling even one body frame. Never await admission with a body.
+    let permit = match state.messages.clone().try_acquire_owned() {
+        Ok(permit) => permit,
+        Err(_) => return StatusCode::SERVICE_UNAVAILABLE.into_response(),
+    };
+    let body = tokio::select! {
+        biased;
+        _ = state.cancel.cancelled() => return StatusCode::SERVICE_UNAVAILABLE.into_response(),
+        body = String::from_request(request, &state) => body,
+    };
     let body = match body {
         Ok(body) => body,
         Err(error) => {
@@ -213,8 +413,292 @@ async fn message(
     {
         return (StatusCode::BAD_REQUEST, "Could not parse message").into_response();
     }
-    if session.input.send(body).await.is_err() {
-        return (StatusCode::NOT_FOUND, "Could not find session").into_response();
+    // No sender future may retain a body while waiting for per-session capacity.
+    // The global count includes the pump's current message and every queued one.
+    match session.input.try_send(AdmittedMessage {
+        body,
+        _permit: permit,
+    }) {
+        Ok(()) => {}
+        Err(mpsc::error::TrySendError::Closed(_)) => {
+            return (StatusCode::NOT_FOUND, "Could not find session").into_response();
+        }
+        Err(mpsc::error::TrySendError::Full(_)) => {
+            return StatusCode::SERVICE_UNAVAILABLE.into_response();
+        }
     }
     (StatusCode::ACCEPTED, "Accepted").into_response()
+}
+
+#[cfg(test)]
+mod admission_tests {
+    use super::*;
+    use crate::harness::Host;
+
+    async fn restored(state: &Legacy, count: usize) {
+        tokio::time::timeout(Duration::from_secs(3), async {
+            while state.available_message_permits() != count {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("message admission recovered");
+    }
+
+    #[tokio::test]
+    async fn legacy_output_http_saturation_closes_session_and_recovers() -> crate::Result<()> {
+        let cancel = CancellationToken::new();
+        let mut state = Legacy::new(
+            Registry::synthetic(),
+            "/messages/",
+            Duration::from_secs(30),
+            cancel.clone(),
+        )?;
+        state.output = Arc::new(tokio::sync::Semaphore::new(128));
+        let host = Host::start(state.clone().router("/sse")?, cancel).await?;
+        let base = format!("http://{}", host.address);
+        let client = reqwest::Client::new();
+        let mut stream = client.get(format!("{base}/sse")).send().await?;
+        let endpoint = stream.chunk().await?.unwrap();
+        let endpoint = std::str::from_utf8(&endpoint)?
+            .lines()
+            .find_map(|line| line.strip_prefix("data: "))
+            .unwrap()
+            .to_owned();
+        assert_eq!(client.post(format!("{base}{endpoint}")).header("content-type", "application/json")
+            .body(r#"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"test","version":"1"}}}"#)
+            .send().await?.status(), StatusCode::ACCEPTED);
+        assert!(
+            tokio::time::timeout(Duration::from_secs(3), stream.chunk())
+                .await??
+                .is_none(),
+            "over-budget output must close, not truncate a reply"
+        );
+        restored(&state, MESSAGE_CAPACITY).await;
+        assert_eq!(state.active_sessions(), 0);
+        assert_eq!(state.available_output_bytes(), 128);
+        // A fresh real connection can immediately consume its endpoint again.
+        let mut next = client.get(format!("{base}/sse")).send().await?;
+        assert!(next.chunk().await?.is_some());
+        drop(next);
+        host.shutdown().await?;
+        assert_eq!(state.available_output_bytes(), 128);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn legacy_output_socket_saturation_cancellation_and_consumer_ownership()
+    -> crate::Result<()> {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
+        let mut writer = tokio::net::TcpStream::connect(listener.local_addr()?).await?;
+        let (socket, _) = listener.accept().await?;
+        let budget = Arc::new(tokio::sync::Semaphore::new(16));
+        let mut reader = OutputReader::new(socket, budget.clone());
+        writer.write_all(b"12345678").await?;
+        // A partial frame stays charged across select cancellation.
+        assert!(
+            tokio::time::timeout(Duration::from_millis(20), reader.next_line())
+                .await
+                .is_err()
+        );
+        assert_eq!(budget.available_permits(), 8);
+        writer.write_all(b"abcdefghX").await?;
+        assert!(
+            reader
+                .next_line()
+                .await
+                .is_err_and(|e| e.to_string().contains("saturation"))
+        );
+        drop(reader);
+        assert_eq!(budget.available_permits(), 16);
+        let budget = Arc::new(tokio::sync::Semaphore::new(128));
+        let event = output_event("hello\nworld\r", &budget)?;
+        assert_eq!(
+            event.bytes,
+            b"event: message\ndata: hello\ndata: world\rdata: \n\n"
+        );
+        let used = event.bytes.len();
+        let bytes = Bytes::from_owner(event);
+        let clone = bytes.clone();
+        assert_eq!(budget.available_permits(), 128 - used);
+        drop(bytes);
+        assert_eq!(budget.available_permits(), 128 - used);
+        drop(clone);
+        assert_eq!(budget.available_permits(), 128);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn legacy_output_frame_limit_rejects_before_unbounded_line_allocation()
+    -> crate::Result<()> {
+        let budget = Arc::new(tokio::sync::Semaphore::new(OUTPUT_CAPACITY));
+        let (mut writer, socket) = tokio::io::duplex(8192);
+        let task = tokio::spawn(async move {
+            let chunk = [b'x'; 8192];
+            for _ in 0..=OUTPUT_FRAME_LIMIT / chunk.len() {
+                if writer.write_all(&chunk).await.is_err() {
+                    break;
+                }
+            }
+        });
+        let mut reader = OutputReader::new(socket, budget.clone());
+        assert!(
+            reader
+                .next_line()
+                .await
+                .is_err_and(|e| e.to_string().contains("frame limit"))
+        );
+        assert!(reader.bytes.len() <= OUTPUT_FRAME_LIMIT);
+        drop(reader);
+        task.await?;
+        assert_eq!(budget.available_permits(), OUTPUT_CAPACITY);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn legacy_aggregate_ingress_precedes_body_poll_and_owns_queued_messages()
+    -> crate::Result<()> {
+        let cancel = CancellationToken::new();
+        let state = Legacy::new(
+            Registry::synthetic(),
+            "/messages/",
+            Duration::from_secs(30),
+            cancel.clone(),
+        )?;
+        // Real HTTP routing with deliberately stalled consumers. Two sessions
+        // prove that admission is global rather than a per-channel limit.
+        let mut receivers = Vec::new();
+        let mut urls = Vec::new();
+        let host = Host::start(state.clone().router("/sse")?, cancel).await?;
+        for _ in 0..2 {
+            let id = uuid::Uuid::new_v4().simple().to_string();
+            let (input, incoming) = mpsc::channel(32);
+            state.sessions.lock().unwrap().insert(
+                id.clone(),
+                Session {
+                    input,
+                    cancel: CancellationToken::new(),
+                },
+            );
+            receivers.push(incoming);
+            urls.push(format!("http://{}/messages/?session_id={id}", host.address));
+        }
+        let client = reqwest::Client::new();
+        for i in 0..MESSAGE_CAPACITY {
+            let response = client
+                .post(&urls[i % 2])
+                .header("content-type", "application/json")
+                .body(r#"{"jsonrpc":"2.0","id":1,"method":"ping"}"#)
+                .send()
+                .await?;
+            assert_eq!(response.status(), StatusCode::ACCEPTED);
+            assert_eq!(state.available_message_permits(), MESSAGE_CAPACITY - i - 1);
+        }
+        // No EOF is ever supplied. A buffered String extractor would hang here.
+        let response = client
+            .post(&urls[0])
+            .header("content-type", "application/json")
+            .body(reqwest::Body::wrap_stream(stream::pending::<
+                std::io::Result<Vec<u8>>,
+            >()))
+            .timeout(Duration::from_secs(2))
+            .send()
+            .await?;
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+        let message = receivers[0].recv().await.unwrap();
+        assert_eq!(
+            state.available_message_permits(),
+            0,
+            "dequeue must not release ownership before consumption"
+        );
+        drop(message);
+        restored(&state, 1).await;
+        assert_eq!(
+            client
+                .post(&urls[0])
+                .header("content-type", "application/json")
+                .body("bad")
+                .send()
+                .await?
+                .status(),
+            StatusCode::BAD_REQUEST
+        );
+        restored(&state, 1).await;
+        drop(receivers);
+        restored(&state, MESSAGE_CAPACITY).await;
+        assert_eq!(
+            client
+                .post(&urls[0])
+                .header("content-type", "application/json")
+                .body(r#"{"jsonrpc":"2.0","id":1,"method":"ping"}"#)
+                .send()
+                .await?
+                .status(),
+            StatusCode::NOT_FOUND
+        );
+        restored(&state, MESSAGE_CAPACITY).await;
+        host.shutdown().await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn legacy_open_partial_body_shutdown_reclaims_admission_before_peer_close()
+    -> crate::Result<()> {
+        let cancel = CancellationToken::new();
+        let state = Legacy::new(
+            Registry::synthetic(),
+            "/messages/",
+            Duration::from_secs(30),
+            cancel.clone(),
+        )?;
+        let host = Host::start(state.clone().router("/sse")?, cancel).await?;
+        let mut socket = tokio::net::TcpStream::connect(host.address).await?;
+        socket.write_all(b"POST /messages/ HTTP/1.1\r\nHost: localhost\r\nContent-Type: application/json\r\nContent-Length: 100\r\n\r\n{").await?;
+        restored(&state, MESSAGE_CAPACITY - 1).await;
+        host.shutdown().await?;
+        // The peer remains open: shutdown itself must cancel the extraction.
+        assert_eq!(state.available_message_permits(), MESSAGE_CAPACITY);
+        assert_eq!(state.available_output_bytes(), OUTPUT_CAPACITY);
+        let request = Request::new(Body::from_stream(
+            stream::pending::<std::io::Result<Vec<u8>>>(),
+        ));
+        let rejected = tokio::time::timeout(
+            Duration::from_secs(1),
+            message(
+                State(state.clone()),
+                RawQuery(None),
+                HeaderMap::new(),
+                request,
+            ),
+        )
+        .await?;
+        assert_eq!(rejected.status(), StatusCode::SERVICE_UNAVAILABLE);
+        assert_eq!(
+            connect(State(state.clone())).await.status(),
+            StatusCode::SERVICE_UNAVAILABLE
+        );
+        assert_eq!(state.available_message_permits(), MESSAGE_CAPACITY);
+        assert_eq!(state.available_permits(), 128);
+        drop(socket);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn legacy_aggregate_ingress_canceled_body_recovers_admission() -> crate::Result<()> {
+        let cancel = CancellationToken::new();
+        let state = Legacy::new(
+            Registry::synthetic(),
+            "/messages/",
+            Duration::from_secs(30),
+            cancel.clone(),
+        )?;
+        let host = Host::start(state.clone().router("/sse")?, cancel).await?;
+        let mut socket = tokio::net::TcpStream::connect(host.address).await?;
+        socket.write_all(b"POST /messages/ HTTP/1.1\r\nHost: localhost\r\nContent-Type: application/json\r\nContent-Length: 100\r\n\r\n{").await?;
+        restored(&state, MESSAGE_CAPACITY - 1).await;
+        drop(socket);
+        restored(&state, MESSAGE_CAPACITY).await;
+        host.shutdown().await?;
+        Ok(())
+    }
 }

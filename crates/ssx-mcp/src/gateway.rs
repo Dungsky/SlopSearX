@@ -23,7 +23,7 @@ impl DiscoveryBudget {
         self.used += bytes;
         Ok(())
     }
-    fn value(&mut self, value: &Value) -> Result<()> {
+    fn value<T: serde::Serialize + ?Sized>(&mut self, value: &T) -> Result<()> {
         struct Counter<'a>(&'a mut DiscoveryBudget);
         impl std::io::Write for Counter<'_> {
             fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
@@ -183,6 +183,12 @@ where
     for _ in 0..128 {
         let (items, next) = fetch(cursor).await?;
         budget.value(&items)?;
+        // Charge the serialized cursor before cloning it into retained history
+        // or forwarding it on the next request. All four typed catalogs share
+        // this budget, including JSON escaping in opaque cursor strings.
+        if let Some(next) = next.as_ref() {
+            budget.value(next)?;
+        }
         for item in items.as_array().ok_or("catalog page must be an array")? {
             let name = item
                 .get(identity)

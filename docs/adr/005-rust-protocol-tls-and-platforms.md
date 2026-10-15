@@ -79,3 +79,14 @@ the packaged Cargo.toml declares `MIT OR Apache-2.0` and no MSRV. Accepted Rust
 The additive entry in `architecture/pins.json` records its identity and purpose.
 Real Content-Length, unterminated chunked JSON, multi-page/shared-catalog and SSE
 admission/recovery regressions are mandatory T01 evidence before acceptance.
+
+
+The T01 aggregate correction additionally limits legacy POST bodies to 32 admitted
+messages globally before body extraction, retaining request ownership through its
+correlated response or session teardown. Saturation returns 503 without buffering
+the request. Output has a shared 64 MiB byte budget, a 16 MiB frame limit and
+8 KiB fixed read scratch per session. Output overload closes the affected session
+without truncation. Encoded SSE bytes retain admission through the final HTTP
+consumer owner. These native overload choices bound transport-owned wire data;
+they are not Python saturation parity or total process RSS claims. See
+[the T01 ownership and qualification contract](../rust-rewrite/protocol/T01.md#aggregate-legacy-admission-correction).

@@ -638,6 +638,11 @@ async fn legacy_request_cancellation_releases_inflight_work_and_sessions() -> Re
         }
     })
     .await?;
+    assert_eq!(
+        legacy.available_message_permits(),
+        31,
+        "active handler retains global ingress ownership"
+    );
     assert_eq!(client.post_raw(r#"{"jsonrpc":"2.0","method":"notifications/cancelled","params":{"requestId":18446744073709551617,"reason":"test"}}"#).await?,baseline()["observations"]["accepted"]);
     tokio::time::timeout(Duration::from_secs(2), async {
         while registry.in_flight.load(Ordering::SeqCst) != 0 {
@@ -648,6 +653,8 @@ async fn legacy_request_cancellation_releases_inflight_work_and_sessions() -> Re
     drop(client);
     host.shutdown().await?;
     assert_eq!(legacy.active_sessions(), 0);
+    assert_eq!(legacy.available_message_permits(), 32);
+    assert_eq!(legacy.available_output_bytes(), 64 * 1024 * 1024);
     Ok(())
 }
 fn raw_large_tools() -> Box<serde_json::value::RawValue> {
@@ -1892,5 +1899,55 @@ async fn selected_raw_gateway_close_retries_failed_and_timed_out_delete() -> Res
         assert!(ids.iter().all(|id| id == &ids[0]));
         host.shutdown().await?;
     }
+    Ok(())
+}
+
+#[tokio::test]
+async fn legacy_near_ingress_limit_echo_keeps_complete_amplified_response() -> Result<()> {
+    let cancel = CancellationToken::new();
+    let legacy = Legacy::new(
+        Registry::synthetic(),
+        "/messages/",
+        Duration::from_secs(30),
+        cancel.clone(),
+    )?;
+    let host = Host::start(legacy.clone().router("/sse")?, cancel).await?;
+    let mut client = SseClient::connect(format!("http://{}", host.address), "/sse").await?;
+    client.request(1, "initialize", json!({"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"test","version":"1"}})).await?;
+    let note = "a".repeat(4 * 1024 * 1024 - 1024);
+    let request = json!({"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"t01_echo","arguments":{"payload":{"items":[]},"note":note}}}).to_string();
+    assert!(request.len() < 4 * 1024 * 1024);
+    assert_eq!(client.post_raw(&request).await?["status"], 202);
+    let raw = tokio::time::timeout(Duration::from_secs(15), async {
+        let mut raw = Vec::new();
+        loop {
+            let chunk = client
+                .response
+                .chunk()
+                .await?
+                .ok_or("missing amplified echo")?;
+            raw.extend_from_slice(&chunk);
+            assert!(raw.len() < 16 * 1024 * 1024);
+            if raw.ends_with(b"\n\n") {
+                return Ok::<_, ssx_mcp::Error>(raw);
+            }
+        }
+    })
+    .await??;
+    assert!(raw.len() > 4 * 1024 * 1024);
+    let raw = std::str::from_utf8(&raw)?;
+    let data = raw
+        .lines()
+        .find_map(|line| line.strip_prefix("data: "))
+        .ok_or("missing event data")?;
+    let reply: Value = serde_json::from_str(data)?;
+    assert_eq!(reply["result"]["structuredContent"]["note"], note);
+    let text: Value =
+        serde_json::from_str(reply["result"]["content"][0]["text"].as_str().unwrap())?;
+    assert_eq!(text["note"], note);
+    drop(client);
+    host.shutdown().await?;
+    assert_eq!(legacy.available_message_permits(), 32);
+    assert_eq!(legacy.available_output_bytes(), 64 * 1024 * 1024);
     Ok(())
 }
