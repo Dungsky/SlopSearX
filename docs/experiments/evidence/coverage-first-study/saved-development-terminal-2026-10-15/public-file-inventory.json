@@ -1,0 +1,16 @@
+{
+  "files": [
+    {
+      "bytes": 1432,
+      "path": "README.md",
+      "sha256": "84da5a774512e783bca668bf627cb0377ea4ace3ae5667eae6962f27b9efe35b"
+    },
+    {
+      "bytes": 1984,
+      "path": "summary.json",
+      "sha256": "85466fa70457c72a62847292f4aa5d21397db3ebff9652b1f615c78864786c94"
+    }
+  ],
+  "schema": "coverage-public-static-file-inventory/1",
+  "self_hash": "omitted"
+}

@@ -4,7 +4,7 @@ Status: **candidate amendment approved by the maintainer on 2026-10-09**.
 Related to [#516](https://github.com/magnus919/SlopSearX/issues/516).
 This records a prospective decision, not a registered or admitted invocation.
 
-**Current study status (2026-10-15):** the new [saved-handoff registration](evidence/coverage-first-study/saved-handoff-registration-2026-10-15/README.md) passed full static preflight, and its development stage is in progress. The start receipt records 54 reference packets ready and zero reference-grade, search, and capture calls as of that checkpoint; no ranking or quality result is available. Confirmation has not been invoked and requires a valid passing development receipt. The setup and start checks do not change the approved quality gates or product-acceptance requirements.
+**Current study status (2026-10-15):** the [saved-handoff development attempt](evidence/coverage-first-study/saved-development-terminal-2026-10-15/README.md) is terminal and incomplete. All 54 reference grades returned and independent closure completed, but a local verifier rejected 11 valid saved-mode and provenance fields in the selector request before transport; no Jev network call or selector result followed. No ranking or quality result is available. Answer and confirmation phases were not invoked. The original quality gates and product-acceptance requirements remain unchanged.
 
 The maintainer approved replacing the failed complete-pool dual-Score/RRF
 candidate with the [coverage-first prototype](intent-ranking-coverage-prototype.md)
