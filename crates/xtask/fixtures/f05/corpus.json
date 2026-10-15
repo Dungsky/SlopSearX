@@ -74,7 +74,7 @@
     ],
     "oracle": {
       "path": "docs/rust-rewrite/f05/oracle/export.py",
-      "sha256": "bab3067e809c2213c064bf8797f3f7eb1e367a5a33274394a67caffa4a63ed15"
+      "sha256": "320aef894516fc129fea7c6177006cd33794a3ce9d775d44f97468d661a76ada"
     },
     "scope": "Pinned Python function observations; offline and fixture-only; not Rust parity evidence.",
     "license": "MIT",
@@ -3585,6 +3585,1026 @@
       "expected": {
         "media_type": "image",
         "url": "https://x＠y/a?token=s&x=1"
+      }
+    },
+    {
+      "id": "publication-utf8-panic",
+      "kind": "paper_fields",
+      "input": {
+        "doi": "aééé"
+      },
+      "expected": {}
+    },
+    {
+      "id": "publication-unicode-casefold",
+      "kind": "paper_fields",
+      "input": {
+        "doi": "10.1234/StraßeİΣﬃ"
+      },
+      "expected": {
+        "doi": "10.1234/strassei̇σffi"
+      }
+    },
+    {
+      "id": "publication-unicode-digits-prefix",
+      "kind": "paper_fields",
+      "input": {
+        "doi": "  DOI:\u001c10.١٢٣٤/UPPER  "
+      },
+      "expected": {
+        "doi": "10.١٢٣٤/upper"
+      }
+    },
+    {
+      "id": "publication-unicode-ignorecase-prefix",
+      "kind": "paper_fields",
+      "input": {
+        "doi": "HTTPſ://DOİ.ORG/10.1234/UPPER"
+      },
+      "expected": {
+        "doi": "10.1234/upper"
+      }
+    },
+    {
+      "id": "publication-doi-char-boundary",
+      "kind": "paper_fields",
+      "input": {
+        "doi": "10.1234/éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé"
+      },
+      "expected": {
+        "doi": "10.1234/éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé"
+      }
+    },
+    {
+      "id": "publication-doi-char-over",
+      "kind": "paper_fields",
+      "input": {
+        "doi": "10.1234/ééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé"
+      },
+      "expected": {}
+    },
+    {
+      "id": "publication-doi-no-double-prefix",
+      "kind": "paper_fields",
+      "input": {
+        "doi": "https://doi.org/doi:10.1234/x"
+      },
+      "expected": {}
+    },
+    {
+      "id": "publication-doi-invalid-digit",
+      "kind": "paper_fields",
+      "input": {
+        "doi": "10.²²²²/x"
+      },
+      "expected": {}
+    },
+    {
+      "id": "publication-list-char-boundary",
+      "kind": "paper_fields",
+      "input": {
+        "authors": [
+          "éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé"
+        ],
+        "tags": [
+          "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀"
+        ]
+      },
+      "expected": {
+        "authors": [
+          "éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé"
+        ]
+      }
+    },
+    {
+      "id": "publication-volume-string-boundary",
+      "kind": "paper_fields",
+      "input": {
+        "volume": "éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé"
+      },
+      "expected": {
+        "volume": "éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé"
+      }
+    },
+    {
+      "id": "publication-volume-float",
+      "kind": "paper_fields",
+      "input": {
+        "volume": 1.0
+      },
+      "expected": {}
+    },
+    {
+      "id": "publication-volume-bool",
+      "kind": "paper_fields",
+      "input": {
+        "volume": true
+      },
+      "expected": {}
+    },
+    {
+      "id": "publication-volume-integer",
+      "kind": "paper_fields",
+      "input": {
+        "volume": 1000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+      },
+      "expected": {
+        "volume": 1000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+      }
+    },
+    {
+      "id": "publication-volume-over",
+      "kind": "paper_fields",
+      "input": {
+        "volume": 10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+      },
+      "expected": {}
+    },
+    {
+      "id": "publication-string-byte-boundary",
+      "kind": "paper_fields",
+      "input": {
+        "journal": "éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé",
+        "publisher": "ééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé"
+      },
+      "expected": {
+        "journal": "éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé"
+      }
+    },
+    {
+      "id": "publication-doi-whitespace",
+      "kind": "paper_fields",
+      "input": {
+        "doi": "10.1234/a\u001fb"
+      },
+      "expected": {}
+    },
+    {
+      "id": "publication-volume-newlines",
+      "kind": "paper_fields",
+      "input": {
+        "volume": "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+      },
+      "expected": {
+        "volume": "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+      }
+    },
+    {
+      "id": "publication-list-newlines",
+      "kind": "paper_fields",
+      "input": {
+        "authors": [
+          "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        ]
+      },
+      "expected": {
+        "authors": [
+          "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+        ]
+      }
+    },
+    {
+      "id": "publication-list-count-over",
+      "kind": "paper_fields",
+      "input": {
+        "authors": [
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ]
+      },
+      "expected": {}
+    },
+    {
+      "id": "publication-doi-non-bmp",
+      "kind": "paper_fields",
+      "input": {
+        "doi": "10.1234/𐐀"
+      },
+      "expected": {
+        "doi": "10.1234/𐐨"
+      }
+    },
+    {
+      "id": "publication-decimal-30",
+      "kind": "paper_fields",
+      "input": {
+        "doi": "10.0123/UPPER"
+      },
+      "expected": {
+        "doi": "10.0123/upper"
+      }
+    },
+    {
+      "id": "publication-decimal-660",
+      "kind": "paper_fields",
+      "input": {
+        "doi": "10.٠١٢٣/UPPER"
+      },
+      "expected": {
+        "doi": "10.٠١٢٣/upper"
+      }
+    },
+    {
+      "id": "publication-decimal-6f0",
+      "kind": "paper_fields",
+      "input": {
+        "doi": "10.۰۱۲۳/UPPER"
+      },
+      "expected": {
+        "doi": "10.۰۱۲۳/upper"
+      }
+    },
+    {
+      "id": "publication-decimal-7c0",
+      "kind": "paper_fields",
+      "input": {
+        "doi": "10.߀߁߂߃/UPPER"
+      },
+      "expected": {
+        "doi": "10.߀߁߂߃/upper"
+      }
+    },
+    {
+      "id": "publication-decimal-966",
+      "kind": "paper_fields",
+      "input": {
+        "doi": "10.०१२३/UPPER"
+      },
+      "expected": {
+        "doi": "10.०१२३/upper"
+      }
+    },
+    {
+      "id": "publication-decimal-9e6",
+      "kind": "paper_fields",
+      "input": {
+        "doi": "10.০১২৩/UPPER"
+      },
+      "expected": {
+        "doi": "10.০১২৩/upper"
+      }
+    },
+    {
+      "id": "publication-decimal-a66",
+      "kind": "paper_fields",
+      "input": {
+        "doi": "10.੦੧੨੩/UPPER"
+      },
+      "expected": {
+        "doi": "10.੦੧੨੩/upper"
+      }
+    },
+    {
+      "id": "publication-decimal-ae6",
+      "kind": "paper_fields",
+      "input": {
+        "doi": "10.૦૧૨૩/UPPER"
+      },
+      "expected": {
+        "doi": "10.૦૧૨૩/upper"
+      }
+    },
+    {
+      "id": "publication-decimal-b66",
+      "kind": "paper_fields",
+      "input": {
+        "doi": "10.୦୧୨୩/UPPER"
+      },
+      "expected": {
+        "doi": "10.୦୧୨୩/upper"
+      }
+    },
+    {
+      "id": "publication-decimal-be6",
+      "kind": "paper_fields",
+      "input": {
+        "doi": "10.௦௧௨௩/UPPER"
+      },
+      "expected": {
+        "doi": "10.௦௧௨௩/upper"
+      }
+    },
+    {
+      "id": "publication-decimal-c66",
+      "kind": "paper_fields",
+      "input": {
+        "doi": "10.౦౧౨౩/UPPER"
+      },
+      "expected": {
+        "doi": "10.౦౧౨౩/upper"
+      }
+    },
+    {
+      "id": "publication-decimal-ce6",
+      "kind": "paper_fields",
+      "input": {
+        "doi": "10.೦೧೨೩/UPPER"
+      },
+      "expected": {
+        "doi": "10.೦೧೨೩/upper"
+      }
+    },
+    {
+      "id": "publication-decimal-d66",
+      "kind": "paper_fields",
+      "input": {
+        "doi": "10.൦൧൨൩/UPPER"
+      },
+      "expected": {
+        "doi": "10.൦൧൨൩/upper"
+      }
+    },
+    {
+      "id": "publication-decimal-de6",
+      "kind": "paper_fields",
+      "input": {
+        "doi": "10.෦෧෨෩/UPPER"
+      },
+      "expected": {
+        "doi": "10.෦෧෨෩/upper"
+      }
+    },
+    {
+      "id": "publication-decimal-e50",
+      "kind": "paper_fields",
+      "input": {
+        "doi": "10.๐๑๒๓/UPPER"
+      },
+      "expected": {
+        "doi": "10.๐๑๒๓/upper"
+      }
+    },
+    {
+      "id": "publication-decimal-ed0",
+      "kind": "paper_fields",
+      "input": {
+        "doi": "10.໐໑໒໓/UPPER"
+      },
+      "expected": {
+        "doi": "10.໐໑໒໓/upper"
+      }
+    },
+    {
+      "id": "publication-decimal-f20",
+      "kind": "paper_fields",
+      "input": {
+        "doi": "10.༠༡༢༣/UPPER"
+      },
+      "expected": {
+        "doi": "10.༠༡༢༣/upper"
+      }
+    },
+    {
+      "id": "publication-decimal-1040",
+      "kind": "paper_fields",
+      "input": {
+        "doi": "10.၀၁၂၃/UPPER"
+      },
+      "expected": {
+        "doi": "10.၀၁၂၃/upper"
+      }
+    },
+    {
+      "id": "publication-decimal-1090",
+      "kind": "paper_fields",
+      "input": {
+        "doi": "10.႐႑႒႓/UPPER"
+      },
+      "expected": {
+        "doi": "10.႐႑႒႓/upper"
+      }
+    },
+    {
+      "id": "publication-decimal-17e0",
+      "kind": "paper_fields",
+      "input": {
+        "doi": "10.០១២៣/UPPER"
+      },
+      "expected": {
+        "doi": "10.០១២៣/upper"
+      }
+    },
+    {
+      "id": "publication-decimal-1810",
+      "kind": "paper_fields",
+      "input": {
+        "doi": "10.᠐᠑᠒᠓/UPPER"
+      },
+      "expected": {
+        "doi": "10.᠐᠑᠒᠓/upper"
+      }
+    },
+    {
+      "id": "publication-decimal-1946",
+      "kind": "paper_fields",
+      "input": {
+        "doi": "10.᥆᥇᥈᥉/UPPER"
+      },
+      "expected": {
+        "doi": "10.᥆᥇᥈᥉/upper"
+      }
+    },
+    {
+      "id": "publication-decimal-19d0",
+      "kind": "paper_fields",
+      "input": {
+        "doi": "10.᧐᧑᧒᧓/UPPER"
+      },
+      "expected": {
+        "doi": "10.᧐᧑᧒᧓/upper"
+      }
+    },
+    {
+      "id": "publication-decimal-1a80",
+      "kind": "paper_fields",
+      "input": {
+        "doi": "10.᪀᪁᪂᪃/UPPER"
+      },
+      "expected": {
+        "doi": "10.᪀᪁᪂᪃/upper"
+      }
+    },
+    {
+      "id": "publication-decimal-1a90",
+      "kind": "paper_fields",
+      "input": {
+        "doi": "10.᪐᪑᪒᪓/UPPER"
+      },
+      "expected": {
+        "doi": "10.᪐᪑᪒᪓/upper"
+      }
+    },
+    {
+      "id": "publication-decimal-1b50",
+      "kind": "paper_fields",
+      "input": {
+        "doi": "10.᭐᭑᭒᭓/UPPER"
+      },
+      "expected": {
+        "doi": "10.᭐᭑᭒᭓/upper"
+      }
+    },
+    {
+      "id": "publication-decimal-1bb0",
+      "kind": "paper_fields",
+      "input": {
+        "doi": "10.᮰᮱᮲᮳/UPPER"
+      },
+      "expected": {
+        "doi": "10.᮰᮱᮲᮳/upper"
+      }
+    },
+    {
+      "id": "publication-decimal-1c40",
+      "kind": "paper_fields",
+      "input": {
+        "doi": "10.᱀᱁᱂᱃/UPPER"
+      },
+      "expected": {
+        "doi": "10.᱀᱁᱂᱃/upper"
+      }
+    },
+    {
+      "id": "publication-decimal-1c50",
+      "kind": "paper_fields",
+      "input": {
+        "doi": "10.᱐᱑᱒᱓/UPPER"
+      },
+      "expected": {
+        "doi": "10.᱐᱑᱒᱓/upper"
+      }
+    },
+    {
+      "id": "publication-decimal-a620",
+      "kind": "paper_fields",
+      "input": {
+        "doi": "10.꘠꘡꘢꘣/UPPER"
+      },
+      "expected": {
+        "doi": "10.꘠꘡꘢꘣/upper"
+      }
+    },
+    {
+      "id": "publication-decimal-a8d0",
+      "kind": "paper_fields",
+      "input": {
+        "doi": "10.꣐꣑꣒꣓/UPPER"
+      },
+      "expected": {
+        "doi": "10.꣐꣑꣒꣓/upper"
+      }
+    },
+    {
+      "id": "publication-decimal-a900",
+      "kind": "paper_fields",
+      "input": {
+        "doi": "10.꤀꤁꤂꤃/UPPER"
+      },
+      "expected": {
+        "doi": "10.꤀꤁꤂꤃/upper"
+      }
+    },
+    {
+      "id": "publication-decimal-a9d0",
+      "kind": "paper_fields",
+      "input": {
+        "doi": "10.꧐꧑꧒꧓/UPPER"
+      },
+      "expected": {
+        "doi": "10.꧐꧑꧒꧓/upper"
+      }
+    },
+    {
+      "id": "publication-decimal-a9f0",
+      "kind": "paper_fields",
+      "input": {
+        "doi": "10.꧰꧱꧲꧳/UPPER"
+      },
+      "expected": {
+        "doi": "10.꧰꧱꧲꧳/upper"
+      }
+    },
+    {
+      "id": "publication-decimal-aa50",
+      "kind": "paper_fields",
+      "input": {
+        "doi": "10.꩐꩑꩒꩓/UPPER"
+      },
+      "expected": {
+        "doi": "10.꩐꩑꩒꩓/upper"
+      }
+    },
+    {
+      "id": "publication-decimal-abf0",
+      "kind": "paper_fields",
+      "input": {
+        "doi": "10.꯰꯱꯲꯳/UPPER"
+      },
+      "expected": {
+        "doi": "10.꯰꯱꯲꯳/upper"
+      }
+    },
+    {
+      "id": "publication-decimal-ff10",
+      "kind": "paper_fields",
+      "input": {
+        "doi": "10.０１２３/UPPER"
+      },
+      "expected": {
+        "doi": "10.０１２３/upper"
+      }
+    },
+    {
+      "id": "publication-decimal-104a0",
+      "kind": "paper_fields",
+      "input": {
+        "doi": "10.𐒠𐒡𐒢𐒣/UPPER"
+      },
+      "expected": {
+        "doi": "10.𐒠𐒡𐒢𐒣/upper"
+      }
+    },
+    {
+      "id": "publication-decimal-10d30",
+      "kind": "paper_fields",
+      "input": {
+        "doi": "10.𐴰𐴱𐴲𐴳/UPPER"
+      },
+      "expected": {
+        "doi": "10.𐴰𐴱𐴲𐴳/upper"
+      }
+    },
+    {
+      "id": "publication-decimal-10d40",
+      "kind": "paper_fields",
+      "input": {
+        "doi": "10.𐵀𐵁𐵂𐵃/UPPER"
+      },
+      "expected": {
+        "doi": "10.𐵀𐵁𐵂𐵃/upper"
+      }
+    },
+    {
+      "id": "publication-decimal-11066",
+      "kind": "paper_fields",
+      "input": {
+        "doi": "10.𑁦𑁧𑁨𑁩/UPPER"
+      },
+      "expected": {
+        "doi": "10.𑁦𑁧𑁨𑁩/upper"
+      }
+    },
+    {
+      "id": "publication-decimal-110f0",
+      "kind": "paper_fields",
+      "input": {
+        "doi": "10.𑃰𑃱𑃲𑃳/UPPER"
+      },
+      "expected": {
+        "doi": "10.𑃰𑃱𑃲𑃳/upper"
+      }
+    },
+    {
+      "id": "publication-decimal-11136",
+      "kind": "paper_fields",
+      "input": {
+        "doi": "10.𑄶𑄷𑄸𑄹/UPPER"
+      },
+      "expected": {
+        "doi": "10.𑄶𑄷𑄸𑄹/upper"
+      }
+    },
+    {
+      "id": "publication-decimal-111d0",
+      "kind": "paper_fields",
+      "input": {
+        "doi": "10.𑇐𑇑𑇒𑇓/UPPER"
+      },
+      "expected": {
+        "doi": "10.𑇐𑇑𑇒𑇓/upper"
+      }
+    },
+    {
+      "id": "publication-decimal-112f0",
+      "kind": "paper_fields",
+      "input": {
+        "doi": "10.𑋰𑋱𑋲𑋳/UPPER"
+      },
+      "expected": {
+        "doi": "10.𑋰𑋱𑋲𑋳/upper"
+      }
+    },
+    {
+      "id": "publication-decimal-11450",
+      "kind": "paper_fields",
+      "input": {
+        "doi": "10.𑑐𑑑𑑒𑑓/UPPER"
+      },
+      "expected": {
+        "doi": "10.𑑐𑑑𑑒𑑓/upper"
+      }
+    },
+    {
+      "id": "publication-decimal-114d0",
+      "kind": "paper_fields",
+      "input": {
+        "doi": "10.𑓐𑓑𑓒𑓓/UPPER"
+      },
+      "expected": {
+        "doi": "10.𑓐𑓑𑓒𑓓/upper"
+      }
+    },
+    {
+      "id": "publication-decimal-11650",
+      "kind": "paper_fields",
+      "input": {
+        "doi": "10.𑙐𑙑𑙒𑙓/UPPER"
+      },
+      "expected": {
+        "doi": "10.𑙐𑙑𑙒𑙓/upper"
+      }
+    },
+    {
+      "id": "publication-decimal-116c0",
+      "kind": "paper_fields",
+      "input": {
+        "doi": "10.𑛀𑛁𑛂𑛃/UPPER"
+      },
+      "expected": {
+        "doi": "10.𑛀𑛁𑛂𑛃/upper"
+      }
+    },
+    {
+      "id": "publication-decimal-116d0",
+      "kind": "paper_fields",
+      "input": {
+        "doi": "10.𑛐𑛑𑛒𑛓/UPPER"
+      },
+      "expected": {
+        "doi": "10.𑛐𑛑𑛒𑛓/upper"
+      }
+    },
+    {
+      "id": "publication-decimal-116da",
+      "kind": "paper_fields",
+      "input": {
+        "doi": "10.𑛚𑛛𑛜𑛝/UPPER"
+      },
+      "expected": {
+        "doi": "10.𑛚𑛛𑛜𑛝/upper"
+      }
+    },
+    {
+      "id": "publication-decimal-11730",
+      "kind": "paper_fields",
+      "input": {
+        "doi": "10.𑜰𑜱𑜲𑜳/UPPER"
+      },
+      "expected": {
+        "doi": "10.𑜰𑜱𑜲𑜳/upper"
+      }
+    },
+    {
+      "id": "publication-decimal-118e0",
+      "kind": "paper_fields",
+      "input": {
+        "doi": "10.𑣠𑣡𑣢𑣣/UPPER"
+      },
+      "expected": {
+        "doi": "10.𑣠𑣡𑣢𑣣/upper"
+      }
+    },
+    {
+      "id": "publication-decimal-11950",
+      "kind": "paper_fields",
+      "input": {
+        "doi": "10.𑥐𑥑𑥒𑥓/UPPER"
+      },
+      "expected": {
+        "doi": "10.𑥐𑥑𑥒𑥓/upper"
+      }
+    },
+    {
+      "id": "publication-decimal-11bf0",
+      "kind": "paper_fields",
+      "input": {
+        "doi": "10.𑯰𑯱𑯲𑯳/UPPER"
+      },
+      "expected": {
+        "doi": "10.𑯰𑯱𑯲𑯳/upper"
+      }
+    },
+    {
+      "id": "publication-decimal-11c50",
+      "kind": "paper_fields",
+      "input": {
+        "doi": "10.𑱐𑱑𑱒𑱓/UPPER"
+      },
+      "expected": {
+        "doi": "10.𑱐𑱑𑱒𑱓/upper"
+      }
+    },
+    {
+      "id": "publication-decimal-11d50",
+      "kind": "paper_fields",
+      "input": {
+        "doi": "10.𑵐𑵑𑵒𑵓/UPPER"
+      },
+      "expected": {
+        "doi": "10.𑵐𑵑𑵒𑵓/upper"
+      }
+    },
+    {
+      "id": "publication-decimal-11da0",
+      "kind": "paper_fields",
+      "input": {
+        "doi": "10.𑶠𑶡𑶢𑶣/UPPER"
+      },
+      "expected": {
+        "doi": "10.𑶠𑶡𑶢𑶣/upper"
+      }
+    },
+    {
+      "id": "publication-decimal-11f50",
+      "kind": "paper_fields",
+      "input": {
+        "doi": "10.𑽐𑽑𑽒𑽓/UPPER"
+      },
+      "expected": {
+        "doi": "10.𑽐𑽑𑽒𑽓/upper"
+      }
+    },
+    {
+      "id": "publication-decimal-16130",
+      "kind": "paper_fields",
+      "input": {
+        "doi": "10.𖄰𖄱𖄲𖄳/UPPER"
+      },
+      "expected": {
+        "doi": "10.𖄰𖄱𖄲𖄳/upper"
+      }
+    },
+    {
+      "id": "publication-decimal-16a60",
+      "kind": "paper_fields",
+      "input": {
+        "doi": "10.𖩠𖩡𖩢𖩣/UPPER"
+      },
+      "expected": {
+        "doi": "10.𖩠𖩡𖩢𖩣/upper"
+      }
+    },
+    {
+      "id": "publication-decimal-16ac0",
+      "kind": "paper_fields",
+      "input": {
+        "doi": "10.𖫀𖫁𖫂𖫃/UPPER"
+      },
+      "expected": {
+        "doi": "10.𖫀𖫁𖫂𖫃/upper"
+      }
+    },
+    {
+      "id": "publication-decimal-16b50",
+      "kind": "paper_fields",
+      "input": {
+        "doi": "10.𖭐𖭑𖭒𖭓/UPPER"
+      },
+      "expected": {
+        "doi": "10.𖭐𖭑𖭒𖭓/upper"
+      }
+    },
+    {
+      "id": "publication-decimal-16d70",
+      "kind": "paper_fields",
+      "input": {
+        "doi": "10.𖵰𖵱𖵲𖵳/UPPER"
+      },
+      "expected": {
+        "doi": "10.𖵰𖵱𖵲𖵳/upper"
+      }
+    },
+    {
+      "id": "publication-decimal-1ccf0",
+      "kind": "paper_fields",
+      "input": {
+        "doi": "10.𜳰𜳱𜳲𜳳/UPPER"
+      },
+      "expected": {
+        "doi": "10.𜳰𜳱𜳲𜳳/upper"
+      }
+    },
+    {
+      "id": "publication-decimal-1d7ce",
+      "kind": "paper_fields",
+      "input": {
+        "doi": "10.𝟎𝟏𝟐𝟑/UPPER"
+      },
+      "expected": {
+        "doi": "10.𝟎𝟏𝟐𝟑/upper"
+      }
+    },
+    {
+      "id": "publication-decimal-1d7d8",
+      "kind": "paper_fields",
+      "input": {
+        "doi": "10.𝟘𝟙𝟚𝟛/UPPER"
+      },
+      "expected": {
+        "doi": "10.𝟘𝟙𝟚𝟛/upper"
+      }
+    },
+    {
+      "id": "publication-decimal-1d7e2",
+      "kind": "paper_fields",
+      "input": {
+        "doi": "10.𝟢𝟣𝟤𝟥/UPPER"
+      },
+      "expected": {
+        "doi": "10.𝟢𝟣𝟤𝟥/upper"
+      }
+    },
+    {
+      "id": "publication-decimal-1d7ec",
+      "kind": "paper_fields",
+      "input": {
+        "doi": "10.𝟬𝟭𝟮𝟯/UPPER"
+      },
+      "expected": {
+        "doi": "10.𝟬𝟭𝟮𝟯/upper"
+      }
+    },
+    {
+      "id": "publication-decimal-1d7f6",
+      "kind": "paper_fields",
+      "input": {
+        "doi": "10.𝟶𝟷𝟸𝟹/UPPER"
+      },
+      "expected": {
+        "doi": "10.𝟶𝟷𝟸𝟹/upper"
+      }
+    },
+    {
+      "id": "publication-decimal-1e140",
+      "kind": "paper_fields",
+      "input": {
+        "doi": "10.𞅀𞅁𞅂𞅃/UPPER"
+      },
+      "expected": {
+        "doi": "10.𞅀𞅁𞅂𞅃/upper"
+      }
+    },
+    {
+      "id": "publication-decimal-1e2f0",
+      "kind": "paper_fields",
+      "input": {
+        "doi": "10.𞋰𞋱𞋲𞋳/UPPER"
+      },
+      "expected": {
+        "doi": "10.𞋰𞋱𞋲𞋳/upper"
+      }
+    },
+    {
+      "id": "publication-decimal-1e4f0",
+      "kind": "paper_fields",
+      "input": {
+        "doi": "10.𞓰𞓱𞓲𞓳/UPPER"
+      },
+      "expected": {
+        "doi": "10.𞓰𞓱𞓲𞓳/upper"
+      }
+    },
+    {
+      "id": "publication-decimal-1e5f1",
+      "kind": "paper_fields",
+      "input": {
+        "doi": "10.𞗱𞗲𞗳𞗴/UPPER"
+      },
+      "expected": {
+        "doi": "10.𞗱𞗲𞗳𞗴/upper"
+      }
+    },
+    {
+      "id": "publication-decimal-1e950",
+      "kind": "paper_fields",
+      "input": {
+        "doi": "10.𞥐𞥑𞥒𞥓/UPPER"
+      },
+      "expected": {
+        "doi": "10.𞥐𞥑𞥒𞥓/upper"
+      }
+    },
+    {
+      "id": "publication-decimal-1fbf0",
+      "kind": "paper_fields",
+      "input": {
+        "doi": "10.🯰🯱🯲🯳/UPPER"
+      },
+      "expected": {
+        "doi": "10.🯰🯱🯲🯳/upper"
       }
     },
     {

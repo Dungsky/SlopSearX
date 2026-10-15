@@ -80,6 +80,7 @@ fn observe(kind: &str, input: &Value) -> Result<Value> {
             encode(ssx_http::projection::result_json(&result, &metadata))
         }
         "http_yaml_result" => encode(ssx_http::projection::result_yaml(&source_result(input)?)),
+        "paper_fields" => encode(ssx_wire::paper_fields(Some(&json!({"paper": input})))),
         "media_build" => {
             let media = storage::build_media(
                 input["media_type"].as_str().ok_or("missing media type")?,
@@ -500,6 +501,7 @@ pub fn check(root: &Path, records: &mut Vec<serde_json::Value>) -> Result<()> {
         "saved_identity",
         "mcp_card",
         "media_build",
+        "paper_fields",
         "unicode_casefold",
     ] {
         if !kinds.contains(kind) {

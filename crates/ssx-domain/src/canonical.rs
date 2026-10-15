@@ -56,25 +56,7 @@ pub fn saved_identity(parts: &[Value]) -> Result<String, DomainError> {
     plan_digest(&Value::Array(parts.to_vec()))
 }
 /// Unicode 16 full, default case folding matching deployed CPython 3.14.
-pub fn casefold(value: &str) -> String {
-    static TABLE: std::sync::OnceLock<std::collections::BTreeMap<String, String>> =
-        std::sync::OnceLock::new();
-    let table = TABLE.get_or_init(|| {
-        serde_json::from_str(include_str!(
-            "../../../contracts/unicode/casefold-16.0.0.json"
-        ))
-        .expect("reviewed Unicode table")
-    });
-    let mut out = String::new();
-    for ch in value.chars() {
-        if let Some(folded) = table.get(&ch.to_string()) {
-            out.push_str(folded)
-        } else {
-            out.push(ch)
-        }
-    }
-    out
-}
+pub use ssx_json::casefold;
 #[cfg(test)]
 mod tests {
     use super::*;

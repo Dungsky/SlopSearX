@@ -769,6 +769,48 @@ def capture(source: Path) -> list[dict[str, Any]]:
                 "expected": adapter.media_to_dict(adapter.build_media("image", url=value)),
             }
         )
+    from slopsearx.publication_metadata import validate_paper_fields
+
+    publication_vectors = [
+        ("utf8-panic", {"doi": "aééé"}),
+        ("unicode-casefold", {"doi": "10.1234/StraßeİΣﬃ"}),
+        ("unicode-digits-prefix", {"doi": "  DOI:\u001c10.١٢٣٤/UPPER  "}),
+        ("unicode-ignorecase-prefix", {"doi": "HTTPſ://DOİ.ORG/10.1234/UPPER"}),
+        ("doi-char-boundary", {"doi": "10.1234/" + "é" * 504}),
+        ("doi-char-over", {"doi": "10.1234/" + "é" * 505}),
+        ("doi-no-double-prefix", {"doi": "https://doi.org/doi:10.1234/x"}),
+        ("doi-invalid-digit", {"doi": "10.²²²²/x"}),
+        ("list-char-boundary", {"authors": ["é" * 256], "tags": ["😀" * 257]}),
+        ("volume-string-boundary", {"volume": "é" * 256}),
+        ("volume-float", {"volume": 1.0}),
+        ("volume-bool", {"volume": True}),
+        ("volume-integer", {"volume": 10**255}),
+        ("volume-over", {"volume": 10**256}),
+        ("string-byte-boundary", {"journal": "é" * 1024, "publisher": "é" * 1025}),
+        ("doi-whitespace", {"doi": "10.1234/a\u001fb"}),
+    ]
+    publication_vectors.extend(
+        [
+            ("volume-newlines", {"volume": "\n" * 256}),
+            ("list-newlines", {"authors": ["\n" * 256]}),
+            ("list-count-over", {"authors": [""] * 65}),
+            ("doi-non-bmp", {"doi": "10.1234/𐐀"}),
+        ]
+    )
+    decimal_zeroes = json.loads((ROOT / "contracts/unicode/python-text-16.0.0.json").read_text())["decimal_zeroes"]
+    for zero in decimal_zeroes:
+        publication_vectors.append(
+            (f"decimal-{zero:x}", {"doi": "10." + "".join(chr(zero + i) for i in range(4)) + "/UPPER"})
+        )
+    for label, value in publication_vectors:
+        cases.append(
+            {
+                "id": f"publication-{label}",
+                "kind": "paper_fields",
+                "input": value,
+                "expected": validate_paper_fields(value),
+            }
+        )
     return cases + formatter_cases + canonical_cases
 
 

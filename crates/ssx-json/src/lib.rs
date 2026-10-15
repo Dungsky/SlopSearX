@@ -445,3 +445,47 @@ mod object_order_tests {
         );
     }
 }
+
+pub fn casefold(value: &str) -> String {
+    static TABLE: std::sync::OnceLock<std::collections::BTreeMap<String, String>> =
+        std::sync::OnceLock::new();
+    let table = TABLE.get_or_init(|| {
+        serde_json::from_str(include_str!(
+            "../../../contracts/unicode/casefold-16.0.0.json"
+        ))
+        .expect("reviewed Unicode table")
+    });
+    let mut out = String::new();
+    for ch in value.chars() {
+        if let Some(folded) = table.get(&ch.to_string()) {
+            out.push_str(folded)
+        } else {
+            out.push(ch)
+        }
+    }
+    out
+}
+
+/// Python Unicode whitespace, including the four ASCII information separators.
+pub fn python_whitespace(ch: char) -> bool {
+    ch.is_whitespace() || matches!(ch, '\u{1c}'..='\u{1f}')
+}
+/// Unicode 16 decimal digit category, matching Python regex \d.
+pub fn decimal_digit(ch: char) -> bool {
+    static ZEROES: std::sync::OnceLock<Vec<u32>> = std::sync::OnceLock::new();
+    let zeroes = ZEROES.get_or_init(|| {
+        let table: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../contracts/unicode/python-text-16.0.0.json"
+        ))
+        .expect("reviewed Unicode table");
+        table["decimal_zeroes"]
+            .as_array()
+            .expect("decimal zeroes")
+            .iter()
+            .map(|v| v.as_u64().expect("codepoint") as u32)
+            .collect()
+    });
+    zeroes
+        .iter()
+        .any(|zero| (ch as u32).checked_sub(*zero).is_some_and(|v| v < 10))
+}

@@ -42,3 +42,14 @@ F11's complete URL classification work.
 
 Refresh the exporter and corpus together when changing cases. Review the
 resulting bytes and provenance changes before updating any inventory or pin.
+
+Publication metadata is validated against the pinned source: DOI prefixes use
+Python Unicode case-insensitive matching, decimal registrants and full Unicode 16
+casefolding. DOI/list limits count characters; scalar Paper strings count UTF-8
+bytes; volume accepts strings and integers only. Source fixtures cover all 76
+Unicode decimal digit ranges and the distinct length/type boundaries.
+
+The lossless codec currently parses raw JSON twice to enforce bounds and preserve
+number tokens, and inline payload checks serialize the bounded object before
+measuring its size. These are correctness-first implementation choices; their
+performance has not been measured and no throughput claim is made.

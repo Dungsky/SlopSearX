@@ -193,50 +193,74 @@ pub fn paper_fields(work_group: Option<&Value>) -> BTreeMap<String, Value> {
             values.len() <= 64
                 && values
                     .iter()
-                    .all(|value| value.as_str().is_some_and(|s| s.len() <= 256))
+                    .all(|value| value.as_str().is_some_and(|s| s.chars().count() <= 256))
         }) {
             fields.insert(key.into(), Value::Array(values.clone()));
         }
     }
-    if let Some(value @ (Value::String(_) | Value::Number(_))) = paper.get("volume")
-        && value.to_string().len() <= 256
-    {
-        fields.insert("volume".into(), value.clone());
+    if let Some(value) = paper.get("volume") {
+        let allowed = match value {
+            Value::String(text) => text.chars().count() <= 256,
+            Value::Number(number) => !number.is_f64() && number.as_str().len() <= 256,
+            _ => false,
+        };
+        if allowed {
+            fields.insert("volume".into(), value.clone());
+        }
     }
     fields
 }
 
+// Python re.IGNORECASE adds these four Unicode letters to ASCII letter matching.
+fn prefix_end(text: &str, prefix: &str) -> Option<usize> {
+    let mut chars = text.char_indices();
+    let mut end = 0;
+    for expected in prefix.chars() {
+        let (index, actual) = chars.next()?;
+        let folded = match actual {
+            'İ' | 'ı' => 'i',
+            'ſ' => 's',
+            'K' => 'k',
+            ch => ch.to_ascii_lowercase(),
+        };
+        if folded != expected {
+            return None;
+        }
+        end = index + actual.len_utf8();
+    }
+    Some(end)
+}
 pub fn normalize_doi(raw: &str) -> Option<String> {
-    if raw.len() > 512 {
+    if raw.chars().count() > 512 {
         return None;
     }
-    let mut text = raw.trim();
-    let lower = text.to_ascii_lowercase();
+    let mut text = raw.trim_matches(ssx_json::python_whitespace);
     for prefix in [
         "https://doi.org/",
         "http://doi.org/",
         "https://dx.doi.org/",
         "http://dx.doi.org/",
+        "doi:",
     ] {
-        if lower.starts_with(prefix) {
-            text = &text[prefix.len()..];
+        if let Some(end) = prefix_end(text, prefix) {
+            text = &text[end..];
+            if prefix == "doi:" {
+                text = text.trim_start_matches(ssx_json::python_whitespace);
+            }
             break;
         }
     }
-    if text.len() >= 4 && text[..4].eq_ignore_ascii_case("doi:") {
-        text = text[4..].trim_start();
-    }
     let (registrant, suffix) = text.split_once('/')?;
     let digits = registrant.strip_prefix("10.")?;
-    if !(4..=9).contains(&digits.len())
-        || !digits.bytes().all(|byte| byte.is_ascii_digit())
+    if !(4..=9).contains(&digits.chars().count())
+        || !digits.chars().all(ssx_json::decimal_digit)
         || suffix.is_empty()
-        || suffix.chars().any(char::is_whitespace)
+        || suffix.chars().any(ssx_json::python_whitespace)
         || suffix.contains(['<', '>'])
     {
         return None;
     }
-    Some(text.to_ascii_lowercase())
+    Some(ssx_json::casefold(text))
 }
 
 pub fn inline_payload(payload: Option<&Value>) -> Option<Value> {
@@ -251,6 +275,16 @@ pub fn nonempty(value: Option<&String>) -> Option<String> {
 mod tests {
     use super::*;
 
+    #[test]
+    fn doi_unicode_boundaries_never_slice_codepoints() {
+        assert_eq!(normalize_doi("aééé"), None);
+        assert_eq!(
+            normalize_doi("DOİ: 10.١٢٣٤/Straße"),
+            Some("10.١٢٣٤/strasse".into())
+        );
+        assert_eq!(normalize_doi("10.1234/a\u{1f}b"), None);
+        assert_eq!(normalize_doi("https://doi.org/doi:10.1234/x"), None);
+    }
     #[test]
     fn public_dto_codec_preserves_opaque_huge_numbers_and_reserved_tag_objects() {
         let raw = r#"{"url":"https://example.test/","title":"title","content":"content","engine":"engine","engines":["engine"],"score":1.0,"positions":[],"category":"general","publishedDate":null,"pubdate":null,"tier":1,"length":null,"thumbnail":null,"img_src":null,"media":null,"payload":{"$serde_json::private::Number":"123","nested":{"n":18446744073709551617}},"iframe_src":null,"audio_src":null,"views":null,"author":null,"metadata":null,"template":"default.html","parsed_url":null,"open_group":false,"close_group":false,"priority":""}"#;
