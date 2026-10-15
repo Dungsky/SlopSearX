@@ -478,7 +478,8 @@ async def _gateway_connection(
             read, write = streams[0], streams[1]
             async with ClientSession(read, write) as session:
                 try:
-                    await session.initialize()
+                    async with asyncio.timeout(connect_timeout):
+                        await session.initialize()
                 except Exception as exc:  # noqa: BLE001 — wrap into a clear startup error
                     raise RuntimeError(f"cannot connect to remote SlopSearX MCP server at {remote_url}: {exc}") from exc
 
