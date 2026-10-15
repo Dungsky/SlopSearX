@@ -103,9 +103,26 @@ def _finite_number(value: object) -> bool:
         return False
 
 
-def _is_decimal_hundredth(value: float) -> bool:
+def _canonical_decimal_hundredth(value: float | int) -> Decimal | None:
+    """Return the hundredth represented by a decimal float and its one-ULP neighbors.
+
+    JSON decimal values are converted to binary floats before validation. For
+    values such as 0.29, the immediately adjacent float can stringify as a
+    longer decimal even though it is only one representable value away from
+    the nominal hundredth. Accept exactly that bounded representation noise;
+    do not broaden the provider-compatibility interval.
+    """
     decimal_value = Decimal(str(value))
-    return decimal_value == decimal_value.quantize(_PROVIDER_DECIMAL_QUANTUM)
+    hundredth = decimal_value.quantize(_PROVIDER_DECIMAL_QUANTUM)
+    center = float(hundredth)
+    observed = float(value)
+    if observed in {
+        math.nextafter(center, -math.inf),
+        center,
+        math.nextafter(center, math.inf),
+    }:
+        return hundredth
+    return None
 
 
 def _rounded_score_mean_is_feasible(score: float, probabilities: dict[str, float]) -> bool:
@@ -118,10 +135,13 @@ def _rounded_score_mean_is_feasible(score: float, probabilities: dict[str, float
     interval. This is an explicit bounded compatibility rule, not a documented
     TypeSafe serialization guarantee.
     """
-    values = [Decimal(str(probabilities[str(index)])) for index in range(10)]
-    displayed_score = Decimal(str(score))
-    if not _is_decimal_hundredth(score) or any(value != value.quantize(_PROVIDER_DECIMAL_QUANTUM) for value in values):
+    displayed_score = _canonical_decimal_hundredth(score)
+    values = [_canonical_decimal_hundredth(probabilities[str(index)]) for index in range(10)]
+    if displayed_score is None or any(value is None for value in values):
         return False
+    # The preceding check establishes that every element is a Decimal. Keeping
+    # the explicit guard above avoids widening interval inputs or raw audit data.
+    values = [value for value in values if value is not None]
     lower = [max(Decimal(0), value - _PROVIDER_DECIMAL_HALF_UNIT) for value in values]
     upper = [min(Decimal(1), value + _PROVIDER_DECIMAL_HALF_UNIT) for value in values]
     remaining = Decimal(1) - sum(lower)
@@ -147,6 +167,17 @@ def _rounded_score_mean_is_feasible(score: float, probabilities: dict[str, float
     score_low = max(Decimal(0), displayed_score - _PROVIDER_DECIMAL_HALF_UNIT)
     score_high = min(Decimal(9), displayed_score + _PROVIDER_DECIMAL_HALF_UNIT)
     return min_mean <= score_high and max_mean >= score_low
+
+
+def _rounded_probability_mass_is_feasible(probabilities: list[float]) -> bool:
+    """Check whether cent-grid probability displays can represent unit mass."""
+    values = [_canonical_decimal_hundredth(probability) for probability in probabilities]
+    if not values or any(value is None for value in values):
+        return False
+    canonical_values = [value for value in values if value is not None]
+    lower = [max(Decimal(0), value - _PROVIDER_DECIMAL_HALF_UNIT) for value in canonical_values]
+    upper = [min(Decimal(1), value + _PROVIDER_DECIMAL_HALF_UNIT) for value in canonical_values]
+    return sum(lower) <= Decimal(1) <= sum(upper)
 
 
 def _strict_json(raw: bytes) -> object:
@@ -357,13 +388,14 @@ def parse_response(raw: bytes, compiled: CompiledRequest) -> ParsedResponse:
             if not _finite_number(probability) or not 0 <= probability <= 1:
                 raise CoverageError("response-score-probability-range")
             checked_score_probabilities[index] = float(probability)
-        if abs(sum(checked_score_probabilities.values()) - 1.0) > PROBABILITY_TOLERANCE:
-            raise CoverageError("response-score-probability-sum")
+        probability_mass_valid = abs(sum(checked_score_probabilities.values()) - 1.0) <= PROBABILITY_TOLERANCE
         weighted_score = sum(int(index) * probability for index, probability in checked_score_probabilities.items())
         mean_delta = abs(float(score) - weighted_score)
         mean_validation = "exact" if mean_delta == 0 else "within-tolerance"
-        if mean_delta > PROBABILITY_TOLERANCE:
+        if not probability_mass_valid or mean_delta > PROBABILITY_TOLERANCE:
             if not _rounded_score_mean_is_feasible(float(score), checked_score_probabilities):
+                if not probability_mass_valid:
+                    raise CoverageError("response-score-probability-sum")
                 raise CoverageError("response-score-mean-mismatch")
             mean_validation = "hundredth-rounding-interval"
         confidence = score_answer.get("confidence")
@@ -398,7 +430,8 @@ def parse_response(raw: bytes, compiled: CompiledRequest) -> ParsedResponse:
             if not _finite_number(probability) or not 0 <= probability <= 1:
                 raise CoverageError("response-probability-range")
             checked[option] = float(probability)
-        if abs(sum(checked.values()) - 1.0) > PROBABILITY_TOLERANCE:
+        probability_mass_valid = abs(sum(checked.values()) - 1.0) <= PROBABILITY_TOLERANCE
+        if not probability_mass_valid and not _rounded_probability_mass_is_feasible(list(checked.values())):
             raise CoverageError("response-probability-sum")
         maximum = max(checked.values())
         one_predecessor = math.nextafter(maximum, 0.0) if maximum > 0 else maximum

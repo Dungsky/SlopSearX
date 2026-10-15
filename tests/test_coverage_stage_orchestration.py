@@ -47,9 +47,9 @@ from tests.test_coverage_live_acquire import FakePacer, FakePermitVerifier, OneS
 from tests.test_coverage_source_capture import _Lease as CaptureLease
 from tests.test_coverage_source_capture import _Verifier as CaptureVerifier
 
-WIRE_COMPAT_METHOD_DIR = (
+WIRE_FLOAT_METHOD_DIR = (
     Path(__file__).parents[1]
-    / "docs/experiments/evidence/coverage-first-study/saved-development-wire-compatibility-method-materials"
+    / "docs/experiments/evidence/coverage-first-study/saved-development-wire-float-method-materials"
 )
 
 
@@ -287,7 +287,7 @@ def _saved_plan_from_private_archive(
     """Load the pinned origin package privately and build a fresh no-call stage plan."""
     materials = (
         Path(__file__).parents[1]
-        / "docs/experiments/evidence/coverage-first-study/saved-development-wire-compatibility-method-materials"
+        / "docs/experiments/evidence/coverage-first-study/saved-development-wire-float-method-materials"
     )
     protocol_bytes = (materials / "protocol.json").read_bytes()
     cohorts_bytes = (materials / "cohorts.json").read_bytes()
@@ -1175,7 +1175,7 @@ class StageOrchestrationTests(unittest.TestCase):
             deadline_cross=False,
             frozen_mode=True,
             selector_map_registered=True,
-            method_material_dir=WIRE_COMPAT_METHOD_DIR,
+            method_material_dir=WIRE_FLOAT_METHOD_DIR,
             stage_kind="confirmation",
         )
 
@@ -2219,7 +2219,7 @@ class StageOrchestrationTests(unittest.TestCase):
             deadline_cross=False,
             frozen_mode=True,
             selector_map_registered=True,
-            method_material_dir=WIRE_COMPAT_METHOD_DIR,
+            method_material_dir=WIRE_FLOAT_METHOD_DIR,
             stage_kind="confirmation",
         )
 
@@ -2229,7 +2229,7 @@ class StageOrchestrationTests(unittest.TestCase):
             frozen_mode=True,
             selector_map_registered=True,
             runtime_bound_admission=True,
-            method_material_dir=WIRE_COMPAT_METHOD_DIR,
+            method_material_dir=WIRE_FLOAT_METHOD_DIR,
             stage_kind="confirmation",
         )
 

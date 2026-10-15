@@ -2,7 +2,7 @@
 
 **The latest real comparison stopped before ranking completed.** All 54 reference assessments finished, but a credential check suppressed the second ranking response. The response was cleared, so its exact trigger remains unknown. There is no ranking-quality result, and confirmation has not run. The [terminal record](executor-fixed-development-terminal-2026-10-15/README.md) preserves the outcome.
 
-The [updated test settings](saved-development-wire-compatibility-method-materials/README.md) identify the corrected numerical response checks. They keep the same questions, budgets and quality gates. No new comparison has run with these settings. Earlier attempts and their failures remain in the records below; their results and identities will not be reused.
+The [latest locked parser settings](saved-development-wire-float-method-materials/README.md) preserve raw values while validating rounded score and choice probability values against bounded feasible intervals with exact unit mass. This is offline compatibility work only: no ranking-quality result or new comparison follows from it. The [prior parser settings](saved-development-wire-compatibility-method-materials/README.md), earlier attempts, and their terminal outcomes remain unchanged; their results and identities will not be reused.
 
 The [source-bound profile/2 static registration](registered-2026-10-12-v2-consumer-fix/README.md) records static materials used by an earlier development startup attempt. Its development identity was consumed by a terminal startup refusal; confirmation was not invoked.
 
