@@ -103,9 +103,26 @@ def _finite_number(value: object) -> bool:
         return False
 
 
-def _is_decimal_hundredth(value: float) -> bool:
+def _canonical_decimal_hundredth(value: float | int) -> Decimal | None:
+    """Return the hundredth represented by a decimal float and its one-ULP neighbors.
+
+    JSON decimal values are converted to binary floats before validation. For
+    values such as 0.29, the immediately adjacent float can stringify as a
+    longer decimal even though it is only one representable value away from
+    the nominal hundredth. Accept exactly that bounded representation noise;
+    do not broaden the provider-compatibility interval.
+    """
     decimal_value = Decimal(str(value))
-    return decimal_value == decimal_value.quantize(_PROVIDER_DECIMAL_QUANTUM)
+    hundredth = decimal_value.quantize(_PROVIDER_DECIMAL_QUANTUM)
+    center = float(hundredth)
+    observed = float(value)
+    if observed in {
+        math.nextafter(center, -math.inf),
+        center,
+        math.nextafter(center, math.inf),
+    }:
+        return hundredth
+    return None
 
 
 def _rounded_score_mean_is_feasible(score: float, probabilities: dict[str, float]) -> bool:
@@ -118,10 +135,13 @@ def _rounded_score_mean_is_feasible(score: float, probabilities: dict[str, float
     interval. This is an explicit bounded compatibility rule, not a documented
     TypeSafe serialization guarantee.
     """
-    values = [Decimal(str(probabilities[str(index)])) for index in range(10)]
-    displayed_score = Decimal(str(score))
-    if not _is_decimal_hundredth(score) or any(value != value.quantize(_PROVIDER_DECIMAL_QUANTUM) for value in values):
+    displayed_score = _canonical_decimal_hundredth(score)
+    values = [_canonical_decimal_hundredth(probabilities[str(index)]) for index in range(10)]
+    if displayed_score is None or any(value is None for value in values):
         return False
+    # The preceding check establishes that every element is a Decimal. Keeping
+    # the explicit guard above avoids widening interval inputs or raw audit data.
+    values = [value for value in values if value is not None]
     lower = [max(Decimal(0), value - _PROVIDER_DECIMAL_HALF_UNIT) for value in values]
     upper = [min(Decimal(1), value + _PROVIDER_DECIMAL_HALF_UNIT) for value in values]
     remaining = Decimal(1) - sum(lower)

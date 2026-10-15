@@ -306,6 +306,47 @@ def test_constructed_hundredth_precision_tuples_keep_reported_scores():
         assert parsed.score_audit[cid]["mean_validation"] == "hundredth-rounding-interval"
 
 
+def test_score_rounding_accepts_only_one_float_neighbor_and_preserves_wire_values():
+    compiled = compile_for([card("a"), card("b")], FACETS)
+    probabilities = [0.05, 0.05, 0.1, 0.1, 0.2, 0.2, 0.1, 0.1, 0.05, 0.05]
+    data = json.loads(response_for(compiled))
+    answer = data["answers"]["score:a"]
+    below = math.nextafter(4.56, -math.inf)
+    above = math.nextafter(4.56, math.inf)
+    answer["score"] = above
+    probabilities[0] = math.nextafter(probabilities[0], math.inf)
+    probabilities[9] = math.nextafter(probabilities[9], -math.inf)
+    answer["probabilities"] = {str(index): value for index, value in enumerate(probabilities)}
+
+    parsed = coverage.parse_response(json.dumps(data, separators=(",", ":")).encode(), compiled)
+    assert parsed.scores["a"] == above
+    assert parsed.score_audit["a"]["probabilities"] == answer["probabilities"]
+    assert parsed.score_audit["a"]["mean_validation"] == "hundredth-rounding-interval"
+
+    answer["score"] = below
+    parsed_below = coverage.parse_response(json.dumps(data, separators=(",", ":")).encode(), compiled)
+    assert parsed_below.scores["a"] == below
+    assert parsed_below.score_audit["a"]["mean_validation"] == "hundredth-rounding-interval"
+
+    second_above = math.nextafter(above, math.inf)
+    answer["score"] = second_above
+    with pytest.raises(coverage.CoverageError, match="response-score-mean-mismatch"):
+        coverage.parse_response(json.dumps(data, separators=(",", ":")).encode(), compiled)
+
+
+def test_probability_rounding_rejects_second_float_neighbor():
+    compiled = compile_for([card("a"), card("b")], FACETS)
+    data = json.loads(response_for(compiled))
+    answer = data["answers"]["score:a"]
+    answer["score"] = 4.56
+    probabilities = [0.05, 0.05, 0.1, 0.1, 0.2, 0.2, 0.1, 0.1, 0.05, 0.05]
+    first_above = math.nextafter(probabilities[0], math.inf)
+    probabilities[0] = math.nextafter(first_above, math.inf)
+    answer["probabilities"] = {str(index): value for index, value in enumerate(probabilities)}
+    with pytest.raises(coverage.CoverageError, match="response-score-mean-mismatch"):
+        coverage.parse_response(json.dumps(data, separators=(",", ":")).encode(), compiled)
+
+
 def test_rounding_interval_mass_constraints_and_endpoint_clipping():
     at_zero = {str(index): float(index == 0) for index in range(10)}
     at_nine = {str(index): float(index == 9) for index in range(10)}
