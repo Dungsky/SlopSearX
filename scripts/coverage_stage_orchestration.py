@@ -33,6 +33,7 @@ from scripts import coverage_source_capture as source_capture
 from scripts import coverage_study_acquire as acquisition
 from scripts import coverage_study_core as core
 from scripts import intent_ranking_receipts as receipts
+from scripts.coverage_atomic_io import write_new as _atomic_write_new
 from scripts.coverage_selector_admission import VerifiedSelectorAdmission
 
 SCHEMA = "coverage-stage-orchestration-inventory/1"
@@ -696,26 +697,10 @@ def _private_root(path: str | os.PathLike[str]) -> Path:
 
 
 def _write_new(path: Path, raw: bytes) -> str:
-    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
     try:
-        fd = os.open(path, flags, 0o600)
+        _atomic_write_new(path, raw)
     except FileExistsError as exc:
         raise OrchestrationError("stage-inventory-already-exists") from exc
-    try:
-        view = memoryview(raw)
-        while view:
-            size = os.write(fd, view)
-            if size <= 0:
-                raise OrchestrationError("stage-inventory-short-write")
-            view = view[size:]
-        os.fsync(fd)
-    finally:
-        os.close(fd)
-    parent = os.open(path.parent, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0))
-    try:
-        os.fsync(parent)
-    finally:
-        os.close(parent)
     return _sha(raw)
 
 

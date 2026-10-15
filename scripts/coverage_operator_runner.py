@@ -817,6 +817,7 @@ class OperatorStageRunner:
                     "coverage_stage_finalization": "scripts/coverage_stage_finalization.py",
                     "coverage_operator_runner": "scripts/coverage_operator_runner.py",
                     "coverage_operator_handoff": "scripts/coverage_operator_handoff.py",
+                    "coverage_atomic_io": "scripts/coverage_atomic_io.py",
                     "coverage_stage_runtime": "scripts/coverage_stage_runtime.py",
                     "coverage_local_authority": "scripts/coverage_local_authority.py",
                     "coverage_frozen_pool_inputs": "scripts/coverage_frozen_pool_inputs.py",
