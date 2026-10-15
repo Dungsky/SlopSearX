@@ -1215,7 +1215,7 @@ class OperatorReceiptHandoffTests(unittest.TestCase):
                 terminal,
             )
             result_statuses = {row.status for row in call_results}
-            self.assertEqual(result_statuses, {"complete-original-v1", "fallback"})
+            self.assertEqual(result_statuses, {"complete-original-v1", "selected"})
             self.assertEqual(
                 {row["state"] for row in selector_evidence.operation_rows},
                 {"complete-success"},

@@ -9,6 +9,7 @@ import tempfile
 import time
 import unittest
 import uuid
+from contextlib import ExitStack
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -137,6 +138,9 @@ def plan_fixture(
         protocol_value = json.loads(protocol_bytes)
         protocol_value["selector_input_map_schema"] = "coverage-selector-input-map/2-registered"
         protocol_value["selector_input_map_status"] = "registered"
+        protocol_value["candidate_source_sha256"] = digest(
+            (Path(__file__).parents[1] / "scripts/intent_ranking_coverage.py").read_bytes()
+        )
         protocol_bytes = canonical(protocol_value)
     cohort_doc = json.loads(cohorts_bytes)
     cohort_stage = next(row for row in cohort_doc["stages"] if row["stage"] == stage_kind)
@@ -1170,13 +1174,14 @@ class StageOrchestrationTests(unittest.TestCase):
             saved_origin_source_preparation=Path(os.environ["COVERAGE_SAVED_ORIGIN_SOURCE_PREPARATION"]),
         )
 
-    def test_frozen_pool_partial_availability_reaches_same_downstream_chain(self):
+    def test_frozen_pool_stale_candidate_pin_is_rejected_before_selector_dispatch(self):
         self._run_integrated_synthetic_stage(
             deadline_cross=False,
             frozen_mode=True,
             selector_map_registered=True,
             method_material_dir=WIRE_FLOAT_METHOD_DIR,
             stage_kind="confirmation",
+            reject_stale_candidate_source=True,
         )
 
     def test_acquisition_receipts_replaced_after_phase_seal_stop_collection(self):
@@ -1203,6 +1208,7 @@ class StageOrchestrationTests(unittest.TestCase):
         saved_origin_source_preparation: Path | None = None,
         method_material_dir: Path | None = None,
         stage_kind: str = "development",
+        reject_stale_candidate_source: bool = False,
     ):
         if saved_origin_archive is not None and frozen_mode:
             raise AssertionError("saved-origin replay and frozen-pool collection are distinct inputs")
@@ -1884,6 +1890,11 @@ class StageOrchestrationTests(unittest.TestCase):
 
                 async def verify_admission(plan_arg, prepared, map_bytes, map_sha):
                     calls.append("verify_selector_admission")
+                    if reject_stale_candidate_source:
+                        protocol_candidate = json.loads(plan_arg.protocol_bytes).get("candidate_source_sha256")
+                        map_candidate = json.loads(map_bytes).get("coverage_source_sha256")
+                        if protocol_candidate != map_candidate:
+                            raise ValueError("registered candidate source pin does not match current map")
                     expected = {
                         "schema": admission_module.SCHEMA,
                         "status": "admitted",
@@ -1938,6 +1949,11 @@ class StageOrchestrationTests(unittest.TestCase):
                     self.assertEqual(_request_id, "map")
                     self.assertEqual(artifacts, {"selector-map": map_bytes_from_request[0]})
                     calls.append("verify_selector_admission")
+                    if reject_stale_candidate_source:
+                        protocol_candidate = json.loads(plan.protocol_bytes).get("candidate_source_sha256")
+                        map_candidate = json.loads(artifacts["selector-map"]).get("coverage_source_sha256")
+                        if protocol_candidate != map_candidate:
+                            raise ValueError("registered candidate source pin does not match current map")
                     receipt_bytes = canonical({"schema": admission_module.SCHEMA, "status": "admitted", **bindings})
                     return receipt_bytes, digest(receipt_bytes)
 
@@ -1990,14 +2006,56 @@ class StageOrchestrationTests(unittest.TestCase):
                     fake_now[0] = plan.stage_deadline_monotonic + 1
                 return result_sha
 
-            with (
-                mock.patch.object(stage, "_monotonic", side_effect=lambda: fake_now[0]),
-                mock.patch.object(stage, "_write_inventory", side_effect=write_inventory),
-            ):
+            synthetic_gate_contract = selector_map_registered and not frozen_mode and not reject_stale_candidate_source
+            with ExitStack() as stack:
+                stack.enter_context(mock.patch.object(stage, "_monotonic", side_effect=lambda: fake_now[0]))
+                stack.enter_context(mock.patch.object(stage, "_write_inventory", side_effect=write_inventory))
+                if synthetic_gate_contract:
+                    # This synthetic full-graph fixture binds the current source
+                    # to a local test contract. Keep the repository's historical
+                    # protocol and gate contract constant unchanged.
+                    from scripts import coverage_gate_calculation as gate_calculation
+
+                    protocol_value = json.loads(plan.protocol_bytes)
+                    execution_contract_keys = (
+                        "quality",
+                        "task_use",
+                        "provider_schedule",
+                        "acquisition",
+                        "capture",
+                        "consumer",
+                        "phase_limits",
+                        "variants",
+                        "primary_control",
+                        "candidate_source_sha256",
+                    )
+                    synthetic_execution_sha = digest(
+                        canonical({key: protocol_value[key] for key in execution_contract_keys})
+                    )
+                    self.assertNotEqual(
+                        synthetic_execution_sha,
+                        gate_calculation.FROZEN_EXECUTION_CONTRACT_SHA256,
+                    )
+                    stack.enter_context(
+                        mock.patch.object(
+                            gate_calculation,
+                            "FROZEN_EXECUTION_CONTRACT_SHA256",
+                            synthetic_execution_sha,
+                        )
+                    )
                 result = asyncio.run(
                     stage.coordinate_coverage_stage(plan=plan, executors=executors, inventory_root=inventory_root)
                 )
             inventory = json.loads(result.inventory_path.read_bytes())
+            if reject_stale_candidate_source:
+                self.assertEqual(result.status, "terminal-incomplete", inventory)
+                self.assertEqual(result.terminal_reason, "orchestration-binding-failed")
+                selector_phase = next(row for row in inventory["phases"] if row["phase"] == "selector")
+                self.assertEqual(selector_phase["status"], "not-invoked")
+                self.assertIn("verify_selector_admission", calls)
+                self.assertNotIn("selector", calls)
+                self.assertFalse(result.product_authorized)
+                return
             saved_mode = saved_origin_archive is not None
             companion_mode = frozen_mode or saved_mode
             if companion_mode:
@@ -2214,22 +2272,18 @@ class StageOrchestrationTests(unittest.TestCase):
         if not selector_map_registered:
             self.assertIsNone(resource_receipt["observations"].get("selector_usage"))
 
-    def test_registered_map_executes_full_offline_graph_after_external_admission(self):
+    def test_synthetic_registered_map_runs_full_graph_with_current_source_pin(self):
         self._run_integrated_synthetic_stage(
             deadline_cross=False,
-            frozen_mode=True,
             selector_map_registered=True,
-            method_material_dir=WIRE_FLOAT_METHOD_DIR,
             stage_kind="confirmation",
         )
 
-    def test_runtime_bound_admission_reaches_offline_registered_selector(self):
+    def test_synthetic_runtime_bound_admission_runs_full_graph(self):
         self._run_integrated_synthetic_stage(
             deadline_cross=False,
-            frozen_mode=True,
             selector_map_registered=True,
             runtime_bound_admission=True,
-            method_material_dir=WIRE_FLOAT_METHOD_DIR,
             stage_kind="confirmation",
         )
 

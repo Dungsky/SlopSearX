@@ -393,7 +393,9 @@ async def test_success_archives_before_parse_and_failure_closes_full_inventory()
         receipt_sha256=replay_receipt["receipt_sha256"],
         compiled_request=compiled,
     )
-    assert replayed.reason == "missing_facet_lead"
+    assert replayed.status == "selected"
+    assert replayed.reason == "no_eligible_facet_leads_score_ranked"
+    assert replayed.audit["unreserved_facets"]
     candidate_replay_roots.close()
 
     async def fail(request: httpx.Request) -> httpx.Response:

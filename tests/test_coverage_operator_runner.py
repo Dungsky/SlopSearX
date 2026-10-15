@@ -84,16 +84,9 @@ class OperatorRunnerConfigTests(unittest.TestCase):
                 usage={"input_tokens": 1, "output_tokens": 1},
             ),
         )
-        fallback = coverage.select(
-            compiled,
-            coverage.ParsedResponse(
-                scores={"c0": 5.0, "c1": 5.0},
-                score_audit={},
-                selected_facets={"c0": (), "c1": ()},
-                profile_audit={},
-                usage={"input_tokens": 1, "output_tokens": 1},
-            ),
-        )
+        # Keep this state-mapping fixture independent of the prototype's
+        # current facet-selection policy.
+        fallback = coverage.RankingResult(compiled.incumbent_order, "fallback", "invalid_response", {})
         operation_ids = ("operation-selected", "operation-fallback", "operation-original-v1")
         prepared = SimpleNamespace(
             stage_uuid=str(uuid.uuid4()),
