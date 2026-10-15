@@ -1,6 +1,8 @@
 # Ranking test after saved-results setup repairs
 
-Status: both stages passed setup checks. Neither stage has started, and ranking quality remains unproven.
+Status at registration: both stages passed setup checks. Neither stage had started, and ranking quality was unproven.
+
+Later outcome: saved import refused development admission before grading. These identities are retired; see the [terminal record](../completed-2026-10-14-saved-cohort-binding/README.md). The JSON files remain the original prospective snapshot.
 
 Development reuses the complete saved search results and page captures, including collection failures. It makes no new searches or captures and uses fresh blind grades. Confirmation uses separate cases and fresh results, and runs only if every development quality and usage check passes.
 

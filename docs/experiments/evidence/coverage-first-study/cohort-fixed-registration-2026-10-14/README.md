@@ -1,6 +1,8 @@
 # Ranking test with corrected cohort validation
 
-Status: both stages passed setup checks; neither has started. Ranking quality remains unproven.
+Status at registration: both stages passed setup checks; neither had started. Ranking quality was unproven.
+
+Later outcome: development completed native reference calls but stopped when one response failed schema validation. Confirmation did not start, and these identities are retired. See the [terminal record](../completed-2026-10-15-native-grade-schema/README.md). The JSON files remain the original prospective snapshot.
 
 Development uses the complete saved search results and page captures with fresh blind grades and no new searches or captures. Confirmation uses separate cases and fresh results, and starts only if every development check passes. The candidate, quality thresholds, models and usage limits remain unchanged.
 

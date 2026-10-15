@@ -23,6 +23,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from jsonschema import Draft202012Validator  # type: ignore[import-untyped]
+
 from scripts.coverage_native_grader_handoff import publish_native_tool_result
 
 MODEL = "gpt-6.1-sol"
@@ -132,6 +134,20 @@ def _canonical(value: object) -> bytes:
         )
     except (TypeError, ValueError, UnicodeEncodeError) as exc:
         raise NativeHostError("native-transcript-canonical-json-invalid") from exc
+
+
+def _packet_output_schema(packet_bytes: bytes) -> dict[str, object]:
+    payload = _strict(packet_bytes, maximum=MAX_PACKET_BYTES)
+    schema = payload.get("output_schema") if type(payload) is dict else None
+    if type(schema) is not dict:
+        raise NativeHostError("native-output-schema-missing")
+    try:
+        Draft202012Validator.check_schema(schema)
+        if _has_external_ref(schema):
+            raise ValueError("external schema reference")
+    except Exception as exc:
+        raise NativeHostError("native-output-schema-invalid") from exc
+    return schema
 
 
 def _tool_policy(mcp_server_ids: list[str]) -> dict[str, object]:
@@ -363,10 +379,19 @@ def verify_transcript(
     ):
         raise NativeHostError("native-thread-start-policy")
     turn_params = start_turn.get("params")
+    output_schema = None
+    if (
+        type(turn_params) is dict
+        and type(turn_params.get("input")) is list
+        and len(turn_params["input"]) == 1
+        and type(turn_params["input"][0]) is dict
+        and type(turn_params["input"][0].get("text")) is str
+    ):
+        output_schema = _packet_output_schema(turn_params["input"][0]["text"].encode("utf-8"))
     if (
         start_turn.get("id") != 3
         or type(turn_params) is not dict
-        or set(turn_params) != {"threadId", "model", "input"}
+        or set(turn_params) != {"threadId", "model", "input", "outputSchema"}
         or turn_params.get("threadId") is None
         or turn_params.get("model") != expected_model
         or type(turn_params.get("input")) is not list
@@ -375,6 +400,8 @@ def verify_transcript(
         or set(turn_params["input"][0]) != {"type", "text"}
         or turn_params["input"][0].get("type") != "text"
         or type(turn_params["input"][0].get("text")) is not str
+        or type(output_schema) is not dict
+        or turn_params.get("outputSchema") != output_schema
     ):
         raise NativeHostError("native-turn-start-binding")
     input_bytes = turn_params["input"][0]["text"].encode("utf-8")
@@ -549,7 +576,26 @@ def verify_transcript(
     response_bytes = response.encode("utf-8")
     if len(response_bytes) > 2_000_000:
         raise NativeHostError("native-assistant-response-over-cap")
+    response_value = _strict(response_bytes, maximum=2_000_000)
+    try:
+        if next(Draft202012Validator(output_schema).iter_errors(response_value), None) is not None:
+            raise NativeHostError("native-assistant-response-schema-invalid")
+    except NativeHostError:
+        raise
+    except Exception as exc:
+        raise NativeHostError("native-output-schema-invalid") from exc
     return VerifiedTranscript(thread_id, turn_id, thread_result["modelProvider"], response_bytes)
+
+
+def _has_external_ref(schema: object) -> bool:
+    if type(schema) is dict:
+        ref = schema.get("$ref")
+        return (ref is not None and (type(ref) is not str or not ref.startswith("#"))) or any(
+            _has_external_ref(value) for value in schema.values()
+        )
+    if type(schema) is list:
+        return any(_has_external_ref(value) for value in schema)
+    return False
 
 
 async def _read_message(reader: asyncio.StreamReader, *, deadline: float) -> dict[str, Any]:
@@ -665,7 +711,12 @@ async def _invoke_codex(
                 "jsonrpc": "2.0",
                 "id": 3,
                 "method": "turn/start",
-                "params": {"threadId": thread_id, "model": MODEL, "input": [{"type": "text", "text": packet_text}]},
+                "params": {
+                    "threadId": thread_id,
+                    "model": MODEL,
+                    "input": [{"type": "text", "text": packet_text}],
+                    "outputSchema": _packet_output_schema(packet_bytes),
+                },
             }
             if time.monotonic() >= deadline:
                 raise NativeHostError("native-stage-deadline-expired-before-turn")

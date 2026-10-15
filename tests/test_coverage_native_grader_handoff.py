@@ -12,6 +12,7 @@ from types import SimpleNamespace
 import pytest
 
 from scripts import coverage_native_grader_handoff as handoff
+from scripts import coverage_native_host_dispatch as native_host
 from tests.test_coverage_assessment_packets import _fixture as assessment_fixture
 
 
@@ -27,6 +28,12 @@ def packet(packet_id, task_id="task-1"):
         "assessor_id": "R1",
         "role": "source",
         "model_input": {"model_call_required": True},
+        "output_schema": {
+            "type": "object",
+            "properties": {"synthetic": {"const": "grade"}},
+            "required": ["synthetic"],
+            "additionalProperties": False,
+        },
     }
     raw = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
     return {
@@ -161,7 +168,12 @@ def publish_synthetic_host_evidence(
                 "jsonrpc": "2.0",
                 "id": 3,
                 "method": "turn/start",
-                "params": {"threadId": thread_id, "model": "gpt-6.1-sol", "input": [{"type": "text", "text": text}]},
+                "params": {
+                    "threadId": thread_id,
+                    "model": "gpt-6.1-sol",
+                    "input": [{"type": "text", "text": text}],
+                    "outputSchema": json.loads(text)["output_schema"],
+                },
             },
         },
         {"direction": "server", "message": {"id": 3, "result": {"turn": {"id": turn_id}}}},
@@ -462,7 +474,9 @@ def test_required_host_transcripts_bind_complete_fake_protocol_before_submission
             asyncio.run(run())
         assert not (scope / "results-closed.json").exists()
     elif tamper:
-        with pytest.raises(handoff.NativeHandoffError, match="transcript-result-mismatch"):
+        with pytest.raises(
+            (handoff.NativeHandoffError, native_host.NativeHostError), match="transcript-result-mismatch|schema-invalid"
+        ):
             asyncio.run(run())
         assert not (scope / "results-closed.json").exists()
     else:
