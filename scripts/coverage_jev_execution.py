@@ -195,12 +195,13 @@ def _sha(raw: bytes) -> str:
 
 
 def _contains_credential(raw: bytes, credential: bytes) -> bool:
-    if not credential:
+    return bool(credential) and credential in raw
+
+
+def _ends_with_credential_prefix(raw: bytes, credential: bytes) -> bool:
+    """Check only a body that will be truncated before it is persisted."""
+    if len(credential) < 2:
         return False
-    if credential in raw:
-        return True
-    # When an over-limit response is truncated, do not persist a body whose
-    # suffix could be the beginning of the credential continued past the cap.
     max_prefix = min(len(credential) - 1, len(raw))
     return any(raw.endswith(credential[:size]) for size in range(1, max_prefix + 1))
 
@@ -1118,11 +1119,13 @@ async def _execute_selector_call_once(
     usage: tuple[int, int] | None = None
     terminal_reason: str | None = None
     timed_out = False
+    response_stream_complete = False
 
     async def exchange() -> None:
         nonlocal http_status, raw_body, archived, state, status, ranking, terminal_reason
         nonlocal timed_out, usage
         nonlocal native_status, native_ordered_ids, native_strict_json_compatible, native_strict_json_reason
+        nonlocal response_stream_complete
         async with httpx.AsyncClient(
             transport=dispatch_transport,
             timeout=httpx.Timeout(SELECTOR_PHASE_SECONDS),
@@ -1147,7 +1150,9 @@ async def _execute_selector_call_once(
                             raw_body.extend(chunk[: max(0, remaining)])
                             status = "response-too-large"
                             terminal_reason = "response-byte-limit"
-                            if _contains_credential(bytes(raw_body), api_key_bytes):
+                            if _contains_credential(bytes(raw_body), api_key_bytes) or _ends_with_credential_prefix(
+                                bytes(raw_body), api_key_bytes
+                            ):
                                 raw_body.clear()
                                 status = "credential-reflection-suppressed"
                                 terminal_reason = "credential-reflection-suppressed"
@@ -1158,6 +1163,8 @@ async def _execute_selector_call_once(
                             status = "credential-reflection-suppressed"
                             terminal_reason = "credential-reflection-suppressed"
                             break
+                    else:
+                        response_stream_complete = True
                     if terminal_reason is None and 200 <= http_status < 300:
                         state = "complete-success"
                         status = "complete"
@@ -1249,6 +1256,15 @@ async def _execute_selector_call_once(
                 terminal_reason = "original-v1-parse-failed"
                 status = "complete-invalid-response"
 
+    def suppress_partial_credential_prefix() -> None:
+        nonlocal status, terminal_reason
+        if not response_stream_complete and _ends_with_credential_prefix(bytes(raw_body), api_key_bytes):
+            # The discarded body cannot distinguish a true secret continuation
+            # from an unrelated partial prefix; retain only the suppression outcome.
+            raw_body.clear()
+            status = "credential-reflection-suppressed"
+            terminal_reason = "credential-reflection-suppressed"
+
     try:
         try:
             async with asyncio.timeout(SELECTOR_PHASE_SECONDS):
@@ -1256,6 +1272,7 @@ async def _execute_selector_call_once(
         except asyncio.CancelledError:
             terminal_reason = "external-cancellation"
             status = "partial-or-interrupted"
+            suppress_partial_credential_prefix()
             try:
                 if archived is None:
                     archived = receipts.archive_response(
@@ -1276,10 +1293,13 @@ async def _execute_selector_call_once(
         except (receipts.ReceiptError, JevExecutionError, core.StudyError) as exc:
             terminal_reason = type(exc).__name__
             status = "archive-or-ledger-failure"
+            if not response_stream_complete:
+                suppress_partial_credential_prefix()
         except Exception:
             timed_out = time.monotonic() - started >= SELECTOR_PHASE_SECONDS
             terminal_reason = "selector-phase-deadline-exceeded" if timed_out else "transport-or-http-failure"
             status = "phase-deadline-exceeded" if timed_out else "transport-error"
+            suppress_partial_credential_prefix()
             if archived is None:
                 archived = receipts.archive_response(
                     Path(archives),
