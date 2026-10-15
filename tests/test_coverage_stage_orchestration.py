@@ -555,8 +555,33 @@ def _synthetic_capture(plan, pipeline_inputs, root: Path) -> stage.CaptureEviden
 class StageOrchestrationTests(unittest.TestCase):
     def test_runtime_plan_rejects_confirmation_without_receipt_before_acquisition(self):
         plan = stage.StagePlan(**{**plan_fixture().__dict__, "stage_kind": "confirmation"})
-        with self.assertRaisesRegex(stage.OrchestrationError, "confirmation-development-receipt-required"):
-            stage._validate_plan(plan)
+        phase_names = (
+            "acquire",
+            "verify_acquisition",
+            "capture",
+            "prepare_after_acquisition",
+            "verify_late_preflight",
+            "grade_references",
+            "selectors",
+            "answerer",
+            "grade_answers",
+            "collect_frozen_pool",
+            "import_saved_corpus",
+        )
+        phases = {name: mock.AsyncMock(side_effect=AssertionError("phase must not start")) for name in phase_names}
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with self.assertRaisesRegex(stage.OrchestrationError, "confirmation-development-receipt-required"):
+                asyncio.run(
+                    stage.coordinate_coverage_stage(
+                        plan=plan,
+                        executors=stage.StageExecutors(**phases),
+                        inventory_root=root,
+                    )
+                )
+            self.assertFalse((root / plan.stage_uuid).exists())
+        for phase in phases.values():
+            phase.assert_not_called()
 
     def test_frozen_pool_mode_must_be_explicitly_bound_by_protocol(self):
         plan = plan_fixture(pool_input_mode="frozen-pool/1")
