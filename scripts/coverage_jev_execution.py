@@ -16,6 +16,7 @@ import os
 import re
 import stat
 import time
+import uuid
 import weakref
 from dataclasses import dataclass
 from pathlib import Path
@@ -44,6 +45,21 @@ MAX_OPERATION_INPUT_BYTES = 384_000
 _SHA256 = re.compile(r"[0-9a-f]{64}\Z")
 _SHA1 = re.compile(r"[0-9a-f]{40}\Z")
 _OP_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}\Z")
+_SAVED_SELECTOR_MAP_FIELDS = frozenset(
+    {
+        "pool_input_mode",
+        "origin_pool_snapshot_index_sha256",
+        "origin_pool_manifest_sha256",
+        "origin_stage_uuid",
+        "origin_source_revision",
+        "origin_source_closure_sha256",
+        "origin_protocol_sha256",
+        "origin_cohorts_sha256",
+        "origin_acquisition_plan_sha256",
+        "saved_import_receipt_sha256",
+        "derived_capture_manifest_sha256",
+    }
+)
 _LEDGER_LOCKS: weakref.WeakKeyDictionary[core.StudyRun, asyncio.Lock] = weakref.WeakKeyDictionary()
 
 
@@ -411,7 +427,28 @@ def _verify_registered_operation_input(
         "builder_source_sha256",
         "operations",
     }
-    if type(document) is not dict or set(document) != map_fields or type(document.get("operations")) is not list:
+    if type(document) is not dict or type(document.get("operations")) is not list:
+        raise JevExecutionError("selector-input-map-binding")
+    saved_map = set(document) == map_fields | _SAVED_SELECTOR_MAP_FIELDS
+    if saved_map:
+        try:
+            origin_uuid = document.get("origin_stage_uuid")
+            canonical_origin_uuid = str(uuid.UUID(origin_uuid)) if type(origin_uuid) is str else None
+        except ValueError:
+            canonical_origin_uuid = None
+        if (
+            prepared.selector_input_map_schema != "coverage-selector-input-map/2-registered"
+            or prepared.stage_kind != "development"
+            or document.get("pool_input_mode") != "saved-corpus/1"
+            or canonical_origin_uuid is None
+            or canonical_origin_uuid != origin_uuid
+            or origin_uuid == prepared.stage_uuid
+            or type(document.get("origin_source_revision")) is not str
+            or not _SHA1.fullmatch(document["origin_source_revision"])
+        ):
+            raise JevExecutionError("selector-input-map-binding")
+        map_fields = map_fields | _SAVED_SELECTOR_MAP_FIELDS
+    elif set(document) != map_fields:
         raise JevExecutionError("selector-input-map-binding")
     if (
         document.get("schema") != (prepared.selector_input_map_schema or "coverage-selector-input-map/2-draft")
@@ -484,33 +521,19 @@ async def execute_registered_selector_call(
     )
 
 
-async def execute_registered_selector_schedule(
+async def preflight_registered_selector_schedule(
     *,
     prepared: core.PreparedStage,
-    ledger: core.StudyRun,
     selector_input_map_bytes: bytes,
     expected_selector_input_map_sha256: str,
     operation_materials: Mapping[str, Mapping[str, object]],
     permits: Mapping[str, tuple[bytes, str]],
     api_key: str,
-    lease_root: str | os.PathLike[str],
-    archive_root: str | os.PathLike[str],
-    result_root: str | os.PathLike[str],
-    transport_factory: Any | None = None,
-) -> tuple[CallResult, ...]:
-    """Preflight and serially execute the complete registered selector schedule.
-
-    Every operation input, generated request, and externally supplied permit
-    is checked against the map before the first transport is created. The
-    per-operation executor repeats its own map check immediately before the
-    one-shot claim. The first terminal call stops the loop; remaining slots
-    stay uninvoked in the ledger.
-    """
+) -> None:
+    """Run the schedule's complete predispatch validation without side effects."""
     if (
         type(prepared) is not core.PreparedStage
         or prepared.selector_input_map_required is not True
-        or type(ledger) is not core.StudyRun
-        or ledger.prepared is not prepared
         or _bound_selector_input_map_sha256(prepared) != expected_selector_input_map_sha256
         or type(operation_materials) is not dict
         or set(operation_materials) != set(prepared.operation_ids)
@@ -530,9 +553,6 @@ async def execute_registered_selector_schedule(
     except UnicodeEncodeError as exc:
         raise JevExecutionError("explicit-api-key-invalid") from exc
 
-    # Preflight all 39 scheduled calls so a malformed late slot cannot leave a
-    # partly dispatched stage. W0 request generation is checked through the
-    # frozen request compiler without invoking its network transport.
     for operation_id in prepared.operation_ids:
         material = operation_materials[operation_id]
         permit = permits[operation_id]
@@ -541,7 +561,7 @@ async def execute_registered_selector_schedule(
             or set(material) != {"operation_input_bytes", "legacy_control"}
             or type(material.get("operation_input_bytes")) is not bytes
             or len(material["operation_input_bytes"]) > MAX_OPERATION_INPUT_BYTES
-            or (material.get("legacy_control") is not None and type(material.get("legacy_control")) is not dict)
+            or (material.get("legacy_control") is not None and type(material["legacy_control"]) is not dict)
             or type(permit) is not tuple
             or len(permit) != 2
             or type(permit[0]) is not bytes
@@ -589,6 +609,56 @@ async def execute_registered_selector_schedule(
             request_sha256=request_sha,
             parser_mode=parser_mode,
         )
+
+
+async def execute_registered_selector_schedule(
+    *,
+    prepared: core.PreparedStage,
+    ledger: core.StudyRun,
+    selector_input_map_bytes: bytes,
+    expected_selector_input_map_sha256: str,
+    operation_materials: Mapping[str, Mapping[str, object]],
+    permits: Mapping[str, tuple[bytes, str]],
+    api_key: str,
+    lease_root: str | os.PathLike[str],
+    archive_root: str | os.PathLike[str],
+    result_root: str | os.PathLike[str],
+    transport_factory: Any | None = None,
+) -> tuple[CallResult, ...]:
+    """Preflight and serially execute the complete registered selector schedule.
+
+    Every operation input, generated request, and externally supplied permit
+    is checked against the map before the first transport is created. The
+    per-operation executor repeats its own map check immediately before the
+    one-shot claim. The first terminal call stops the loop; remaining slots
+    stay uninvoked in the ledger.
+    """
+    if (
+        type(prepared) is not core.PreparedStage
+        or prepared.selector_input_map_required is not True
+        or type(ledger) is not core.StudyRun
+        or ledger.prepared is not prepared
+        or _bound_selector_input_map_sha256(prepared) != expected_selector_input_map_sha256
+        or type(operation_materials) is not dict
+        or set(operation_materials) != set(prepared.operation_ids)
+        or type(permits) is not dict
+        or set(permits) != set(prepared.operation_ids)
+    ):
+        raise JevExecutionError("registered-selector-schedule-binding-invalid")
+    if (
+        prepared.selector_input_map_schema == "coverage-selector-input-map/2-registered"
+        and _bound_selector_admission_sha256(prepared) is None
+    ):
+        raise JevExecutionError("selector-map-external-admission-required")
+    # Use the same side-effect-free barrier exposed for offline validation.
+    await preflight_registered_selector_schedule(
+        prepared=prepared,
+        selector_input_map_bytes=selector_input_map_bytes,
+        expected_selector_input_map_sha256=expected_selector_input_map_sha256,
+        operation_materials=operation_materials,
+        permits=permits,
+        api_key=api_key,
+    )
 
     results: list[CallResult] = []
     for operation_id in prepared.operation_ids:
