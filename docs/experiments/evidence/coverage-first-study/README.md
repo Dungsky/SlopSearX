@@ -125,3 +125,5 @@ were read-only. Private endpoints, addresses, hostnames, paths, permit details, 
 credential values are excluded from these artifacts.
 
 The [registration after the file-publication repair](atomic-handoff-registration-2026-10-15/README.md) has now been invoked for development. It completed 54 native reference grades and independent closure, then stopped at selector-map admission. The coordinator inventory remains in progress and confirmation remains unstarted. The registration README preserves its setup-time snapshot; the [terminal record](completed-2026-10-15-selector-map-admission/README.md) records the later outcome.
+
+The [next comparison plan](float-compatible-saved-development-registration/README.md) uses the corrected numeric parser. Both static preflights passed. It has not started and has no quality result.
