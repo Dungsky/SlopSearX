@@ -12,6 +12,7 @@ from unittest import mock
 
 import pytest
 
+from scripts import coverage_atomic_io
 from scripts import coverage_late_registration as late
 from scripts import coverage_local_authority as authority
 from scripts import coverage_operator_handoff as handoff
@@ -28,8 +29,7 @@ _MISSING = object()
 def _write_private(path: Path, raw: bytes) -> None:
     path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
     os.chmod(path.parent, 0o700)
-    path.write_bytes(raw)
-    os.chmod(path, 0o600)
+    coverage_atomic_io.write_new(path, raw)
 
 
 def _saved_case(tmp_path: Path):
@@ -307,19 +307,15 @@ def _issue(tmp_path: Path, case, *, changed_bindings=None, changed_artifacts=Non
                 plan=plan,
             )
         response = request_path.parent.parent / "responses" / "map.receipt"
-        response.write_bytes(receipt)
-        response.chmod(0o600)
+        _write_private(response, receipt)
         pin = request_path.parent.parent / "pins" / "map.sha256"
-        pin.write_text(digest(receipt) + "\n")
-        pin.chmod(0o600)
+        _write_private(pin, (digest(receipt) + "\n").encode())
         return receipt, results, request_path, root
     except Exception:
         response = request_path.parent.parent / "responses" / "map.receipt"
-        response.write_bytes(b"refused")
-        response.chmod(0o600)
+        _write_private(response, b"refused")
         pin = request_path.parent.parent / "pins" / "map.sha256"
-        pin.write_text(digest(b"refused") + "\n")
-        pin.chmod(0o600)
+        _write_private(pin, (digest(b"refused") + "\n").encode())
         raise
     finally:
         if worker.is_alive():
@@ -468,9 +464,7 @@ def test_fresh_selector_map_rejects_saved_import_fields(tmp_path):
             plan=plan,
         )
     response = request_path.parent.parent / "responses" / "fresh.receipt"
-    response.write_bytes(b"refused")
-    response.chmod(0o600)
+    _write_private(response, b"refused")
     pin = request_path.parent.parent / "pins" / "fresh.sha256"
-    pin.write_text(digest(b"refused") + "\n")
-    pin.chmod(0o600)
+    _write_private(pin, (digest(b"refused") + "\n").encode())
     worker.join(timeout=3)
