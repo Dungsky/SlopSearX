@@ -57,6 +57,143 @@ def source_bootstrap_for_test(root: Path):
 
 
 class OperatorRunnerConfigTests(unittest.TestCase):
+    def test_selector_execution_state_comes_from_exact_terminal_inventory(self):
+        from scripts import coverage_jev_execution as jev
+        from scripts import intent_ranking_coverage as coverage
+
+        compiled = coverage.compile_request(
+            query="registered test query",
+            purpose="test the distinction between ranking status and execution state",
+            facets=[
+                {"id": "f1", "description": "First distinct facet"},
+                {"id": "f2", "description": "Second distinct facet"},
+            ],
+            candidates=[
+                {"id": "c0", "title": "First", "url": "https://example.test/0", "snippet": "first"},
+                {"id": "c1", "title": "Second", "url": "https://example.test/1", "snippet": "second"},
+            ],
+            incumbent_order=["c0", "c1"],
+        )
+        selected = coverage.select(
+            compiled,
+            coverage.ParsedResponse(
+                scores={"c0": 5.0, "c1": 5.0},
+                score_audit={},
+                selected_facets={"c0": ("f1",), "c1": ("f2",)},
+                profile_audit={},
+                usage={"input_tokens": 1, "output_tokens": 1},
+            ),
+        )
+        fallback = coverage.select(
+            compiled,
+            coverage.ParsedResponse(
+                scores={"c0": 5.0, "c1": 5.0},
+                score_audit={},
+                selected_facets={"c0": (), "c1": ()},
+                profile_audit={},
+                usage={"input_tokens": 1, "output_tokens": 1},
+            ),
+        )
+        operation_ids = ("operation-selected", "operation-fallback", "operation-original-v1")
+        prepared = SimpleNamespace(
+            stage_uuid=str(uuid.uuid4()),
+            source_revision="a" * 40,
+            registration_sha256="b" * 64,
+            pins={"protocol": "c" * 64, "qualified_source_closure": "d" * 64},
+            operation_ids=operation_ids,
+        )
+        statuses = (selected.status, fallback.status, "complete-original-v1")
+        self.assertEqual(statuses, ("selected", "fallback", "complete-original-v1"))
+        results = [
+            SimpleNamespace(operation_id=operation_id, status=status, terminal_reason=None)
+            for operation_id, status in zip(operation_ids, statuses)
+        ]
+        document = {
+            "schema": jev.INVENTORY_SCHEMA,
+            "stage_uuid": prepared.stage_uuid,
+            "source_revision": prepared.source_revision,
+            "registration_sha256": prepared.registration_sha256,
+            "protocol_sha256": prepared.pins["protocol"],
+            "source_closure_sha256": prepared.pins["qualified_source_closure"],
+            "status": "all-registered-calls-complete",
+            "all_calls_complete": True,
+            "input_tokens": 3,
+            "output_tokens": 3,
+            "operations": [
+                {"operation_id": operation_id, "state": "complete-success"} for operation_id in operation_ids
+            ],
+            "resource_observations": [],
+        }
+        terminal_bytes = jev._canonical(document)
+        terminal = {
+            "sha256": digest(terminal_bytes),
+            "bytes": len(terminal_bytes),
+            "status": document["status"],
+            "all_calls_complete": True,
+        }
+        self.assertEqual(
+            runner._verified_selector_operation_states(
+                prepared=prepared,
+                results=results,
+                terminal=terminal,
+                terminal_bytes=terminal_bytes,
+            ),
+            {operation_id: "complete-success" for operation_id in operation_ids},
+        )
+
+        for mutate_operations in (
+            lambda rows: rows[:-1],
+            lambda rows: rows[:-1] + [rows[0]],
+            lambda rows: [{**rows[0], "operation_id": "unregistered-operation"}, *rows[1:]],
+            lambda rows: [{**rows[0], "state": "complete-invalid-response"}, *rows[1:]],
+        ):
+            invalid_document = {**document, "operations": mutate_operations(document["operations"])}
+            invalid_bytes = jev._canonical(invalid_document)
+            invalid_terminal = {**terminal, "sha256": digest(invalid_bytes), "bytes": len(invalid_bytes)}
+            with self.assertRaises(runner.OperatorRunnerError):
+                runner._verified_selector_operation_states(
+                    prepared=prepared,
+                    results=results,
+                    terminal=invalid_terminal,
+                    terminal_bytes=invalid_bytes,
+                )
+
+        with self.assertRaisesRegex(runner.OperatorRunnerError, "selector-result-inventory-mismatch"):
+            runner._verified_selector_operation_states(
+                prepared=prepared,
+                results=results[:-1],
+                terminal=terminal,
+                terminal_bytes=terminal_bytes,
+            )
+        for invalid_results in (
+            [*results[:-1], results[0]],
+            [SimpleNamespace(operation_id="unregistered-operation"), *results[1:]],
+        ):
+            with self.assertRaisesRegex(runner.OperatorRunnerError, "selector-result-inventory-mismatch"):
+                runner._verified_selector_operation_states(
+                    prepared=prepared,
+                    results=invalid_results,
+                    terminal=terminal,
+                    terminal_bytes=terminal_bytes,
+                )
+
+        for invalid_first_result in (
+            SimpleNamespace(operation_id=operation_ids[0], status="terminal-failure", terminal_reason=None),
+            SimpleNamespace(
+                operation_id=operation_ids[0], status=results[0].status, terminal_reason="unexpected-failure"
+            ),
+            SimpleNamespace(operation_id=operation_ids[0], status="unknown-success-label", terminal_reason=None),
+            SimpleNamespace(operation_id=operation_ids[0], terminal_reason=None),
+            SimpleNamespace(operation_id=operation_ids[0], status=results[0].status),
+        ):
+            with self.assertRaisesRegex(runner.OperatorRunnerError, "selector-result-outcome-invalid"):
+                runner._verified_selector_operation_states(
+                    prepared=prepared,
+                    results=[invalid_first_result, *results[1:]],
+                    terminal=terminal,
+                    terminal_bytes=terminal_bytes,
+                )
+
     def test_acquisition_authority_uses_exact_executor_stage_manifest_digest(self):
         plan = plan_fixture()
         manifest = json.loads(plan.acquisition_manifest_bytes)
