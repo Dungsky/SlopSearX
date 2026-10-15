@@ -534,18 +534,28 @@ impl RawGateway {
         if let Some(token) = &self.token {
             request = request.bearer_auth(token);
         }
-        if let Some(session) = self.session.lock().unwrap().clone() {
+        let attempted_session = self.session.lock().unwrap().clone();
+        if let Some(session) = &attempted_session {
             request = request.header("mcp-session-id", session.as_str());
         }
         let mut response = tokio::time::timeout(self.deadline, request.send()).await??;
         if let Some(id) = response.headers().get("mcp-session-id") {
             let id = id.to_str()?.to_owned();
             let mut current = self.session.lock().unwrap();
-            if current.as_ref().is_some_and(|old| old.as_str() != id) {
-                return Err("remote MCP session identity changed".into());
-            }
-            if current.is_none() {
-                *current = Some(std::sync::Arc::new(id));
+            // Only the generation that sent this POST may update identity.
+            // A delayed response from a closed/replaced session cannot revive it.
+            let same_generation = match (&attempted_session, current.as_ref()) {
+                (None, None) => true,
+                (Some(attempted), Some(active)) => std::sync::Arc::ptr_eq(attempted, active),
+                _ => false,
+            };
+            if same_generation {
+                if current.as_ref().is_some_and(|old| old.as_str() != id) {
+                    return Err("remote MCP session identity changed".into());
+                }
+                if current.is_none() {
+                    *current = Some(std::sync::Arc::new(id));
+                }
             }
         }
         if response.status() == 202 || response.status() == 204 {
@@ -973,5 +983,86 @@ mod close_tests {
         assert!(gateway.session.lock().unwrap().is_none());
         // Repeated completion is harmless.
         gateway.clear_closed_session(&replacement);
+    }
+    #[tokio::test]
+    async fn late_post_session_header_does_not_resurrect_closed_identity() -> Result<()> {
+        use axum::{response::IntoResponse, routing::post};
+        use std::sync::{
+            Arc,
+            atomic::{AtomicUsize, Ordering},
+        };
+        for failed_close in [false, true] {
+            let entered = Arc::new(tokio::sync::Notify::new());
+            let release = Arc::new(tokio::sync::Notify::new());
+            let deletes = Arc::new(AtomicUsize::new(0));
+            let (seen, resume, closed) = (entered.clone(), release.clone(), deletes.clone());
+            let router = axum::Router::new().route("/mcp", post(move |body: String| {
+                let (seen, resume) = (seen.clone(), resume.clone());
+                async move {
+                    let request: Value = serde_json::from_str(&body).unwrap();
+                    let method = request["method"].as_str().unwrap();
+                    if request.get("id").is_none() { return axum::http::StatusCode::ACCEPTED.into_response(); }
+                    let result = match method {
+                        "initialize" => json!({"protocolVersion":"2025-11-25","capabilities":{"tools":{},"resources":{},"prompts":{}},"serverInfo":{"name":"delayed-header","version":"1"}}),
+                        "tools/list" => json!({"tools":[]}),
+                        "resources/list" => json!({"resources":[]}),
+                        "prompts/list" => json!({"prompts":[]}),
+                        "tools/call" => { seen.notify_one(); resume.notified().await; json!({"content":[]}) },
+                        _ => json!({"resourceTemplates":[]}),
+                    };
+                    let mut response = axum::Json(json!({"jsonrpc":"2.0","id":request["id"],"result":result})).into_response();
+                    // The peer echoes its session on delayed responses, a legal
+                    // upstream behavior beyond the SDK's initialize-only header.
+                    response.headers_mut().insert("mcp-session-id", "session-one".parse().unwrap());
+                    response
+                }
+            }).delete(move || {
+                let closed = closed.clone();
+                async move {
+                    let count = closed.fetch_add(1, Ordering::SeqCst);
+                    if failed_close && count == 0 { axum::http::StatusCode::INTERNAL_SERVER_ERROR }
+                    else { axum::http::StatusCode::NO_CONTENT }
+                }
+            }));
+            let host =
+                crate::harness::Host::start(router, tokio_util::sync::CancellationToken::new())
+                    .await?;
+            let gateway = RawGateway::connect(
+                format!("http://{}/mcp", host.address),
+                None,
+                Duration::from_secs(2),
+            )
+            .await?;
+            let original = gateway.session.lock().unwrap().clone().unwrap();
+            let calling = gateway.clone();
+            let call = tokio::spawn(async move {
+                calling.exchange(r#"{"jsonrpc":"2.0","id":10,"method":"tools/call","params":{"name":"delayed"}}"#).await
+            });
+            tokio::time::timeout(Duration::from_secs(2), entered.notified()).await?;
+            assert_eq!(gateway.close().await.is_err(), failed_close);
+            release.notify_one();
+            assert!(
+                tokio::time::timeout(Duration::from_secs(2), call)
+                    .await???
+                    .is_some()
+            );
+            if failed_close {
+                assert!(Arc::ptr_eq(
+                    gateway.session.lock().unwrap().as_ref().unwrap(),
+                    &original
+                ));
+                gateway.close().await?;
+                assert_eq!(deletes.load(Ordering::SeqCst), 2);
+            } else {
+                assert!(
+                    gateway.session.lock().unwrap().is_none(),
+                    "late POST resurrected successfully closed session identity"
+                );
+                gateway.close().await?;
+                assert_eq!(deletes.load(Ordering::SeqCst), 1);
+            }
+            host.shutdown().await?;
+        }
+        Ok(())
     }
 }
