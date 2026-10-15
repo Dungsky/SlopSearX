@@ -14,6 +14,7 @@ import socket
 import subprocess
 import sys
 import tempfile
+import threading
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any
@@ -49,12 +50,81 @@ SOURCE_PATHS = [
     "slopsearx/mcp/tools.py",
     "slopsearx/service.py",
     "slopsearx/snapshot.py",
+    "slopsearx/config.py",
 ]
 ORIGIN = {
     "npm": "https://registry.npmjs.org",
     "crates": "https://crates.io",
     "openalex": "https://api.openalex.org",
 }
+SAFE_ENV_KEYS = {"PATH", "LANG", "LC_ALL", "TMPDIR", "SYSTEMROOT"}
+_private_home: tempfile.TemporaryDirectory[str] | None = None
+_allowed_loopback_ports: set[int] = set()
+
+
+def sanitize_environment(*, candidate: bool) -> None:
+    """Keep only process essentials and explicit replay inputs."""
+    global _private_home
+    safe = {key: value for key, value in os.environ.items() if key in SAFE_ENV_KEYS}
+    if candidate:
+        # replay-run mounts its candidate root read-only; the Python adapter
+        # helper needs no home directory or XDG cache/config path.
+        safe["HOME"] = os.devnull
+        replay_keys = {
+            "SSX_REPLAY_URL",
+            "SSX_REPLAY_ORIGIN",
+            "SSX_REPLAY_INPUT",
+            "SSX_FIXED_UNIX_SECONDS",
+            "SSX_FIXED_IDS",
+        }
+        safe.update({key: value for key, value in os.environ.items() if key in replay_keys})
+    else:
+        _private_home = tempfile.TemporaryDirectory(prefix="ssx-f04-oracle-home-")
+        safe["HOME"] = _private_home.name
+        safe["XDG_CONFIG_HOME"] = str(Path(_private_home.name) / ".config")
+        safe["XDG_CACHE_HOME"] = str(Path(_private_home.name) / ".cache")
+    os.environ.clear()
+    os.environ.update(safe)
+
+
+def verify_candidate_environment_is_read_only_safe() -> None:
+    """Prove candidate environment setup never creates a temporary directory."""
+    original_env = os.environ.copy()
+    original_factory = tempfile.TemporaryDirectory
+
+    def reject_tempdir(*_: Any, **__: Any) -> Any:
+        raise AssertionError("candidate environment attempted temporary-directory creation")
+
+    inputs = {
+        "SSX_REPLAY_URL": "http://127.0.0.1:43210",
+        "SSX_REPLAY_ORIGIN": "https://example.invalid",
+        "SSX_REPLAY_INPUT": "{}",
+        "SSX_FIXED_UNIX_SECONDS": "1792022400",
+        "SSX_FIXED_IDS": '["fixture-one"]',
+        "VALKEY_URL": "redis://unexpected.invalid/0",
+        "SENTRY_DSN": "https://sentinel.invalid/1",
+    }
+    try:
+        os.environ.clear()
+        os.environ.update(inputs)
+        tempfile.TemporaryDirectory = reject_tempdir
+        sanitize_environment(candidate=True)
+        if os.environ.get("HOME") != os.devnull:
+            raise AssertionError("candidate environment has a writable-home path")
+        if any(key.startswith("XDG_") for key in os.environ):
+            raise AssertionError("candidate environment retained XDG config/cache paths")
+        if any(os.environ.get(key) != value for key, value in inputs.items() if key.startswith("SSX_")):
+            raise AssertionError("candidate environment did not preserve all replay controls")
+        assert_no_shared_store_url()
+    finally:
+        tempfile.TemporaryDirectory = original_factory
+        os.environ.clear()
+        os.environ.update(original_env)
+
+
+def assert_no_shared_store_url() -> None:
+    if "VALKEY_URL" in os.environ or "SLOPSEARX_TEST_VALKEY_URL" in os.environ:
+        raise RuntimeError("developer oracle environment retained a shared-store URL")
 
 
 def load_json(path: Path) -> Any:
@@ -62,11 +132,26 @@ def load_json(path: Path) -> Any:
 
 
 def git_blob(path: str) -> str:
-    return subprocess.check_output(["git", "rev-parse", f"{BASELINE}:{path}"], cwd=SOURCE_ROOT, text=True).strip()
+    return subprocess.check_output(
+        ["git", "rev-parse", f"{BASELINE}:{path}"], cwd=SOURCE_ROOT, text=True, env=git_environment()
+    ).strip()
+
+
+def git_environment() -> dict[str, str]:
+    env = {key: value for key, value in os.environ.items() if key in SAFE_ENV_KEYS}
+    env.update(
+        {
+            "GIT_CONFIG_NOSYSTEM": "1",
+            "GIT_CONFIG_GLOBAL": os.devnull,
+            "GIT_OPTIONAL_LOCKS": "0",
+            "GIT_NO_REPLACE_OBJECTS": "1",
+        }
+    )
+    return env
 
 
 def install_loopback_network_guard() -> None:
-    """Forbid name resolution and sockets to non-loopback hosts during export."""
+    """Permit only named fixture TCP ports; deny DNS, other sockets and Unix sockets."""
     original_getaddrinfo = socket.getaddrinfo
     original_connect = socket.socket.connect
     original_connect_ex = socket.socket.connect_ex
@@ -84,18 +169,108 @@ def install_loopback_network_guard() -> None:
         return original_getaddrinfo(host, *args, **kwargs)
 
     def guarded_connect(sock: socket.socket, address: Any) -> Any:
-        if isinstance(address, tuple) and not ipaddress.ip_address(address[0]).is_loopback:
+        if (
+            not isinstance(address, tuple)
+            or len(address) < 2
+            or not ipaddress.ip_address(address[0]).is_loopback
+            or address[1] not in _allowed_loopback_ports
+        ):
             raise OSError("oracle export permits loopback addresses only")
         return original_connect(sock, address)
 
     def guarded_connect_ex(sock: socket.socket, address: Any) -> Any:
-        if isinstance(address, tuple) and not ipaddress.ip_address(address[0]).is_loopback:
+        if (
+            not isinstance(address, tuple)
+            or len(address) < 2
+            or not ipaddress.ip_address(address[0]).is_loopback
+            or address[1] not in _allowed_loopback_ports
+        ):
             raise OSError("oracle export permits loopback addresses only")
         return original_connect_ex(sock, address)
+
+    def guarded_sendto(sock: socket.socket, *args: Any, **kwargs: Any) -> Any:
+        raise OSError("oracle export does not permit datagram sockets")
 
     socket.getaddrinfo = guarded_getaddrinfo
     socket.socket.connect = guarded_connect
     socket.socket.connect_ex = guarded_connect_ex
+    socket.socket.sendto = guarded_sendto
+
+
+def allow_loopback_port(port: int) -> None:
+    _allowed_loopback_ports.add(port)
+
+
+def revoke_loopback_port(port: int) -> None:
+    _allowed_loopback_ports.discard(port)
+
+
+class LocalValkeySentinel:
+    """Record loopback connects to a synthetic Valkey endpoint during self-checks."""
+
+    def __init__(self) -> None:
+        self._listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self._listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self._listener.bind(("127.0.0.1", 0))
+        self._listener.listen(4)
+        self._listener.settimeout(0.1)
+        self._stop = threading.Event()
+        self._condition = threading.Condition()
+        self._connection_count = 0
+        self._baseline_count = 0
+        self._thread = threading.Thread(target=self._serve, daemon=True)
+
+    @property
+    def url(self) -> str:
+        return f"redis://127.0.0.1:{self._listener.getsockname()[1]}/0"
+
+    def _serve(self) -> None:
+        while not self._stop.is_set():
+            try:
+                connection, _ = self._listener.accept()
+            except TimeoutError:
+                continue
+            except OSError:
+                return
+            with self._condition:
+                self._connection_count += 1
+                self._condition.notify_all()
+            try:
+                connection.sendall(b"\0")
+            except OSError:
+                pass
+            connection.close()
+
+    def _marker_connection(self) -> int:
+        with self._condition:
+            before = self._connection_count
+        with socket.create_connection(("127.0.0.1", self._listener.getsockname()[1]), timeout=1) as marker:
+            marker.settimeout(1)
+            if marker.recv(1) != b"\0":
+                raise RuntimeError("Valkey sentinel marker acknowledgement was invalid")
+        with self._condition:
+            if self._connection_count <= before:
+                raise RuntimeError("Valkey sentinel did not count its marker connection")
+            return self._connection_count
+
+    def positive_control(self) -> None:
+        allow_loopback_port(self._listener.getsockname()[1])
+        self._baseline_count = self._marker_connection()
+
+    def has_connections(self) -> bool:
+        # TCP accepts are FIFO; this marker is accepted after handshakes from
+        # both bounded children and therefore drains their queued contacts.
+        return self._marker_connection() - self._baseline_count > 1
+
+    def __enter__(self) -> LocalValkeySentinel:
+        self._thread.start()
+        return self
+
+    def __exit__(self, *_: object) -> None:
+        revoke_loopback_port(self._listener.getsockname()[1])
+        self._stop.set()
+        self._listener.close()
+        self._thread.join(timeout=1)
 
 
 def adapter_case(name: str) -> dict[str, Any]:
@@ -187,10 +362,38 @@ def import_contract_engine() -> type:
 def search_http_observation() -> dict[str, Any]:
     import slopsearx.server as server_module
     import slopsearx.service as service
+    from slopsearx.config import Config, EngineEntry, SearchConfig
+    from slopsearx.mcp.harness import InMemoryStore
+    from slopsearx.service import AppContext
 
     engine_class = import_contract_engine()
-    server_module._active_engines = {"contract": engine_class()}
+    engine = engine_class()
+    server_module._active_engines = {"contract": engine}
     server_module._router = None
+    server_module._health_config_cache = Config(
+        engines={"contract": EngineEntry(categories=["general", "science"])},
+        search=SearchConfig(formats=["json"]),
+    )
+    server_module._health_catalog_cache = None
+    server_module._health_catalog_engines = None
+    server_module._routing_budget_cache = None
+    server_module.load_config = lambda: (_ for _ in ()).throw(
+        RuntimeError("HTTP oracle attempted to read host configuration")
+    )
+    store = InMemoryStore()
+
+    async def fixture_context() -> AppContext:
+        return AppContext(
+            active_engines={"contract": engine},
+            cache=store,
+            engine_semaphore=asyncio.Semaphore(10),
+            tier1_engines={"contract"},
+            sensitive_engines=set(),
+        )
+
+    # Preserve FastAPI's real lifespan and HTTP pipeline while supplying the
+    # same deterministic app-context seam used by the pinned test harness.
+    server_module.build_context = fixture_context
     service.generate_query_id = lambda: "ssx-f04-search-http"
     with TestClient(server_module.app) as client:
         response = client.get("/search", params={"q": "F04 contract", "format": "json", "engines": "contract"})
@@ -241,6 +444,7 @@ async def _mcp_observation() -> dict[str, Any]:
 
     original_uuid4 = snapshot_module.uuid.uuid4
     original_time = snapshot_module.time.time
+    allowed_port: int | None = None
     snapshot_module.uuid.uuid4 = lambda: types.SimpleNamespace(hex="f04fixedsnapshot")
     snapshot_module.time.time = lambda: 1792022400.0
     app = make_fixture_http_app([FakeEngineSpec(name="wikipedia", count=2)])
@@ -254,12 +458,14 @@ async def _mcp_observation() -> dict[str, Any]:
                     raise RuntimeError("MCP fixture server exited before startup")
                 await asyncio.sleep(0.01)
         port = server.servers[0].sockets[0].getsockname()[1]
+        allowed_port = port
         observed_statuses: list[int] = []
 
         async def record_response(response: httpx.Response) -> None:
             observed_statuses.append(response.status_code)
 
-        async with httpx.AsyncClient(event_hooks={"response": [record_response]}) as client:
+        allow_loopback_port(port)
+        async with httpx.AsyncClient(event_hooks={"response": [record_response]}, trust_env=False) as client:
             async with streamable_http_client(f"http://127.0.0.1:{port}/mcp", http_client=client) as streams:
                 async with ClientSession(streams[0], streams[1]) as session:
                     await session.initialize()
@@ -281,6 +487,8 @@ async def _mcp_observation() -> dict[str, Any]:
     finally:
         snapshot_module.uuid.uuid4 = original_uuid4
         snapshot_module.time.time = original_time
+        if allowed_port is not None:
+            revoke_loopback_port(allowed_port)
         server.should_exit = True
         try:
             await asyncio.wait_for(task, timeout=10)
@@ -343,15 +551,24 @@ def run_adapter_candidate(input_value: dict[str, Any]) -> dict[str, Any]:
 
     async def run() -> dict[str, Any]:
         adapter = adapter_class(config=config)
-        response = await adapter.search(input_value["query"], input_value.get("params"))
-        return {
-            "status": response.status.value,
-            "body": {
-                "results": [{**asdict(row), "engines": sorted(row.engines)} for row in response.results],
-                "latency_ms": response.latency_ms,
-                "error_message": response.error_message,
-            },
-        }
+        parsed_origin = urlsplit(origin)
+        if parsed_origin.hostname not in {"127.0.0.1", "::1", "localhost"} or parsed_origin.port is None:
+            raise RuntimeError("candidate replay origin must be an explicit loopback socket")
+        allow_loopback_port(parsed_origin.port)
+        adapter.http_client = lambda **kwargs: httpx.AsyncClient(trust_env=False, **kwargs)
+        try:
+            response = await adapter.search(input_value["query"], input_value.get("params"))
+            return {
+                "status": response.status.value,
+                "body": {
+                    "results": [{**asdict(row), "engines": sorted(row.engines)} for row in response.results],
+                    "latency_ms": response.latency_ms,
+                    "error_message": response.error_message,
+                },
+            }
+        finally:
+            await adapter.shutdown()
+            revoke_loopback_port(parsed_origin.port)
 
     return asyncio.run(run())
 
@@ -364,7 +581,7 @@ def main() -> None:
     parser.add_argument(
         "--verify-ambient-format",
         action="store_true",
-        help="prove SEARCH_FORMATS=html cannot change the exported corpus",
+        help="prove hostile inherited runtime settings cannot change the exported corpus or reach Valkey",
     )
     parser.add_argument(
         "--source-root", type=Path, required=True, help="clean detached checkout at the pinned Python oracle commit"
@@ -374,13 +591,33 @@ def main() -> None:
     global SOURCE_ROOT
     if args.baseline != BASELINE:
         raise SystemExit(f"baseline must be the pinned F04 source revision {BASELINE}")
+    sanitize_environment(candidate=args.candidate)
+    assert_no_shared_store_url()
     SOURCE_ROOT = args.source_root.resolve()
-    commit = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=SOURCE_ROOT, text=True).strip()
+    commit = subprocess.check_output(
+        ["git", "rev-parse", "HEAD"], cwd=SOURCE_ROOT, text=True, env=git_environment()
+    ).strip()
     dirty = subprocess.check_output(
-        ["git", "status", "--porcelain", "--untracked-files=all"], cwd=SOURCE_ROOT, text=True
+        [
+            "git",
+            "-c",
+            "core.fsmonitor=false",
+            "-c",
+            "core.untrackedCache=false",
+            "status",
+            "--porcelain",
+            "--untracked-files=all",
+        ],
+        cwd=SOURCE_ROOT,
+        text=True,
+        env=git_environment(),
     )
     if commit != BASELINE or dirty:
         raise SystemExit(f"oracle source root must be clean at {BASELINE}; got {commit}, dirty={bool(dirty)}")
+    bytecode_roots = [SOURCE_ROOT / directory for directory in ("slopsearx", "engines", "tests")]
+    stale_bytecode = [path for root in bytecode_roots if root.exists() for path in root.rglob("*.pyc")]
+    if stale_bytecode:
+        raise SystemExit(f"ignored bytecode could shadow pinned source: {stale_bytecode[0]}")
     sys.path.insert(0, str(SOURCE_ROOT))
     package_spec = importlib.util.find_spec("slopsearx")
     if (
@@ -397,13 +634,6 @@ def main() -> None:
     ):
         raise SystemExit("engine imports do not resolve from the pinned source root")
     sys.dont_write_bytecode = True
-    for key in list(os.environ):
-        if key.startswith(("SEARCH_", "ENGINE_", "MCP_", "JEV_")) or key.lower() in {
-            "http_proxy",
-            "https_proxy",
-            "all_proxy",
-        }:
-            os.environ.pop(key, None)
     # The HTTP surface reads this setting while the pinned server module loads.
     # Explicit JSON keeps the export independent of the developer's shell.
     os.environ["SEARCH_FORMATS"] = "json"
@@ -415,6 +645,7 @@ def main() -> None:
         print(json.dumps(observation, separators=(",", ":")))
         return
     if args.verify_ambient_format:
+        verify_candidate_environment_is_read_only_safe()
         with tempfile.TemporaryDirectory(prefix="ssx-f04-env-check-") as temporary:
             clean_output = Path(temporary) / "clean.json"
             ambient_output = Path(temporary) / "ambient.json"
@@ -431,27 +662,53 @@ def main() -> None:
             clean_env.pop("SEARCH_FORMATS", None)
             ambient_env = clean_env.copy()
             ambient_env["SEARCH_FORMATS"] = "html"
-            subprocess.run(
-                [*command, str(clean_output)],
-                cwd=ROOT,
-                env=clean_env,
-                check=True,
-                timeout=60,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
-            subprocess.run(
-                [*command, str(ambient_output)],
-                cwd=ROOT,
-                env=ambient_env,
-                check=True,
-                timeout=60,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
+            ambient_env["SENTRY_DSN"] = "https://sentinel.invalid/1"
+            ambient_env["TYPESAFE_API_KEY"] = "sentinel-no-call"
+            ambient_env["SLOPSEARX_WORKFLOW_PORTAL_ENABLED"] = "true"
+            ambient_env["MAX_CONCURRENT_ENGINES"] = "1"
+            ambient_env["PER_CLIENT_REQUESTS"] = "1"
+            ambient_env["PER_CLIENT_WINDOW_SECONDS"] = "1"
+            ambient_env["FAIL_CLOSED"] = "true"
+            ambient_env["FEATURE_EMPTY_SCRAPE_DIAGNOSTICS"] = "true"
+            ambient_env["FEATURE_BRAVE_CATEGORY_ROUTING"] = "true"
+            ambient_env["ROUTING_MAX_ENGINES_PER_INTENT"] = "1"
+            ambient_env["PAYLOAD_MAX_PERSIST_BYTES"] = "1"
+            ambient_env["HF_TOKEN"] = "sentinel-no-call"
+            ambient_env["ENGINE_NPM_API_KEY"] = "sentinel-no-call"
+            ambient_env["PYTHONPATH"] = str(SOURCE_ROOT / "untrusted-python-path")
+            ambient_env["GIT_DIR"] = "/untrusted/git-dir"
+            ambient_env["GIT_WORK_TREE"] = "/untrusted/work-tree"
+            ambient_env["GIT_CONFIG_GLOBAL"] = "/untrusted/gitconfig"
+            with LocalValkeySentinel() as valkey_sentinel:
+                valkey_sentinel.positive_control()
+                ambient_env["VALKEY_URL"] = valkey_sentinel.url
+                ambient_env["SLOPSEARX_TEST_VALKEY_URL"] = valkey_sentinel.url
+                ambient_env["HTTP_PROXY"] = f"http://127.0.0.1:{valkey_sentinel._listener.getsockname()[1]}"
+                ambient_env["HTTPS_PROXY"] = ambient_env["HTTP_PROXY"]
+                subprocess.run(
+                    [*command, str(clean_output)],
+                    cwd=ROOT,
+                    env=clean_env,
+                    check=True,
+                    timeout=60,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+                subprocess.run(
+                    [*command, str(ambient_output)],
+                    cwd=ROOT,
+                    env=ambient_env,
+                    check=True,
+                    timeout=60,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+                valkey_contact = valkey_sentinel.has_connections()
+            if valkey_contact:
+                raise SystemExit("export attempted to connect to the synthetic Valkey endpoint")
             if clean_output.read_bytes() != ambient_output.read_bytes():
                 raise SystemExit("SEARCH_FORMATS=html changed the exported corpus")
-        print("ambient SEARCH_FORMATS=html export matches clean export byte-for-byte")
+        print("hostile inherited settings preserve output bytes and made no Valkey connections")
         return
     provenance = {
         "license": (

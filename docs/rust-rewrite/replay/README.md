@@ -18,7 +18,9 @@ git worktree add --detach /private/tmp/slopsearx-f04-oracle-src 7b2d876307189d7a
 cargo xtask check F04
 ```
 
-The exporter rejects a dirty or wrong-revision source checkout, including untracked files, strips provider and `SEARCH_*` configuration from its environment, fixes the HTTP surface to JSON before importing the pinned app, blocks DNS and socket connections to non-loopback hosts, and uses only sanitized recorded responses, an in-process ASGI test client, and the local MCP fixture server. It does not call live or paid providers. It verifies each fixture source blob against the recorded baseline before writing the corpus.
+The exporter rejects a dirty or wrong-revision source checkout, including untracked files and ignored Python bytecode under the pinned source packages. It starts from an environment allowlist (process essentials and explicit replay controls only), uses a private temporary home, fixes the HTTP surface to JSON, and sets `trust_env=False` on its HTTP clients. The HTTP observation keeps the real FastAPI lifespan and request/service pipeline, while injecting the pinned contract engine and the same `InMemoryStore` used by the test harness. It seeds a deterministic in-memory config snapshot and traps any attempt to read the host `/etc/slopsearx/config.yaml`. The MCP observation uses the existing fixture server and in-memory state. The exporter permits only its explicitly registered loopback fixture ports, rejects Unix/datagram sockets, blocks DNS, and uses only sanitized recorded responses. It does not call live or paid providers. It verifies each fixture source blob against the recorded baseline before writing the corpus.
+
+In `--candidate` mode, the helper sets `HOME=/dev/null` and leaves XDG config/cache variables unset. The adapter only needs its explicit replay inputs and loopback URL; it writes no home or cache data. This allows `replay-run` to keep the candidate root read-only.
 
 To verify format-setting isolation without overwriting the corpus, run:
 
@@ -29,11 +31,15 @@ To verify format-setting isolation without overwriting the corpus, run:
   --verify-ambient-format
 ```
 
-This produces clean-environment and `SEARCH_FORMATS=html` exports in temporary
-files, then compares their complete bytes. The exporter also clears the other
-`SEARCH_*` inputs consumed by `slopsearx.config`; the HTTP observation requests
-JSON explicitly and names its engine, so default engine selection and logging
-settings do not affect that response.
+This produces clean-environment and poisoned-environment exports in temporary
+files, then compares their complete bytes. The poisoned run sets `SEARCH_FORMATS=html`,
+hostile Valkey URLs, Sentry and provider credentials, workflow-portal activation,
+and runtime/routing/feature/payload limits. A local Valkey sentinel has a
+positive-control connection before the exports, then verifies that neither
+export connects to it. The exporter also traps host config reads, and the
+allowlisted environment removes all ambient runtime settings before importing
+the pinned app. Outputs are compared as complete bytes, not hashes or selected
+fields.
 
 `cargo xtask check F04` verifies source blob provenance, the deterministic input/clock/ID fields, the exact transcript and request count/order, envelope schemas and the full expected/candidate comparison. The MCP check requires the `enforcement` object and its field-level statuses. The check must fail for changed status, schema, provenance, request count/order, filter enforcement, result order, omitted/null changes, or non-volatile values.
 

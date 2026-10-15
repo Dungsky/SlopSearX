@@ -48,7 +48,7 @@
     },
     {
       "path": "docs/rust-rewrite/replay/oracle/export.py",
-      "git_blob": "af648f5ebf093b4c194733ad5bfc69e09ed7da73"
+      "git_blob": "0efc1b2917d7be5c66bb7fe08697273807728598"
     },
     {
       "path": "engines/__init__.py",

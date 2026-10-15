@@ -76,11 +76,15 @@
       {
         "path": "slopsearx/snapshot.py",
         "git_blob": "fe0e62b9872b3d01cef6a8f843d9720f2cd50a42"
+      },
+      {
+        "path": "slopsearx/config.py",
+        "git_blob": "761db0521d74ec6d955aa8a84fd92a4a62533c43"
       }
     ],
     "oracle": {
       "path": "docs/rust-rewrite/replay/oracle/export.py",
-      "sha256": "ef8d8866d8adf9eae6fd1e19f44cfd94aed53e190af1515ab80ba4f4e38583d6",
+      "sha256": "850af1c8cc44fe66ffc2b63b458fbd8471cafda60245ddc22919bef83be9d6fa",
       "invocation": ".venv/bin/python docs/rust-rewrite/replay/oracle/export.py --source-root /private/tmp/slopsearx-f04-oracle-src --baseline 7b2d876307189d7a62000d1f289b3ef4b65eaff6"
     }
   },

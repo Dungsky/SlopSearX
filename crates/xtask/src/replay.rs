@@ -1368,6 +1368,7 @@ fn validate_source_coverage(sources: &[Value]) -> Result<()> {
         "engines/crates.py",
         "engines/openalex.py",
         "slopsearx/adapter.py",
+        "slopsearx/config.py",
         "slopsearx/payload.py",
         "tests/fixtures/searxng_api_contract.json",
         "tests/test_searxng_api_contract.py",
