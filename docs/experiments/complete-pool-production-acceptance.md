@@ -1,12 +1,16 @@
 # Production acceptance checklist: explicit-purpose complete-pool Jev selection
 
-Current status: the saved-development invocation stopped at import admission before any grading or ranking calls. See the [terminal record](evidence/coverage-first-study/completed-2026-10-14-saved-admission/README.md). The failed run will not be retried. Confirmation was not started, and both sets of identities are retired. Ranking quality and production adoption remain unproven.
+Current status: saved development completed all 53 required native grading calls, but one response violated its assigned output schema. Independent grade validation correctly stopped the study before ranking or answer evaluation. See the [terminal record](evidence/coverage-first-study/completed-2026-10-15-native-grade-schema/README.md). No response was edited or retried, confirmation was not started, and ranking quality remains unproven.
 
 Implementation acceptance plan inspected against SlopSearX `3d5e8bac38b619aec1bd7a679f1a7667f1fc1abf` and experimental GroktoCrawl X `3612affba3b51e7240a0e60d079499739052c0b1`. This is a checklist of required work, not a claim of delivery. EXP-050 is bounded identifier-based source-information capture, not source-quality measurement or selector qualification. The production selector still requires a separately qualified, frozen candidate and fresh confirmation. Metadata presence or richer cards alone cannot satisfy either gate.
 
 The cross-service boundary follows accepted X ADR-0082: GroktoCrawl owns the caller's question, constraints, evidence sufficiency and completion; SlopSearX owns bounded search dispatch, merge/ranking and immutable result snapshots. Keep the SlopSearX ordinary HTTP behavior unchanged when the option is absent. The proposed ADR-0093 provenance work is not an accepted substitute for candidate quality evidence.
 
-## Current delivery state (2026-10-14)
+## Latest delivery state (2026-10-15)
+
+The import and cohort-binding repairs merged in PRs #846, #847 and #849. The subsequent study passed import and late registration. All 53 required native grading calls returned; 52 responses passed schema validation and one failed. The independent grade validator closed the study as incomplete. No ranking, answer or confirmation call ran. The native adapter repair adds structured-output schema binding and early response validation; it is engineering hardening, not ranking-quality evidence.
+
+## Earlier delivery state (2026-10-14)
 
 PR #843 added saved-result import and offline engine replay; PR #844 repaired setup against the complete archive. PR #845 recorded the test before execution. Runner and issuer static checks passed, but the actual saved-import admission path refused the single invocation. No scientific call occurred.
 
@@ -24,7 +28,7 @@ The immediate evidence gap is a complete independently validated source-referenc
 
 | Release requirement | Current evidence | State |
 | --- | --- | --- |
-| Complete valid development references | Carried card references and five valid Sol source assignments exist; 43 source and 32 answer assessments remain | Incomplete |
+| Complete valid development references | Latest run: 53 returned responses; one schema-invalid response prevents reference closure | Incomplete |
 | Registered development ranking and task-use gates | No complete qualifying comparison | Unproven |
 | Wholly fresh untouched confirmation | Not run | Incomplete |
 | Purpose/facet integration, compatibility and recovery checks | Checklist below remains required after candidate qualification | Not delivered by these experiments |

@@ -1,6 +1,6 @@
 # Coverage-first delivery: frozen-input execution amendment
 
-Current status: the saved-development invocation stopped at import admission before any grading or ranking calls. See the [terminal record](evidence/coverage-first-study/completed-2026-10-14-saved-admission/README.md). The failed run will not be retried. Confirmation was not started, and both sets of identities are retired. Ranking quality and production adoption remain unproven.
+Current status: saved development completed all 53 required native grading calls, but one response violated its assigned output schema. Independent grade validation correctly stopped the study before ranking or answer evaluation. See the [terminal record](evidence/coverage-first-study/completed-2026-10-15-native-grade-schema/README.md). No response was edited or retried, confirmation was not started, and ranking quality remains unproven.
 
 The current [saved-development method](evidence/coverage-first-study/saved-development-method-materials/README.md) changes input acquisition for development only. It preserves the candidate and quality requirements described below. Earlier admission and collection failures remain terminal historical evidence; they are not resumed.
 
