@@ -165,11 +165,20 @@ def verify_stage_finalization(
     if protocol.get("schema") not in {
         "coverage-first-study-protocol/2",
         "coverage-first-study-protocol/3",
+        "coverage-first-study-protocol/4",
     } or protocol.get("status") not in {
         "draft_not_registered_not_admitted",
         "registered",
     }:
         raise StageFinalizationError("finalization-protocol-not-v2")
+    if protocol.get("schema") == "coverage-first-study-protocol/4":
+        quality = protocol.get("quality")
+        if (
+            type(quality) is not dict
+            or quality.get("useful_count_role") != "diagnostic_only"
+            or "useful_count_loss_allowed" in quality
+        ):
+            raise StageFinalizationError("finalization-useful-count-policy-invalid")
     deadline = protocol.get("phase_limits", {}).get("stage_wall_seconds")
     if (
         type(deadline) not in (int, float)

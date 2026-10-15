@@ -28,6 +28,43 @@ def _sha(raw: bytes) -> str:
 
 
 class StageFinalizationTests(unittest.TestCase):
+    def test_v4_finalization_accepts_registered_task_use_materials(self):
+        materials = (
+            Path(gate_calculation.__file__).parents[1]
+            / "docs/experiments/evidence/coverage-first-study/research-task-use-method-materials"
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            paths, plan = self._fixture(
+                Path(temporary),
+                elapsed=7.5,
+                protocol_bytes_override=(materials / "protocol.json").read_bytes(),
+                cohorts_bytes_override=(materials / "cohorts.json").read_bytes(),
+            )
+            result = self._verify(paths, plan)
+            self.assertEqual(result.status, "gates-pass-awaiting-independent-decision")
+            self.assertEqual(json.loads(result.receipt_bytes)["protocol_sha256"], _sha(plan.protocol_bytes))
+
+    def test_v4_composes_gate_companion_and_finalization_boundaries(self):
+        materials = (
+            Path(gate_calculation.__file__).parents[1]
+            / "docs/experiments/evidence/coverage-first-study/research-task-use-method-materials"
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            paths, plan = self._fixture(
+                Path(temporary),
+                elapsed=7.5,
+                protocol_bytes_override=(materials / "protocol.json").read_bytes(),
+                cohorts_bytes_override=(materials / "cohorts.json").read_bytes(),
+                band_companion_bytes_override=(materials / "band-companion-contract.json").read_bytes(),
+            )
+            result = self._verify(paths, plan)
+            receipt = json.loads(result.receipt_bytes)
+            self.assertEqual(receipt["protocol_sha256"], _sha(plan.protocol_bytes))
+            self.assertEqual(receipt["band_companion_sha256"], plan.band_companion_sha256)
+            self.assertEqual(receipt["status"], "gates-inconclusive")
+            self.assertFalse(receipt["eligible_for_independent_decision"])
+            self.assertFalse(receipt["product_authorized"])
+
     def test_verified_complete_pins_allow_only_independent_decision(self):
         with tempfile.TemporaryDirectory() as temporary:
             paths, plan = self._fixture(Path(temporary), elapsed=7.5)
@@ -362,6 +399,7 @@ class StageFinalizationTests(unittest.TestCase):
         registered: bool = False,
         cohorts_bytes_override: bytes | None = None,
         gate_input_extra: dict[str, str] | None = None,
+        band_companion_bytes_override: bytes | None = None,
     ):
         os.chmod(root, 0o700)
         root = root / "stage"
@@ -388,12 +426,23 @@ class StageFinalizationTests(unittest.TestCase):
             source_closure_sha256="f" * 64,
             protocol_bytes=protocol_bytes,
             cohorts_bytes=cohorts_bytes,
+            band_companion_bytes=band_companion_bytes_override,
+            band_companion_sha256=(
+                _sha(band_companion_bytes_override) if band_companion_bytes_override is not None else None
+            ),
         )
         protocol_sha = _sha(plan.protocol_bytes)
         cohorts_sha = _sha(plan.cohorts_bytes)
         binding = _sha(b"preacquisition-binding")
         protocol = json.loads(plan.protocol_bytes)
         calculated["protocol"] = protocol
+        if band_companion_bytes_override is not None:
+            calculated.update(
+                {
+                    "band_companion_bytes": band_companion_bytes_override,
+                    "stage_kind": "development",
+                }
+            )
         if protocol_bytes_override is not None:
             calculated["protocol_sha256"] = protocol_sha
             calculated["cohorts_sha256"] = cohorts_sha
@@ -403,6 +452,12 @@ class StageFinalizationTests(unittest.TestCase):
                     "acquisition_retries": protocol["acquisition"]["retries"],
                     "acquisition_pacing_seconds": protocol["acquisition"]["pacing_seconds"],
                     "arxiv_pacing_seconds": protocol["acquisition"]["arxiv_physical_pacing_seconds"],
+                    "w0_control_source_sha256": protocol["primary_control"]["rerank_source_sha256"],
+                    "w0_source_revision": protocol["primary_control"]["source_revision"],
+                    "w0_model": protocol["primary_control"]["model"],
+                    "w0_provider_configured": protocol["primary_control"]["provider_configured"],
+                    "w0_ranking_strategy": protocol["primary_control"]["ranking_strategy"],
+                    "candidate_source_sha256": protocol["candidate_source_sha256"],
                 }
             )
         thresholds = _sha(_canonical({"quality": protocol["quality"], "task_use": protocol["task_use"]}))
@@ -453,6 +508,9 @@ class StageFinalizationTests(unittest.TestCase):
         )
         self._write_private(root / "resource-evidence.json", resource_bytes)
         resource_sha = _sha(resource_bytes)
+        effective_gate_input_extra = dict(gate_input_extra or {})
+        if band_companion_bytes_override is not None:
+            effective_gate_input_extra["band_companion_sha256"] = plan.band_companion_sha256
         gate_input_bytes = _canonical(
             {
                 "stage_uuid": stage_id,
@@ -463,7 +521,7 @@ class StageFinalizationTests(unittest.TestCase):
                 "pending_time_receipt_sha256": _sha(pending_bytes),
                 "resource_evidence": resource_observations,
                 "resource_evidence_receipt_sha256": resource_sha,
-                **(gate_input_extra or {}),
+                **effective_gate_input_extra,
             }
         )
         self._write_private(root / "gate-input-manifest.json", gate_input_bytes)
@@ -504,6 +562,23 @@ class StageFinalizationTests(unittest.TestCase):
             "status": "terminal-incomplete" if late else "pending-independent-closeout",
             "terminal_reason": "stage-deadline-exceeded-after-final-fsync" if late else None,
         }
+        if band_companion_bytes_override is not None:
+            companion_status = report.evaluation.companion_status
+            release_status = (
+                "inconclusive"
+                if report.evaluation.status == "inconclusive" or companion_status == "inconclusive"
+                else "fail"
+                if report.evaluation.status == "fail" or companion_status == "fail"
+                else "pass"
+            )
+            inventory.update(
+                {
+                    "band_companion_sha256": plan.band_companion_sha256,
+                    "band_companion_status": companion_status,
+                    "release_qualification_status": release_status,
+                    "terminal_reason": None if release_status == "pass" else f"gate-{release_status}",
+                }
+            )
         inventory_bytes = _canonical(inventory)
         inventory_sha = _sha(inventory_bytes)
         self._write_private(root / "inventory.json", inventory_bytes)
@@ -568,6 +643,7 @@ class StageFinalizationTests(unittest.TestCase):
         paths["closeout_sha"] = _sha(closeout_bytes)
 
     def _verify(self, paths, plan, *, expected_band_companion_sha256=None):
+        expected_band_companion_sha256 = expected_band_companion_sha256 or getattr(plan, "band_companion_sha256", None)
         return finalization.verify_stage_finalization(
             inventory_path=paths["inventory"],
             expected_inventory_sha256=paths["inventory_sha"],

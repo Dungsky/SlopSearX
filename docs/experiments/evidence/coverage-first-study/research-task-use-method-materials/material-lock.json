@@ -1,0 +1,24 @@
+{
+  "schema": "coverage-first-study-method-material-lock/1",
+  "status": "prospective-unregistered-no-stage-identities",
+  "purpose": "Fresh schema-4 task-use comparison proposal; no acquisition, provider calls, grading, or admission has occurred.",
+  "protocol_sha256": "7e4babae1fde5ec46f7834dc17ce3a61777cfdd338afa674930c82ce598a3ded",
+  "cohorts_sha256": "4ae302eaebd54d9fe2c3bbd49d243811d07ffd2135c207698db1742644355b72",
+  "band_companion_sha256": "e55ca941ed07e5d1905e0474622c1bc69b833f0f787d1bbf224a84357ed69c8f",
+  "quality_task_use_sha256": "7d3038ec9409f0f3178f02f0afa731a0df0ed6d7c6630ec52a3debd3660012d3",
+  "execution_contract_sha256": "fe9a56689df4457ba26c31bc2379ad3b0ea0c5b4934743f707c06165bf1fd51b",
+  "pool_input_mode_by_stage": {
+    "development": "frozen-pool/1",
+    "confirmation": "frozen-pool/1"
+  },
+  "quality_policy": {
+    "primary_outcome": "completed research tasks",
+    "useful_count_role": "diagnostic_only",
+    "retained_hard_guards": [
+      "mean nDCG10 gain >= 0.02 and strictly positive 95% bootstrap lower bound",
+      "per-case nDCG10 delta >= -0.03",
+      "zero useful-facet loss for each independent reference",
+      "navigation, stability, task correctness, resource, terminal, and completion-count checks"
+    ]
+  }
+}

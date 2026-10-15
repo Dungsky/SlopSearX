@@ -15,10 +15,12 @@ from dataclasses import dataclass
 from types import SimpleNamespace
 
 from scripts.coverage_gate_calculation import (
-    FROZEN_QUALITY_TASK_USE_SHA256,
     Endpoint,
+    GateCalculationError,
     _ranking_endpoint,
     _task_use,
+    _validated_useful_count_role,
+    quality_task_use_sha256,
 )
 
 SCHEMA = "coverage-first-band-companion/1"
@@ -36,6 +38,9 @@ SAVED_WIRE_COMPAT_PROTOCOL_SHA256 = "5b40c497b0871a575c07eff18b8c8f8a54dcb417d10
 SAVED_WIRE_COMPAT_CONTRACT_SHA256 = "8d807e655098848762c6c76ed7f862d24a8d256b38b7ada55d246a0fb01561fc"
 SAVED_WIRE_FLOAT_PROTOCOL_SHA256 = "65b5515eb161c849c54f196c300f03b3965cbdbd4162682131b13ccecd0911a8"
 SAVED_WIRE_FLOAT_CONTRACT_SHA256 = "268a26679401cd728808ba24a589643c31770e3a747b0d33462f5ba2563fbfec"
+TASK_USE_V4_PROTOCOL_SHA256 = "7e4babae1fde5ec46f7834dc17ce3a61777cfdd338afa674930c82ce598a3ded"
+TASK_USE_V4_COHORTS_SHA256 = "4ae302eaebd54d9fe2c3bbd49d243811d07ffd2135c207698db1742644355b72"
+TASK_USE_V4_CONTRACT_SHA256 = "e55ca941ed07e5d1905e0474622c1bc69b833f0f787d1bbf224a84357ed69c8f"
 ARCHIVAL_GROUPS = {
     "research_le_40": {
         "development": ["D-R01", "D-R02", "D-R03", "D-R04"],
@@ -56,6 +61,16 @@ FROZEN_GROUPS = {
         "confirmation": ["C26-R05", "C26-R06", "C26-R07", "C26-R08"],
     },
 }
+TASK_USE_V4_GROUPS = {
+    "research_le_40": {
+        "development": ["D27-R01", "D27-R02", "D27-R03", "D27-R04"],
+        "confirmation": ["C27-R01", "C27-R02", "C27-R03", "C27-R04"],
+    },
+    "research_41_80": {
+        "development": ["D27-R05", "D27-R06", "D27-R07", "D27-R08"],
+        "confirmation": ["C27-R05", "C27-R06", "C27-R07", "C27-R08"],
+    },
+}
 # Backward-compatible name for archived-contract tests and consumers.
 GROUPS = ARCHIVAL_GROUPS
 
@@ -67,6 +82,7 @@ def contract_sha256_for(protocol_sha256: str, cohorts_sha256: str) -> str | None
         (SAVED_PROTOCOL_SHA256, FROZEN_COHORTS_SHA256): SAVED_CONTRACT_SHA256,
         (SAVED_WIRE_COMPAT_PROTOCOL_SHA256, FROZEN_COHORTS_SHA256): SAVED_WIRE_COMPAT_CONTRACT_SHA256,
         (SAVED_WIRE_FLOAT_PROTOCOL_SHA256, FROZEN_COHORTS_SHA256): SAVED_WIRE_FLOAT_CONTRACT_SHA256,
+        (TASK_USE_V4_PROTOCOL_SHA256, TASK_USE_V4_COHORTS_SHA256): TASK_USE_V4_CONTRACT_SHA256,
     }
     return allowed.get((protocol_sha256, cohorts_sha256))
 
@@ -121,6 +137,11 @@ def validate_contract(contract: object, *, stage_kind: str, protocol_sha256: str
         FROZEN_COHORTS_SHA256,
     ) and (protocol_sha256, cohorts_sha256) == (SAVED_WIRE_FLOAT_PROTOCOL_SHA256, FROZEN_COHORTS_SHA256):
         expected_groups = FROZEN_GROUPS
+    elif (contract["protocol_sha256"], contract["cohorts_sha256"]) == (
+        TASK_USE_V4_PROTOCOL_SHA256,
+        TASK_USE_V4_COHORTS_SHA256,
+    ) and (protocol_sha256, cohorts_sha256) == (TASK_USE_V4_PROTOCOL_SHA256, TASK_USE_V4_COHORTS_SHA256):
+        expected_groups = TASK_USE_V4_GROUPS
     else:
         raise BandCompanionError("companion-material-pin-mismatch")
     if contract["groups"] != expected_groups:
@@ -130,7 +151,9 @@ def validate_contract(contract: object, *, stage_kind: str, protocol_sha256: str
     return contract
 
 
-def _validate_frozen_recipes(quality: Mapping[str, object], task_use: Mapping[str, object]) -> None:
+def _validate_frozen_recipes(
+    quality: Mapping[str, object], task_use: Mapping[str, object], protocol: Mapping[str, object]
+) -> str:
     try:
         raw = json.dumps(
             {"quality": quality, "task_use": task_use},
@@ -141,8 +164,18 @@ def _validate_frozen_recipes(quality: Mapping[str, object], task_use: Mapping[st
         ).encode("utf-8")
     except (TypeError, ValueError, UnicodeEncodeError) as exc:
         raise BandCompanionError("companion-gate-recipe-invalid") from exc
-    if hashlib.sha256(raw).hexdigest() != FROZEN_QUALITY_TASK_USE_SHA256:
+    try:
+        useful_count_role = _validated_useful_count_role(protocol, quality)
+    except GateCalculationError as exc:
+        # Keep this module's public error vocabulary stable for callers.
+        raise BandCompanionError("companion-useful-count-policy-invalid") from exc
+    try:
+        expected_recipe_sha256 = quality_task_use_sha256(protocol)
+    except GateCalculationError as exc:
+        raise BandCompanionError("companion-frozen-gate-recipe-mismatch") from exc
+    if hashlib.sha256(raw).hexdigest() != expected_recipe_sha256:
         raise BandCompanionError("companion-frozen-gate-recipe-mismatch")
+    return useful_count_role
 
 
 def calculate(
@@ -160,7 +193,7 @@ def calculate(
     answer_scores: object,
     prepared_assessments: object,
 ) -> BandCompanionResult:
-    _validate_frozen_recipes(quality, task_use)
+    useful_count_role = _validate_frozen_recipes(quality, task_use, protocol)
     validated_contract = validate_contract(
         dict(contract), stage_kind=stage_kind, protocol_sha256=protocol_sha256, cohorts_sha256=cohorts_sha256
     )
@@ -186,7 +219,9 @@ def calculate(
             groups[band] = {"status": "inconclusive", "reason": "registered-band-membership-incomplete"}
             continue
         ranking = {
-            assessor: _ranking_endpoint(assessor, rows, orders, records_by_task, quality)
+            assessor: _ranking_endpoint(
+                assessor, rows, orders, records_by_task, quality, useful_count_role=useful_count_role
+            )
             for assessor in quality["independent_references"]
         }
         band_answers = (
