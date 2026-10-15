@@ -80,7 +80,7 @@
     ],
     "oracle": {
       "path": "docs/rust-rewrite/replay/oracle/export.py",
-      "sha256": "02fab9d3ab5f1c416a85be8dd1b4b846856105364a3a5cb1e1ac3a2f2cc4b0cc",
+      "sha256": "ef8d8866d8adf9eae6fd1e19f44cfd94aed53e190af1515ab80ba4f4e38583d6",
       "invocation": ".venv/bin/python docs/rust-rewrite/replay/oracle/export.py --source-root /private/tmp/slopsearx-f04-oracle-src --baseline 7b2d876307189d7a62000d1f289b3ef4b65eaff6"
     }
   },

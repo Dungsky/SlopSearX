@@ -13,6 +13,7 @@ import os
 import socket
 import subprocess
 import sys
+import tempfile
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any
@@ -361,6 +362,11 @@ def main() -> None:
     parser.add_argument("--candidate", action="store_true", help="emit one observation for cargo xtask replay-run")
     parser.add_argument("--case", help="case ID for --candidate mode")
     parser.add_argument(
+        "--verify-ambient-format",
+        action="store_true",
+        help="prove SEARCH_FORMATS=html cannot change the exported corpus",
+    )
+    parser.add_argument(
         "--source-root", type=Path, required=True, help="clean detached checkout at the pinned Python oracle commit"
     )
     parser.add_argument("--output", default="crates/xtask/fixtures/replay/corpus.json")
@@ -392,14 +398,60 @@ def main() -> None:
         raise SystemExit("engine imports do not resolve from the pinned source root")
     sys.dont_write_bytecode = True
     for key in list(os.environ):
-        if key.startswith(("ENGINE_", "MCP_", "JEV_")) or key.lower() in {"http_proxy", "https_proxy", "all_proxy"}:
+        if key.startswith(("SEARCH_", "ENGINE_", "MCP_", "JEV_")) or key.lower() in {
+            "http_proxy",
+            "https_proxy",
+            "all_proxy",
+        }:
             os.environ.pop(key, None)
+    # The HTTP surface reads this setting while the pinned server module loads.
+    # Explicit JSON keeps the export independent of the developer's shell.
+    os.environ["SEARCH_FORMATS"] = "json"
     install_loopback_network_guard()
     if args.candidate:
         if args.case not in {"upstream-npm-captured", "upstream-crates-captured", "upstream-openalex-captured"}:
             raise SystemExit("--candidate currently supports adapter_http cases only")
         observation = run_adapter_candidate(json.loads(os.environ["SSX_REPLAY_INPUT"]))
         print(json.dumps(observation, separators=(",", ":")))
+        return
+    if args.verify_ambient_format:
+        with tempfile.TemporaryDirectory(prefix="ssx-f04-env-check-") as temporary:
+            clean_output = Path(temporary) / "clean.json"
+            ambient_output = Path(temporary) / "ambient.json"
+            command = [
+                sys.executable,
+                str(Path(__file__).resolve()),
+                "--baseline",
+                args.baseline,
+                "--source-root",
+                str(SOURCE_ROOT),
+                "--output",
+            ]
+            clean_env = os.environ.copy()
+            clean_env.pop("SEARCH_FORMATS", None)
+            ambient_env = clean_env.copy()
+            ambient_env["SEARCH_FORMATS"] = "html"
+            subprocess.run(
+                [*command, str(clean_output)],
+                cwd=ROOT,
+                env=clean_env,
+                check=True,
+                timeout=60,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            subprocess.run(
+                [*command, str(ambient_output)],
+                cwd=ROOT,
+                env=ambient_env,
+                check=True,
+                timeout=60,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            if clean_output.read_bytes() != ambient_output.read_bytes():
+                raise SystemExit("SEARCH_FORMATS=html changed the exported corpus")
+        print("ambient SEARCH_FORMATS=html export matches clean export byte-for-byte")
         return
     provenance = {
         "license": (
@@ -432,7 +484,10 @@ def main() -> None:
     output = ROOT / args.output
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(corpus, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    print(f"wrote {len(corpus['cases'])} cases to {output.relative_to(ROOT)} from Python source at {commit}")
+    display_output = output.resolve()
+    if display_output.is_relative_to(ROOT):
+        display_output = display_output.relative_to(ROOT)
+    print(f"wrote {len(corpus['cases'])} cases to {display_output} from Python source at {commit}")
 
 
 if __name__ == "__main__":

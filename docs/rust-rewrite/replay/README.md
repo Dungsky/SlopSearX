@@ -18,7 +18,22 @@ git worktree add --detach /private/tmp/slopsearx-f04-oracle-src 7b2d876307189d7a
 cargo xtask check F04
 ```
 
-The exporter rejects a dirty or wrong-revision source checkout, including untracked files, strips provider configuration from its environment, blocks DNS and socket connections to non-loopback hosts, and uses only sanitized recorded responses, an in-process ASGI test client, and the local MCP fixture server. It does not call live or paid providers. It verifies each fixture source blob against the recorded baseline before writing the corpus.
+The exporter rejects a dirty or wrong-revision source checkout, including untracked files, strips provider and `SEARCH_*` configuration from its environment, fixes the HTTP surface to JSON before importing the pinned app, blocks DNS and socket connections to non-loopback hosts, and uses only sanitized recorded responses, an in-process ASGI test client, and the local MCP fixture server. It does not call live or paid providers. It verifies each fixture source blob against the recorded baseline before writing the corpus.
+
+To verify format-setting isolation without overwriting the corpus, run:
+
+```sh
+.venv/bin/python docs/rust-rewrite/replay/oracle/export.py \
+  --source-root /private/tmp/slopsearx-f04-oracle-src \
+  --baseline 7b2d876307189d7a62000d1f289b3ef4b65eaff6 \
+  --verify-ambient-format
+```
+
+This produces clean-environment and `SEARCH_FORMATS=html` exports in temporary
+files, then compares their complete bytes. The exporter also clears the other
+`SEARCH_*` inputs consumed by `slopsearx.config`; the HTTP observation requests
+JSON explicitly and names its engine, so default engine selection and logging
+settings do not affect that response.
 
 `cargo xtask check F04` verifies source blob provenance, the deterministic input/clock/ID fields, the exact transcript and request count/order, envelope schemas and the full expected/candidate comparison. The MCP check requires the `enforcement` object and its field-level statuses. The check must fail for changed status, schema, provenance, request count/order, filter enforcement, result order, omitted/null changes, or non-volatile values.
 
