@@ -9,6 +9,7 @@ import json
 import math
 import re
 from dataclasses import dataclass
+from decimal import Decimal
 from itertools import combinations
 
 from slopsearx.rerank import INSTRUCTIONS, LEVELS, MODEL
@@ -25,6 +26,8 @@ MAX_SNIPPET_BYTES = 1200
 MAX_FACET_DESCRIPTION_BYTES = 512
 MIN_USEFUL_SCORE = 5
 PROBABILITY_TOLERANCE = 1e-6
+_PROVIDER_DECIMAL_QUANTUM = Decimal("0.01")
+_PROVIDER_DECIMAL_HALF_UNIT = Decimal("0.005")
 _ID_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}\Z")
 
 PROFILE_INSTRUCTIONS = (
@@ -98,6 +101,52 @@ def _finite_number(value: object) -> bool:
         return math.isfinite(value)
     except OverflowError:
         return False
+
+
+def _is_decimal_hundredth(value: float) -> bool:
+    decimal_value = Decimal(str(value))
+    return decimal_value == decimal_value.quantize(_PROVIDER_DECIMAL_QUANTUM)
+
+
+def _rounded_score_mean_is_feasible(score: float, probabilities: dict[str, float]) -> bool:
+    """Check an observed hundredth-grid tuple under an explicit rounding bound.
+
+    This compatibility fallback runs only when displayed values fail the exact
+    weighted-mean check. It assumes each displayed probability represents an
+    interval of +/- 0.005 clipped to [0, 1]; the latent distribution must still
+    have unit mass. The displayed score must represent a value in its +/- 0.005
+    interval. This is an explicit bounded compatibility rule, not a documented
+    TypeSafe serialization guarantee.
+    """
+    values = [Decimal(str(probabilities[str(index)])) for index in range(10)]
+    displayed_score = Decimal(str(score))
+    if not _is_decimal_hundredth(score) or any(value != value.quantize(_PROVIDER_DECIMAL_QUANTUM) for value in values):
+        return False
+    lower = [max(Decimal(0), value - _PROVIDER_DECIMAL_HALF_UNIT) for value in values]
+    upper = [min(Decimal(1), value + _PROVIDER_DECIMAL_HALF_UNIT) for value in values]
+    remaining = Decimal(1) - sum(lower)
+    capacity = sum(high - low for high, low in zip(upper, lower, strict=True))
+    if remaining < 0 or remaining > capacity:
+        return False
+
+    def extreme_mean(indices: range) -> Decimal:
+        mass = remaining
+        mean = sum(Decimal(index) * lower[index] for index in range(10))
+        for index in indices:
+            added = min(upper[index] - lower[index], mass)
+            mean += Decimal(index) * added
+            mass -= added
+            if mass == 0:
+                break
+        if mass != 0:
+            raise ArithmeticError("probability-rounding-interval allocation incomplete")
+        return mean
+
+    min_mean = extreme_mean(range(10))
+    max_mean = extreme_mean(range(9, -1, -1))
+    score_low = max(Decimal(0), displayed_score - _PROVIDER_DECIMAL_HALF_UNIT)
+    score_high = min(Decimal(9), displayed_score + _PROVIDER_DECIMAL_HALF_UNIT)
+    return min_mean <= score_high and max_mean >= score_low
 
 
 def _strict_json(raw: bytes) -> object:
@@ -311,8 +360,12 @@ def parse_response(raw: bytes, compiled: CompiledRequest) -> ParsedResponse:
         if abs(sum(checked_score_probabilities.values()) - 1.0) > PROBABILITY_TOLERANCE:
             raise CoverageError("response-score-probability-sum")
         weighted_score = sum(int(index) * probability for index, probability in checked_score_probabilities.items())
-        if abs(float(score) - weighted_score) > PROBABILITY_TOLERANCE:
-            raise CoverageError("response-score-mean-mismatch")
+        mean_delta = abs(float(score) - weighted_score)
+        mean_validation = "exact" if mean_delta == 0 else "within-tolerance"
+        if mean_delta > PROBABILITY_TOLERANCE:
+            if not _rounded_score_mean_is_feasible(float(score), checked_score_probabilities):
+                raise CoverageError("response-score-mean-mismatch")
+            mean_validation = "hundredth-rounding-interval"
         confidence = score_answer.get("confidence")
         if not _finite_number(confidence) or not 0 <= confidence <= 1:
             raise CoverageError("response-score-confidence")
@@ -322,6 +375,7 @@ def parse_response(raw: bytes, compiled: CompiledRequest) -> ParsedResponse:
             "legend": dict(legend),
             "probabilities": dict(score_probabilities),
             "confidence": confidence,
+            "mean_validation": mean_validation,
         }
 
         profile_qid = f"profile:{cid}"
@@ -347,9 +401,11 @@ def parse_response(raw: bytes, compiled: CompiledRequest) -> ParsedResponse:
         if abs(sum(checked.values()) - 1.0) > PROBABILITY_TOLERANCE:
             raise CoverageError("response-probability-sum")
         maximum = max(checked.values())
-        if checked[choice] != maximum:
+        one_predecessor = math.nextafter(maximum, 0.0) if maximum > 0 else maximum
+        tie_tolerance = maximum - one_predecessor
+        if maximum - checked[choice] > tie_tolerance:
             raise CoverageError("response-choice-not-maximum")
-        tied = sum(value == maximum for value in checked.values()) > 1
+        tied = sum(maximum - value <= tie_tolerance for value in checked.values()) > 1
         confidence = choice_answer["confidence"]
         if not _finite_number(confidence) or not 0 <= confidence <= 1:
             raise CoverageError("response-choice-confidence")

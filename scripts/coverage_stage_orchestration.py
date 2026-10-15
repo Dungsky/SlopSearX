@@ -537,11 +537,7 @@ def _validate_plan_static(plan: StagePlan) -> dict[str, object]:
 
         if plan.band_companion_bytes is None:
             raise OrchestrationError("frozen-pool-band-companion-required")
-        expected_companion = (
-            band_companion.SAVED_CONTRACT_SHA256
-            if protocol.get("pool_input_mode_by_stage") is not None
-            else band_companion.FROZEN_CONTRACT_SHA256
-        )
+        expected_companion = band_companion.contract_sha256_for(_sha(plan.protocol_bytes), _sha(plan.cohorts_bytes))
         if plan.band_companion_sha256 != expected_companion:
             raise OrchestrationError("frozen-pool-band-companion-pin-invalid")
         if plan.initial_registration_bytes is None or plan.initial_registration_sha256 is None:

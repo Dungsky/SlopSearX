@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 
 import pytest
 
@@ -275,6 +276,107 @@ def test_score_is_probability_weighted_mean_and_confidence_does_not_rank():
     assert parsed.score_audit["a"]["confidence"] == 0.99
     result = coverage.select(compiled, parsed)
     assert result.ordered_ids == ("b", "a")
+
+
+def test_score_mean_audit_distinguishes_exact_and_tolerance_compatible_values():
+    compiled = compile_for([card("a"), card("b")], FACETS)
+    data = json.loads(response_for(compiled))
+    data["answers"]["score:a"]["score"] = 7.0000005
+    parsed = coverage.parse_response(json.dumps(data, separators=(",", ":")).encode(), compiled)
+    assert parsed.score_audit["a"]["mean_validation"] == "within-tolerance"
+    assert parsed.score_audit["b"]["mean_validation"] == "exact"
+
+
+def test_constructed_hundredth_precision_tuples_keep_reported_scores():
+    cards = [card("generated-low"), card("generated-high")]
+    compiled = compile_for(cards, FACETS)
+    data = json.loads(response_for(compiled))
+    # Independently constructed symmetric distributions both have mean 4.5.
+    constructed_tuples = {
+        "generated-low": (4.45, [0.1] * 10),
+        "generated-high": (4.56, [0.05, 0.05, 0.1, 0.1, 0.2, 0.2, 0.1, 0.1, 0.05, 0.05]),
+    }
+    for cid, (reported, values) in constructed_tuples.items():
+        answer = data["answers"][f"score:{cid}"]
+        answer["score"] = reported
+        answer["probabilities"] = {str(index): probability for index, probability in enumerate(values)}
+    parsed = coverage.parse_response(json.dumps(data, separators=(",", ":")).encode(), compiled)
+    assert parsed.scores == {"generated-low": 4.45, "generated-high": 4.56}
+    for cid in constructed_tuples:
+        assert parsed.score_audit[cid]["mean_validation"] == "hundredth-rounding-interval"
+
+
+def test_rounding_interval_mass_constraints_and_endpoint_clipping():
+    at_zero = {str(index): float(index == 0) for index in range(10)}
+    at_nine = {str(index): float(index == 9) for index in range(10)}
+    uniform = {str(index): 0.1 for index in range(10)}
+    no_mass = {str(index): 0.0 for index in range(10)}
+    assert coverage._rounded_score_mean_is_feasible(0.0, at_zero)
+    assert coverage._rounded_score_mean_is_feasible(9.0, at_nine)
+    assert coverage._rounded_score_mean_is_feasible(4.5, uniform)
+    assert not coverage._rounded_score_mean_is_feasible(0.0, no_mass)
+
+
+def test_score_rounding_feasibility_still_rejects_infeasible_or_non_grid_values():
+    compiled = compile_for([card("a"), card("b")], FACETS)
+    data = json.loads(response_for(compiled))
+    answer = data["answers"]["score:a"]
+    answer["score"] = 2.0
+    answer["probabilities"] = {str(index): 0.1 for index in range(10)}
+    with pytest.raises(coverage.CoverageError, match="response-score-mean-mismatch"):
+        coverage.parse_response(json.dumps(data, separators=(",", ":")).encode(), compiled)
+
+    answer["score"] = 4.45
+    answer["probabilities"]["0"] = 0.101
+    answer["probabilities"]["1"] = 0.099
+    with pytest.raises(coverage.CoverageError, match="response-score-mean-mismatch"):
+        coverage.parse_response(json.dumps(data, separators=(",", ":")).encode(), compiled)
+
+
+def test_choice_one_ulp_wire_tie_is_unknown_but_nearby_non_ties_remain_invalid():
+    compiled = compile_for([card("a"), card("b")], FACETS)
+    data = json.loads(response_for(compiled))
+    answer = data["answers"]["profile:a"]
+    maximum = 0.30
+    answer["choice"] = "facets:coverage"
+    answer["probabilities"] = {option: 0.0 for option in compiled.profile_options["profile:a"]}
+    answer["probabilities"]["facets:coverage"] = math.nextafter(maximum, 0.0)
+    answer["probabilities"]["none"] = maximum
+    remainder_options = [option for option in answer["probabilities"] if option not in {"facets:coverage", "none"}]
+    for option in remainder_options[:4]:
+        answer["probabilities"][option] = 0.10
+    parsed = coverage.parse_response(json.dumps(data, separators=(",", ":")).encode(), compiled)
+    assert parsed.selected_facets["a"] is None
+    assert parsed.profile_audit["a"]["tied_maximum"] is True
+
+    answer["probabilities"]["facets:coverage"] = 0.29
+    for option in remainder_options[:4]:
+        answer["probabilities"][option] = 0.1025
+    with pytest.raises(coverage.CoverageError, match="response-choice-not-maximum"):
+        coverage.parse_response(json.dumps(data, separators=(",", ":")).encode(), compiled)
+
+
+def test_choice_power_of_two_uses_exactly_one_downward_float_neighbor():
+    compiled = compile_for([card("a"), card("b")], FACETS)
+    data = json.loads(response_for(compiled))
+    answer = data["answers"]["profile:a"]
+    answer["choice"] = "facets:coverage"
+    probabilities = {option: 0.0 for option in compiled.profile_options["profile:a"]}
+    maximum = 0.5
+    first_predecessor = math.nextafter(maximum, 0.0)
+    probabilities["facets:coverage"] = first_predecessor
+    probabilities["none"] = maximum
+    probabilities["unknown"] = 1.0 - maximum - first_predecessor
+    answer["probabilities"] = probabilities
+    parsed = coverage.parse_response(json.dumps(data, separators=(",", ":")).encode(), compiled)
+    assert parsed.selected_facets["a"] is None
+    assert parsed.profile_audit["a"]["tied_maximum"] is True
+
+    second_predecessor = math.nextafter(first_predecessor, 0.0)
+    probabilities["facets:coverage"] = second_predecessor
+    probabilities["unknown"] = 1.0 - maximum - second_predecessor
+    with pytest.raises(coverage.CoverageError, match="response-choice-not-maximum"):
+        coverage.parse_response(json.dumps(data, separators=(",", ":")).encode(), compiled)
 
 
 def test_choice_confidence_is_required_and_bounded_but_not_used_for_policy():

@@ -868,10 +868,8 @@ class OperatorStageRunner:
 
             if closure.get("schema") != "coverage-study-qualified-source-closure/2":
                 raise OperatorRunnerError("frozen-pool-source-closure-v2-required")
-            expected_companion = (
-                band_companion.SAVED_CONTRACT_SHA256
-                if protocol.get("pool_input_mode_by_stage") is not None
-                else band_companion.FROZEN_CONTRACT_SHA256
+            expected_companion = band_companion.contract_sha256_for(
+                _sha(path_bytes["protocol"]), _sha(path_bytes["cohorts"])
             )
             if companion_sha != expected_companion:
                 raise OperatorRunnerError("frozen-pool-band-companion-required")

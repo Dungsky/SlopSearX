@@ -819,10 +819,17 @@ async def test_full_collector_binds_mock_stages_and_preserves_unknowns(tmp_path:
     stage_uuid = "f611a79a-9eef-46f4-b211-3d4d394e9e21"
     monkeypatch.setattr(study_fixtures, "SOURCE_REVISION", source_revision)
     selector_args, selector_materials, *_ = make_fixture(stage_uuid=stage_uuid)
-    selector_materials["protocol"] = protocol_bytes
     selector_materials["coverage_source"] = (
         Path(__file__).parents[1] / "scripts/intent_ranking_coverage.py"
     ).read_bytes()
+    # This test composes a synthetic registered stage using today's parser
+    # source while retaining the frozen study protocol as its structural
+    # template. Bind the candidate pin in that test-local protocol copy to the
+    # exact bytes executed below; never claim that the historical protocol
+    # executed this newer source.
+    protocol["candidate_source_sha256"] = _sha(selector_materials["coverage_source"])
+    protocol_bytes = study_core._canonical(protocol)
+    selector_materials["protocol"] = protocol_bytes
     selector_materials["production_rerank_source"] = (
         Path(__file__).parents[1] / "docs/experiments/evidence/coverage-first-study/w0-rerank-v1.py.txt"
     ).read_bytes()
@@ -853,6 +860,7 @@ async def test_full_collector_binds_mock_stages_and_preserves_unknowns(tmp_path:
         tmp_path=tmp_path / "capture",
         transport=httpx.MockTransport(capture_handler),
         sources=source_rows,
+        protocol_bytes_override=protocol_bytes,
     )
     capture_manifest_bytes = (capture.receipt_directory / "source-manifest.json").read_bytes()
     capture_manifest = json.loads(capture_manifest_bytes)
@@ -1254,13 +1262,9 @@ async def test_full_collector_binds_mock_stages_and_preserves_unknowns(tmp_path:
         expected_saved_import_map_bindings=saved_origin_bindings,
     )
     assert saved_observed["selector_transaction_proof"]["input_map_sha256"] == saved_map_sha
-    assert len(saved_observed["selector_transaction_proof"]["transactions"]) == len(
-        prepared_selector.operation_ids
-    )
+    assert len(saved_observed["selector_transaction_proof"]["transactions"]) == len(prepared_selector.operation_ids)
 
-    with pytest.raises(
-        resource_evidence.ResourceEvidenceError, match="saved-selector-input-map-expectation-invalid"
-    ):
+    with pytest.raises(resource_evidence.ResourceEvidenceError, match="saved-selector-input-map-expectation-invalid"):
         resource_evidence._selector_observations(
             stage_uuid=stage_uuid,
             source_revision=source_revision,
