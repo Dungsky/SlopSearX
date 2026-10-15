@@ -13,7 +13,8 @@
     "historical_py_txt_git_modes": {
       "100644": 729
     },
-    "configured_precommit_hook_rows": 15
+    "configured_precommit_hook_rows": 15,
+    "developer_oracle_invocation_rows": 1
   },
   "interpreter_invocations": [
     {
@@ -8266,5 +8267,16 @@
       "docs/experiments/evidence/coverage-first-study/w0-rerank-v1.py.txt"
     ],
     "conclusion": "Only w0-rerank-v1.py.txt is referenced by tracked Python runtime/tool/test source. Its executable consumer is detailed under dynamic_runtime_sources; other Python text examples are only listed/documented artifacts and are not loaded by tracked Python package/tool code."
-  }
+  },
+  "developer_oracle_invocations": [
+    {
+      "path": "docs/rust-rewrite/replay/README.md",
+      "example_path": "docs/rust-rewrite/replay/oracle/export.py",
+      "evidence": ".venv/bin/python docs/rust-rewrite/replay/oracle/export.py --source-root /private/tmp/slopsearx-f04-oracle-src --baseline 7b2d876307189d7a62000d1f289b3ef4b65eaff6",
+      "classification": "temporary backend-coupled developer oracle; never a mandatory native gate or runtime dependency",
+      "migration_owner": "F04",
+      "retirement_owner": "G08",
+      "disposition": "retain reproducible source observations during migration; retire executable Python before backend removal; retain JSON evidence"
+    }
+  ]
 }

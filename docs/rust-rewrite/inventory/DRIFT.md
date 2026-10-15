@@ -70,3 +70,21 @@ None implemented or accepted by F01. Proposed hardening in the case study must
 receive an explicit ADR, affected contract updates and evidence before it is
 counted as an accepted parity difference. Migration of an internal cache
 namespace must not implicitly change durable artifact identities.
+
+## F04 temporary developer oracle addition
+
+F04 adds `docs/rust-rewrite/replay/oracle/export.py` against accepted F03
+revision `7b2d876307189d7a62000d1f289b3ef4b65eaff6`. This imports the pinned
+Python backend to produce reproducible adapter, HTTP and MCP observations
+using recorded responses and local fake engines. It is backend-coupled
+developer tooling, not a client-only exception. F04 owns its source evidence;
+G08 must retire the executable before final backend removal. Its invocation
+is recorded separately from mandatory CI/container commands in
+`python-invocations.json`. Native replay consumes JSON and never invokes it.
+
+The source manifest grows from 363 to 364 Python paths, with backend-coupled
+tooling/test paths growing from 240 to 241. Historical baseline identities
+remain unchanged; this ledger records the reviewed post-baseline addition.
+The three adapter and two surface observations prove replay infrastructure
+coverage only; native implementation parity remains assigned to successor
+issues. No live provider capture or experiment is authorized by this addition.

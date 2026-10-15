@@ -57,6 +57,9 @@ jobs:
       - name: Foundation lane evidence
         run: cargo xtask check F03 --output target/rust-evidence/F03.json
 
+      - name: Portable replay and differential evidence
+        run: cargo xtask check F04 --output target/rust-evidence/F04.json
+
       - name: Native readiness and Python bridge smoke
         env:
           SSX_SERVER_BIN: target/${{ matrix.target }}/debug/ssx-server
@@ -69,6 +72,7 @@ jobs:
           name: rust-foundation-${{ matrix.target }}-${{ github.sha }}
           path: |
             target/rust-evidence/F03.json
+            target/rust-evidence/F04.json
             target/rust-feature-graph.txt
           if-no-files-found: warn
 
