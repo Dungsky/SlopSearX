@@ -4,6 +4,8 @@ import hashlib
 import json
 import os
 import stat
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -12,6 +14,7 @@ from unittest import mock
 
 from scripts import coverage_gate_calculation as gate_calculation
 from scripts import coverage_stage_finalization as finalization
+from scripts import coverage_study_core
 from tests.test_coverage_gate_calculation import _closure
 from tests.test_coverage_gate_calculation import _fixture as gate_fixture
 
@@ -143,6 +146,18 @@ class StageFinalizationTests(unittest.TestCase):
             receipt = json.loads(result.receipt_bytes)
             self.assertEqual(receipt["band_companion_status"], "fail")
             self.assertEqual(receipt["release_qualification_status"], "fail")
+            registered_plan = SimpleNamespace(**{**vars(plan), "band_companion_sha256": companion_sha})
+            output = Path(temporary) / "development-pass-receipt.json"
+            with self.assertRaisesRegex(finalization.StageFinalizationError, "development-pass-not-eligible"):
+                finalization.issue_development_pass_receipt(
+                    plan=registered_plan,
+                    inventory_path=paths["inventory"],
+                    expected_inventory_sha256=paths["inventory_sha"],
+                    closeout_receipt_path=paths["closeout"],
+                    expected_closeout_receipt_sha256=paths["closeout_sha"],
+                    output_path=output,
+                )
+            self.assertFalse(output.exists())
 
             band_gates = {name: True for name in band_gates}
             metrics["band_companion"].update(
@@ -184,6 +199,16 @@ class StageFinalizationTests(unittest.TestCase):
                 finalization.StageFinalizationError, "finalization-companion-registration-required"
             ):
                 self._verify(paths, plan)
+            registered_plan = SimpleNamespace(**{**vars(plan), "band_companion_sha256": "d" * 64})
+            with self.assertRaisesRegex(finalization.StageFinalizationError, "finalization-companion-binding-mismatch"):
+                finalization.issue_development_pass_receipt(
+                    plan=registered_plan,
+                    inventory_path=paths["inventory"],
+                    expected_inventory_sha256=paths["inventory_sha"],
+                    closeout_receipt_path=paths["closeout"],
+                    expected_closeout_receipt_sha256=paths["closeout_sha"],
+                    output_path=Path(temporary) / "development-pass-receipt.json",
+                )
 
     def test_calculator_companion_output_finalizes_pass_and_unknown_band(self):
         evidence_dir = Path(gate_calculation.__file__).parents[1] / "docs/experiments/evidence/coverage-first-study"
@@ -334,6 +359,7 @@ class StageFinalizationTests(unittest.TestCase):
         late: bool = False,
         stage_deadline: float = 28_800.0,
         protocol_bytes_override: bytes | None = None,
+        registered: bool = False,
         cohorts_bytes_override: bytes | None = None,
         gate_input_extra: dict[str, str] | None = None,
     ):
@@ -343,6 +369,11 @@ class StageFinalizationTests(unittest.TestCase):
         os.chmod(root, 0o700)
         evidence_dir = Path(gate_calculation.__file__).parents[1] / "docs/experiments/evidence/coverage-first-study"
         protocol_bytes = protocol_bytes_override or (evidence_dir / "protocol.json").read_bytes()
+        if registered:
+            protocol_doc = json.loads(protocol_bytes)
+            protocol_doc["status"] = "registered"
+            protocol_bytes_override = _canonical(protocol_doc)
+            protocol_bytes = protocol_bytes_override
         cohorts_bytes = cohorts_bytes_override or (evidence_dir / "cohorts.json").read_bytes()
         calculated = gate_fixture()
         prepared = calculated["prepared_assessments"]
@@ -352,7 +383,9 @@ class StageFinalizationTests(unittest.TestCase):
         plan = SimpleNamespace(
             stage_uuid=stage_id,
             packet_stage_uuid=packet_stage_id,
+            stage_kind="development",
             source_revision=source,
+            source_closure_sha256="f" * 64,
             protocol_bytes=protocol_bytes,
             cohorts_bytes=cohorts_bytes,
         )
@@ -393,7 +426,11 @@ class StageFinalizationTests(unittest.TestCase):
         calculated["protocol"] = protocol
         calculated["resource_evidence"]["stage_elapsed_seconds"] = pending_elapsed
         resource_observations = calculated["resource_evidence"]
-        resource_provenance = {"quality_credit": False, "admission_created": False}
+        resource_provenance = {
+            "quality_credit": False,
+            "admission_created": False,
+            "selector_source_closure_sha256": plan.source_closure_sha256,
+        }
         collector_resource = _canonical(
             {
                 "schema": "coverage-resource-evidence/1",
@@ -421,6 +458,7 @@ class StageFinalizationTests(unittest.TestCase):
                 "stage_uuid": stage_id,
                 "protocol_sha256": protocol_sha,
                 "cohorts_sha256": cohorts_sha,
+                "source_closure_sha256": plan.source_closure_sha256,
                 "scope": "mixed-workload-only",
                 "pending_time_receipt_sha256": _sha(pending_bytes),
                 "resource_evidence": resource_observations,
@@ -548,7 +586,127 @@ class StageFinalizationTests(unittest.TestCase):
             expected_protocol_sha256=_sha(plan.protocol_bytes),
             expected_cohorts_sha256=_sha(plan.cohorts_bytes),
             expected_band_companion_sha256=expected_band_companion_sha256,
+            expected_source_closure_sha256=plan.source_closure_sha256,
         )
+
+    def test_independent_issuer_emits_core_receipt_bound_to_verified_finalization(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            paths, plan = self._fixture(Path(temporary), elapsed=7.5, registered=True)
+            output = Path(temporary) / "development-pass-receipt.json"
+            raw = finalization.issue_development_pass_receipt(
+                plan=plan,
+                inventory_path=paths["inventory"],
+                expected_inventory_sha256=paths["inventory_sha"],
+                closeout_receipt_path=paths["closeout"],
+                expected_closeout_receipt_sha256=paths["closeout_sha"],
+                output_path=output,
+            )
+            verified = self._verify(paths, plan)
+            receipt = json.loads(raw)
+            self.assertEqual(receipt["schema"], "coverage-study-development-gate-receipt/1")
+            self.assertEqual(receipt["stage_uuid"], plan.stage_uuid)
+            self.assertEqual(receipt["stage_kind"], "development")
+            self.assertEqual(receipt["status"], "passed")
+            self.assertEqual(receipt["source_revision"], plan.source_revision)
+            self.assertEqual(receipt["source_closure_sha256"], plan.source_closure_sha256)
+            self.assertEqual(receipt["result_sha256"], verified.finalization_receipt_sha256)
+            self.assertEqual(
+                coverage_study_core._verify_development_receipt(
+                    raw,
+                    expected_sha256=_sha(raw),
+                    current_stage_uuid="00000000-0000-4000-8000-000000000001",
+                    expected_development_stage_uuid=plan.stage_uuid,
+                    forbidden_stage_uuids=(),
+                    protocol_sha256=_sha(plan.protocol_bytes),
+                    source_revision=plan.source_revision,
+                    source_closure_sha256=plan.source_closure_sha256,
+                ),
+                plan.stage_uuid,
+            )
+            self.assertEqual(output.read_bytes(), raw)
+            self.assertEqual(stat.S_IMODE(output.stat().st_mode), 0o600)
+
+    def test_independent_issuer_refuses_late_stage_without_writing_receipt(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            paths, plan = self._fixture(Path(temporary), elapsed=10.0, late=True, stage_deadline=10.0, registered=True)
+            output = Path(temporary) / "development-pass-receipt.json"
+            with self.assertRaisesRegex(finalization.StageFinalizationError, "finalization-late-stage"):
+                finalization.issue_development_pass_receipt(
+                    plan=plan,
+                    inventory_path=paths["inventory"],
+                    expected_inventory_sha256=paths["inventory_sha"],
+                    closeout_receipt_path=paths["closeout"],
+                    expected_closeout_receipt_sha256=paths["closeout_sha"],
+                    output_path=output,
+                )
+            self.assertFalse(output.exists())
+
+    def test_independent_issuer_refuses_source_closure_mismatch_without_write(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            paths, plan = self._fixture(Path(temporary), elapsed=7.5, registered=True)
+            wrong_plan = SimpleNamespace(**{**vars(plan), "source_closure_sha256": "e" * 64})
+            output = Path(temporary) / "development-pass-receipt.json"
+            with self.assertRaisesRegex(finalization.StageFinalizationError, "gate-input-binding-mismatch"):
+                finalization.issue_development_pass_receipt(
+                    plan=wrong_plan,
+                    inventory_path=paths["inventory"],
+                    expected_inventory_sha256=paths["inventory_sha"],
+                    closeout_receipt_path=paths["closeout"],
+                    expected_closeout_receipt_sha256=paths["closeout_sha"],
+                    output_path=output,
+                )
+            self.assertFalse(output.exists())
+
+    def test_independent_issuer_is_create_once(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            paths, plan = self._fixture(Path(temporary), elapsed=7.5, registered=True)
+            output = Path(temporary) / "development-pass-receipt.json"
+            output.write_bytes(b"existing")
+            os.chmod(output, 0o600)
+            with self.assertRaisesRegex(finalization.StageFinalizationError, "already-exists-no-resume"):
+                finalization.issue_development_pass_receipt(
+                    plan=plan,
+                    inventory_path=paths["inventory"],
+                    expected_inventory_sha256=paths["inventory_sha"],
+                    closeout_receipt_path=paths["closeout"],
+                    expected_closeout_receipt_sha256=paths["closeout_sha"],
+                    output_path=output,
+                )
+            self.assertEqual(output.read_bytes(), b"existing")
+
+    def test_issuer_cli_is_routed_through_source_bootstrap_launcher(self):
+        repository = Path(finalization.__file__).parents[1]
+        with tempfile.TemporaryDirectory() as temporary:
+            config = Path(temporary) / "config.json"
+            config.write_bytes(b"{}")
+            os.chmod(config, 0o600)
+            process = subprocess.run(
+                [
+                    sys.executable,
+                    str(repository / "scripts/coverage_operator_launcher.py"),
+                    "issue-development-pass",
+                    "--config",
+                    str(config),
+                    "--config-sha256",
+                    "0" * 64,
+                    "--inventory-sha256",
+                    "1" * 64,
+                    "--closeout-sha256",
+                    "2" * 64,
+                    "--output",
+                    str(Path(temporary) / "receipt.json"),
+                ],
+                cwd=repository,
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=20,
+            )
+            self.assertEqual(process.returncode, 1)
+            self.assertEqual(
+                json.loads(process.stdout),
+                {"status": "refused-or-terminal", "error_class": "OperatorRunnerError"},
+            )
 
 
 if __name__ == "__main__":

@@ -44,6 +44,7 @@ def _phase_request_context_bindings(
     *,
     expected_source_closure_sha256: str,
     expected_scope_bindings: Mapping[str, object],
+    expected_context_bindings: Mapping[str, object] | None = None,
 ) -> dict[str, object]:
     """Validate the runner's common context without loosening scope bindings."""
     common_keys = {
@@ -51,9 +52,11 @@ def _phase_request_context_bindings(
         "active_python_environment",
         "active_python_environment_sha256",
     }
+    context_bindings = dict(expected_context_bindings or {})
+    expected_all = {**expected_scope_bindings, **context_bindings}
     if (
         type(request_bindings) is not dict
-        or set(request_bindings) != set(expected_scope_bindings) | common_keys
+        or set(request_bindings) != set(expected_all) | common_keys
         or request_bindings.get("source_closure_sha256") != expected_source_closure_sha256
     ):
         raise LocalAuthorityError("phase-artifact-request-context-binding-mismatch")
@@ -68,9 +71,66 @@ def _phase_request_context_bindings(
     ):
         raise LocalAuthorityError("phase-artifact-active-environment-binding-invalid")
     scope_bindings = {key: value for key, value in request_bindings.items() if key not in common_keys}
-    if scope_bindings != dict(expected_scope_bindings):
+    if scope_bindings != expected_all:
         raise LocalAuthorityError("phase-artifact-request-scope-binding-mismatch")
-    return scope_bindings
+    return {key: value for key, value in scope_bindings.items() if key not in context_bindings}
+
+
+_DEVELOPMENT_RECEIPT_BINDINGS = frozenset({"development_receipt_sha256", "development_stage_uuid"})
+
+
+def _verified_development_receipt_context(
+    plan: object | None,
+    registration: Mapping[str, object],
+    request_bindings: object,
+    artifacts: Mapping[str, bytes],
+) -> dict[str, str]:
+    """Validate only the known confirmation proof fields against the source-bound plan."""
+    registered_kind = registration.get("stage_kind")
+    if registered_kind not in {"development", "confirmation"}:
+        raise LocalAuthorityError("phase-artifact-registered-stage-kind-invalid")
+    if plan is None:
+        if registered_kind != "development":
+            raise LocalAuthorityError("phase-artifact-confirmation-plan-required")
+    elif getattr(plan, "stage_kind", None) != registered_kind:
+        raise LocalAuthorityError("phase-artifact-plan-stage-kind-mismatch")
+    if type(request_bindings) is not dict:
+        raise LocalAuthorityError("phase-artifact-development-receipt-request-invalid")
+    if registered_kind != "confirmation":
+        if "development-pass-receipt" in artifacts or _DEVELOPMENT_RECEIPT_BINDINGS.intersection(request_bindings):
+            raise LocalAuthorityError("phase-artifact-development-receipt-unexpected")
+        return {}
+    raw = getattr(plan, "development_receipt_bytes", None)
+    pin = getattr(plan, "development_receipt_sha256", None)
+    dev_uuid = getattr(plan, "development_stage_uuid", None)
+    if (
+        type(raw) is not bytes
+        or not raw
+        or type(pin) is not str
+        or not _SHA.fullmatch(pin)
+        or _sha(raw) != pin
+        or type(dev_uuid) is not str
+        or artifacts.get("development-pass-receipt") != raw
+        or request_bindings.get("development_receipt_sha256") != pin
+        or request_bindings.get("development_stage_uuid") != dev_uuid
+    ):
+        raise LocalAuthorityError("phase-artifact-development-receipt-mismatch")
+    try:
+        from scripts import coverage_study_core as core
+
+        core._verify_development_receipt(
+            raw,
+            expected_sha256=pin,
+            current_stage_uuid=plan.stage_uuid,
+            expected_development_stage_uuid=dev_uuid,
+            forbidden_stage_uuids=(),
+            protocol_sha256=_sha(plan.protocol_bytes),
+            source_revision=plan.source_revision,
+            source_closure_sha256=plan.source_closure_sha256,
+        )
+    except Exception as exc:
+        raise LocalAuthorityError("phase-artifact-development-receipt-invalid") from exc
+    return {"development_receipt_sha256": pin, "development_stage_uuid": dev_uuid}
 
 
 def _strict_json(raw: bytes) -> object:
@@ -686,6 +746,9 @@ class PhaseArtifactReceiptIssuer:
             band_companion_bytes=plan.band_companion_bytes,
             expected_band_companion_sha256=plan.band_companion_sha256,
             expected_source_pins=plan.band_companion_source_pins,
+            development_receipt_bytes=plan.development_receipt_bytes,
+            expected_development_receipt_sha256=plan.development_receipt_sha256,
+            expected_development_stage_uuid=plan.development_stage_uuid,
         ).prepared
         operation_materials = {}
         rebuilt_map = selector_map.build_selector_input_map(
@@ -1290,6 +1353,19 @@ class PhaseArtifactReceiptIssuer:
         )
         bindings = _strict_json(request_bytes)["bindings"]
         expected_material_hashes = {name: _sha(materials[name]) for name in sorted(late._LATE_MATERIALS)}
+        development_receipt = artifacts.get("development-pass-receipt")
+        if plan.stage_kind == "confirmation":
+            if (
+                type(plan.development_receipt_bytes) is not bytes
+                or development_receipt != plan.development_receipt_bytes
+                or bindings.get("development_receipt_sha256") != plan.development_receipt_sha256
+                or bindings.get("development_stage_uuid") != plan.development_stage_uuid
+            ):
+                raise LocalAuthorityError("phase-artifact-development-receipt-mismatch")
+        elif development_receipt is not None or any(
+            key in bindings for key in ("development_receipt_sha256", "development_stage_uuid")
+        ):
+            raise LocalAuthorityError("phase-artifact-development-receipt-unexpected")
         if (
             bindings.get("initial_registration_sha256") != expected_initial_registration_sha256
             or bindings.get("stage_uuid") != stage_uuid
@@ -1324,6 +1400,9 @@ class PhaseArtifactReceiptIssuer:
             band_companion_bytes=plan.band_companion_bytes,
             expected_band_companion_sha256=plan.band_companion_sha256,
             expected_source_pins=plan.band_companion_source_pins,
+            development_receipt_bytes=plan.development_receipt_bytes,
+            expected_development_receipt_sha256=plan.development_receipt_sha256,
+            expected_development_stage_uuid=plan.development_stage_uuid,
         )
         return receipt
 
@@ -1339,6 +1418,7 @@ class PhaseArtifactReceiptIssuer:
         expected_active_registration_sha256: str,
         prepared: object,
         expected_selector_map_bytes: bytes,
+        plan: object | None = None,
     ) -> bytes:
         """Admit only the independently rebuilt, source-bound registered selector map."""
         from scripts import coverage_selector_admission as admission
@@ -1371,6 +1451,7 @@ class PhaseArtifactReceiptIssuer:
             expected_initial_registration_sha256=expected_initial_registration_sha256,
             expected_active_registration_sha256=expected_active_registration_sha256,
         )
+        proof_context = _verified_development_receipt_context(plan, registration, envelope.get("bindings"), artifacts)
         map_bytes = artifacts.get("selector-map")
         if (
             map_bytes != expected_selector_map_bytes
@@ -1388,7 +1469,7 @@ class PhaseArtifactReceiptIssuer:
             {
                 key: value
                 for key, value in bindings.items()
-                if key not in {"active_python_environment", "active_python_environment_sha256"}
+                if key not in {"active_python_environment", "active_python_environment_sha256", *proof_context.keys()}
             }
             if type(bindings) is dict
             else None
@@ -1401,13 +1482,71 @@ class PhaseArtifactReceiptIssuer:
             "source_closure_sha256": expected_source_closure_sha256,
             "selector_input_map_sha256": _sha(map_bytes),
         }
+        receipt_bindings = dict(expected)
+        if plan is not None and getattr(plan, "pool_input_mode", None) == "saved-corpus/1":
+            # The coordinator adds these two public bindings only for a saved
+            # development import. Recompute them from the pinned import permit
+            # and immutable origin package; do not trust matching request and
+            # artifact hashes by themselves.
+            from scripts import coverage_late_registration as late
+            from scripts import coverage_saved_corpus as saved
+            from scripts import coverage_stage_orchestration as orchestration
+
+            origin = getattr(plan, "saved_origin", None)
+            if (
+                type(plan) is not orchestration.StagePlan
+                or plan.stage_kind != "development"
+                or plan.stage_uuid != stage_uuid
+                or type(origin) is not saved.SavedCorpusOrigin
+            ):
+                raise LocalAuthorityError("saved-corpus-selector-map-context-invalid")
+            try:
+                permit_root = Path(root) / stage_uuid / "saved-corpus-import"
+                handoff = coverage_operator_handoff
+                permit_raw = handoff._read_private(permit_root / "responses" / "permit.receipt", 16_384)
+                permit_pin_raw = handoff._read_private(permit_root / "pins" / "permit.sha256", 256)
+                permit_pin = permit_pin_raw.decode("ascii").strip()
+                permit = PinnedReceiptAuthorities.saved_corpus_import(plan, permit_raw, permit_pin)
+                binding = saved.SavedCorpusStageBinding(
+                    stage_uuid=plan.stage_uuid,
+                    packet_stage_uuid=plan.packet_stage_uuid,
+                    stage_kind=plan.stage_kind,
+                    source_revision=plan.source_revision,
+                    source_closure_sha256=plan.source_closure_sha256,
+                    protocol_sha256=_sha(plan.protocol_bytes),
+                    cohorts_sha256=_sha(plan.cohorts_bytes),
+                    candidate_identity_sha256=_sha(plan.candidate_identity_bytes),
+                    candidate_endpoint_sha256=plan.candidate_endpoint_sha256,
+                    origin_package_sha256=permit.origin_package_sha256,
+                    import_authority_receipt_sha256=permit.receipt_sha256,
+                )
+                imported = saved.verify_and_import_saved_corpus(
+                    origin, binding, plan.research_cases, plan.navigation_targets
+                )
+                expected_reference = late.saved_corpus_import_reference(imported, plan=plan)
+            except Exception as exc:
+                raise LocalAuthorityError("saved-corpus-selector-map-import-invalid") from exc
+            reference = artifacts.get("saved-corpus-import-reference")
+            import_receipt_pin = artifacts.get("saved-corpus-import-receipt-sha256")
+            if (
+                reference != expected_reference
+                or import_receipt_pin != imported.import_receipt_sha256.encode("ascii")
+                or artifacts.get("capture-manifest") != imported.capture_manifest_bytes
+            ):
+                raise LocalAuthorityError("saved-corpus-selector-map-import-binding-mismatch")
+            expected.update(
+                {
+                    "origin_package_sha256": imported.origin_package_sha256,
+                    "saved_corpus_import_receipt_sha256": imported.import_receipt_sha256,
+                }
+            )
         if public != expected:
             raise LocalAuthorityError("phase-artifact-selector-map-request-binding-mismatch")
         receipt = _canonical(
             {
                 "schema": admission.SCHEMA,
                 "status": "admitted",
-                **expected,
+                **receipt_bindings,
             }
         )
         admission.verify_selector_map_admission(
@@ -1500,6 +1639,9 @@ class PhaseArtifactReceiptIssuer:
             band_companion_bytes=plan.band_companion_bytes,
             expected_band_companion_sha256=plan.band_companion_sha256,
             expected_source_pins=plan.band_companion_source_pins,
+            development_receipt_bytes=plan.development_receipt_bytes,
+            expected_development_receipt_sha256=plan.development_receipt_sha256,
+            expected_development_stage_uuid=plan.development_stage_uuid,
         )
         prepared = late_verified.prepared
         task_manifest = artifacts.get("task-input-manifest")
@@ -1739,10 +1881,11 @@ class PhaseArtifactReceiptIssuer:
             or registration.get("source_revision") != plan.source_revision
         ):
             raise LocalAuthorityError("phase-artifact-frozen-permit-plan-mismatch")
+        proof_context = _verified_development_receipt_context(plan, registration, envelope.get("bindings"), artifacts)
         public = {
             key: value
             for key, value in envelope["bindings"].items()
-            if key not in {"active_python_environment", "active_python_environment_sha256"}
+            if key not in {"active_python_environment", "active_python_environment_sha256", *proof_context.keys()}
         }
         expected = {
             "stage_uuid": stage_uuid,
@@ -1787,6 +1930,7 @@ class PhaseArtifactReceiptIssuer:
         expected_initial_registration_sha256: str,
         expected_active_registration_sha256: str,
         expected_capture_manifest_bytes: bytes,
+        plan: object | None = None,
     ) -> bytes:
         envelope = _strict_json(request_bytes)
         if (
@@ -1818,6 +1962,7 @@ class PhaseArtifactReceiptIssuer:
         if type(active_pins) is not dict or active_pins.get("source_capture_manifest") != _sha(manifest_bytes):
             raise LocalAuthorityError("phase-artifact-capture-manifest-registration-pin-mismatch")
         bindings = envelope["bindings"]
+        proof_context = _verified_development_receipt_context(plan, registration, bindings, artifacts)
         manifest = _strict_json(manifest_bytes)
         if type(manifest) is not dict or _sha(manifest_bytes) != bindings.get("manifest_sha256"):
             raise LocalAuthorityError("phase-artifact-capture-manifest-mismatch")
@@ -1842,7 +1987,13 @@ class PhaseArtifactReceiptIssuer:
         public = {
             key: value
             for key, value in bindings.items()
-            if key not in {"active_python_environment", "active_python_environment_sha256", "source_closure_sha256"}
+            if key
+            not in {
+                "active_python_environment",
+                "active_python_environment_sha256",
+                "source_closure_sha256",
+                *proof_context.keys(),
+            }
         }
         protocol_raw = artifacts.get("protocol", b"")
         cohorts_raw = artifacts.get("cohorts", b"")
@@ -1876,6 +2027,7 @@ class PhaseArtifactReceiptIssuer:
         ca_bundle_sha256: str | None,
         qualification_receipt_bytes: bytes,
         expected_qualification_receipt_sha256: str,
+        plan: object | None = None,
     ) -> bytes:
         """Validate the protected-profile receipt against the registered capture request."""
         envelope = _strict_json(request_bytes)
@@ -1901,6 +2053,7 @@ class PhaseArtifactReceiptIssuer:
             expected_initial_registration_sha256=expected_initial_registration_sha256,
             expected_active_registration_sha256=expected_active_registration_sha256,
         )
+        proof_context = _verified_development_receipt_context(plan, registration, envelope.get("bindings"), artifacts)
         manifest_bytes = artifacts.get("capture-manifest")
         identity_bytes = artifacts.get("candidate-identity")
         if type(manifest_bytes) is not bytes or type(identity_bytes) is not bytes:
@@ -1944,6 +2097,7 @@ class PhaseArtifactReceiptIssuer:
             envelope.get("bindings"),
             expected_source_closure_sha256=expected_source_closure_sha256,
             expected_scope_bindings=asdict(bindings),
+            expected_context_bindings=proof_context,
         )
         PinnedReceiptAuthorities.protected_capture_qualification(
             qualification_receipt_bytes,
@@ -1996,6 +2150,9 @@ class PhaseArtifactReceiptIssuer:
             expected_source_closure_sha256=expected_source_closure_sha256,
             expected_initial_registration_sha256=expected_initial_registration_sha256,
             expected_active_registration_sha256=expected_active_registration_sha256,
+        )
+        proof_context = _verified_development_receipt_context(
+            plan, registration_context, envelope.get("bindings"), artifacts
         )
         protocol_doc = _strict_json(artifacts.get("protocol", b""))
         frozen_pipeline = None
@@ -2213,10 +2370,17 @@ class PhaseArtifactReceiptIssuer:
                 }
             )
         )
+        proof_context = _verified_development_receipt_context(plan, registration, bindings, artifacts)
         public = {
             key: value
             for key, value in bindings.items()
-            if key not in {"active_python_environment", "active_python_environment_sha256", "source_closure_sha256"}
+            if key
+            not in {
+                "active_python_environment",
+                "active_python_environment_sha256",
+                "source_closure_sha256",
+                *proof_context.keys(),
+            }
         }
         expected = {
             "stage_uuid": stage_uuid,

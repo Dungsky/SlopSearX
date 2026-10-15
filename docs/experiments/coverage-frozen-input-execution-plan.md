@@ -1,6 +1,8 @@
 # Coverage-first delivery: frozen-input execution amendment
 
-Current status: the latest development attempt stopped before grading completed. Two grading requests were rejected because the strict output schema used an unsupported `propertyNames` keyword; 52 prepared packets remained unstarted. No grades were returned, and Jev, answer, search, capture, and confirmation phases did not run. See the [latest terminal record](evidence/coverage-first-study/completed-2026-10-15-native-schema-rejection/README.md). The old run will not be resumed, and its failure is preserved. The earlier response-validation failure remains in its [separate terminal record](evidence/coverage-first-study/completed-2026-10-15-native-grade-schema/README.md).
+Current status: the [development comparison after the file-publication repair](evidence/coverage-first-study/atomic-handoff-registration-2026-10-15/README.md) completed 54 successful native reference grades and independent closure, then stopped at selector-map admission. The coordinator inventory remains in progress, so no finalized stage decision or ranking-quality result exists. No selector, answer, new search, capture, or confirmation calls followed. See the [terminal record](evidence/coverage-first-study/completed-2026-10-15-selector-map-admission/README.md). Confirmation remains unstarted.
+
+Previous completed attempt: development stopped before grading completed. Two grading requests were rejected because the strict output schema used an unsupported `propertyNames` keyword; 52 prepared packets remained unstarted. See its [terminal record](evidence/coverage-first-study/completed-2026-10-15-native-schema-rejection/README.md). The latest development attempt is recorded separately; its admission failure does not replace or resume this prior terminal result. The earlier response-validation failure remains in its [separate terminal record](evidence/coverage-first-study/completed-2026-10-15-native-grade-schema/README.md).
 
 The current [saved-development method](evidence/coverage-first-study/saved-development-method-materials/README.md) changes input acquisition for development only. It preserves the candidate and quality requirements described below. Earlier admission and collection failures remain terminal historical evidence; they are not resumed.
 
@@ -49,6 +51,8 @@ The conditional claim is research usefulness on the declared freshly frozen
 corpus, not improved provider availability or general-population benefit.
 
 ## Execution and evidence
+
+The [confirmation handoff guide](coverage-confirmation-handoff.md) describes the independent development-pass decision and the required receipt transport. Setup-only confirmation checks do not prove that a stage can start; runtime requires the sealed pass and identical registered source identity.
 
 | Required outcome | Evidence that must exist before the next step |
 | --- | --- |

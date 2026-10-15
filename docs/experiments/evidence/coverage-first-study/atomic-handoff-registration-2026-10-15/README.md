@@ -1,6 +1,6 @@
 # Ranking comparison after the file-publication repair
 
-Both stages passed runner and independent issuer setup checks. The comparison has not started, and ranking quality remains unproven. The [setup receipt](setup-checks.json) records zero scientific calls and no execution directories created.
+Both stages passed runner and independent issuer setup checks. This folder preserves the setup-time snapshot: no stage had started at registration, and ranking quality was unproven. The development stage was later invoked, completed 54 native reference grades and independent closure, then stopped at selector-map admission. The coordinator inventory remains in progress; see the [terminal record](../completed-2026-10-15-selector-map-admission/README.md) and the [execution plan](../../../coverage-frozen-input-execution-plan.md) for current status. The [setup receipt](setup-checks.json) records zero scientific calls and no execution directories created at preflight time.
 
 Development reuses the complete saved search results and page captures, including collection failures, with fresh blind grading. It makes no new search or capture calls. Confirmation uses separate cases and fresh results, and starts only if every development quality and usage check passes. The candidate, thresholds, model aliases, concurrency and usage limits are unchanged.
 

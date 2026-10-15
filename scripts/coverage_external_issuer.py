@@ -18,6 +18,16 @@ def sha(raw):
     return hashlib.sha256(raw).hexdigest()
 
 
+def _require_confirmation_receipt(plan):
+    if (
+        type(getattr(plan, "development_receipt_bytes", None)) is not bytes
+        or type(getattr(plan, "development_receipt_sha256", None)) is not str
+        or type(getattr(plan, "development_stage_uuid", None)) is not str
+        or sha(plan.development_receipt_bytes) != plan.development_receipt_sha256
+    ):
+        raise ValueError("confirmation-development-receipt-required")
+
+
 def read(path, cap=8_000_000):
     fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
     try:
@@ -100,6 +110,8 @@ def main():
                 json.dumps({"status": "issuer-static-preflight-passed", "scientific_calls": 0, "receipt_issued": False})
             )
             return
+        if runner.plan.stage_kind == "confirmation":
+            _require_confirmation_receipt(runner.plan)
         initial_pin = runner.initial_registration_sha256
         active_pin = initial_pin
         if a.active_registration is not None:
@@ -142,6 +154,20 @@ def main():
                 if k not in {"expected_initial_registration_sha256", "expected_active_registration_sha256"}
             },
         )
+        request_bindings = envelope.get("bindings")
+        if runner.plan.stage_kind == "confirmation":
+            if (
+                type(request_bindings) is not dict
+                or artifacts.get("development-pass-receipt") != runner.plan.development_receipt_bytes
+                or request_bindings.get("development_receipt_sha256") != runner.plan.development_receipt_sha256
+                or request_bindings.get("development_stage_uuid") != runner.plan.development_stage_uuid
+            ):
+                raise ValueError("development-pass-receipt-request-mismatch")
+        elif "development-pass-receipt" in artifacts or (
+            type(request_bindings) is dict
+            and any(key in request_bindings for key in ("development_receipt_sha256", "development_stage_uuid"))
+        ):
+            raise ValueError("development-pass-receipt-unexpected")
         clock_doc = authority._strict_json(artifacts["stage-clock"])
         clock = collector.FrozenCollectionStageClock(**{k: v for k, v in clock_doc.items() if k != "schema"})
         collector._validate_clock(clock, test_mode=False, test_pacer=None)
@@ -186,7 +212,9 @@ def main():
             )
             if a.scope == "source-capture":
                 receipt = issuer.source_capture(
-                    **common, expected_capture_manifest_bytes=pipeline["capture_manifest_bytes"]
+                    **common,
+                    expected_capture_manifest_bytes=pipeline["capture_manifest_bytes"],
+                    plan=plan,
                 )
             elif a.scope == "protected-source-capture":
                 if a.qualification_evidence is None or not a.qualification_evidence_sha256:
@@ -229,6 +257,7 @@ def main():
                     ca_bundle_sha256=ca_sha,
                     qualification_receipt_bytes=qualified,
                     expected_qualification_receipt_sha256=sha(qualified),
+                    plan=plan,
                 )
             else:
                 active_raw = read(a.active_registration)
@@ -247,6 +276,9 @@ def main():
                     band_companion_bytes=plan.band_companion_bytes,
                     expected_band_companion_sha256=plan.band_companion_sha256,
                     expected_source_pins=plan.band_companion_source_pins,
+                    development_receipt_bytes=getattr(plan, "development_receipt_bytes", None),
+                    expected_development_receipt_sha256=getattr(plan, "development_receipt_sha256", None),
+                    expected_development_stage_uuid=getattr(plan, "development_stage_uuid", None),
                 ).prepared
                 map_bytes = selector_map.build_selector_input_map(
                     prepared=prepared,
@@ -276,7 +308,7 @@ def main():
                     expected_builder_source_sha256=sha(pathlib.Path(selector_map.__file__).read_bytes()),
                 )
                 receipt = issuer.selector_map_admission(
-                    **common, prepared=prepared, expected_selector_map_bytes=map_bytes
+                    **common, prepared=prepared, expected_selector_map_bytes=map_bytes, plan=plan
                 )
         else:
             receipt = asyncio.run(

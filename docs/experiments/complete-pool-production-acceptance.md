@@ -1,6 +1,8 @@
 # Production acceptance checklist: explicit-purpose complete-pool Jev selection
 
-Current status: the latest development stage stopped before grading completed. Two grading requests were rejected because the strict output schema used an unsupported `propertyNames` keyword; zero grades were completed and 52 prepared packets remained unstarted. No Jev, answer, search, capture, or confirmation phase ran. See the [latest terminal record](evidence/coverage-first-study/completed-2026-10-15-native-schema-rejection/README.md). The earlier stage that completed 53 grading calls and failed validation of one response remains preserved as historical evidence in its [separate terminal record](evidence/coverage-first-study/completed-2026-10-15-native-grade-schema/README.md). The old run will not be resumed; coverage-first remains unqualified for implementation.
+Current status: development stopped at selector-map admission after 54 successful native reference grades and independent closure. The coordinator inventory remains in progress, so there is no finalized stage decision or ranking-quality result. No selector, answer, new search, capture, or confirmation call followed. See the [terminal record](evidence/coverage-first-study/completed-2026-10-15-selector-map-admission/README.md). Confirmation remains unstarted.
+
+Previous completed attempt: development stopped before grading completed. Two grading requests were rejected because the strict output schema used an unsupported `propertyNames` keyword; zero grades were completed and 52 prepared packets remained unstarted. See its [terminal record](evidence/coverage-first-study/completed-2026-10-15-native-schema-rejection/README.md). The earlier stage that completed 53 grading calls and failed validation of one response remains preserved in its [separate terminal record](evidence/coverage-first-study/completed-2026-10-15-native-grade-schema/README.md). The latest development stage then completed 54 native reference grades but stopped at selector-map admission; its inventory is not finalized. Coverage-first remains unqualified for implementation.
 
 Implementation acceptance plan inspected against SlopSearX `3d5e8bac38b619aec1bd7a679f1a7667f1fc1abf` and experimental GroktoCrawl X `3612affba3b51e7240a0e60d079499739052c0b1`. This is a checklist of required work, not a claim of delivery. EXP-050 is bounded identifier-based source-information capture, not source-quality measurement or selector qualification. The production selector still requires a separately qualified, frozen candidate and fresh confirmation. Metadata presence or richer cards alone cannot satisfy either gate.
 
@@ -8,7 +10,7 @@ The cross-service boundary follows accepted X ADR-0082: GroktoCrawl owns the cal
 
 ## Latest delivery state (2026-10-15)
 
-The earlier study passed import and late registration. All 53 required native grading calls returned; 52 responses passed schema validation and one failed. The independent grade validator closed that study as incomplete. No ranking, answer or confirmation call ran. This earlier failure remains historical evidence; its responses were not reused in the latest attempt. The native adapter repair added structured-output schema binding and early response validation; it is engineering hardening, not ranking-quality evidence. The latest attempt then stopped on two rejected schema requests before any grades completed, as described in the current status above.
+The earlier study passed import and late registration. All 53 required native grading calls returned; 52 responses passed schema validation and one failed. The independent grade validator closed that study as incomplete. No ranking, answer or confirmation call ran. This earlier failure remains historical evidence; its responses were not reused in later attempts. The native adapter repair added structured-output schema binding and early response validation; it is engineering hardening, not ranking-quality evidence. The next attempt stopped on two rejected schema requests before any grades completed. The latest attempt completed 54 reference grades and their independent closure, then stopped at selector-map admission without producing a ranking result.
 
 ## Earlier delivery state (2026-10-14)
 
@@ -28,7 +30,7 @@ The immediate evidence gap is a complete independently validated source-referenc
 
 | Release requirement | Current evidence | State |
 | --- | --- | --- |
-| Complete valid development references | Latest run: 2 grading requests rejected, 0 grades completed, 52 packets unstarted; earlier 53-response run is retained history | Incomplete |
+| Complete valid development references | Latest run: 54 successful native grades and independent closure; selector-map admission then failed before ranking | References complete in the stopped run; no qualifying comparison |
 | Registered development ranking and task-use gates | No complete qualifying comparison | Unproven |
 | Wholly fresh untouched confirmation | Not run | Incomplete |
 | Purpose/facet integration, compatibility and recovery checks | Checklist below remains required after candidate qualification | Not delivered by these experiments |

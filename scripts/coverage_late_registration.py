@@ -28,6 +28,27 @@ class LateRegistrationError(ValueError):
     """The post-acquisition registration changed frozen study identity."""
 
 
+def _bind_development_receipt(plan: object, bindings: dict[str, object], artifacts: dict[str, bytes]) -> None:
+    """Bind the separately sealed development decision without masking collisions."""
+    names = ("development_receipt_sha256", "development_stage_uuid")
+    if plan.stage_kind != "confirmation":
+        if any(name in bindings for name in names) or "development-pass-receipt" in artifacts:
+            raise LateRegistrationError("late-registration-development-receipt-unexpected")
+        return
+    raw = plan.development_receipt_bytes
+    pin = plan.development_receipt_sha256
+    stage_uuid = plan.development_stage_uuid
+    if type(raw) is not bytes or type(pin) is not str or _sha(raw) != pin or type(stage_uuid) is not str:
+        raise LateRegistrationError("confirmation-development-receipt-required")
+    expected = {names[0]: pin, names[1]: stage_uuid}
+    if any(name in bindings and bindings[name] != value for name, value in expected.items()):
+        raise LateRegistrationError("late-registration-development-receipt-binding-collision")
+    if "development-pass-receipt" in artifacts and artifacts["development-pass-receipt"] != raw:
+        raise LateRegistrationError("late-registration-development-receipt-artifact-collision")
+    bindings.update(expected)
+    artifacts.setdefault("development-pass-receipt", raw)
+
+
 @dataclass(frozen=True)
 class VerifiedLateRegistration:
     prepared: core.PreparedStage
@@ -467,6 +488,9 @@ def verify_late_registration(
     band_companion_bytes: bytes | None = None,
     expected_band_companion_sha256: str | None = None,
     expected_source_pins: Mapping[str, str] | None = None,
+    development_receipt_bytes: bytes | None = None,
+    expected_development_receipt_sha256: str | None = None,
+    expected_development_stage_uuid: str | None = None,
 ) -> VerifiedLateRegistration:
     """Validate lineage and run the original pure registration preflight."""
     initial = _registration(initial_registration_bytes, expected_initial_registration_sha256)
@@ -522,6 +546,9 @@ def verify_late_registration(
             capture_plan_bytes=materials["capture_plan"],
             task_ids=task_ids,
             navigation_skip_reasons=navigation_skip_reasons,
+            development_receipt_bytes=development_receipt_bytes,
+            expected_development_receipt_sha256=expected_development_receipt_sha256,
+            expected_development_stage_uuid=expected_development_stage_uuid,
             band_companion_bytes=band_companion_bytes,
             expected_band_companion_sha256=expected_band_companion_sha256,
             expected_source_pins=expected_source_pins,
@@ -632,6 +659,7 @@ async def request_late_registration(
         artifact_bytes["saved-corpus-import-receipt-sha256"] = saved_corpus_import.import_receipt_sha256.encode("ascii")
     if stage_clock_bytes is not None:
         artifact_bytes["stage-clock"] = stage_clock_bytes
+    _bind_development_receipt(plan, request_bindings, artifact_bytes)
     if verified_pool_source is not None:
         # This same-host, source-closed handle points only to the fixed
         # stage_inventory/<uuid>/collection location. The issuer must reopen
@@ -689,6 +717,9 @@ async def request_late_registration(
         band_companion_bytes=plan.band_companion_bytes,
         expected_band_companion_sha256=plan.band_companion_sha256,
         expected_source_pins=plan.band_companion_source_pins,
+        development_receipt_bytes=plan.development_receipt_bytes,
+        expected_development_receipt_sha256=plan.development_receipt_sha256,
+        expected_development_stage_uuid=plan.development_stage_uuid,
     )
     return orchestration.LatePreparationEvidence(
         prepared=verified.prepared,

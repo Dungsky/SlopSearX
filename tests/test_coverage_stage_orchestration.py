@@ -553,6 +553,11 @@ def _synthetic_capture(plan, pipeline_inputs, root: Path) -> stage.CaptureEviden
 
 
 class StageOrchestrationTests(unittest.TestCase):
+    def test_runtime_plan_rejects_confirmation_without_receipt_before_acquisition(self):
+        plan = stage.StagePlan(**{**plan_fixture().__dict__, "stage_kind": "confirmation"})
+        with self.assertRaisesRegex(stage.OrchestrationError, "confirmation-development-receipt-required"):
+            stage._validate_plan(plan)
+
     def test_frozen_pool_mode_must_be_explicitly_bound_by_protocol(self):
         plan = plan_fixture(pool_input_mode="frozen-pool/1")
         stage._validate_plan_static(plan)
