@@ -304,9 +304,16 @@ def _saved_origin_from_config(value: object) -> saved_corpus.SavedCorpusOrigin:
     """Read only the registered archive description, never historical grades."""
     from scripts import coverage_frozen_pool_inputs
 
-    if type(value) is not dict or set(value) != {field.name for field in fields(saved_corpus.SavedCorpusOrigin)}:
+    origin_fields = {field.name for field in fields(saved_corpus.SavedCorpusOrigin)}
+    legacy_origin_fields = origin_fields - {"acquisition_plan_sidecar"}
+    if type(value) is not dict or frozenset(value) not in {
+        frozenset(legacy_origin_fields),
+        frozenset(origin_fields),
+    }:
         raise OperatorRunnerError("saved-origin-config-shape-invalid")
     args = dict(value)
+    if "acquisition_plan_sidecar" not in args:
+        args["acquisition_plan_sidecar"] = None
     registration = args["registration"]
     if type(registration) is not dict or set(registration) != {
         field.name for field in fields(coverage_frozen_pool_inputs.FrozenPoolRegistrationContext)
@@ -326,12 +333,21 @@ def _saved_origin_from_config(value: object) -> saved_corpus.SavedCorpusOrigin:
         if type(args[key]) is not str or not Path(args[key]).is_absolute():
             raise OperatorRunnerError("saved-origin-path-invalid")
         args[key] = Path(args[key])
+    sidecar = args["acquisition_plan_sidecar"]
+    if sidecar is not None:
+        if type(sidecar) is not str or not Path(sidecar).is_absolute():
+            raise OperatorRunnerError("saved-origin-acquisition-plan-sidecar-path-invalid")
+        args["acquisition_plan_sidecar"] = Path(sidecar)
     origin = saved_corpus.SavedCorpusOrigin(**args)
     if (
         saved_corpus.package_sha256(origin.collection_directory, origin.capture_stage_directory)
         != origin.expected_package_sha256
     ):
         raise OperatorRunnerError("saved-origin-package-mismatch")
+    try:
+        saved_corpus.origin_acquisition_plan_bytes(origin)
+    except saved_corpus.SavedCorpusError as exc:
+        raise OperatorRunnerError("saved-origin-acquisition-plan-invalid") from exc
     return origin
 
 

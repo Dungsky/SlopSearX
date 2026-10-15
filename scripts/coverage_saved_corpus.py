@@ -49,6 +49,7 @@ class SavedCorpusOrigin:
     expected_capture_inventory_sha256: str
     expected_capture_manifest_sha256: str
     expected_package_sha256: str
+    acquisition_plan_sidecar: Path | None = None
 
 
 @dataclass(frozen=True)
@@ -108,6 +109,7 @@ class SavedCorpusImportResult:
     historical_failed_sources: int
     current_search_calls: int = 0
     current_capture_calls: int = 0
+    acquisition_plan_bytes: bytes | None = None
 
 
 def _sha(raw: bytes) -> str:
@@ -219,6 +221,56 @@ def package_sha256(collection_directory: Path, capture_stage_directory: Path) ->
         {"tree": "capture", **row} for row in _tree_rows(Path(capture_stage_directory), "capture")
     ]
     return _sha(_canonical(rows))
+
+
+def origin_acquisition_plan_bytes(origin: SavedCorpusOrigin) -> bytes:
+    """Load the origin plan from its explicit sidecar or fixed legacy package path.
+
+    A sidecar remains outside the immutable package and is trusted only through
+    the acquisition-plan digest already present in the origin registration.
+    No discovery or alternate-path search is performed.
+    """
+    if type(origin) is not SavedCorpusOrigin:
+        raise SavedCorpusError("origin-acquisition-plan-origin-invalid")
+    registration = origin.registration
+    package_roots = (Path(origin.collection_directory), Path(origin.capture_stage_directory))
+    embedded_path = package_roots[0] / "acquisition-plan.json"
+    sidecar = origin.acquisition_plan_sidecar
+    if sidecar is None:
+        raw = _private_file(embedded_path, max_bytes=2_000_000)
+    else:
+        if not isinstance(sidecar, Path) or not sidecar.is_absolute():
+            raise SavedCorpusError("origin-acquisition-plan-sidecar-path-invalid")
+        try:
+            if stat.S_ISLNK(sidecar.lstat().st_mode):
+                raise SavedCorpusError("saved-corpus-file-unsafe")
+            normalized_sidecar = sidecar.resolve(strict=True)
+        except SavedCorpusError:
+            raise
+        except OSError as exc:
+            raise SavedCorpusError("saved-corpus-file-unavailable") from exc
+        for root in package_roots:
+            try:
+                normalized_root = root.resolve(strict=True)
+            except OSError as exc:
+                raise SavedCorpusError("saved-corpus-file-unavailable") from exc
+            try:
+                normalized_sidecar.relative_to(normalized_root)
+            except ValueError:
+                continue
+            raise SavedCorpusError("origin-acquisition-plan-sidecar-inside-package")
+        raw = _private_file(normalized_sidecar, max_bytes=2_000_000)
+        try:
+            embedded_raw = _private_file(embedded_path, max_bytes=2_000_000)
+        except SavedCorpusError as exc:
+            if exc.args != ("saved-corpus-file-unavailable",):
+                raise
+        else:
+            if embedded_raw != raw:
+                raise SavedCorpusError("origin-acquisition-plan-sidecar-conflicts-with-package")
+    if _sha(raw) != registration.acquisition_plan_sha256:
+        raise SavedCorpusError("origin-acquisition-plan-pin-mismatch")
+    return raw
 
 
 def _verify_archive_response(
@@ -340,6 +392,10 @@ def verify_and_import_saved_corpus(
     observed_package_sha = package_sha256(origin.collection_directory, origin.capture_stage_directory)
     if observed_package_sha != origin.expected_package_sha256:
         raise SavedCorpusError("origin-package-integrity-mismatch")
+    try:
+        acquisition_plan_bytes = origin_acquisition_plan_bytes(origin)
+    except SavedCorpusError as exc:
+        raise SavedCorpusError("origin-acquisition-plan-unavailable") from exc
     try:
         observed_collection_inventory = resource_evidence.receipt_inventory_sha256(Path(origin.collection_directory))
     except Exception as exc:
@@ -680,6 +736,7 @@ def verify_and_import_saved_corpus(
         historical_health_calls=1,
         historical_captured_sources=captured_count,
         historical_failed_sources=failed_count,
+        acquisition_plan_bytes=acquisition_plan_bytes,
     )
 
 

@@ -505,6 +505,13 @@ class OperatorRunnerConfigTests(unittest.TestCase):
             config_path.chmod(0o600)
 
             origin_doc = protocol["saved_development_origin"]
+            origin_collection = root / "origin-collection"
+            origin_capture = root / "origin-capture"
+            origin_collection.mkdir(mode=0o700)
+            origin_capture.mkdir(mode=0o700)
+            origin_plan = b'{"schema":"coverage-acquisition-plan/1","operations":[]}'
+            (origin_collection / "acquisition-plan.json").write_bytes(origin_plan)
+            (origin_collection / "acquisition-plan.json").chmod(0o600)
             origin_registration = coverage_frozen_pool_inputs.FrozenPoolRegistrationContext(
                 stage_uuid=origin_doc["stage_uuid"],
                 stage_kind="development",
@@ -514,7 +521,7 @@ class OperatorRunnerConfigTests(unittest.TestCase):
                 cohorts_sha256="3" * 64,
                 candidate_identity_sha256="4" * 64,
                 candidate_endpoint_sha256="5" * 64,
-                acquisition_plan_sha256="6" * 64,
+                acquisition_plan_sha256=digest(origin_plan),
                 task_ids=tuple(row["task_id"] for row in cases),
                 navigation_ids=tuple(row["target_id"] for row in targets),
                 evidence_sha256="7" * 64,
@@ -525,9 +532,9 @@ class OperatorRunnerConfigTests(unittest.TestCase):
                 registration=origin_registration,
                 research_cases=tuple(cases),
                 navigation_targets=tuple(targets),
-                collection_directory=root / "origin-collection",
+                collection_directory=origin_collection,
                 expected_collection_receipt_inventory_sha256="a" * 64,
-                capture_stage_directory=root / "origin-capture",
+                capture_stage_directory=origin_capture,
                 expected_capture_inventory_sha256="b" * 64,
                 expected_capture_manifest_sha256="c" * 64,
                 expected_package_sha256=origin_doc["package_sha256"],

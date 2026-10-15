@@ -2738,11 +2738,19 @@ def _saved_origin_resource_observations(
     ):
         raise ResourceEvidenceError("saved-origin-pool-proof-mismatch")
 
-    acquisition_plan_bytes = _read_private(collection_root / "acquisition-plan.json", max_bytes=2_000_000)
+    acquisition_plan_bytes = imported.acquisition_plan_bytes
+    if acquisition_plan_bytes is None:
+        try:
+            acquisition_plan_bytes = coverage_saved_corpus.origin_acquisition_plan_bytes(origin)
+        except Exception as exc:
+            raise ResourceEvidenceError("saved-origin-acquisition-plan-unavailable") from exc
     acquisition_manifest_bytes = _read_private(
         collection_root / "acquisition-manifest.json", max_bytes=coverage_live_acquire.MAX_POOL_SNAPSHOT_BYTES
     )
-    if _sha(acquisition_plan_bytes) != registration.acquisition_plan_sha256:
+    if (
+        type(acquisition_plan_bytes) is not bytes
+        or _sha(acquisition_plan_bytes) != registration.acquisition_plan_sha256
+    ):
         raise ResourceEvidenceError("saved-origin-acquisition-plan-pin-mismatch")
     origin_acquisition = origin_protocol.get("acquisition")
     origin_profile = offline_acquisition.execution_profile_from_protocol(

@@ -129,13 +129,15 @@ def make_stage(cases: list[dict], *, pools: list[list[SearchResult]] | None = No
     return StageAcquisition("development", "complete", operations, [], 0, 0, 0)
 
 
-def write_snapshot(stage: StageAcquisition, cases: list[dict], root) -> tuple[str, str]:
+def write_snapshot(
+    stage: StageAcquisition, cases: list[dict], root, *, acquisition_plan_sha256: str = "4" * 64
+) -> tuple[str, str]:
     root.mkdir(mode=0o700)
     pins = {
         "protocol_sha256": "1" * 64,
         "cohorts_sha256": "2" * 64,
         "input_manifest_sha256": "6" * 64,
-        "acquisition_plan_sha256": "4" * 64,
+        "acquisition_plan_sha256": acquisition_plan_sha256,
         "source_closure_sha256": "5" * 64,
     }
     manifest = {
@@ -410,8 +412,8 @@ def test_builder_binds_saved_task_plan_to_current_cohort_row():
             )
 
 
-def _fresh_frozen_evidence(root, stage, cases):
-    index_sha, manifest_sha = write_snapshot(stage, cases, root)
+def _fresh_frozen_evidence(root, stage, cases, *, acquisition_plan_sha256: str = "4" * 64):
+    index_sha, manifest_sha = write_snapshot(stage, cases, root, acquisition_plan_sha256=acquisition_plan_sha256)
     original_index = json.loads((root / "pool-snapshot-index.json").read_bytes())
     availability_rows = []
     frozen_rows = []
@@ -472,7 +474,7 @@ def _fresh_frozen_evidence(root, stage, cases):
         "cohorts_sha256": "2" * 64,
         "candidate_identity_sha256": "3" * 64,
         "candidate_endpoint_sha256": "4" * 64,
-        "acquisition_plan_sha256": "4" * 64,
+        "acquisition_plan_sha256": acquisition_plan_sha256,
         "pool_manifest_sha256": manifest_sha,
         "availability_sha256": availability_sha,
         "operations": frozen_rows,
@@ -491,7 +493,7 @@ def _fresh_frozen_evidence(root, stage, cases):
         "cohorts_sha256": "2" * 64,
         "candidate_identity_sha256": "3" * 64,
         "candidate_endpoint_sha256": "4" * 64,
-        "acquisition_plan_sha256": "4" * 64,
+        "acquisition_plan_sha256": acquisition_plan_sha256,
         "pool_manifest_sha256": manifest_sha,
         "pool_snapshot_index_sha256": index_sha,
         "availability_sha256": availability_sha,
@@ -527,7 +529,7 @@ def _fresh_frozen_evidence(root, stage, cases):
             "protocol_sha256": "1" * 64,
             "cohorts_sha256": "2" * 64,
             "input_manifest_sha256": "6" * 64,
-            "acquisition_plan_sha256": "4" * 64,
+            "acquisition_plan_sha256": acquisition_plan_sha256,
             "candidate_identity_sha256": "3" * 64,
             "candidate_endpoint_sha256": "4" * 64,
             "stage_manifest_sha256": manifest_sha,
@@ -576,7 +578,7 @@ def _fresh_frozen_evidence(root, stage, cases):
         "cohorts_sha256": "2" * 64,
         "candidate_identity_sha256": "3" * 64,
         "candidate_endpoint_sha256": "4" * 64,
-        "acquisition_plan_sha256": "4" * 64,
+        "acquisition_plan_sha256": acquisition_plan_sha256,
         "pool_manifest_sha256": manifest_sha,
         "pool_snapshot_index_sha256": index_sha,
         "availability_sha256": availability_sha,

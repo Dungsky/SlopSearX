@@ -148,8 +148,11 @@ async def test_saved_origin_resource_observer_replays_pinned_collection_and_capt
         pacer=pacer,
     )
     collection_root = collected.collection_directory
-    (collection_root / "acquisition-plan.json").write_bytes(plan_bytes)
-    (collection_root / "acquisition-plan.json").chmod(0o600)
+    operator_handoff_root = tmp_path / "operator-handoff"
+    operator_handoff_root.mkdir(mode=0o700)
+    acquisition_plan_sidecar = operator_handoff_root / "acquisition-plan.bin"
+    acquisition_plan_sidecar.write_bytes(plan_bytes)
+    acquisition_plan_sidecar.chmod(0o600)
     receipt_inventory_sha = coverage_resource_evidence.receipt_inventory_sha256(collection_root)
     registration = frozen_pool.FrozenPoolRegistrationContext(
         stage_uuid=manifest["stage_uuid"],
@@ -233,6 +236,7 @@ async def test_saved_origin_resource_observer_replays_pinned_collection_and_capt
         expected_capture_inventory_sha256=_sha((captured.receipt_directory / "inventory.json").read_bytes()),
         expected_capture_manifest_sha256=_sha(capture_manifest_bytes),
         expected_package_sha256=package_sha,
+        acquisition_plan_sidecar=acquisition_plan_sidecar,
     )
     current_protocol = json.loads((evidence_root / "saved-development-method-materials/protocol.json").read_bytes())
     current_stage_uuid = "00000000-0000-0000-0000-000000000991"
@@ -311,6 +315,7 @@ async def test_saved_origin_resource_observer_replays_pinned_collection_and_capt
         historical_health_calls=1,
         historical_captured_sources=captured.captured_count,
         historical_failed_sources=captured.failed_count,
+        acquisition_plan_bytes=plan_bytes,
     )
     acquisition, capture, provenance = coverage_resource_evidence._saved_origin_resource_observations(
         {
