@@ -1,19 +1,25 @@
 {
-  "admission_permits_issued": false,
-  "full_static_preflight": "not_run",
-  "quality_credit": false,
   "schema": "coverage-static-preflight-summary/1",
-  "scientific_calls": 0,
   "source_revision": "cb7f3c20e1b2e263bea5d37291c737e97ed9b9bb",
+  "full_static_preflight": "passed",
+  "scientific_calls": 0,
   "stage_directories_created": false,
+  "admission_permits_issued": false,
+  "quality_credit": false,
   "stages": {
-    "confirmation": {
+    "development": {
+      "runner_preflight": "passed",
+      "issuer_preflight": "passed",
       "admitted": false,
       "invoked": false
     },
-    "development": {
+    "confirmation": {
+      "runner_preflight": "passed",
+      "issuer_preflight": "passed",
       "admitted": false,
-      "invoked": false
+      "invoked": false,
+      "runtime_eligible": false,
+      "eligibility_condition": "valid passing development receipt"
     }
   }
 }

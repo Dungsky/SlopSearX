@@ -1,9 +1,9 @@
 {
   "files": [
     {
-      "bytes": 2010,
+      "bytes": 2219,
       "path": "README.md",
-      "sha256": "36c9b7688ccb4e442699c2ec6557aaa6e8a952895226d28a2c5ae5b42087491b"
+      "sha256": "53484c44bdcbe3046d75a141f4ff38ce964ebe306c3a1f59ea3cc908691d3a10"
     },
     {
       "bytes": 609,
@@ -111,6 +111,11 @@
       "sha256": "826c3518ac8750bc5c865b31e089d4e38acf3cf3b014d4dffcb16f2bd6b9b85d"
     },
     {
+      "bytes": 1507,
+      "path": "full-static-preflight.json",
+      "sha256": "54ec0c1ea5570efce5754fe583dad0af570c2bfb5d865fd808103875d20d1d93"
+    },
+    {
       "bytes": 650,
       "path": "identity-allocation.json",
       "sha256": "cf417d8bb55397558334a36fa6f02c78ed2655ea7319774c7336e73912831818"
@@ -121,9 +126,9 @@
       "sha256": "647d1a09b9594f04798a9b891e609ed710c37111da62ecbf3e8e34d1b183c2bb"
     },
     {
-      "bytes": 455,
+      "bytes": 699,
       "path": "setup-checks.json",
-      "sha256": "90079acc5a509fb913e3a93260adefc43f3a0acec33d5b28a555f3fe7cb249a2"
+      "sha256": "40216a13a8e8498b665b7acbf7274e2535e72001f614672f26e2298359b12fd9"
     },
     {
       "bytes": 5602,
