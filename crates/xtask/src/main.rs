@@ -59,6 +59,98 @@ fn validate_fixture(f: &Fixture, id: &str) -> Result<()> {
     }
     Ok(())
 }
+fn resolve_output(path: &Path) -> Result<PathBuf> {
+    if fs::symlink_metadata(path).is_ok() {
+        return path
+            .canonicalize()
+            .map_err(|e| format!("output destination: {e}"));
+    }
+    let parent = path.parent().ok_or("output has no parent")?;
+    Ok(resolve_output(parent)?.join(path.file_name().ok_or("output has no filename")?))
+}
+fn validate_output(root: &Path, path: &Path) -> Result<PathBuf> {
+    let absolute = if path.is_absolute() {
+        path.to_path_buf()
+    } else {
+        std::env::current_dir()
+            .map_err(|e| e.to_string())?
+            .join(path)
+    };
+    let destination = resolve_output(&absolute)?;
+    for option in ["--git-dir", "--git-common-dir"] {
+        let directory = command(
+            root,
+            "git",
+            &["rev-parse", "--path-format=absolute", option],
+            &mut vec![],
+        )?;
+        let directory = Path::new(directory.trim())
+            .canonicalize()
+            .map_err(|e| format!("repository metadata directory: {e}"))?;
+        if destination.starts_with(directory) {
+            return Err("evidence output overlaps repository metadata".into());
+        }
+    }
+    if let Ok(relative) = destination.strip_prefix(root) {
+        let name = relative.to_str().ok_or("non-UTF8 output path")?;
+        let owned = name == ".git"
+            || name.starts_with(".git/")
+            || name.starts_with("crates/")
+            || name.starts_with(".cargo/")
+            || name.starts_with("docs/rust-rewrite/")
+            || name.starts_with("docs/adr/")
+            || matches!(
+                name,
+                "Cargo.toml"
+                    | "Cargo.lock"
+                    | "rust-toolchain.toml"
+                    | "deny.toml"
+                    | ".github/workflows/rust.yml"
+                    | "scripts/rust-foundation-smoke.sh"
+            );
+        let tracked = command(root, "git", &["ls-files", "-z"], &mut vec![])?;
+        let tracked = tracked.split('\0').any(|p| p == name);
+        let ignored = Command::new("git")
+            .args(["check-ignore", "--quiet", "--", name])
+            .current_dir(root)
+            .status()
+            .map_err(|e| e.to_string())?
+            .success();
+        if owned || tracked || !ignored {
+            return Err("evidence output overlaps repository source or non-ignored files".into());
+        }
+    }
+    Ok(destination)
+}
+fn write_evidence(root: &Path, path: &Path, evidence: &Value) -> Result<()> {
+    let destination = validate_output(root, path)?;
+    fs::create_dir_all(destination.parent().ok_or("output has no parent")?)
+        .map_err(|e| e.to_string())?;
+    let destination = validate_output(root, path)?;
+    // Atomic replacement avoids modifying a hardlinked source inode.
+    let temporary = destination.with_file_name(format!(
+        ".ssx-evidence-{}-{}.tmp",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_err(|e| e.to_string())?
+            .as_nanos()
+    ));
+    let result = (|| -> Result<()> {
+        let mut file = fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&temporary)
+            .map_err(|e| e.to_string())?;
+        file.write_all(&serde_json::to_vec_pretty(evidence).map_err(|e| e.to_string())?)
+            .map_err(|e| e.to_string())?;
+        fs::rename(&temporary, &destination).map_err(|e| e.to_string())
+    })();
+    if result.is_err() {
+        let _ = fs::remove_file(&temporary);
+    }
+    result
+}
 fn source_snapshot(root: &Path, records: &mut Vec<Value>) -> Result<Vec<Value>> {
     let paths = command(
         root,
@@ -356,7 +448,12 @@ fn main() {
         if head.is_empty() || toolchain.is_empty() || snapshot.is_err() {
             Err("source/toolchain identity unavailable".into())
         } else {
-            execute(&root, id, &mut records)
+            if args.len() == 4 {
+                validate_output(&root, Path::new(&args[3]))
+                    .and_then(|_| execute(&root, id, &mut records))
+            } else {
+                execute(&root, id, &mut records)
+            }
         }
     };
     if result.is_ok() {
@@ -374,12 +471,7 @@ fn main() {
 ({"schema_version":1,"started_unix_ms":started_unix_ms,"finished_unix_ms":std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).expect("wall clock after epoch").as_millis(),"plan_id":id,"status":if result.is_ok(){"passed"}else{"failed"},"scope":"foundation checks only; no feature parity certification","source":{"head":head.trim(),"working_tree":tree,"diff":diff,"files":snapshot.unwrap_or_default()},"toolchain":toolchain,"identity_commands":head_records,"commands":records,"output_path":args.get(3),"error":result.err()});
     if args.len() == 4 && args[2] == "--output" {
         let path = PathBuf::from(&args[3]);
-        let write = (|| -> std::io::Result<()> {
-            if let Some(parent) = path.parent().filter(|p| !p.as_os_str().is_empty()) {
-                fs::create_dir_all(parent)?;
-            }
-            fs::write(&path, serde_json::to_vec_pretty(&evidence)?)
-        })();
+        let write = write_evidence(&root, &path, &evidence);
         if let Err(e) = write {
             evidence["status"] = json!("failed");
             evidence["error"] = json!(format!("evidence output {}: {e}", path.display()));
@@ -396,6 +488,123 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn output_cannot_overwrite_source_even_for_failure_reports() {
+        let root = std::env::temp_dir().join(format!("ssx-output-{}", std::process::id()));
+        fs::create_dir_all(&root).unwrap();
+        let root = root.canonicalize().unwrap();
+        command(&root, "git", &["init", "--quiet"], &mut vec![]).unwrap();
+        fs::write(root.join(".gitignore"), "target/\ncrates/ignored.rs\n").unwrap();
+        fs::write(root.join("Cargo.toml"), "source bytes").unwrap();
+        command(&root, "git", &["add", "Cargo.toml"], &mut vec![]).unwrap();
+        fs::create_dir_all(root.join("crates")).unwrap();
+        fs::write(root.join("crates/ignored.rs"), "owned bytes").unwrap();
+        for status in ["passed", "failed"] {
+            let report = json!({"status":status});
+            for name in [
+                "Cargo.toml",
+                "crates/ignored.rs",
+                ".git/config",
+                "new-source.rs",
+            ] {
+                assert!(write_evidence(&root, &root.join(name), &report).is_err());
+            }
+            assert_eq!(
+                fs::read_to_string(root.join("Cargo.toml")).unwrap(),
+                "source bytes"
+            );
+            assert_eq!(
+                fs::read_to_string(root.join("crates/ignored.rs")).unwrap(),
+                "owned bytes"
+            );
+        }
+        let output = root.join("target/evidence/report.json");
+        write_evidence(&root, &output, &json!({"status":"passed"})).unwrap();
+        assert_eq!(load_json(&output).unwrap()["status"], "passed");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::symlink;
+            symlink(root.join("Cargo.toml"), root.join("target/alias.json")).unwrap();
+            symlink(root.join("crates"), root.join("target/alias-dir")).unwrap();
+            for name in ["target/alias.json", "target/alias-dir/new.rs"] {
+                assert!(
+                    write_evidence(&root, &root.join(name), &json!({"status":"failed"})).is_err()
+                );
+            }
+            fs::hard_link(root.join("Cargo.toml"), root.join("target/hardlink.json")).unwrap();
+            write_evidence(
+                &root,
+                &root.join("target/hardlink.json"),
+                &json!({"status":"passed"}),
+            )
+            .unwrap();
+            assert_eq!(
+                fs::read_to_string(root.join("Cargo.toml")).unwrap(),
+                "source bytes"
+            );
+        }
+        let outside = root.with_extension("report.json");
+        write_evidence(&root, &outside, &json!({"status":"passed"})).unwrap();
+        fs::remove_file(outside).unwrap();
+        fs::remove_dir_all(root).unwrap();
+    }
+    #[test]
+    fn output_cannot_overwrite_linked_worktree_metadata() {
+        let temporary =
+            std::env::temp_dir().join(format!("ssx-linked-output-{}", std::process::id()));
+        fs::create_dir_all(&temporary).unwrap();
+        let temporary = temporary.canonicalize().unwrap();
+        let primary = temporary.join("primary");
+        let linked = temporary.join("linked");
+        fs::create_dir_all(&primary).unwrap();
+        command(&primary, "git", &["init", "--quiet"], &mut vec![]).unwrap();
+        command(
+            &primary,
+            "git",
+            &[
+                "-c",
+                "user.name=Test",
+                "-c",
+                "user.email=test@example.com",
+                "-c",
+                "commit.gpgsign=false",
+                "commit",
+                "--allow-empty",
+                "-m",
+                "initial",
+            ],
+            &mut vec![],
+        )
+        .unwrap();
+        command(
+            &primary,
+            "git",
+            &["worktree", "add", "--detach", linked.to_str().unwrap()],
+            &mut vec![],
+        )
+        .unwrap();
+        let directory = command(
+            &linked,
+            "git",
+            &["rev-parse", "--absolute-git-dir"],
+            &mut vec![],
+        )
+        .unwrap();
+        let config = primary.join(".git/config");
+        let head = Path::new(directory.trim()).join("HEAD");
+        for path in [&config, &head] {
+            assert!(!path.starts_with(&linked));
+            let before = fs::read(path).unwrap();
+            for status in ["passed", "failed"] {
+                assert!(write_evidence(&linked, path, &json!({"status":status})).is_err());
+                assert_eq!(fs::read(path).unwrap(), before);
+            }
+        }
+        let output = temporary.join("report.json");
+        write_evidence(&linked, &output, &json!({"status":"passed"})).unwrap();
+        assert_eq!(load_json(&output).unwrap()["status"], "passed");
+        fs::remove_dir_all(temporary).unwrap();
+    }
     #[test]
     fn rejects_empty_wrong_and_duplicate_fixtures() {
         let mut f = Fixture {

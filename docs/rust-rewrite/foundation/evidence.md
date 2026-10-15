@@ -4,7 +4,14 @@ Run `cargo xtask check F01`, `cargo xtask check F02`, or
 `cargo xtask check F03 --output target/rust-evidence/F03.json` from the workspace.
 Every invocation emits one JSON object on stdout and exits nonzero on failure.
 Without `--output`, stdout is the artifact; the optional path is explicit and a
-write error fails acceptance. Cargo diagnostics go to stderr. No Python helper
+write error fails acceptance. Output destinations are resolved through existing
+symlink ancestors and rejected if they overlap tracked files, owned foundation
+source or repository metadata, including Git directories outside linked worktrees.
+Inside the worktree, only explicitly ignored
+artifact destinations are accepted; paths outside the worktree are also allowed.
+Validation occurs before checks and again before writing, including failure
+reports. Atomic replacement preserves source bytes behind hardlinked outputs.
+Cargo diagnostics go to stderr. No Python helper
 participates.
 
 F01 compares the complete tracked Python source path set to the disposition
