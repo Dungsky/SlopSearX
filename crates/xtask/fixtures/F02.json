@@ -16,11 +16,11 @@
     },
     {
       "path": "docs/rust-rewrite/architecture/README.md",
-      "git_blob": "b267cd197fc003a020b5bcdf2be9f8a573303a4c"
+      "git_blob": "f67316a94174be947779202f31ab66a8ae7abdf3"
     },
     {
       "path": "docs/rust-rewrite/architecture/pins.json",
-      "git_blob": "fe4b4e09d9c0226fdba7c45d20e6b1d0c053cf5e"
+      "git_blob": "aac960b4c71ac837cf0f35949f976e02098bd358"
     },
     {
       "path": "docs/rust-rewrite/architecture/state-compatibility.md",

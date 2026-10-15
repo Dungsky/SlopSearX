@@ -1,5 +1,6 @@
 //! Native infrastructure and isolated foundation fixtures.
 pub mod http;
+pub mod valkey;
 use ssx_application::{
     Audit, Clock, Engine, Metrics, NoopSink, PortFuture, Runtime, Store, Supervisor, TaskEvent,
 };
