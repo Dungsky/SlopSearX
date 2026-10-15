@@ -4,9 +4,9 @@ Status: **candidate amendment approved by the maintainer on 2026-10-09**.
 Related to [#516](https://github.com/magnus919/SlopSearX/issues/516).
 This records a prospective decision, not a registered or admitted invocation.
 
-**Current study status (2026-10-15):** the [fresh research-task comparison](evidence/coverage-first-study/completed-2026-10-15-task-use-collection/README.md) ended during input collection after 26 requests. arXiv returned HTTP 429, three pools missed their required size band, and one official navigation target was absent from its returned pool. No ranking, capture, model or grading phase followed; confirmation was not started. This gives no ranking-quality result. Issue #516 remains unqualified and production ranking is unchanged.
+**Current study status (2026-10-15):** the original collection stopped after 26 requests, and its one permitted replacement stopped during collection after 30 more. All 30 replacement requests returned HTTP 200, but one pool remained below its required size band and one official navigation target was absent. Neither attempt reached ranking or answer evaluation; confirmation was not started. The [replacement terminal record](evidence/coverage-first-study/completed-2026-10-15-task-use-retry-collection/README.md) reports both collections separately. No quality result was measured. The replacement allowance is exhausted; issue #516 remains unqualified and production ranking is unchanged.
 
-**Next step:** the [replacement registration](evidence/coverage-first-study/retry-2026-10-15-research-task-use-v4/README.md) binds the [bounded retry plan](coverage-first-retry-plan.md), fresh identifiers, unchanged scientific settings and four passing no-call preflights. It has not been invoked; confirmation remains conditional on a full development pass.
+The original registration and retry plan remain as historical records. The replacement registration is terminal; the unused conditional confirmation budget does not authorize another development attempt.
 
 The remainder records the earlier candidate amendment and its original conditions. It is historical context, not the current execution registration.
 
