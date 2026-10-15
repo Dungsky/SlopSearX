@@ -171,6 +171,35 @@ def test_fresh_frozen_contract_uses_only_locked_d26_c26_groups():
         )
 
 
+def test_task_use_v4_companion_is_exactly_pinned_and_keeps_its_error_surface():
+    materials = (
+        Path(__file__).parents[1] / "docs/experiments/evidence/coverage-first-study/research-task-use-method-materials"
+    )
+    protocol_bytes = (materials / "protocol.json").read_bytes()
+    cohorts_bytes = (materials / "cohorts.json").read_bytes()
+    contract_bytes = (materials / "band-companion-contract.json").read_bytes()
+    protocol = json.loads(protocol_bytes)
+    contract = json.loads(contract_bytes)
+    protocol_sha = hashlib.sha256(protocol_bytes).hexdigest()
+    cohorts_sha = hashlib.sha256(cohorts_bytes).hexdigest()
+    assert hashlib.sha256(contract_bytes).hexdigest() == companion.TASK_USE_V4_CONTRACT_SHA256
+    validated = companion.validate_contract(
+        contract, stage_kind="development", protocol_sha256=protocol_sha, cohorts_sha256=cohorts_sha
+    )
+    assert validated["groups"] == companion.TASK_USE_V4_GROUPS
+    companion._validate_frozen_recipes(protocol["quality"], protocol["task_use"], protocol)
+
+    invalid_quality = copy.deepcopy(protocol["quality"])
+    invalid_quality.pop("useful_count_role")
+    with pytest.raises(companion.BandCompanionError, match="companion-useful-count-policy-invalid"):
+        companion._validate_frozen_recipes(invalid_quality, protocol["task_use"], protocol)
+
+    with pytest.raises(companion.BandCompanionError, match="companion-material-pin-mismatch"):
+        companion.validate_contract(
+            contract, stage_kind="development", protocol_sha256=protocol_sha, cohorts_sha256="0" * 64
+        )
+
+
 def test_registered_v2_execution_contract_requires_exact_protocol_and_cohort_pins():
     registered_dir = CONTRACT_PATH.parents[1] / "registered-2026-10-12-acquisition-v2"
     protocol_bytes = (registered_dir / "protocol.json").read_bytes()
