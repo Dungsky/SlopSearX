@@ -26,3 +26,5 @@ Development has at most one invocation and 40 physical search requests. Confirma
 Existing per-stage capture, Jev, answer-model, native-grader, concurrency, byte, token and elapsed-time limits remain unchanged. Stop on any failed or inconclusive required check. A failure does not authorize another query change or invocation automatically. Publish the outcome whether it passes or fails.
 
 Both full stages must pass before implementing the complete shared-service contract and GroktoCrawl X integration. Passing input checks or CI is not a ranking-quality result. Production ranking and deployment remain unchanged.
+
+The [run registration](evidence/coverage-first-study/corrected-input-registration-2026-10-15/README.md) records the exact files and limits for the corrected-input comparison. All four setup checks passed. Neither live test has started, and confirmation remains conditional on a complete development pass. The two earlier failures remain recorded.

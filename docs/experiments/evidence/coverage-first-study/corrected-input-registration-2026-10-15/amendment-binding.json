@@ -1,0 +1,83 @@
+{
+  "amendment": {
+    "commit": "73940f07819aea96cd97bcca011ed8f9471fd0c4",
+    "path": "docs/experiments/coverage-first-input-correction.md",
+    "sha256": "2a16c0d7b439143149166a1e2bcf840e4059a9e4896614d6855119b3aa3c39a9"
+  },
+  "band_companion_sha256": "5b802406687af0a3c1cd318a4f5dfc6250f2643e81547d2739f7521e81740ed2",
+  "cohorts_sha256": "ad731b5d99907242dbc7c6be0c671049e179df76d50a2148886e7e34b6b28b30",
+  "execution_requirements": [
+    "verify this merged amendment binding and every configuration and initial-registration hash before launch",
+    "one development invocation; confirmation only after full development pass",
+    "preserve both earlier failures and keep all four identities excluded from the 129 retired identities",
+    "collect complete new pools once; no mixing, padding, case replacement, query changes after launch or automatic HTTP retries",
+    "honor any recorded provider cooldown without search probes",
+    "retain all outcomes; no production deployment"
+  ],
+  "external_helper_sha256": {
+    "controller": "37b8f1a094a5fd3250b23c8eb65e6acb9802ecd1adcd3d9177eaefff7ed2c615",
+    "issuer": "5cef9f86bf907701b4e81dbabb6fe53b700961e79ed88e59c74811fc957ffe57",
+    "native_bridge": "3e5b762b36edc5906a40baac4212d99d36fb55e4f15486b0670a0cc0b416c4ef",
+    "native_cli": "0d5ac7aae20c4eda6242428d5e218c55ba96d8763fda2a271088ff37104b9d28",
+    "native_watcher": "f8071bd85001c612b40b7625ca69133b6c02e368245e247f2da7d9db36494d75",
+    "supervisor": "aab63defcc1b3ffd39f8fe408bf9ca09c735579589352ba3b23b1bc7eb89859e"
+  },
+  "identities": {
+    "all_distinct": true,
+    "confirmation_packet_stage_uuid": "c96b9fc2-ed09-4a90-b987-be777cb1c2d8",
+    "confirmation_stage_uuid": "58296fa5-c69d-4694-9e5b-347826790709",
+    "development_packet_stage_uuid": "3c7d6e12-d416-497a-8a9e-0c0605fa11f2",
+    "development_stage_uuid": "e5080d3a-0cd0-4fb7-ac22-ffa182ce8ac1",
+    "excluded_from_retired_ledger": true
+  },
+  "preflight_summary": "static-preflight-summary.json",
+  "prior_failures_remain_terminal": true,
+  "production_source_comparison": {
+    "compared_against_main": "73940f07819aea96cd97bcca011ed8f9471fd0c4",
+    "compared_prior_study_source": "943f0b7ef670b3ffe4a3abb03b2aee54570e6a0c",
+    "same_bytes": true,
+    "sha256": {
+      "slopsearx/merger.py": "5bb1a599ed8330aad02bd6567984d12c02f4ed735059c4f50cd6dfefd21e5eda",
+      "slopsearx/rerank.py": "df518bac899fa457e713201192a65f8ee0c3599419382e5be221d5ac366b479e",
+      "slopsearx/service.py": "aed455ccbefcfee5ffcf099876dc7230cead27527313269edc0f69b504c20922",
+      "uv.lock": "8ecfcd029d2461631d44a2910ef5cfaa23a436da9cbc9a96ed0302e1d96861d0"
+    }
+  },
+  "protocol_sha256": "cfac29e7d406dc4c7e45030fafeb6ba466923cfeb19b34e427d344507c9d9ba9",
+  "quality_result": null,
+  "request_budget": {
+    "brave_requests": 0,
+    "combined_max_requests": 137,
+    "confirmation_max_requests_conditional_on_passing_development": 41,
+    "development_max_requests": 40,
+    "prior_actual_requests_total": 56,
+    "prior_bounded_replacement_actual_requests": 30,
+    "prior_original_actual_requests": 26
+  },
+  "retired_identity_ledger": {
+    "retired_stage_uuid_count": 129,
+    "sha256": "483adf13af25e93bae0749ef3130dd599e0d2a1bfb0b58329254aa40e74fdba0"
+  },
+  "schema": "coverage-corrected-input-registration-amendment-binding/1",
+  "scientific_provider_calls": 0,
+  "source_revision": "73940f07819aea96cd97bcca011ed8f9471fd0c4",
+  "stage_invocations": 0,
+  "stages": {
+    "confirmation": {
+      "config_sha256": "28373c70c715ce64b66ebb94e728249ae05027bf30cd69d8d3ad44ae10f3dfc9",
+      "confirmation_requires_development_pass": true,
+      "development_receipt_required_before_confirmation_runtime": true,
+      "initial_registration_sha256": "466e05375a24ce97f8dc838dbfe95120e0fe9a0a8ff408003521523f30386b95",
+      "packet_stage_uuid": "c96b9fc2-ed09-4a90-b987-be777cb1c2d8",
+      "stage_uuid": "58296fa5-c69d-4694-9e5b-347826790709"
+    },
+    "development": {
+      "config_sha256": "9e150e69e39bfa9541ddb8917231f034e70cddd8631ed2ec6811da5d6126e57d",
+      "confirmation_requires_development_pass": false,
+      "development_receipt_required_before_confirmation_runtime": false,
+      "initial_registration_sha256": "340e6349d4c606dd8bae23c6a62567a6bbf7ed27ad97d46ed4a5045d2256eec5",
+      "packet_stage_uuid": "3c7d6e12-d416-497a-8a9e-0c0605fa11f2",
+      "stage_uuid": "e5080d3a-0cd0-4fb7-ac22-ffa182ce8ac1"
+    }
+  }
+}

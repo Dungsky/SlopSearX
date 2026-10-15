@@ -1,0 +1,31 @@
+{
+  "execution_directories_created": false,
+  "preflights": [
+    {
+      "boundary": "runner",
+      "stage_kind": "development",
+      "status": "passed"
+    },
+    {
+      "boundary": "issuer",
+      "stage_kind": "development",
+      "status": "passed"
+    },
+    {
+      "boundary": "runner",
+      "stage_kind": "confirmation",
+      "status": "passed"
+    },
+    {
+      "boundary": "issuer",
+      "stage_kind": "confirmation",
+      "status": "passed"
+    }
+  ],
+  "qualified_source_closure_sha256": "eb3f7305e9a3c6c6698b97ac7a7e6e7a08156e54b9ef3abfa4c9d39e7fdcab91",
+  "quality_result": "none; study not invoked",
+  "schema": "coverage-corrected-input-static-preflight-public-summary/1",
+  "scientific_provider_dispatches": 0,
+  "source_revision": "73940f07819aea96cd97bcca011ed8f9471fd0c4",
+  "stage_invocations": 0
+}
