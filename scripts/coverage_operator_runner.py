@@ -300,6 +300,89 @@ def _read_file(path: str | os.PathLike[str], maximum: int, *, private: bool = Fa
         os.close(fd)
 
 
+def _verified_selector_operation_states(*, prepared, results, terminal, terminal_bytes: bytes) -> dict[str, str]:
+    """Return execution states only from the stage-bound terminal ledger.
+
+    Per-operation result statuses describe ranking outcomes (for example
+    ``selected`` or ``fallback``), while the terminal inventory records
+    whether each registered operation completed. They are separate contracts.
+    """
+    if type(terminal_bytes) is not bytes or type(terminal) is not dict:
+        raise OperatorRunnerError("selector-terminal-inventory-invalid")
+    if set(terminal) != {"sha256", "bytes", "status", "all_calls_complete"}:
+        raise OperatorRunnerError("selector-terminal-inventory-invalid")
+    if (
+        type(terminal.get("sha256")) is not str
+        or not _SHA.fullmatch(terminal["sha256"])
+        or terminal["sha256"] != _sha(terminal_bytes)
+        or type(terminal.get("bytes")) is not int
+        or terminal["bytes"] != len(terminal_bytes)
+    ):
+        raise OperatorRunnerError("selector-terminal-inventory-invalid")
+    try:
+        document = core._strict_json(terminal_bytes, "selector-terminal-inventory")
+    except core.StudyError as exc:
+        raise OperatorRunnerError("selector-terminal-inventory-invalid") from exc
+    if type(document) is not dict:
+        raise OperatorRunnerError("selector-terminal-inventory-invalid")
+    expected_bindings = {
+        "schema": coverage_jev_execution.INVENTORY_SCHEMA,
+        "stage_uuid": prepared.stage_uuid,
+        "source_revision": prepared.source_revision,
+        "registration_sha256": prepared.registration_sha256,
+        "protocol_sha256": prepared.pins.get("protocol"),
+        "source_closure_sha256": prepared.pins.get("qualified_source_closure"),
+        "status": "all-registered-calls-complete",
+        "all_calls_complete": True,
+    }
+    if (
+        any(document.get(name) != value for name, value in expected_bindings.items())
+        or document.get("all_calls_complete") is not True
+        or type(document.get("status")) is not str
+    ):
+        raise OperatorRunnerError("selector-terminal-inventory-invalid")
+    if terminal.get("status") != document["status"] or terminal.get("all_calls_complete") is not True:
+        raise OperatorRunnerError("selector-terminal-inventory-invalid")
+
+    operation_ids = prepared.operation_ids
+    if (
+        type(operation_ids) is not tuple
+        or not operation_ids
+        or any(type(operation_id) is not str or not operation_id for operation_id in operation_ids)
+        or len(set(operation_ids)) != len(operation_ids)
+    ):
+        raise OperatorRunnerError("selector-terminal-inventory-invalid")
+    operations = document.get("operations")
+    if type(operations) is not list or len(operations) != len(operation_ids):
+        raise OperatorRunnerError("selector-terminal-inventory-invalid")
+    ledger_ids = []
+    states = {}
+    for row in operations:
+        if type(row) is not dict or set(row) != {"operation_id", "state"}:
+            raise OperatorRunnerError("selector-terminal-inventory-invalid")
+        operation_id = row.get("operation_id")
+        state = row.get("state")
+        if type(operation_id) is not str or not operation_id or type(state) is not str:
+            raise OperatorRunnerError("selector-terminal-inventory-invalid")
+        if operation_id in states:
+            raise OperatorRunnerError("selector-terminal-inventory-invalid")
+        ledger_ids.append(operation_id)
+        states[operation_id] = state
+    if tuple(ledger_ids) != operation_ids or any(state != "complete-success" for state in states.values()):
+        raise OperatorRunnerError("selector-terminal-inventory-invalid")
+
+    if type(results) not in {list, tuple} or len(results) != len(operation_ids):
+        raise OperatorRunnerError("selector-result-inventory-mismatch")
+    result_ids = tuple(getattr(row, "operation_id", None) for row in results)
+    if (
+        any(type(operation_id) is not str or not operation_id for operation_id in result_ids)
+        or result_ids != operation_ids
+        or len(set(result_ids)) != len(result_ids)
+    ):
+        raise OperatorRunnerError("selector-result-inventory-mismatch")
+    return states
+
+
 def _saved_origin_from_config(value: object) -> saved_corpus.SavedCorpusOrigin:
     """Read only the registered archive description, never historical grades."""
     from scripts import coverage_frozen_pool_inputs
@@ -1707,6 +1790,14 @@ class OperatorStageRunner:
         task_input_manifest_bytes = pipeline_inputs.get("task_input_manifest_bytes")
         if type(operation_materials) is not dict or type(task_input_manifest_bytes) is not bytes:
             raise OperatorRunnerError("selector-evidence-source-context-missing")
+        terminal_path = Path(self.directories["selector_results"]) / f"{prepared.stage_uuid}.terminal-inventory.json"
+        terminal_bytes = _read_file(terminal_path, 4_000_000, private=True)
+        operation_states = _verified_selector_operation_states(
+            prepared=prepared,
+            results=results,
+            terminal=terminal,
+            terminal_bytes=terminal_bytes,
+        )
         input_manifest = core._strict_json(task_input_manifest_bytes, "selector-evidence-input-manifest")
         navigation_tasks = input_manifest.get("navigation_tasks") if type(input_manifest) is dict else None
         if type(navigation_tasks) is not list:
@@ -1776,8 +1867,6 @@ class OperatorStageRunner:
             doc = core._strict_json(material, "navigation-operation-input")
             candidate_by_id = {item["id"]: item["url"] for item in doc.get("candidates", [])}
             top_urls[target["target_id"]] = candidate_by_id[ordered[0]]
-        terminal_path = Path(self.directories["selector_results"]) / f"{prepared.stage_uuid}.terminal-inventory.json"
-        terminal_bytes = _read_file(terminal_path, 4_000_000, private=True)
         usage_known = all(
             type(row.input_tokens_observed) is int and type(row.output_tokens_observed) is int for row in results
         )
@@ -1787,7 +1876,7 @@ class OperatorStageRunner:
             operation_rows=tuple(
                 {
                     "operation_id": row.operation_id,
-                    "state": row.status,
+                    "state": operation_states[row.operation_id],
                     "request_sha256": row.request_sha256,
                     "response_sha256": row.response_sha256,
                     "input_tokens_observed": row.input_tokens_observed,

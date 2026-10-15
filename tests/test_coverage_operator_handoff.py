@@ -1214,6 +1214,12 @@ class OperatorReceiptHandoffTests(unittest.TestCase):
                 call_results,
                 terminal,
             )
+            result_statuses = {row.status for row in call_results}
+            self.assertEqual(result_statuses, {"complete-original-v1", "fallback"})
+            self.assertEqual(
+                {row["state"] for row in selector_evidence.operation_rows},
+                {"complete-success"},
+            )
             w0_tail_checks = []
             for index, task in enumerate(pipeline_inputs["tasks"], start=1):
                 operation_id = f"research-{index:02d}-base-w0"
