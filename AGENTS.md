@@ -2,6 +2,41 @@
 
 This document helps AI coding agents understand the project structure, architecture, and conventions.
 
+## Start Every Session from Current Upstream Main
+
+Before codebase analysis, planning, or edits in a fresh session:
+
+1. Inspect `git status --short --branch`, `git worktree list --porcelain`, and
+   `git remote -v`. Identify local changes, the current branch, and which
+   worktree owns `main`; do not assume the starting checkout is current.
+2. Fetch the authoritative upstream main branch. In this repository the
+   upstream remote is normally `origin`: run `git fetch origin` and use
+   `origin/main`. If remotes differ, verify the authoritative remote first.
+3. Synchronize an available local `main` with `git switch main` followed by
+   `git merge --ff-only origin/main`. Start new task branches or isolated
+   worktrees from that freshly fetched main revision. For read-only analysis,
+   use the synchronized checkout or a clean detached worktree at `origin/main`.
+4. Preserve unrelated tracked and untracked files and existing branch commits.
+   Inspect any other worktree that owns `main` before changing its branch;
+   never disrupt active work. If the current checkout is dirty, diverged, or
+   owned by another task, use an isolated worktree from `origin/main` instead
+   of resetting, cleaning, force-checking out, or automatically stashing it.
+5. Verify and report the baseline commit with `git rev-parse HEAD` and
+   `git rev-parse origin/main`. Before new work, they must match;
+   `git rev-list --left-right --count HEAD...origin/main` must return `0 0`.
+   Re-read this guide and relevant contribution instructions after updating.
+
+When explicitly continuing an existing branch/PR or examining a historical
+revision, fetch main first, inspect divergence, and state the chosen revision
+and reason. Preserve that task's history; integrate main only through its
+normal reviewed workflow. A failed fetch is not evidence of freshness: report
+the limitation and do not present the checkout as current. Keep work independent
+of current-source assumptions moving while resolving access.
+
+After delivering and merging changes, safely fast-forward the primary local
+`main` again and verify it against a fresh fetch. Do not leave the primary
+checkout on an obsolete task branch for the next session.
+
 ## Project Structure
 
 ```
