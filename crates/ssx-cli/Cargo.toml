@@ -1,0 +1,19 @@
+[package]
+name = "ssx-cli"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+ssx-wire.workspace = true
+clap.workspace = true
+reqwest.workspace = true
+
+[[bin]]
+name = "ssx"
+path = "src/main.rs"

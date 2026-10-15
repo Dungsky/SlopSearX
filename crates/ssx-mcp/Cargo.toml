@@ -1,0 +1,15 @@
+[package]
+name = "ssx-mcp"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+ssx-application.workspace = true
+ssx-wire.workspace = true
+rmcp.workspace = true

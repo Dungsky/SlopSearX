@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "plan_id": "F02",
+  "sources": [
+    {
+      "path": "docs/adr/003-rust-workspace-and-contract-boundaries.md",
+      "git_blob": "e56ca005a2ca0df1b78d97c45ea0f3eea1f0766b"
+    },
+    {
+      "path": "docs/adr/004-rust-valkey-authority-and-migration.md",
+      "git_blob": "1d8f92044a430df2c20f7efeba54d505456e82fb"
+    },
+    {
+      "path": "docs/adr/005-rust-protocol-tls-and-platforms.md",
+      "git_blob": "bbfef9b23f634bbcd1b92304a9b19ec3b86f1ed0"
+    },
+    {
+      "path": "docs/rust-rewrite/architecture/README.md",
+      "git_blob": "1737ba14d55f6e8a8a420005218387f26a47f983"
+    },
+    {
+      "path": "docs/rust-rewrite/architecture/pins.json",
+      "git_blob": "28124c548b9e14f25620b13857776affccced653"
+    },
+    {
+      "path": "docs/rust-rewrite/architecture/state-compatibility.md",
+      "git_blob": "1b50c1fddb8beb4b72145532eb9ac6bfb656d3bd"
+    }
+  ]
+}
