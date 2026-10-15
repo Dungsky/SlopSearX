@@ -18,6 +18,7 @@ import os
 import re
 import stat
 import time
+import uuid
 from collections import Counter
 from contextvars import ContextVar
 from dataclasses import dataclass
@@ -32,6 +33,22 @@ from scripts import coverage_study_acquire as offline_acquisition
 from scripts import intent_ranking_receipts as receipts
 
 _SHA = re.compile(r"[0-9a-f]{64}\Z")
+_REVISION = re.compile(r"[0-9a-f]{40}\Z")
+_SAVED_SELECTOR_MAP_FIELDS = frozenset(
+    {
+        "pool_input_mode",
+        "origin_pool_snapshot_index_sha256",
+        "origin_pool_manifest_sha256",
+        "origin_stage_uuid",
+        "origin_source_revision",
+        "origin_source_closure_sha256",
+        "origin_protocol_sha256",
+        "origin_cohorts_sha256",
+        "origin_acquisition_plan_sha256",
+        "saved_import_receipt_sha256",
+        "derived_capture_manifest_sha256",
+    }
+)
 _ENGINE_NAMES = ("wikipedia", "arxiv", "github", "openalex", "brave")
 _DEADLINE: ContextVar[float | None] = ContextVar("coverage_resource_deadline", default=None)
 
@@ -766,6 +783,7 @@ def _selector_observations(
     expected_selector_input_map_schema: str | None = None,
     selector_input_map_bytes: bytes | None = None,
     expected_selector_input_map_sha256: str | None = None,
+    expected_saved_import_map_bindings: Mapping[str, object] | None = None,
 ) -> dict[str, object]:
     """Consume selector measurements only from a pinned terminal/result/archive chain.
 
@@ -836,27 +854,60 @@ def _selector_observations(
         ):
             raise ResourceEvidenceError("selector-input-map-pin-invalid")
         input_map = _strict_json(selector_input_map_bytes, "selector-input-map")
+        base_map_fields = {
+            "schema",
+            "status",
+            "stage_uuid",
+            "source_revision",
+            "original_registration_sha256",
+            "coverage_source_sha256",
+            "production_rerank_source_sha256",
+            "execution_source_sha256",
+            "legacy_control_source_sha256",
+            "current_service_source_sha256",
+            "acquisition_snapshot_index_sha256",
+            "acquisition_manifest_sha256",
+            "task_input_manifest_sha256",
+            "neutral_fixture_sha256",
+            "builder_source_sha256",
+            "operations",
+        }
+        expected_map_fields = set(base_map_fields)
+        if expected_saved_import_map_bindings is not None:
+            if (
+                type(expected_saved_import_map_bindings) is not dict
+                or set(expected_saved_import_map_bindings) != _SAVED_SELECTOR_MAP_FIELDS
+                or expected_saved_import_map_bindings.get("pool_input_mode") != "saved-corpus/1"
+                or type(expected_saved_import_map_bindings.get("origin_stage_uuid")) is not str
+                or type(expected_saved_import_map_bindings.get("origin_source_revision")) is not str
+                or not _REVISION.fullmatch(expected_saved_import_map_bindings["origin_source_revision"])
+            ):
+                raise ResourceEvidenceError("saved-selector-input-map-expectation-invalid")
+            try:
+                canonical_origin_uuid = str(uuid.UUID(expected_saved_import_map_bindings["origin_stage_uuid"]))
+            except (ValueError, TypeError, AttributeError) as exc:
+                raise ResourceEvidenceError("saved-selector-input-map-expectation-invalid") from exc
+            if (
+                canonical_origin_uuid != expected_saved_import_map_bindings["origin_stage_uuid"]
+                or canonical_origin_uuid == stage_uuid
+            ):
+                raise ResourceEvidenceError("saved-selector-input-map-expectation-invalid")
+            for name in _SAVED_SELECTOR_MAP_FIELDS - {
+                "pool_input_mode",
+                "origin_stage_uuid",
+                "origin_source_revision",
+            }:
+                value = expected_saved_import_map_bindings.get(name)
+                if type(value) is not str or not _SHA.fullmatch(value):
+                    raise ResourceEvidenceError("saved-selector-input-map-expectation-invalid")
+            expected_map_fields.update(_SAVED_SELECTOR_MAP_FIELDS)
         if (
             type(input_map) is not dict
-            or set(input_map)
-            != {
-                "schema",
-                "status",
-                "stage_uuid",
-                "source_revision",
-                "original_registration_sha256",
-                "coverage_source_sha256",
-                "production_rerank_source_sha256",
-                "execution_source_sha256",
-                "legacy_control_source_sha256",
-                "current_service_source_sha256",
-                "acquisition_snapshot_index_sha256",
-                "acquisition_manifest_sha256",
-                "task_input_manifest_sha256",
-                "neutral_fixture_sha256",
-                "builder_source_sha256",
-                "operations",
-            }
+            or set(input_map) != expected_map_fields
+            or (
+                expected_saved_import_map_bindings is not None
+                and any(input_map.get(name) != value for name, value in expected_saved_import_map_bindings.items())
+            )
             or input_map.get("schema") != (expected_selector_input_map_schema or "coverage-selector-input-map/2-draft")
             or input_map.get("status")
             != (
@@ -2064,6 +2115,23 @@ def collect_resource_evidence(**kwargs) -> ResourceEvidenceReport:
             ),
             selector_input_map_bytes=kwargs.get("selector_input_map_bytes"),
             expected_selector_input_map_sha256=kwargs.get("expected_selector_input_map_sha256"),
+            expected_saved_import_map_bindings=(
+                {
+                    "pool_input_mode": "saved-corpus/1",
+                    "origin_pool_snapshot_index_sha256": saved_provenance["origin_pool_snapshot_index_sha256"],
+                    "origin_pool_manifest_sha256": saved_provenance["origin_pool_manifest_sha256"],
+                    "origin_stage_uuid": saved_provenance["origin_stage_uuid"],
+                    "origin_source_revision": saved_provenance["origin_source_revision"],
+                    "origin_source_closure_sha256": saved_provenance["origin_source_closure_sha256"],
+                    "origin_protocol_sha256": saved_provenance["origin_protocol_sha256"],
+                    "origin_cohorts_sha256": saved_provenance["origin_cohorts_sha256"],
+                    "origin_acquisition_plan_sha256": saved_provenance["origin_acquisition_plan_sha256"],
+                    "saved_import_receipt_sha256": saved_provenance["saved_import_receipt_sha256"],
+                    "derived_capture_manifest_sha256": saved_provenance["derived_capture_manifest_sha256"],
+                }
+                if saved_provenance is not None
+                else None
+            ),
         )
         observations = {**acq, **capture, **answer, **grader, **selector}
         if input_mode == "saved-corpus/1":
@@ -2788,8 +2856,12 @@ def _saved_origin_resource_observations(
         "origin_source_closure_sha256": registration.source_closure_sha256,
         "origin_package_sha256": observed_package_sha,
         "origin_pool_snapshot_index_sha256": verified_origin_pool.snapshot_index_sha256,
+        "origin_pool_manifest_sha256": verified_origin_pool.pool_manifest_sha256,
+        "origin_acquisition_plan_sha256": registration.acquisition_plan_sha256,
         "origin_capture_inventory_sha256": origin.expected_capture_inventory_sha256,
         "origin_capture_manifest_sha256": origin.expected_capture_manifest_sha256,
+        "saved_import_receipt_sha256": imported.import_receipt_sha256,
+        "derived_capture_manifest_sha256": imported.capture_manifest_sha256,
         "historical_input_costs": True,
     }
     return origin_acq, origin_capture, provenance
