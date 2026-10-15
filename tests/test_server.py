@@ -889,3 +889,42 @@ def test_repeated_date_bounds_reject(client, method):
     )
     assert result.status_code == 400
     assert result.json()["field"] == "date_from"
+
+
+async def test_http_dates_reach_real_openalex_and_preserve_publication_dates(client, monkeypatch):
+    import httpx
+
+    import slopsearx.server as server_mod
+    from engines.openalex import OpenAlexAdapter
+    from tests.test_adapters import MockHTTP
+
+    seen = []
+
+    def upstream(request):
+        seen.append(request.url.params["filter"])
+        return httpx.Response(
+            200,
+            json={
+                "results": [
+                    {"id": f"https://openalex.org/W{i}", "publication_date": date}
+                    for i, date in enumerate(["2024-02-28", "2024-02-29", "2024-03-01", None, "bad"])
+                ]
+            },
+        )
+
+    monkeypatch.setattr(server_mod, "_active_engines", {"openalex": OpenAlexAdapter()})
+    async with MockHTTP(upstream):
+        response = client.get(
+            "/search",
+            params={
+                "q": "climate",
+                "format": "json",
+                "engines": "openalex",
+                "date_from": "2024-02-29",
+                "date_to": "2024-02-29",
+            },
+        )
+    assert response.status_code == 200
+    assert seen == ["from_publication_date:2024-02-29,to_publication_date:2024-02-29"]
+    assert [item["publishedDate"] for item in response.json()["results"]] == ["2024-02-29"]
+    assert response.json()["meta"]["engine_status"]["openalex"]["status"] == "ok"
