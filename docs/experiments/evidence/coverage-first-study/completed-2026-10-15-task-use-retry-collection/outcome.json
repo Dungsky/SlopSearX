@@ -11,7 +11,8 @@
   "collection_status": "inconclusive",
   "collection_started_utc": "2026-10-15T18:25:45.909626Z",
   "collection_completed_utc": "2026-10-15T18:27:20.361915Z",
-  "elapsed_seconds": 96.36067565099802,
+  "collection_elapsed_seconds": 94.452289,
+  "stage_elapsed_seconds": 96.36067565099802,
   "physical_requests": 30,
   "responses_by_engine_status": [
     {"engine": "arxiv", "http_status": 200, "count": 5},
@@ -38,7 +39,7 @@
     {"operation_id": "D27-R08", "status": "complete", "card_count": 60, "pool_status": "complete", "failure_reasons": []},
     {"operation_id": "D27-N01", "status": "complete", "card_count": 20, "pool_status": "complete", "failure_reasons": []},
     {"operation_id": "D27-N02", "status": "complete", "card_count": 20, "pool_status": "complete", "failure_reasons": []},
-    {"operation_id": "D27-N03", "status": "inconclusive", "card_count": 20, "pool_status": "inconclusive", "failure_reasons": ["exact_target_absent"]},
+    {"operation_id": "D27-N03", "status": "inconclusive", "card_count": 20, "pool_status": "inconclusive", "failure_reasons": ["exact_target_not_rank1"]},
     {"operation_id": "D27-N04", "status": "complete", "card_count": 20, "pool_status": "complete", "failure_reasons": []},
     {"operation_id": "D27-N05", "status": "complete", "card_count": 20, "pool_status": "complete", "failure_reasons": []}
   ],
@@ -76,6 +77,7 @@
     "expected_url": "https://github.com/backstage/backstage",
     "returned_card_count": 20,
     "expected_url_present": false,
+    "interpretation": "The collector's exact_target_not_rank1 failure occurred because the expected URL was absent from the pool.",
     "stage": "input collection before W0 or candidate ranking"
   },
   "retention": {
