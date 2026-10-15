@@ -1,0 +1,1966 @@
+{
+  "schema_version": 1,
+  "activation": "O09 only: pending-owner mappings are required handoffs, not executed parity evidence",
+  "gates": {
+    "ci.yml:analysis": {
+      "source": {
+        "job": {
+          "runs-on": "ubuntu-latest",
+          "steps": [
+            {
+              "uses": "actions/checkout@v7"
+            },
+            {
+              "name": "Large file detection",
+              "run": "echo \"Checking for files over 200KB...\"\nfind . -name '*.py' -size +200k | sed 's/^/WARNING: /' | tee /tmp/large_files.txt\nif [ -s /tmp/large_files.txt ]; then\n  echo \"Large Python files detected (over 200KB). Consider splitting.\"\nfi\n"
+            },
+            {
+              "name": "TODO/FIXME scan",
+              "run": "echo \"Scanning for TODO/FIXME/HACK markers...\"\nrg -n 'TODO|FIXME|HACK' slopsearx/ engines/ || echo \"No markers found.\"\n"
+            },
+            {
+              "name": "Validate AGENTS.md dev setup",
+              "run": "python -m pip install --upgrade pip\npip install -e \".[dev]\"\npython -c \"import slopsearx; print('Import OK')\"\npytest --collect-only -q\n"
+            },
+            {
+              "name": "Dependency vulnerability scan",
+              "run": "pip-audit -r requirements-dev.txt"
+            }
+          ]
+        },
+        "workflow": {
+          "name": "CI",
+          "on": {
+            "pull_request": {
+              "branches": [
+                "main"
+              ]
+            },
+            "push": {
+              "branches": [
+                "main"
+              ]
+            }
+          }
+        }
+      },
+      "owner": "O06",
+      "state": "additive",
+      "successor": "cargo metadata --locked --format-version 1; cargo build --locked --workspace; cargo test --locked --workspace --no-run; cargo deny --locked --workspace check all. Native graph replaces Python import/install and pip-audit; Rust does not import Python"
+    },
+    "ci.yml:duplicate-detection": {
+      "source": {
+        "job": {
+          "runs-on": "ubuntu-latest",
+          "steps": [
+            {
+              "uses": "actions/checkout@v7"
+            },
+            {
+              "name": "Detect duplicate code with jscpd",
+              "run": "npx jscpd --min-tokens 50 --min-lines 5 --threshold 25 slopsearx/ engines/"
+            }
+          ]
+        },
+        "workflow": {
+          "name": "CI",
+          "on": {
+            "pull_request": {
+              "branches": [
+                "main"
+              ]
+            },
+            "push": {
+              "branches": [
+                "main"
+              ]
+            }
+          }
+        }
+      },
+      "owner": "O09",
+      "state": "pending-owner",
+      "successor": "Retain pinned jscpd Node tool, change inspected roots to crates/ after G05; rebaseline threshold through review"
+    },
+    "ci.yml:jev-optional-modes": {
+      "source": {
+        "job": {
+          "runs-on": "ubuntu-latest",
+          "steps": [
+            {
+              "uses": "actions/checkout@v7"
+            },
+            {
+              "uses": "actions/setup-python@v7",
+              "with": {
+                "cache": "pip",
+                "python-version": "3.12"
+              }
+            },
+            {
+              "run": "pip install -e \".[dev]\""
+            },
+            {
+              "env": {
+                "JEV_CI_EXPECT_ENABLED": "${{ matrix.expected }}",
+                "TYPESAFE_API_KEY": "${{ matrix.key }}"
+              },
+              "name": "Check ${{ matrix.mode }} search path",
+              "run": "pytest --no-cov -q tests/test_jev.py::test_ci_keyless_and_enhanced_search_paths"
+            }
+          ],
+          "strategy": {
+            "matrix": {
+              "include": [
+                {
+                  "expected": "0",
+                  "key": "",
+                  "mode": "keyless"
+                },
+                {
+                  "expected": "1",
+                  "key": "ci-synthetic-key",
+                  "mode": "enhanced"
+                }
+              ]
+            }
+          }
+        },
+        "workflow": {
+          "name": "CI",
+          "on": {
+            "pull_request": {
+              "branches": [
+                "main"
+              ]
+            },
+            "push": {
+              "branches": [
+                "main"
+              ]
+            }
+          }
+        }
+      },
+      "owner": "F14,O05",
+      "state": "pending-owner",
+      "successor": "cargo xtask check F14 and O05; keyless/enhanced real native transport fixture tests, no provider calls in routine CI"
+    },
+    "ci.yml:monitoring-rules": {
+      "source": {
+        "job": {
+          "runs-on": "ubuntu-latest",
+          "steps": [
+            {
+              "uses": "actions/checkout@v7"
+            },
+            {
+              "name": "Configure hosted-runner Docker Hub cache",
+              "run": "python3 scripts/configure_ci_dockerhub_mirror.py"
+            },
+            {
+              "name": "Validate Prometheus rules and firing behavior",
+              "run": "docker run --rm --entrypoint /bin/promtool -v \"$PWD/docs/alerting:/rules:ro\" prom/prometheus:v3.2.1 check rules /rules/rules.yml\ndocker run --rm --entrypoint /bin/promtool -v \"$PWD/docs/alerting:/rules:ro\" prom/prometheus:v3.2.1 test rules /rules/rules.test.yml\n"
+            }
+          ]
+        },
+        "workflow": {
+          "name": "CI",
+          "on": {
+            "pull_request": {
+              "branches": [
+                "main"
+              ]
+            },
+            "push": {
+              "branches": [
+                "main"
+              ]
+            }
+          }
+        }
+      },
+      "owner": "O02",
+      "state": "pending-owner",
+      "successor": "Retain promtool Docker validation of monitoring/prometheus rules and alerts; native/shell CI mirror setup replaces project Python helper after O02 container preparation"
+    },
+    "ci.yml:portal-browser": {
+      "source": {
+        "job": {
+          "runs-on": "ubuntu-latest",
+          "steps": [
+            {
+              "uses": "actions/checkout@v7"
+            },
+            {
+              "uses": "actions/setup-python@v7",
+              "with": {
+                "cache": "pip",
+                "python-version": "3.12"
+              }
+            },
+            {
+              "name": "Install dependencies",
+              "run": "pip install -e \".[dev]\""
+            },
+            {
+              "name": "Install browser smoke runner",
+              "run": "pip install \"playwright>=1.50\""
+            },
+            {
+              "name": "Install deterministic Chromium runtime",
+              "run": "python -m playwright install --with-deps chromium"
+            },
+            {
+              "env": {
+                "PORTAL_BROWSER_SMOKE": "1"
+              },
+              "name": "Run portal browser journeys",
+              "run": "pytest --no-cov -q tests/test_portal_browser.py"
+            }
+          ]
+        },
+        "workflow": {
+          "name": "CI",
+          "on": {
+            "pull_request": {
+              "branches": [
+                "main"
+              ]
+            },
+            "push": {
+              "branches": [
+                "main"
+              ]
+            }
+          }
+        }
+      },
+      "owner": "T07,O05",
+      "state": "pending-owner",
+      "successor": "cargo xtask check T07 and O05; Node Playwright real native portal browser contract, replace project-owned Python browser harness"
+    },
+    "ci.yml:portal-contract": {
+      "source": {
+        "job": {
+          "runs-on": "ubuntu-latest",
+          "steps": [
+            {
+              "uses": "actions/checkout@v7"
+            },
+            {
+              "uses": "actions/setup-python@v7",
+              "with": {
+                "cache": "pip",
+                "python-version": "3.12"
+              }
+            },
+            {
+              "name": "Install dependencies",
+              "run": "pip install -e \".[dev]\""
+            },
+            {
+              "name": "Check portal route and formatter contracts",
+              "run": "pytest --no-cov -q tests/test_formatter.py tests/test_server.py"
+            },
+            {
+              "name": "Check portal contract typing and lint",
+              "run": "ruff check slopsearx/formatter.py slopsearx/server.py tests/test_formatter.py tests/test_server.py\nmypy slopsearx/formatter.py slopsearx/server.py\n"
+            }
+          ]
+        },
+        "workflow": {
+          "name": "CI",
+          "on": {
+            "pull_request": {
+              "branches": [
+                "main"
+              ]
+            },
+            "push": {
+              "branches": [
+                "main"
+              ]
+            }
+          }
+        }
+      },
+      "owner": "T02,O05",
+      "state": "pending-owner",
+      "successor": "cargo xtask check T02 and O05; native formatter/HTTP portal contract and source policy verification"
+    },
+    "ci.yml:quality": {
+      "source": {
+        "job": {
+          "runs-on": "ubuntu-latest",
+          "steps": [
+            {
+              "uses": "actions/checkout@v7"
+            },
+            {
+              "name": "Set up Python",
+              "uses": "actions/setup-python@v7",
+              "with": {
+                "cache": "pip",
+                "python-version": "3.12"
+              }
+            },
+            {
+              "name": "Install dependencies",
+              "run": "python -m pip install --upgrade pip\npip install -e \".[dev]\"\n"
+            },
+            {
+              "name": "Lint with ruff",
+              "run": "ruff check ."
+            },
+            {
+              "name": "Type check with mypy",
+              "run": "mypy slopsearx/ engines/"
+            },
+            {
+              "name": "Complexity analysis with radon",
+              "run": "radon cc slopsearx/ engines/ --total-average"
+            },
+            {
+              "name": "Maintainability index with radon",
+              "run": "radon mi slopsearx/ engines/"
+            },
+            {
+              "name": "Dead code check with vulture",
+              "run": "vulture slopsearx/ engines/"
+            },
+            {
+              "name": "Architecture check with import-linter",
+              "run": "lint-imports"
+            },
+            {
+              "name": "Unused dependency check with deptry",
+              "run": "deptry . --per-rule-ignores \"DEP002=lxml|uvicorn|pytest|pytest-asyncio|ruff|cssselect|mypy|pytest-cov|pip-tools|pre-commit|radon|vulture|import-linter|deptry|pip-audit|fastmcp|prometheus-client,DEP003=starlette\""
+            }
+          ]
+        },
+        "workflow": {
+          "name": "CI",
+          "on": {
+            "pull_request": {
+              "branches": [
+                "main"
+              ]
+            },
+            "push": {
+              "branches": [
+                "main"
+              ]
+            }
+          }
+        }
+      },
+      "owner": "O09",
+      "state": "pending-owner",
+      "successor": "cargo fmt/clippy/check --locked; cargo metadata architecture assertions F02/F06; cargo deny. O09 records intentional radon/vulture/deptry retirement once native crates replace the Python source graph; Python tools remain until then"
+    },
+    "ci.yml:searxng-api-contract": {
+      "source": {
+        "job": {
+          "runs-on": "ubuntu-latest",
+          "steps": [
+            {
+              "uses": "actions/checkout@v7"
+            },
+            {
+              "uses": "actions/setup-python@v7",
+              "with": {
+                "cache": "pip",
+                "python-version": "3.12"
+              }
+            },
+            {
+              "name": "Install dependencies",
+              "run": "pip install -e \".[dev]\""
+            },
+            {
+              "name": "Check pinned SearXNG API contract",
+              "run": "pytest --no-cov -q tests/test_searxng_api_contract.py"
+            }
+          ]
+        },
+        "workflow": {
+          "name": "CI",
+          "on": {
+            "pull_request": {
+              "branches": [
+                "main"
+              ]
+            },
+            "push": {
+              "branches": [
+                "main"
+              ]
+            }
+          }
+        }
+      },
+      "owner": "T02,O05",
+      "state": "pending-owner",
+      "successor": "cargo xtask check T02 and O05; native deterministic SearXNG wire suite with pinned reference fixtures"
+    },
+    "ci.yml:test": {
+      "source": {
+        "job": {
+          "runs-on": "ubuntu-latest",
+          "steps": [
+            {
+              "uses": "actions/checkout@v7"
+            },
+            {
+              "name": "Set up Python ${{ matrix.python-version }}",
+              "uses": "actions/setup-python@v7",
+              "with": {
+                "cache": "pip",
+                "python-version": "${{ matrix.python-version }}"
+              }
+            },
+            {
+              "name": "Install dependencies",
+              "run": "python -m pip install --upgrade pip\npip install -e \".[dev]\"\n"
+            },
+            {
+              "name": "Test with pytest and coverage",
+              "run": "# Live loopback servers can leave event-loop resources pending when\n# several transport modules share one hosted-runner process. Run each\n# such module in a fresh process and combine their coverage below.\nisolated_tests=(\n  tests/test_adaptive_transport.py\n  tests/test_entity_transport.py\n  tests/test_http_pooling.py\n  tests/test_mcp_gateway.py\n  tests/test_mcp_gateway_lifecycle.py\n  tests/test_mcp_gateway_initialization.py\n  tests/test_mcp_harness.py\n  tests/test_mcp_oauth.py\n  tests/test_mcp_oauth_client.py\n  tests/test_retrieval_receipts_transport.py\n  tests/test_saved_events_transport.py\n  tests/test_saved_transport.py\n  tests/test_workflow_composition_transport.py\n)\n\npytest -v -o addopts='' -o faulthandler_timeout=60 \\\n  --cov=slopsearx --cov=engines --cov-report= --cov-fail-under=0 \\\n  \"${isolated_tests[0]}\"\n\nfor test_file in \"${isolated_tests[@]:1}\"; do\n  pytest -v -o addopts='' -o faulthandler_timeout=60 \\\n    --cov=slopsearx --cov=engines --cov-append \\\n    --cov-report= --cov-fail-under=0 \"$test_file\"\ndone\n\nignore_args=()\nfor test_file in \"${isolated_tests[@]}\"; do\n  ignore_args+=(\"--ignore=$test_file\")\ndone\npytest -v -o addopts='' -o faulthandler_timeout=60 --durations=10 \\\n  \"${ignore_args[@]}\" \\\n  --cov=slopsearx --cov=engines --cov-append \\\n  --cov-report=term-missing --cov-report=html --cov-fail-under=80\n"
+            },
+            {
+              "if": "always()",
+              "name": "Upload coverage report",
+              "uses": "actions/upload-artifact@v7",
+              "with": {
+                "name": "coverage-report-${{ matrix.python-version }}",
+                "path": "htmlcov/"
+              }
+            }
+          ],
+          "strategy": {
+            "matrix": {
+              "python-version": [
+                "3.12",
+                "3.13"
+              ]
+            }
+          }
+        },
+        "workflow": {
+          "name": "CI",
+          "on": {
+            "pull_request": {
+              "branches": [
+                "main"
+              ]
+            },
+            "push": {
+              "branches": [
+                "main"
+              ]
+            }
+          }
+        }
+      },
+      "owner": "O05",
+      "state": "pending-owner",
+      "successor": "cargo xtask check O05; cargo test --locked --workspace; cargo llvm-cov native coverage threshold and O05 contract ledger; optional Python-client checks isolated from backend gates"
+    },
+    "ci.yml:valkey-integration": {
+      "source": {
+        "job": {
+          "env": {
+            "SLOPSEARX_TEST_VALKEY_URL": "redis://127.0.0.1:6379/0"
+          },
+          "runs-on": "ubuntu-latest",
+          "services": {
+            "valkey": {
+              "image": "valkey/valkey:8-alpine",
+              "options": "--health-cmd \"valkey-cli ping\" --health-interval 5s --health-timeout 3s --health-retries 10",
+              "ports": [
+                "6379:6379"
+              ]
+            }
+          },
+          "steps": [
+            {
+              "uses": "actions/checkout@v7"
+            },
+            {
+              "uses": "actions/setup-python@v7",
+              "with": {
+                "cache": "pip",
+                "python-version": "3.12"
+              }
+            },
+            {
+              "run": "pip install -e \".[dev]\""
+            },
+            {
+              "env": {
+                "SLOPSEARX_TEST_VALKEY_URL": "redis://127.0.0.1:6379/0"
+              },
+              "name": "Real Valkey cache and durable ownership contracts",
+              "run": "pytest --no-cov -q tests/test_cache_integration.py tests/test_research_queue_integration.py tests/test_adaptive_valkey.py"
+            }
+          ]
+        },
+        "workflow": {
+          "name": "CI",
+          "on": {
+            "pull_request": {
+              "branches": [
+                "main"
+              ]
+            },
+            "push": {
+              "branches": [
+                "main"
+              ]
+            }
+          }
+        }
+      },
+      "owner": "F11,F12,F13,W01,W03,O05",
+      "state": "pending-owner",
+      "successor": "cargo xtask check F11/F12/F13/W01/W03/O05 against disposable Valkey; preserve real expiry, claims, fencing, cancellation and lifecycle contracts"
+    },
+    "codeql.yml:analyze": {
+      "source": {
+        "job": {
+          "permissions": {
+            "security-events": "write"
+          },
+          "runs-on": "ubuntu-latest",
+          "steps": [
+            {
+              "uses": "actions/checkout@v7"
+            },
+            {
+              "name": "Initialize CodeQL",
+              "uses": "github/codeql-action/init@v4",
+              "with": {
+                "languages": "python"
+              }
+            },
+            {
+              "name": "Perform CodeQL analysis",
+              "uses": "github/codeql-action/analyze@v4"
+            }
+          ]
+        },
+        "workflow": {
+          "name": "CodeQL",
+          "on": {
+            "pull_request": {
+              "branches": [
+                "main"
+              ]
+            },
+            "push": {
+              "branches": [
+                "main"
+              ]
+            },
+            "schedule": [
+              {
+                "cron": "0 8 * * 1"
+              }
+            ]
+          }
+        }
+      },
+      "owner": "O09",
+      "state": "pending-owner",
+      "successor": "Retain official CodeQL action security SARIF path; O09 enables supported Rust analysis or reviewed equivalent native scanner, never relabel Python scan as Rust coverage"
+    },
+    "docker.yml:build-and-push": {
+      "source": {
+        "job": {
+          "permissions": {
+            "contents": "read",
+            "packages": "write"
+          },
+          "runs-on": "${{ matrix.runner }}",
+          "steps": [
+            {
+              "uses": "actions/checkout@v7"
+            },
+            {
+              "name": "Configure hosted-runner Docker Hub cache",
+              "run": "python3 scripts/configure_ci_dockerhub_mirror.py"
+            },
+            {
+              "name": "Set up Docker Buildx",
+              "uses": "docker/setup-buildx-action@v4",
+              "with": {
+                "buildkitd-config-inline": "[registry.\"docker.io\"]\n  mirrors = [\"mirror.gcr.io\"]\n"
+              }
+            },
+            {
+              "name": "Log in to ghcr.io",
+              "uses": "docker/login-action@v4",
+              "with": {
+                "password": "${{ secrets.GITHUB_TOKEN }}",
+                "registry": "${{ env.REGISTRY }}",
+                "username": "${{ github.actor }}"
+              }
+            },
+            {
+              "id": "meta",
+              "name": "Extract metadata",
+              "uses": "docker/metadata-action@v6",
+              "with": {
+                "images": "${{ env.IMAGE_NAME }}",
+                "tags": "type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}\ntype=semver,pattern={{version}}\ntype=semver,pattern={{major}}.{{minor}}\ntype=sha,prefix=,suffix=,format=short\n"
+              }
+            },
+            {
+              "id": "tag",
+              "name": "Set architecture image tag",
+              "run": "echo \"ref=${IMAGE_NAME}:${GITHUB_SHA::7}-${{ matrix.arch }}\" >> \"$GITHUB_OUTPUT\""
+            },
+            {
+              "name": "Verify pinned Docker base digest",
+              "run": "python3 scripts/verify_docker_base_digest.py"
+            },
+            {
+              "name": "Build and load image",
+              "uses": "docker/build-push-action@v7",
+              "with": {
+                "build-args": "DEBIAN_SECURITY_REFRESH=${{ github.run_id }}-${{ github.run_attempt }}\n",
+                "cache-from": "type=gha,scope=${{ matrix.arch }}",
+                "cache-to": "type=gha,mode=max,scope=${{ matrix.arch }}",
+                "context": ".",
+                "labels": "${{ steps.meta.outputs.labels }}",
+                "load": true,
+                "platforms": "linux/${{ matrix.arch }}",
+                "pull": true,
+                "push": false,
+                "tags": "${{ steps.tag.outputs.ref }}"
+              }
+            },
+            {
+              "name": "Scan image with Trivy",
+              "uses": "aquasecurity/trivy-action@master",
+              "with": {
+                "exit-code": "1",
+                "format": "table",
+                "ignore-unfixed": true,
+                "image-ref": "${{ steps.tag.outputs.ref }}",
+                "severity": "CRITICAL,HIGH"
+              }
+            },
+            {
+              "name": "Smoke test container",
+              "run": "docker run -d --name slopsearx-smoke -p 8080:8080 ${{ steps.tag.outputs.ref }}\nsleep 3\ncurl -f --retry 5 --retry-delay 2 http://localhost:8080/health\npython3 scripts/portal_release_smoke.py --base-url http://localhost:8080 --expected-theme dark\ndocker stop slopsearx-smoke\ndocker rm slopsearx-smoke\n"
+            },
+            {
+              "name": "Smoke test configured Darker default",
+              "run": "docker run -d --name slopsearx-smoke-darker -p 8081:8080 \\\n  -e SLOPSEARX_PORTAL_DEFAULT_THEME=darker \\\n  ${{ steps.tag.outputs.ref }}\nsleep 3\ncurl -f --retry 5 --retry-delay 2 http://localhost:8081/health\npython3 scripts/portal_release_smoke.py --base-url http://localhost:8081 --expected-theme darker\ndocker stop slopsearx-smoke-darker\ndocker rm slopsearx-smoke-darker\n"
+            },
+            {
+              "env": {
+                "IMAGE_REF": "${{ steps.tag.outputs.ref }}"
+              },
+              "if": "github.event_name == 'push'",
+              "name": "Push tested architecture image",
+              "run": "docker push \"$IMAGE_REF\"\nmkdir -p digests\ndocker inspect --format '{{index .RepoDigests 0}}' \"$IMAGE_REF\" > \"digests/${{ matrix.arch }}\"\n"
+            },
+            {
+              "if": "github.event_name == 'push'",
+              "name": "Upload tested image digest",
+              "uses": "actions/upload-artifact@v7",
+              "with": {
+                "name": "digest-${{ matrix.arch }}",
+                "path": "digests/*",
+                "retention-days": 1
+              }
+            }
+          ],
+          "strategy": {
+            "fail-fast": false,
+            "matrix": {
+              "include": [
+                {
+                  "arch": "amd64",
+                  "runner": "ubuntu-24.04"
+                },
+                {
+                  "arch": "arm64",
+                  "runner": "ubuntu-24.04-arm"
+                }
+              ]
+            }
+          }
+        },
+        "workflow": {
+          "env": {
+            "IMAGE_NAME": "ghcr.io/magnus919/slopsearx",
+            "REGISTRY": "ghcr.io"
+          },
+          "name": "Docker Build & Publish",
+          "on": {
+            "pull_request": {
+              "branches": [
+                "main"
+              ]
+            },
+            "push": {
+              "branches": [
+                "main"
+              ],
+              "tags": [
+                "v*"
+              ]
+            },
+            "schedule": [
+              {
+                "cron": "17 3 * * 1"
+              }
+            ],
+            "workflow_dispatch": null
+          }
+        }
+      },
+      "owner": "O04,O02",
+      "state": "pending-owner",
+      "successor": "cargo xtask check O04 and O02; buildx native multiarch shipping images; native immutable OCI-index validation (ci-helper manifest); OCI registry base verification/promotion and exact native portal smoke required before O09 activation"
+    },
+    "docker.yml:publish-manifest": {
+      "source": {
+        "job": {
+          "if": "github.event_name == 'push'",
+          "needs": "build-and-push",
+          "permissions": {
+            "contents": "read",
+            "packages": "write"
+          },
+          "runs-on": "ubuntu-latest",
+          "steps": [
+            {
+              "uses": "docker/setup-buildx-action@v4"
+            },
+            {
+              "uses": "docker/login-action@v4",
+              "with": {
+                "password": "${{ secrets.GITHUB_TOKEN }}",
+                "registry": "${{ env.REGISTRY }}",
+                "username": "${{ github.actor }}"
+              }
+            },
+            {
+              "id": "meta",
+              "name": "Extract metadata",
+              "uses": "docker/metadata-action@v6",
+              "with": {
+                "images": "${{ env.IMAGE_NAME }}",
+                "tags": "type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}\ntype=semver,pattern={{version}}\ntype=semver,pattern={{major}}.{{minor}}\ntype=sha,prefix=,suffix=,format=short\n"
+              }
+            },
+            {
+              "uses": "actions/download-artifact@v8",
+              "with": {
+                "merge-multiple": true,
+                "path": "digests",
+                "pattern": "digest-*"
+              }
+            },
+            {
+              "env": {
+                "IMAGE_TAGS": "${{ steps.meta.outputs.tags }}"
+              },
+              "name": "Publish manifest from tested digests",
+              "run": "set -euo pipefail\ntags=()\nwhile IFS= read -r tag; do\n  tags+=(--tag \"$tag\")\ndone <<< \"$IMAGE_TAGS\"\ndocker buildx imagetools create \"${tags[@]}\" \"$(cat digests/amd64)\" \"$(cat digests/arm64)\"\nwhile IFS= read -r tag; do\n  docker buildx imagetools inspect \"$tag\" --raw > manifest.json\n  python3 - <<'PYTHON'\nimport json\nwith open(\"manifest.json\") as manifest_file:\n    manifest = json.load(manifest_file)\nplatforms = {(item[\"platform\"][\"os\"], item[\"platform\"][\"architecture\"]) for item in manifest[\"manifests\"]}\nassert platforms == {(\"linux\", \"amd64\"), (\"linux\", \"arm64\")}, platforms\nPYTHON\ndone <<< \"$IMAGE_TAGS\"\n"
+            },
+            {
+              "env": {
+                "GH_TOKEN": "${{ secrets.GITHUB_TOKEN }}",
+                "RETENTION_DAYS": "14"
+              },
+              "if": "github.event_name == 'push'",
+              "name": "Prune untagged versions past retention",
+              "run": "# Deployment manifests pin the image by digest (issue #210). A\n# re-run of this workflow for the same commit produces a new digest\n# under the same short-SHA tag, briefly orphaning the pinned one.\n# Retention keeps orphaned digests alive long enough for the\n# scheduled image-promotion workflow (or a human) to heal the pin.\necho \"Pruning untagged slopsearx versions older than ${RETENTION_DAYS} days\"\ncutoff=\"$(date -u -d \"-${RETENTION_DAYS} days\" +%Y-%m-%dT%H:%M:%SZ)\"\nquery=\".[] | select((.metadata.container.tags == null or (.metadata.container.tags | length) == 0) and (.created_at < \\\"${cutoff}\\\")) | .id\"\ngh api \\\n  --method GET \\\n  \"/users/magnus919/packages/container/slopsearx/versions?per_page=100\" \\\n  --jq \"$query\" \\\n  | while read -r version_id; do\n    echo \"  Deleting version $version_id\"\n    gh api --method DELETE \\\n      \"/users/magnus919/packages/container/slopsearx/versions/$version_id\" --silent\n  done\n",
+              "shell": "bash"
+            }
+          ]
+        },
+        "workflow": {
+          "env": {
+            "IMAGE_NAME": "ghcr.io/magnus919/slopsearx",
+            "REGISTRY": "ghcr.io"
+          },
+          "name": "Docker Build & Publish",
+          "on": {
+            "pull_request": {
+              "branches": [
+                "main"
+              ]
+            },
+            "push": {
+              "branches": [
+                "main"
+              ],
+              "tags": [
+                "v*"
+              ]
+            },
+            "schedule": [
+              {
+                "cron": "17 3 * * 1"
+              }
+            ],
+            "workflow_dispatch": null
+          }
+        }
+      },
+      "owner": "O04,O02",
+      "state": "pending-owner",
+      "successor": "cargo xtask check O04 and O02; buildx native multiarch shipping images; native immutable OCI-index validation (ci-helper manifest); OCI registry base verification/promotion and exact native portal smoke required before O09 activation"
+    },
+    "droid-review.yml:droid-review": {
+      "source": {
+        "job": {
+          "if": false,
+          "permissions": {
+            "actions": "read",
+            "contents": "read",
+            "id-token": "write",
+            "pull-requests": "write"
+          },
+          "runs-on": "ubuntu-latest",
+          "steps": [
+            {
+              "name": "Checkout repository",
+              "uses": "actions/checkout@v7",
+              "with": {
+                "fetch-depth": 1
+              }
+            },
+            {
+              "name": "Install Droid BYOK settings",
+              "run": "mkdir -p \"$HOME/.factory\"\ncp .github/droid-settings.json \"$HOME/.factory/settings.json\"\n",
+              "shell": "bash"
+            },
+            {
+              "env": {
+                "GPUSLUT_API_KEY": "${{ secrets.GPUSLUT_API_KEY }}"
+              },
+              "name": "Run Droid Auto Review",
+              "uses": "Factory-AI/droid-action@2041e7cc36d1390346bdaa6616e4bf7ac6b96b27",
+              "with": {
+                "allowed_bots": "dependabot",
+                "automatic_review": true,
+                "automatic_security_review": true,
+                "factory_api_key": "${{ secrets.FACTORY_API_KEY }}",
+                "review_depth": "deep",
+                "review_model": "general",
+                "security_model": "general"
+              }
+            }
+          ]
+        },
+        "workflow": {
+          "concurrency": {
+            "cancel-in-progress": true,
+            "group": "${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}"
+          },
+          "name": "Droid Auto Review",
+          "on": {
+            "pull_request": {
+              "types": [
+                "opened",
+                "ready_for_review",
+                "reopened"
+              ]
+            }
+          }
+        }
+      },
+      "owner": "O06",
+      "state": "retained-external",
+      "successor": "Retain external Factory Droid/CLI integration and its existing token scopes; implementation language external, not project backend Python. No execution in O06 native gate; wiki refresh remains external documentation operation"
+    },
+    "droid-wiki-refresh.yml:wiki-refresh": {
+      "source": {
+        "job": {
+          "runs-on": "ubuntu-latest",
+          "steps": [
+            {
+              "uses": "actions/checkout@v7"
+            },
+            {
+              "name": "Install Factory Droid",
+              "run": "curl -fsSL https://app.factory.ai/cli | sh"
+            },
+            {
+              "name": "Install Droid BYOK settings",
+              "run": "mkdir -p \"$HOME/.factory\"\ncp .github/droid-settings.json \"$HOME/.factory/settings.json\"\n",
+              "shell": "bash"
+            },
+            {
+              "env": {
+                "FACTORY_API_KEY": "${{ secrets.FACTORY_API_KEY }}",
+                "GPUSLUT_API_KEY": "${{ secrets.GPUSLUT_API_KEY }}"
+              },
+              "name": "Generate wiki",
+              "run": "droid exec --auto high --model \"general\" \"/wiki\""
+            }
+          ]
+        },
+        "workflow": {
+          "name": "Droid Wiki Refresh",
+          "on": {
+            "push": {
+              "branches": [
+                "main"
+              ]
+            }
+          }
+        }
+      },
+      "owner": "O06",
+      "state": "retained-external",
+      "successor": "Retain external Factory Droid/CLI integration and its existing token scopes; implementation language external, not project backend Python. No execution in O06 native gate; wiki refresh remains external documentation operation"
+    },
+    "droid.yml:droid": {
+      "source": {
+        "job": {
+          "if": "github.actor == github.repository_owner && (\n  (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@droid')) ||\n  (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@droid')) ||\n  (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@droid')) ||\n  (github.event_name == 'issues' && (contains(github.event.issue.body, '@droid') || contains(github.event.issue.title, '@droid'))) ||\n  (github.event_name == 'pull_request' && (contains(github.event.pull_request.body, '@droid') || contains(github.event.pull_request.title, '@droid')))\n)\n",
+          "permissions": {
+            "actions": "read",
+            "contents": "read",
+            "id-token": "write",
+            "issues": "write",
+            "pull-requests": "write"
+          },
+          "runs-on": "ubuntu-latest",
+          "steps": [
+            {
+              "name": "Checkout repository",
+              "uses": "actions/checkout@v7",
+              "with": {
+                "fetch-depth": 1
+              }
+            },
+            {
+              "name": "Install Droid BYOK settings",
+              "run": "mkdir -p \"$HOME/.factory\"\ncp .github/droid-settings.json \"$HOME/.factory/settings.json\"\n",
+              "shell": "bash"
+            },
+            {
+              "env": {
+                "GPUSLUT_API_KEY": "${{ secrets.GPUSLUT_API_KEY }}"
+              },
+              "name": "Run Droid Exec",
+              "uses": "Factory-AI/droid-action@2041e7cc36d1390346bdaa6616e4bf7ac6b96b27",
+              "with": {
+                "factory_api_key": "${{ secrets.FACTORY_API_KEY }}",
+                "fill_model": "general",
+                "review_model": "general",
+                "security_model": "general"
+              }
+            }
+          ]
+        },
+        "workflow": {
+          "name": "Droid Tag",
+          "on": {
+            "issue_comment": {
+              "types": [
+                "created"
+              ]
+            },
+            "issues": {
+              "types": [
+                "opened",
+                "assigned"
+              ]
+            },
+            "pull_request": {
+              "types": [
+                "opened",
+                "edited"
+              ]
+            },
+            "pull_request_review": {
+              "types": [
+                "submitted"
+              ]
+            },
+            "pull_request_review_comment": {
+              "types": [
+                "created"
+              ]
+            }
+          }
+        }
+      },
+      "owner": "O06",
+      "state": "retained-external",
+      "successor": "Retain external Factory Droid/CLI integration and its existing token scopes; implementation language external, not project backend Python. No execution in O06 native gate; wiki refresh remains external documentation operation"
+    },
+    "image-promotion.yml:promote": {
+      "source": {
+        "job": {
+          "runs-on": "ubuntu-latest",
+          "steps": [
+            {
+              "uses": "actions/checkout@v7"
+            },
+            {
+              "id": "promote",
+              "name": "Promote pinned image digest if CI published a newer one",
+              "run": "set -o pipefail\npython3 scripts/promote_image_digest.py --write --root .\ncode=$?\nif [ \"$code\" = 2 ]; then\n  echo \"::error::Digest promotion failed; pin state or registry lookup error.\"\n  exit 1\nfi\necho \"changed=$(git status --porcelain | wc -l | tr -d ' ')\" >> \"$GITHUB_OUTPUT\"\n"
+            },
+            {
+              "if": "steps.promote.outputs.changed != '0'",
+              "name": "Open or update promotion PR",
+              "uses": "peter-evans/create-pull-request@v8",
+              "with": {
+                "body": "Automated promotion of the digest-pinned application image\n(`ghcr.io/magnus919/slopsearx`) in docker-compose.yml,\nk8s/deployment.yaml, and their tests, so deployments track the\nartifact CI most recently built, Trivy-scanned, and smoke-tested\non main (#210).\n\nGenerated by `.github/workflows/image-promotion.yml`; see\n`scripts/promote_image_digest.py`.\n",
+                "branch": "chore/promote-image-digest",
+                "commit-message": "chore: promote slopsearx image digest to current latest",
+                "delete-branch": true,
+                "labels": "ci,automated",
+                "title": "chore: promote slopsearx image digest to current latest"
+              }
+            }
+          ]
+        },
+        "workflow": {
+          "name": "Image Digest Promotion",
+          "on": {
+            "schedule": [
+              {
+                "cron": "23 5 * * *"
+              }
+            ],
+            "workflow_dispatch": null
+          },
+          "permissions": {
+            "contents": "write"
+          }
+        }
+      },
+      "owner": "O04",
+      "state": "pending-owner",
+      "successor": "cargo xtask check O04; native registry digest resolver, index/platform checks and config update; retain create-pull-request integration and immutable digest review"
+    },
+    "nightly.yml:analysis": {
+      "source": {
+        "job": {
+          "runs-on": "ubuntu-latest",
+          "steps": [
+            {
+              "uses": "actions/checkout@v7"
+            },
+            {
+              "name": "Large file detection",
+              "run": "echo \"Checking for files over 200KB...\"\nfind . -name '*.py' -size +200k | sed 's/^/WARNING: /' | tee /tmp/large_files.txt\nif [ -s /tmp/large_files.txt ]; then\n  echo \"Large Python files detected (over 200KB). Consider splitting.\"\nfi\n"
+            },
+            {
+              "name": "TODO/FIXME scan",
+              "run": "echo \"Scanning for TODO/FIXME/HACK markers...\"\nrg -n 'TODO|FIXME|HACK' slopsearx/ engines/ || echo \"No markers found.\"\n"
+            },
+            {
+              "name": "Validate AGENTS.md dev setup",
+              "run": "python -m pip install --upgrade pip\npip install -e \".[dev]\"\npython -c \"import slopsearx; print('Import OK')\"\npytest --collect-only -q\n"
+            },
+            {
+              "name": "Dependency vulnerability scan",
+              "run": "pip-audit -r requirements-dev.txt"
+            }
+          ]
+        },
+        "workflow": {
+          "name": "Nightly",
+          "on": {
+            "schedule": [
+              {
+                "cron": "0 4 * * *"
+              }
+            ],
+            "workflow_dispatch": null
+          }
+        }
+      },
+      "owner": "O06",
+      "state": "additive",
+      "successor": "cargo metadata --locked --format-version 1; cargo build --locked --workspace; cargo test --locked --workspace --no-run; cargo deny --locked --workspace check all. Native graph replaces Python import/install and pip-audit; Rust does not import Python"
+    },
+    "nightly.yml:duplicate-detection": {
+      "source": {
+        "job": {
+          "runs-on": "ubuntu-latest",
+          "steps": [
+            {
+              "uses": "actions/checkout@v7"
+            },
+            {
+              "name": "Detect duplicate code with jscpd",
+              "run": "npx jscpd --min-tokens 50 --min-lines 5 --threshold 25 slopsearx/ engines/"
+            }
+          ]
+        },
+        "workflow": {
+          "name": "Nightly",
+          "on": {
+            "schedule": [
+              {
+                "cron": "0 4 * * *"
+              }
+            ],
+            "workflow_dispatch": null
+          }
+        }
+      },
+      "owner": "O09",
+      "state": "pending-owner",
+      "successor": "Retain pinned jscpd Node tool, change inspected roots to crates/ after G05; rebaseline threshold through review"
+    },
+    "nightly.yml:quality": {
+      "source": {
+        "job": {
+          "runs-on": "ubuntu-latest",
+          "steps": [
+            {
+              "uses": "actions/checkout@v7"
+            },
+            {
+              "name": "Set up Python",
+              "uses": "actions/setup-python@v7",
+              "with": {
+                "cache": "pip",
+                "python-version": "3.12"
+              }
+            },
+            {
+              "name": "Install dependencies",
+              "run": "python -m pip install --upgrade pip\npip install -e \".[dev]\"\n"
+            },
+            {
+              "name": "Lint with ruff",
+              "run": "ruff check ."
+            },
+            {
+              "name": "Type check with mypy",
+              "run": "mypy slopsearx/ engines/"
+            },
+            {
+              "name": "Complexity analysis with radon",
+              "run": "radon cc slopsearx/ engines/ --total-average"
+            },
+            {
+              "name": "Maintainability index with radon",
+              "run": "radon mi slopsearx/ engines/"
+            },
+            {
+              "name": "Dead code check with vulture",
+              "run": "vulture slopsearx/ engines/"
+            },
+            {
+              "name": "Architecture check with import-linter",
+              "run": "lint-imports"
+            },
+            {
+              "name": "Unused dependency check with deptry",
+              "run": "deptry . --per-rule-ignores \"DEP002=lxml|uvicorn|pytest|pytest-asyncio|ruff|cssselect|mypy|pytest-cov|pip-tools|pre-commit|radon|vulture|import-linter|deptry|pip-audit,DEP003=starlette\""
+            }
+          ]
+        },
+        "workflow": {
+          "name": "Nightly",
+          "on": {
+            "schedule": [
+              {
+                "cron": "0 4 * * *"
+              }
+            ],
+            "workflow_dispatch": null
+          }
+        }
+      },
+      "owner": "O09",
+      "state": "pending-owner",
+      "successor": "cargo fmt/clippy/check --locked; cargo metadata architecture assertions F02/F06; cargo deny. O09 records intentional radon/vulture/deptry retirement once native crates replace the Python source graph; Python tools remain until then"
+    },
+    "nightly.yml:test": {
+      "source": {
+        "job": {
+          "runs-on": "ubuntu-latest",
+          "steps": [
+            {
+              "uses": "actions/checkout@v7"
+            },
+            {
+              "name": "Set up Python ${{ matrix.python-version }}",
+              "uses": "actions/setup-python@v7",
+              "with": {
+                "cache": "pip",
+                "python-version": "${{ matrix.python-version }}"
+              }
+            },
+            {
+              "name": "Install dependencies",
+              "run": "python -m pip install --upgrade pip\npip install -e \".[dev]\"\n"
+            },
+            {
+              "name": "Test with pytest and coverage",
+              "run": "pytest -v --durations=10 --cov=slopsearx --cov=engines --cov-report=term-missing --cov-report=html --cov-fail-under=80"
+            },
+            {
+              "if": "always()",
+              "name": "Upload coverage report",
+              "uses": "actions/upload-artifact@v7",
+              "with": {
+                "name": "coverage-report-${{ matrix.python-version }}",
+                "path": "htmlcov/"
+              }
+            }
+          ],
+          "strategy": {
+            "matrix": {
+              "python-version": [
+                "3.12",
+                "3.13"
+              ]
+            }
+          }
+        },
+        "workflow": {
+          "name": "Nightly",
+          "on": {
+            "schedule": [
+              {
+                "cron": "0 4 * * *"
+              }
+            ],
+            "workflow_dispatch": null
+          }
+        }
+      },
+      "owner": "O05",
+      "state": "pending-owner",
+      "successor": "cargo xtask check O05; cargo test --locked --workspace; cargo llvm-cov native coverage threshold and O05 contract ledger; optional Python-client checks isolated from backend gates"
+    },
+    "pr-publish.yml:publisher": {
+      "source": {
+        "job": {
+          "environment": {
+            "name": "code-review-publication"
+          },
+          "if": "github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'pull_request_target' && github.repository == 'magnus919/SlopSearX' && github.ref == 'refs/heads/main'",
+          "permissions": {
+            "actions": "read",
+            "contents": "read",
+            "pull-requests": "write"
+          },
+          "runs-on": "ubuntu-24.04",
+          "steps": [
+            {
+              "name": "Check out only protected default-branch publisher source",
+              "uses": "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683",
+              "with": {
+                "fetch-depth": 1,
+                "persist-credentials": false,
+                "ref": "${{ github.sha }}"
+              }
+            },
+            {
+              "env": {
+                "GITHUB_WORKSPACE": "${{ github.workspace }}",
+                "RUNNER_TEMP": "${{ runner.temp }}"
+              },
+              "name": "Check out the separately pinned harness",
+              "run": "set -euo pipefail\npython - <<'PY'\nimport json\nimport os\nimport re\nimport subprocess\nfrom pathlib import Path\n\nTRUSTED_HARNESS_SHA = \"04c7fc0b42221872e6c6b611be91c68e462fc679\"\npolicy = json.loads((Path(os.environ[\"GITHUB_WORKSPACE\"]) / \".github/pr-review-publisher-policy.json\").read_text())\nharness = policy[\"called_harness\"]\nif not re.fullmatch(r\"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+\", harness[\"repository\"]):\n    raise SystemExit(\"protected_harness_repository_invalid\")\nif not re.fullmatch(r\"(?:[0-9a-f]{40}|[0-9a-f]{64})\", harness[\"sha\"]):\n    raise SystemExit(\"protected_harness_revision_invalid\")\nif harness[\"sha\"] != TRUSTED_HARNESS_SHA:\n    raise SystemExit(\"protected_harness_revision_unreviewed\")\ndest = Path(os.environ[\"RUNNER_TEMP\"]) / \"trusted-review-harness\"\nsubprocess.run([\"git\", \"clone\", \"--no-checkout\", \"--filter=blob:none\", f\"https://github.com/{harness['repository']}.git\", str(dest)], check=True, stdin=subprocess.DEVNULL, timeout=120)\nsubprocess.run([\"git\", \"-C\", str(dest), \"checkout\", \"--detach\", TRUSTED_HARNESS_SHA], check=True, stdin=subprocess.DEVNULL, timeout=30)\nif subprocess.check_output([\"git\", \"-C\", str(dest), \"rev-parse\", \"HEAD\"], text=True, timeout=10).strip() != TRUSTED_HARNESS_SHA:\n    raise SystemExit(\"protected_harness_revision_mismatch\")\nPY\n"
+            },
+            {
+              "name": "Set up Python",
+              "uses": "actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065",
+              "with": {
+                "python-version": "3.13"
+              }
+            },
+            {
+              "env": {
+                "RUNNER_TEMP": "${{ runner.temp }}"
+              },
+              "name": "Install the pinned trusted harness",
+              "run": "python -m pip install \"${RUNNER_TEMP}/trusted-review-harness\""
+            },
+            {
+              "name": "Set up the official artifact bridge runtime",
+              "uses": "actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020",
+              "with": {
+                "node-version": "24"
+              }
+            },
+            {
+              "env": {
+                "ACTIONS_RESULTS_URL": "",
+                "ACTIONS_RUNTIME_TOKEN": "",
+                "ACTIONS_RUNTIME_URL": ""
+              },
+              "name": "Install the lockfile-pinned official artifact client",
+              "run": "npm ci --ignore-scripts --no-audit --no-fund",
+              "working-directory": "${{ runner.temp }}/trusted-review-harness/scripts/actions-artifact-uploader"
+            },
+            {
+              "env": {
+                "GITHUB_TOKEN": "${{ github.token }}",
+                "PYTHONPATH": "${{ runner.temp }}/trusted-review-harness/src"
+              },
+              "name": "Run the protected publication runtime",
+              "uses": "groktopus/codereview/scripts/protected-publication-action@04c7fc0b42221872e6c6b611be91c68e462fc679"
+            }
+          ],
+          "timeout-minutes": 5
+        },
+        "workflow": {
+          "concurrency": {
+            "cancel-in-progress": false,
+            "group": "pr-review-publish-${{ github.repository_id }}",
+            "queue": "max"
+          },
+          "name": "Protected PR review publisher (Actions token)",
+          "on": {
+            "workflow_run": {
+              "types": [
+                "completed"
+              ],
+              "workflows": [
+                "PR Review Analysis"
+              ]
+            }
+          },
+          "permissions": {
+            "actions": "read",
+            "contents": "read",
+            "pull-requests": "read"
+          }
+        }
+      },
+      "owner": "O06,O09",
+      "state": "pending-owner",
+      "successor": "Native ci-helper review-bootstrap replaces project-owned inline clone/checkout bootstrap at O09; retain exact pinned external groktopus/codereview protected-publication action, external harness installation and official lockfile-pinned Node artifact client. External harness language is outside backend retirement. O09 must requalify protected source/policy provenance, permissions and current-head/artifact admission before activation; never install target code."
+    },
+    "pr-review-analysis.yml:analyze": {
+      "source": {
+        "job": {
+          "if": "github.event_name == 'pull_request_target' && github.repository == 'magnus919/SlopSearX' && github.event.pull_request.base.ref == 'main' && github.event.pull_request.draft == false",
+          "permissions": {
+            "actions": "read",
+            "checks": "read",
+            "contents": "read",
+            "pull-requests": "read"
+          },
+          "secrets": {
+            "JEV_API_KEY": "${{ secrets.JEV_API_KEY }}",
+            "JEV_BASE_URL": "${{ secrets.JEV_BASE_URL }}",
+            "JEV_MODEL": "${{ secrets.JEV_MODEL }}",
+            "LLM_API_KEY": "${{ secrets.LLM_API_KEY }}",
+            "LLM_BASE_URL": "${{ secrets.LLM_BASE_URL }}",
+            "LLM_MODEL": "${{ secrets.LLM_MODEL }}"
+          },
+          "uses": "groktopus/codereview/.github/workflows/pr-analysis.yml@04c7fc0b42221872e6c6b611be91c68e462fc679",
+          "with": {
+            "base_ref": "${{ github.event.pull_request.base.ref }}",
+            "base_sha": "${{ github.event.pull_request.base.sha }}",
+            "emit_publication_bundle": true,
+            "harness_repository": "groktopus/codereview",
+            "harness_sha": "04c7fc0b42221872e6c6b611be91c68e462fc679",
+            "head_sha": "${{ github.event.pull_request.head.sha }}",
+            "pull_request_number": "${{ github.event.pull_request.number }}",
+            "review_contract": "bounded-production-v17",
+            "target_repository": "${{ github.repository }}"
+          }
+        },
+        "workflow": {
+          "concurrency": {
+            "cancel-in-progress": true,
+            "group": "protected-pr-review-${{ github.repository_id }}-${{ github.event.pull_request.number }}"
+          },
+          "name": "PR Review Analysis",
+          "on": {
+            "pull_request_target": {
+              "branches": [
+                "main"
+              ],
+              "types": [
+                "opened",
+                "ready_for_review",
+                "reopened",
+                "synchronize"
+              ]
+            }
+          },
+          "permissions": {
+            "actions": "read",
+            "checks": "read",
+            "contents": "read",
+            "pull-requests": "read"
+          }
+        }
+      },
+      "owner": "O06",
+      "state": "retained-external",
+      "successor": "Retain immutable groktopus/codereview reusable analysis workflow; external provider/harness implementation languages outside project backend boundary; read-only target token, untrusted PR inputs never target execution"
+    },
+    "protected-source-context-probe.yml:observe": {
+      "source": {
+        "job": {
+          "if": false,
+          "permissions": {
+            "actions": "read",
+            "contents": "read",
+            "pull-requests": "read"
+          },
+          "runs-on": "ubuntu-24.04",
+          "steps": [
+            {
+              "name": "Check out only the protected event revision",
+              "uses": "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683",
+              "with": {
+                "fetch-depth": 1,
+                "path": "target-protected-revision",
+                "persist-credentials": false,
+                "ref": "${{ github.sha }}"
+              }
+            },
+            {
+              "name": "Set up Python",
+              "uses": "actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065",
+              "with": {
+                "python-version": "3.13"
+              }
+            },
+            {
+              "env": {
+                "RUNNER_TEMP": "${{ runner.temp }}"
+              },
+              "name": "Fetch the trusted probe at its immutable revision outside the target workspace",
+              "run": "set -euo pipefail\npython3 - <<'PY'\nimport os\nimport subprocess\nfrom pathlib import Path\n\nrepository = \"groktopus/codereview\"\nrevision = \"7eaddf7c549c8060045578bc1702e394a35dfa2d\"\ndestination = Path(os.environ[\"RUNNER_TEMP\"]) / \"trusted-review-harness\"\nsubprocess.run(\n    [\"git\", \"clone\", \"--no-checkout\", \"--filter=blob:none\", f\"https://github.com/{repository}.git\", str(destination)],\n    check=True,\n    stdin=subprocess.DEVNULL,\n    timeout=120,\n)\nsubprocess.run(\n    [\"git\", \"-C\", str(destination), \"checkout\", \"--detach\", revision],\n    check=True,\n    stdin=subprocess.DEVNULL,\n    timeout=30,\n)\nactual = subprocess.check_output(\n    [\"git\", \"-C\", str(destination), \"rev-parse\", \"HEAD\"], text=True, timeout=10\n).strip()\nif actual != revision:\n    raise SystemExit(\"trusted_probe_revision_mismatch\")\nPY\n"
+            },
+            {
+              "env": {
+                "GITHUB_EVENT_NAME": "${{ github.event_name }}",
+                "GITHUB_EVENT_PATH": "${{ github.event_path }}",
+                "GITHUB_REF": "${{ github.ref }}",
+                "GITHUB_REPOSITORY": "${{ github.repository }}",
+                "GITHUB_RUN_ATTEMPT": "${{ github.run_attempt }}",
+                "GITHUB_RUN_ID": "${{ github.run_id }}",
+                "GITHUB_SHA": "${{ github.sha }}",
+                "GITHUB_TOKEN": "${{ github.token }}",
+                "GITHUB_WORKFLOW_REF": "${{ github.workflow_ref }}",
+                "GITHUB_WORKFLOW_SHA": "${{ github.workflow_sha }}",
+                "PR_NUMBER": "${{ github.event.pull_request.number }}",
+                "PYTHONPATH": "${{ runner.temp }}/trusted-review-harness/src",
+                "RUNNER_TEMP": "${{ runner.temp }}"
+              },
+              "name": "Record bounded, sanitized read-only context observations",
+              "run": "python \"${RUNNER_TEMP}/trusted-review-harness/scripts/protected_source_context_probe.py\"",
+              "timeout-minutes": 1
+            }
+          ],
+          "timeout-minutes": 3
+        },
+        "workflow": {
+          "concurrency": {
+            "cancel-in-progress": true,
+            "group": "protected-source-context-${{ github.repository_id }}-${{ github.event.pull_request.number }}"
+          },
+          "name": "SlopSearX protected source context probe (disabled)",
+          "on": {
+            "pull_request_target": {
+              "branches": [
+                "main"
+              ],
+              "types": [
+                "opened",
+                "reopened",
+                "synchronize"
+              ]
+            }
+          },
+          "permissions": {
+            "actions": "read",
+            "contents": "read",
+            "pull-requests": "read"
+          }
+        }
+      },
+      "owner": "O06,O09",
+      "state": "pending-owner",
+      "successor": "Disabled diagnostic remains disabled. Native review-bootstrap successor requires the separately reviewed probe pin (not publisher pin); retire disabled local Python wrapper or use reviewed packaged external action before O09. Never enable or upgrade probe implicitly"
+    },
+    "release-please.yml:release-please": {
+      "source": {
+        "job": {
+          "runs-on": "ubuntu-latest",
+          "steps": [
+            {
+              "uses": "googleapis/release-please-action@v5",
+              "with": {
+                "config-file": "release-please-config.json",
+                "manifest-file": ".release-please-manifest.json",
+                "token": "${{ secrets.GITHUB_TOKEN }}"
+              }
+            }
+          ]
+        },
+        "workflow": {
+          "name": "Release Please",
+          "on": {
+            "push": {
+              "branches": [
+                "main"
+              ]
+            }
+          },
+          "permissions": {
+            "contents": "write",
+            "pull-requests": "write"
+          }
+        }
+      },
+      "owner": "O04,O09",
+      "state": "retained-external",
+      "successor": "Retain Google release-please action; O04/O09 change root release manifest/package strategy for native binaries with tag/version/changelog continuity and native artifact qualification"
+    },
+    "rust-ci-successors.yml:optional-python-client": {
+      "source": {
+        "job": {
+          "if": "github.event_name == 'workflow_dispatch'",
+          "name": "Optional Python wire client (manual only)",
+          "runs-on": "ubuntu-24.04",
+          "steps": [
+            {
+              "uses": "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683",
+              "with": {
+                "persist-credentials": false
+              }
+            },
+            {
+              "uses": "actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065",
+              "with": {
+                "python-version": "3.13"
+              }
+            },
+            {
+              "name": "Standalone optional client syntax and CLI discovery",
+              "run": "python -I -m py_compile ssx\npython -I ssx --help\n"
+            }
+          ],
+          "timeout-minutes": 5
+        },
+        "workflow": {
+          "name": "Native CI and review successors",
+          "on": {
+            "pull_request": {
+              "branches": [
+                "main"
+              ]
+            },
+            "push": {
+              "branches": [
+                "main"
+              ]
+            },
+            "workflow_dispatch": null
+          },
+          "permissions": {
+            "contents": "read"
+          }
+        }
+      },
+      "owner": "O05",
+      "state": "additive",
+      "successor": "Optional manual-only standalone ssx client syntax/help; no backend package install/import, no dependency of native checks. O05 owns wire client contract tests separately."
+    },
+    "rust-ci-successors.yml:successors": {
+      "source": {
+        "job": {
+          "name": "Native CI and protected review preparation",
+          "runs-on": "ubuntu-24.04",
+          "steps": [
+            {
+              "uses": "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683",
+              "with": {
+                "fetch-depth": 0,
+                "persist-credentials": false
+              }
+            },
+            {
+              "name": "Native helper and adversarial trust-boundary tests",
+              "run": "cargo test --locked -p xtask 'o06::tests::'"
+            },
+            {
+              "name": "Source-bound gate inventory and protected provenance",
+              "run": "cargo xtask check O06 --output target/rust-evidence/O06.json"
+            },
+            {
+              "if": "always()",
+              "name": "Retain native successor evidence",
+              "uses": "actions/upload-artifact@v7",
+              "with": {
+                "if-no-files-found": "error",
+                "name": "native-ci-successors-${{ github.sha }}",
+                "path": "target/rust-evidence/O06.json"
+              }
+            }
+          ],
+          "timeout-minutes": 15
+        },
+        "workflow": {
+          "name": "Native CI and review successors",
+          "on": {
+            "pull_request": {
+              "branches": [
+                "main"
+              ]
+            },
+            "push": {
+              "branches": [
+                "main"
+              ]
+            },
+            "workflow_dispatch": null
+          },
+          "permissions": {
+            "contents": "read"
+          }
+        }
+      },
+      "owner": "O06",
+      "state": "additive",
+      "successor": "cargo xtask check O06; native helper unit/adversarial tests; no publication or live provider calls"
+    },
+    "rust.yml:foundation": {
+      "source": {
+        "job": {
+          "env": {
+            "CARGO_TERM_COLOR": "always",
+            "RUST_BACKTRACE": 1
+          },
+          "name": "Foundation (${{ matrix.runner }})",
+          "runs-on": "${{ matrix.runner }}",
+          "steps": [
+            {
+              "uses": "actions/checkout@v7",
+              "with": {
+                "fetch-depth": 0
+              }
+            },
+            {
+              "name": "Confirm pinned toolchain",
+              "run": "rustc --version --verbose"
+            },
+            {
+              "name": "Formatting",
+              "run": "cargo fmt --all --check"
+            },
+            {
+              "name": "Clippy",
+              "run": "cargo clippy --locked --workspace --all-targets -- -D warnings"
+            },
+            {
+              "name": "Workspace tests, including xtask",
+              "run": "cargo test --locked --workspace"
+            },
+            {
+              "name": "Locked workspace build",
+              "run": "cargo build --locked --workspace --target \"${{ matrix.target }}\""
+            },
+            {
+              "name": "Verify outbound TLS feature graph",
+              "run": "cargo tree --locked --workspace -e features > target/rust-feature-graph.txt\ngrep -q 'rustls-platform-verifier' target/rust-feature-graph.txt\nif grep -Eq '(^|[[:space:]])(native-tls|hyper-tls|openssl-sys)([[:space:]@v]|$)' target/rust-feature-graph.txt; then\n  echo \"unexpected native-TLS/OpenSSL backend in the locked feature graph\" >&2\n  exit 1\nfi\n"
+            },
+            {
+              "name": "Foundation lane evidence",
+              "run": "cargo xtask check F03 --output target/rust-evidence/F03.json"
+            },
+            {
+              "env": {
+                "SSX_SERVER_BIN": "target/${{ matrix.target }}/debug/ssx-server"
+              },
+              "name": "Native readiness and Python bridge smoke",
+              "run": "sh scripts/rust-foundation-smoke.sh"
+            },
+            {
+              "if": "always()",
+              "name": "Retain source-bound foundation evidence",
+              "uses": "actions/upload-artifact@v7",
+              "with": {
+                "if-no-files-found": "warn",
+                "name": "rust-foundation-${{ matrix.target }}-${{ github.sha }}",
+                "path": "target/rust-evidence/F03.json\ntarget/rust-feature-graph.txt\n"
+              }
+            }
+          ],
+          "strategy": {
+            "fail-fast": false,
+            "matrix": {
+              "include": [
+                {
+                  "runner": "ubuntu-24.04",
+                  "target": "x86_64-unknown-linux-gnu"
+                },
+                {
+                  "runner": "ubuntu-24.04-arm",
+                  "target": "aarch64-unknown-linux-gnu"
+                }
+              ]
+            }
+          },
+          "timeout-minutes": 45
+        },
+        "workflow": {
+          "name": "Rust foundation",
+          "on": {
+            "pull_request": {
+              "branches": [
+                "main"
+              ]
+            },
+            "push": {
+              "branches": [
+                "main"
+              ]
+            }
+          },
+          "permissions": {
+            "contents": "read"
+          }
+        }
+      },
+      "owner": "F03",
+      "state": "additive",
+      "successor": "cargo fmt --all --check; cargo clippy --locked --workspace --all-targets -- -D warnings; cargo test/build --locked --workspace; cargo deny --locked --workspace check all; F03 smoke"
+    },
+    "rust.yml:supply-chain": {
+      "source": {
+        "job": {
+          "env": {
+            "CARGO_TERM_COLOR": "always"
+          },
+          "name": "Supply-chain policy (cargo-deny 0.20.2)",
+          "runs-on": "ubuntu-24.04",
+          "steps": [
+            {
+              "uses": "actions/checkout@v7"
+            },
+            {
+              "name": "Install pinned cargo-deny",
+              "run": "cargo install --locked --version 0.20.2 cargo-deny"
+            },
+            {
+              "name": "Check advisories, licenses, duplicate versions and registry sources",
+              "run": "cargo deny --locked --workspace check all"
+            }
+          ],
+          "timeout-minutes": 30
+        },
+        "workflow": {
+          "name": "Rust foundation",
+          "on": {
+            "pull_request": {
+              "branches": [
+                "main"
+              ]
+            },
+            "push": {
+              "branches": [
+                "main"
+              ]
+            }
+          },
+          "permissions": {
+            "contents": "read"
+          }
+        }
+      },
+      "owner": "F03",
+      "state": "additive",
+      "successor": "cargo fmt --all --check; cargo clippy --locked --workspace --all-targets -- -D warnings; cargo test/build --locked --workspace; cargo deny --locked --workspace check all; F03 smoke"
+    },
+    "upstream-contracts.yml:live-contracts": {
+      "source": {
+        "job": {
+          "if": "github.event_name == 'workflow_dispatch' || vars.LIVE_UPSTREAM_CONTRACTS == 'true'",
+          "runs-on": "ubuntu-latest",
+          "steps": [
+            {
+              "uses": "actions/checkout@v7"
+            },
+            {
+              "uses": "actions/setup-python@v7",
+              "with": {
+                "python-version": "3.12"
+              }
+            },
+            {
+              "run": "pip install -e ."
+            },
+            {
+              "name": "Probe three public upstreams",
+              "run": "python -m scripts.upstream_contracts --output upstream-report.json"
+            },
+            {
+              "if": "always()",
+              "uses": "actions/upload-artifact@v7",
+              "with": {
+                "name": "upstream-contract-report",
+                "path": "upstream-report.json"
+              }
+            }
+          ],
+          "timeout-minutes": 5
+        },
+        "workflow": {
+          "name": "Upstream contracts (opt-in)",
+          "on": {
+            "schedule": [
+              {
+                "cron": "17 8 * * 1"
+              }
+            ],
+            "workflow_dispatch": null
+          },
+          "permissions": {
+            "contents": "read"
+          }
+        }
+      },
+      "owner": "O07",
+      "state": "pending-owner",
+      "successor": "cargo xtask check O07; native bounded opt-in probe runner retaining fixture/report classifications and live-call authorization; schedule remains existing until accepted successor"
+    }
+  },
+  "precommit_source": {
+    "repos": [
+      {
+        "repo": "https://github.com/pre-commit/pre-commit-hooks",
+        "rev": "v5.0.0",
+        "hooks": [
+          {
+            "id": "trailing-whitespace",
+            "exclude": "^docs/experiments/evidence/(.*\\.(json|txt)|EXP-003/reproduce\\.md)$"
+          },
+          {
+            "id": "end-of-file-fixer",
+            "exclude": "^docs/experiments/evidence/(.*\\.(json|txt)|EXP-003/reproduce\\.md)$"
+          },
+          {
+            "id": "check-yaml"
+          },
+          {
+            "id": "check-toml"
+          },
+          {
+            "id": "check-json"
+          },
+          {
+            "id": "debug-statements"
+          },
+          {
+            "id": "mixed-line-ending",
+            "args": [
+              "--fix=lf"
+            ]
+          },
+          {
+            "id": "check-merge-conflict"
+          },
+          {
+            "id": "check-added-large-files",
+            "args": [
+              "--maxkb=500"
+            ]
+          }
+        ]
+      },
+      {
+        "repo": "https://github.com/astral-sh/ruff-pre-commit",
+        "rev": "v0.15.17",
+        "hooks": [
+          {
+            "id": "ruff",
+            "args": [
+              "--fix"
+            ]
+          },
+          {
+            "id": "ruff-format"
+          }
+        ]
+      },
+      {
+        "repo": "https://github.com/jendrikseipp/vulture",
+        "rev": "v2.14",
+        "hooks": [
+          {
+            "id": "vulture"
+          }
+        ]
+      },
+      {
+        "repo": "local",
+        "hooks": [
+          {
+            "id": "import-linter",
+            "name": "import-linter",
+            "entry": ".venv/bin/lint-imports",
+            "language": "script",
+            "pass_filenames": false,
+            "files": "^slopsearx/.*\\.py$"
+          }
+        ]
+      },
+      {
+        "repo": "https://github.com/pre-commit/mirrors-mypy",
+        "rev": "v1.13.0",
+        "hooks": [
+          {
+            "id": "mypy",
+            "args": [
+              "--strict",
+              "--ignore-missing-imports"
+            ],
+            "additional_dependencies": [
+              "fastmcp>=2.0,<5",
+              "fastapi>=0.115.0",
+              "httpx>=0.28.0",
+              "lxml>=5.3.0",
+              "pyyaml>=6.0",
+              "valkey>=6.0.0",
+              "pytest>=8.0",
+              "pytest-asyncio>=0.24.0",
+              "types-pyyaml>=6.0"
+            ],
+            "files": "^(slopsearx/|engines/)"
+          }
+        ]
+      }
+    ]
+  },
+  "precommit_successors": {
+    "trailing-whitespace": "native source-hygiene with immutable historical evidence exclusions",
+    "end-of-file-fixer": "native source-hygiene with immutable historical evidence exclusions",
+    "check-yaml": "native serde-saphyr parser, duplicate-key/alias/input budgets; all YAML coverage expanded at O09",
+    "check-toml": "Cargo native manifest parser plus O09 all-config TOML validation",
+    "check-json": "native serde_json parser, bounded inputs; preserve immutable evidence",
+    "debug-statements": "cargo clippy debug/todo checks for native Rust; Python AST hook retires with backend sources at G08",
+    "mixed-line-ending": "native source-hygiene CR rejection",
+    "check-merge-conflict": "native source-hygiene conflict-marker rejection",
+    "check-added-large-files": "native changed-file 500KiB limit, existing evidence preserved",
+    "ruff": "cargo clippy --locked --workspace --all-targets -- -D warnings",
+    "ruff-format": "cargo fmt --all --check",
+    "vulture": "Rust unused/dead_code compiler diagnostics and Clippy with warnings denied",
+    "import-linter": "F02/F06 native dependency architecture assertions and cargo metadata; O09 must activate architecture gate after crate ports",
+    "mypy": "cargo check --locked --workspace --all-targets and Clippy; Python client typing remains optional separate job"
+  },
+  "pr_template_source": "## Summary\n\nBrief description of the change.\n\n## Related Issues\n\nCloses #N\n\n## Type of Change\n\n- [ ] Bug fix\n- [ ] New feature\n- [ ] Documentation\n- [ ] CI / Infrastructure\n- [ ] Refactor\n\n## Checklist\n\n- [ ] Code follows project conventions (one file per engine, `@register_engine`)\n- [ ] Tests added for new behavior\n- [ ] Tests pass (`pytest`)\n- [ ] Lint passes (`ruff check .`)\n- [ ] Commits are signed (`git commit -s`)\n- [ ] Commits use Conventional Commits (`feat:`, `fix:`, etc.)\n- [ ] Documentation updated (README, spec, or AGENTS.md)\n- [ ] If adding an engine: one file, zero orchestrator changes\n- [ ] I reviewed portal impact for shared/backend changes (or this change is unrelated)\n- [ ] If the portal contract changed, I updated its tests and documentation\n- [ ] Portal contract/browser validation is included or explained below\n\n## Test Results\n\n```\n$ pytest -v\n...\n```\n\n## Additional Notes\n\n<!-- AI-assisted contributions: disclose the tool used here and confirm you reviewed the output. -->\n",
+  "pr_template_successor": "O09 retains Python instructions until native backend is accepted, then cargo fmt/clippy/test plus explicit lane checks. Optional Python-client tests live in separate non-backend job."
+}
