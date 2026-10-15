@@ -946,3 +946,17 @@ def test_portal_keeps_absolute_bounds_in_forms_and_machine_links(client, monkeyp
     assert response.status_code == 200
     assert 'name="date_from" value="2024-02-29"' in response.text
     assert "date_from=2024-02-29" in response.text
+    assert "published from (2024-02-29): enforced" in response.text
+
+
+@pytest.mark.parametrize("output_format", ["csv", "rss"])
+@pytest.mark.parametrize("method", ["get", "post"])
+def test_bounded_formats_without_proof_reject_before_dispatch(client, monkeypatch, output_format, method):
+    async def forbidden(*args, **kwargs):
+        pytest.fail("unsupported bounded output format dispatched")
+
+    monkeypatch.setattr(_MockEngine, "search", forbidden)
+    params = {"q": "climate", "format": output_format, "engines": "openalex", "date_from": "2024-02-29"}
+    response = client.get("/search", params=params) if method == "get" else client.post("/search", data=params)
+    assert response.status_code == 400
+    assert "Bounded publication-date proof requires" in response.text

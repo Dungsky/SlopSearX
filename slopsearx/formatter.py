@@ -725,10 +725,17 @@ def _portal_scope_panel(state: dict[str, Any] | None) -> str:
 
     enforcement = _portal_state_value(state, "filter_enforcement", {})
     status_bits: list[str] = []
-    for key, label in (("time_range", "time"), ("safesearch", "SafeSearch")):
+    for key, label in (
+        ("time_range", "time"),
+        ("safesearch", "SafeSearch"),
+        ("date_from", "published from"),
+        ("date_to", "published through"),
+    ):
         entry = enforcement.get(key) if isinstance(enforcement, dict) else None
         if not isinstance(entry, dict) or not entry.get("requested"):
             continue
+        if key in {"date_from", "date_to"}:
+            label += " (" + html_lib.escape(str(entry["requested"])) + ")"
         status = str(entry.get("status", "unsupported"))
         reason = html_lib.escape(str(entry.get("reason", "")))
         status_bits.append(

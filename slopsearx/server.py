@@ -571,6 +571,10 @@ def _portal_state(
     enforcement: dict[str, dict[str, Any]] = {}
     if time_range:
         enforcement["time_range"] = resolve_filter_enforcement(selected, "time_range", time_range, _active_engines)
+    if response.date_filter is not None:
+        for name, value in response.date_filter["applied"].items():
+            if value is not None:
+                enforcement[name] = resolve_filter_enforcement(selected, name, value, _active_engines)
     if safesearch:
         enforcement["safesearch"] = resolve_filter_enforcement(selected, "safesearch", safesearch, _active_engines)
     warnings = [str(warning) for warning in response.scope.warnings if str(warning).strip()]
@@ -901,6 +905,15 @@ async def _search_endpoint_impl(request: Request) -> Any:
     output_format, format_error = _select_format(request, requested_format)
     if format_error is not None:
         return format_error
+
+    if (date_from is not None or date_to is not None) and output_format in {"csv", "rss"}:
+        return _format_error_response(
+            output_format,
+            400,
+            error="invalid_filter",
+            field="format",
+            message="Bounded publication-date proof requires json, yaml, or html format.",
+        )
 
     restricted_engines = _portal_restricted_engines(engines_param)
     if restricted_engines:
