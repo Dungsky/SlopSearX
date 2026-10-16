@@ -1467,3 +1467,6 @@ mod urllib_contract_tests {
         );
     }
 }
+
+/// F13 durable snapshot compatibility codec.
+pub mod snapshot;

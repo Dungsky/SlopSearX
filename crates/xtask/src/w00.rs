@@ -6,7 +6,11 @@ use std::{collections::BTreeSet, fs, io::Read, path::Path};
 const BASELINE: &str = "66b29c3f8437af45a4f0d28f7c54a0f0727f7fa5";
 const CORPUS_SHA256: &str = "e73df07686f402a080cb7d57666eb084e4c2db9ea9f9a1204b90f77bdb831ffb";
 const EXPORTER_SHA256: &str = "6c319ddb761296ec08aca8f786820f85fb80e8fcb4038b4c2e635177273dad09";
-const COVERAGE_SHA256: &str = "4a636b31d124f66bd0b1b29693ab434056c8696a51d49c3ed3bbdbc1cd6ace95";
+const COVERAGE_SHA256: &str = "720dc286f81938b415d88d113430d95d187068dc7620aca801f79881a31e70f1";
+// Accepted PR874 changes unrelated date-bound search functions, not saved helpers.
+// Preserve historical corpus/source pins and validate the narrow current mapping.
+const CURRENT_MCP_PIN: &str = "d06ecd475b9b523addf79781d2762eddd92f4911";
+const INTEGRATION_SHA256: &str = "c500069182b9975539910e29683531759e0df375e049e8daea5b8664aa10aad3";
 const SOURCE_PINS: &[(&str, &str)] = &[
     (
         "slopsearx/saved_models.py",
@@ -83,6 +87,7 @@ const NATIVE_SOURCES: &[&str] = &[
     "crates/xtask/src/main.rs",
     "crates/xtask/src/w00.rs",
     "docs/rust-rewrite/w00/source.json",
+    "docs/rust-rewrite/w00/integration-source.json",
     "docs/rust-rewrite/w00/capture_source.py",
     "docs/rust-rewrite/w00/coverage.json",
     "docs/rust-rewrite/w00/README.md",
@@ -207,6 +212,20 @@ fn artifacts(corpus: &[u8], exporter: &[u8], coverage: &[u8]) -> Result<(Value, 
     }
     Ok((data, mapping))
 }
+fn integration_artifact(historical: &Value, captured: &[u8], current_mcp: &[u8]) -> Result<()> {
+    if digest(captured) != INTEGRATION_SHA256 {
+        return Err("W00 reviewed integration recapture changed".into());
+    }
+    let captured: Value = serde_json::from_slice(captured).map_err(|e| e.to_string())?;
+    let mut expected = historical.clone();
+    // Exactly this named provenance field may differ; every observation and
+    // all other metadata must remain byte-semantically identical.
+    expected["sources"]["slopsearx/mcp/tools.py"] = json!(digest(current_mcp));
+    if captured != expected {
+        return Err("W00 integration changed historical saved observations or provenance".into());
+    }
+    Ok(())
+}
 fn inventory(output: &str, expected: &[&str]) -> Result<()> {
     let actual: BTreeSet<_> = output
         .lines()
@@ -253,7 +272,12 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
     let corpus = read(root, "docs/rust-rewrite/w00/source.json")?;
     let exporter = read(root, "docs/rust-rewrite/w00/capture_source.py")?;
     let coverage = read(root, "docs/rust-rewrite/w00/coverage.json")?;
-    let (_, mapping) = artifacts(&corpus, &exporter, &coverage)?;
+    let (data, mapping) = artifacts(&corpus, &exporter, &coverage)?;
+    integration_artifact(
+        &data,
+        &read(root, "docs/rust-rewrite/w00/integration-source.json")?,
+        &read(root, "slopsearx/mcp/tools.py")?,
+    )?;
     command(
         root,
         "git",
@@ -261,7 +285,16 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
         records,
     )?;
     for (path, pin) in SOURCE_PINS {
-        if command(root, "git", &["hash-object", "--", path], records)?.trim() != *pin {
+        let expected_pin = if *path == "slopsearx/mcp/tools.py" {
+            let historical = format!("{BASELINE}:{path}");
+            if command(root, "git", &["rev-parse", &historical], records)?.trim() != *pin {
+                return Err("W00 historical saved source pin changed".into());
+            }
+            CURRENT_MCP_PIN
+        } else {
+            *pin
+        };
+        if command(root, "git", &["hash-object", "--", path], records)?.trim() != expected_pin {
             return Err(format!("W00 source drift: {path}"));
         }
     }
@@ -352,6 +385,19 @@ mod tests {
         let exporter = include_bytes!("../../../docs/rust-rewrite/w00/capture_source.py");
         let coverage = include_bytes!("../../../docs/rust-rewrite/w00/coverage.json");
         assert!(artifacts(corpus, exporter, coverage).is_ok());
+        let (historical, _) = artifacts(corpus, exporter, coverage).unwrap();
+        let integration = include_bytes!("../../../docs/rust-rewrite/w00/integration-source.json");
+        let current = include_bytes!("../../../slopsearx/mcp/tools.py");
+        assert!(integration_artifact(&historical, integration, current).is_ok());
+        let mut changed = integration.to_vec();
+        changed.push(b' ');
+        assert!(integration_artifact(&historical, &changed, current).is_err());
+        let mut changed = current.to_vec();
+        changed.push(b' ');
+        assert!(integration_artifact(&historical, integration, &changed).is_err());
+        let mut changed = historical.clone();
+        changed["observations"][0]["slot"] = json!(999);
+        assert!(integration_artifact(&changed, integration, current).is_err());
         for (index, mut bytes) in [corpus.to_vec(), exporter.to_vec(), coverage.to_vec()]
             .into_iter()
             .enumerate()

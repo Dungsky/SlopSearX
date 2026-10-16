@@ -79,6 +79,7 @@
     "crates/xtask/src/main.rs",
     "crates/xtask/src/w00.rs",
     "docs/rust-rewrite/w00/source.json",
+    "docs/rust-rewrite/w00/integration-source.json",
     "docs/rust-rewrite/w00/capture_source.py",
     "docs/rust-rewrite/w00/coverage.json",
     "docs/rust-rewrite/w00/README.md",

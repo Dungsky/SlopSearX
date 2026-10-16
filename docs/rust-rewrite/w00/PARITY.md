@@ -155,3 +155,27 @@ under its existing object read boundary. That source observation is preserved
 alongside the native refusal and unchanged-record/no-lease proof. Nine actual
 whole-source observations were appended; all prior 46 observation fields remain
 unchanged. The final native inventory includes 30 tests.
+
+## Accepted-main integration provenance
+
+The historical `source.json` (SHA256 `e73df07686f402a080cb7d57666eb084e4c2db9ea9f9a1204b90f77bdb831ffb`),
+exporter and historical source pins are immutable. Normal integration of accepted
+main `544c830724a322d05521dac7f902dbe93142c4a1` brings PR #874's bounded-date HTTP
+contract. MCP's whole-file blob changes from
+`061593ce45d3e2440e818703af6b50d6e6d99cf1` to
+`d06ecd475b9b523addf79781d2762eddd92f4911`: `_run_search` adds date-filter metadata
+and the science tool requires explicit OpenAlex scope for absolute dates. Saved
+helpers and their shared query/engine/policy validators are unchanged. The related
+service/server/formatter changes add date validation, canonical response proof and
+HTTP/portal rendering, not saved-definition or claim logic.
+
+`integration-source.json` is a separate actual offline recapture against those
+accepted files. Its reviewed SHA256 is
+`c500069182b9975539910e29683531759e0df375e049e8daea5b8664aa10aad3`.
+All 55 observations and every metadata field equal the historical capture except
+exactly `sources["slopsearx/mcp/tools.py"]`. The native gate independently pins the
+current MCP blob, verifies the historical blob at the original baseline, and
+checks that precise equivalence. It does not ignore an arbitrary metadata group,
+replace historical outcomes or execute Python. This integration adds no saved
+runtime behavior; W00 domain/application/store/scripts/tests remain byte-identical
+to the independently approved final55 checkpoint.
