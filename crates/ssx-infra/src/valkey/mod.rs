@@ -272,4 +272,5 @@ pub fn retained_ttl(
 pub mod rate;
 pub mod research;
 
+pub mod browser_identity;
 pub mod oauth;

@@ -189,6 +189,24 @@ reviewed refresh and adds the accepted F10 exporter blob pin. Existing W01/T01/F
 exporter bytes, Python runtime pins and historical F01 baseline evidence remain
 unchanged.
 
+## T09 temporary browser identity oracle and native authority
+
+T09 adds `docs/rust-rewrite/t09/capture.py` against accepted F06/F07 main
+`1f3f5bc85083f4fd24bd9a2b07f161626e6bfef5`. It records 61 offline actual-source
+observations with 11 exact source hashes; native gates replay the JSON and never
+execute Python. Independent pinned-Python recapture matched every byte. T09 owns
+the evidence and G08 executable retirement. The current union grows from 370 to
+371 Python source paths and from 247 to 248 backend-coupled tooling/test paths;
+the developer-oracle invocation register grows from seven to eight rows.
+Existing runtime Python and prior oracle bytes/pins are unchanged.
+
+T09 uses maintained AWS-LC signature/HMAC/random APIs from the already locked
+TLS backend, server-authoritative Valkey time, exact-record session CAS and
+explicit typed input bounds. Named source coercion/config/redirect corrections
+and browser namespace drain/relogin consequences are recorded in
+[the T09 parity ledger](../t09/PARITY.md). No G04/G07 cutover is authorized or
+claimed by this module; legacy audit retention and durable workflow idempotency
+remain required handoff obligations.
 ## F09 temporary source oracle
 
 F09 adds one developer-only exporter for synthetic scope, policy, filter, date
@@ -209,6 +227,15 @@ The exact Python source union has 371 paths: 122 backend/runtime, 248
 backend-coupled tooling/test and one client-only. Existing runtime/oracle bytes
 and all historical baseline identities remain unchanged.
 
+## T04 and T09 accepted-main integration
+
+The union retains both independent temporary oracles exactly once: 372 Python
+source paths (122 backend/runtime, 249 backend-coupled tooling/test, one client-only)
+and nine developer-oracle invocations. T09 now has 76 source observations: the
+original 61 plus fifteen integer drain-setting cases. Historical section counts
+above describe their original isolated additions; existing runtime/source and
+prior oracle bytes remain unchanged. T04 is accepted at `403dfd3720e969fa829f426136bf0f05b0360c56`;
+T09 acceptance and combined-source qualification remain separate.
 ## F09 and T04 integration
 
 Both temporary oracles remain inventoried exactly once. The combined inventory
@@ -235,3 +262,21 @@ adds the one T05 migration exporter: 373 sources (122 backend/runtime, 250
 backend-coupled tooling/test, one client-only). All nine accepted-main developer
 oracle invocation rows remain unchanged; T05 adds the tenth. Historical counts
 above describe their isolated checkpoints rather than this combined source tree.
+
+## Accepted F09, T04 and T09 integration
+
+The exact combined inventory has 373 Python source paths: 122 backend/runtime,
+250 backend-coupled tooling/test and one client-only, with ten developer-oracle
+invocations. F09, T04 and T09 temporary exporters remain inventoried once each;
+G08 retains executable retirement ownership. Historical isolated/earlier union
+counts above remain historical. All original runtime and source oracle bytes
+are unchanged. F09 is accepted at `6ae5e34fed19e8e9da7c19b95eeea894512f0e6d`;
+T09 remains in review and requires qualification against the combined source.
+
+## T05 integration with accepted T09
+
+The combined inventory preserves all 373 accepted-main Python sources and adds
+only T05: 374 sources (122 backend/runtime, 251 backend-coupled tooling/test, one
+client-only). All ten accepted-main developer invocation rows remain unchanged,
+including both distinct W01 commands; T05 adds the eleventh. Historical counts
+above describe their isolated checkpoints, not this combined source tree.

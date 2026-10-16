@@ -110,3 +110,21 @@ unknown-field behavior. These refusal boundaries are intentional native hardenin
 ordinary captured URL-encoded and multipart requests preserve source wire behavior.
 See [Axum Multipart](https://docs.rs/axum/0.8.9/axum/extract/struct.Multipart.html)
 and [multer constraints](https://docs.rs/multer/3.1.0/multer/).
+
+## T09 maintained browser cryptography amendment
+
+T09 uses exact `aws-lc-rs =1.18.2` (already selected transitively by accepted
+rustls) for RSA PKCS#1 SHA256 verification, HMAC sign/constant-time verification
+and secure random bytes, plus exact `base64 =0.23.1` for bounded encodings. No
+handwritten RSA/padding/HMAC/random primitive or second cryptographic backend is
+introduced. AWS-LC's maintained RSA 2048–8192 verification boundary deliberately
+rejects weaker source-compatible keys. Envelope/claim checks remain explicit and
+source-bound; unsupported algorithm/critical extensions/ambiguous keys fail closed.
+
+Primary APIs: [AWS-LC signature](https://docs.rs/aws-lc-rs/1.18.2/aws_lc_rs/signature/index.html),
+[HMAC verification](https://docs.rs/aws-lc-rs/1.18.2/aws_lc_rs/hmac/fn.verify.html),
+[random](https://docs.rs/aws-lc-rs/1.18.2/aws_lc_rs/rand/fn.fill.html),
+[base64](https://docs.rs/base64/0.23.1/base64/). Both packages declare MSRV 1.71.
+AWS-LC license is ISC AND (Apache-2.0 OR ISC); base64 is MIT OR Apache-2.0.
+Only direct edges to existing locked packages are added; T09 records locked build,
+Clippy/deny and actual TLS/private-Valkey evidence before acceptance.
