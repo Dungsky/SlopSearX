@@ -151,6 +151,56 @@ fn set(s: &Server, key: &str, value: &str) {
         .unwrap();
 }
 #[tokio::test]
+async fn empty_existing_records_are_collisions_and_preflight_is_nonmutating() {
+    let server = Server::start();
+    let a = oauth(&server, OAuthTtls::default());
+    let client_key = format!(
+        "mcp:oauth:v1:{{{}}}:client:{}",
+        fingerprint(b"test-authority"),
+        fingerprint(b"c")
+    );
+    set(&server, &client_key, "");
+    assert_eq!(
+        a.register_client(client("c")).await,
+        Err(OAuthError::Denied(Denial::Conflict))
+    );
+    assert_eq!(get(&server, &client_key), "");
+    assert_eq!(a.get_client("c").await, Err(OAuthError::Malformed));
+
+    // A collision on a later key must prevent every write in the transition.
+    let new_key = "t04-empty-collision:new";
+    let result: i64 = redis::cmd("EVAL")
+        .arg(include_str!("../src/valkey/oauth/transition.lua"))
+        .arg(2)
+        .arg(new_key)
+        .arg(&client_key)
+        .arg(r#"["", ""]"#)
+        .arg(r#"["new-record", "replacement"]"#)
+        .arg("[4102444800000,4102444800000]")
+        .arg("[0,0]")
+        .query(&mut server.connection())
+        .unwrap();
+    assert_eq!(result, -1);
+    let absent: Option<String> = redis::cmd("GET")
+        .arg(new_key)
+        .query(&mut server.connection())
+        .unwrap();
+    assert_eq!(absent, None);
+    assert_eq!(get(&server, &client_key), "");
+
+    redis::cmd("DEL")
+        .arg(&client_key)
+        .query::<()>(&mut server.connection())
+        .unwrap();
+    a.register_client(client("c")).await.unwrap();
+    let original = get(&server, &client_key);
+    assert_eq!(
+        a.register_client(client("c")).await,
+        Err(OAuthError::Denied(Denial::Conflict))
+    );
+    assert_eq!(get(&server, &client_key), original);
+}
+#[tokio::test]
 async fn independent_instances_single_use_and_exact_binding() {
     let server = Server::start();
     let a = oauth(&server, OAuthTtls::default());

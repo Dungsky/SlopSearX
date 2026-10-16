@@ -8,7 +8,10 @@ local now=tonumber(time[1])*1000+math.floor(tonumber(time[2])/1000)
 for i,key in ipairs(KEYS) do
   local value=redis.pcall('GET',key)
   if type(value)=='table' then return -3 end
-  if (value or '')~=expected[i] then return -1 end
+  -- Empty expected bytes mean absence; an extant empty string is a collision.
+  if expected[i]=='' then
+    if value~=false then return -1 end
+  elseif value~=expected[i] then return -1 end
   if authorize[i]>0 and authorize[i]<=now then return -2 end
   if replacement[i]~='' and expires[i]<=now then return -2 end
 end

@@ -151,3 +151,13 @@ settings/compile-fail secret serialization tests. `.github/workflows/rust.yml`
 runs it in both existing Linux architecture jobs and uploads `T04.json` with the
 accepted evidence. The gate is state-service qualification only, not OAuth
 endpoint or full protocol certification.
+
+### Create-only absence correction
+
+The native transition now distinguishes a missing Valkey key from an extant
+empty-string record. Empty expected bytes designate absence only; malformed empty
+records remain untouched and cause a conflict. A private-Valkey regression covers
+actual client registration, successful creation after genuine deletion, ordinary
+record collisions and a later-key collision preventing all writes in a multi-key
+transition. This corrects the native CAS implementation without changing the
+source observation corpus or the public storage error vocabulary.

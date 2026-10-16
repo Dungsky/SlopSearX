@@ -6,7 +6,7 @@ use std::{collections::BTreeSet, fs, path::Path};
 const BASELINE: &str = "1f3f5bc85083f4fd24bd9a2b07f161626e6bfef5";
 const CORPUS: &str = "4bdf404d45476fbe7c9d0ffaabb80ef5b36d30bece8475a436d2399303fadf13";
 const EXPORTER: &str = "4198363d4ee5f150e747e3fed0f93e05ecfb104677f0de7a6f55097604150ecf";
-const LUA: &str = "583ea1245ab2eff3b38436d8c1207070a45b29dbec38d771e5fed5fd98f77f91";
+const LUA: &str = "6298de4653e58da715f46ef42d96d12b874193445e1d6138264b7e8aafeca864";
 fn digest(v: &[u8]) -> String {
     Sha256::digest(v)
         .iter()
@@ -35,6 +35,7 @@ fn validate(raw: &[u8], exporter: &[u8], lua: &[u8]) -> Result<Value> {
 const TESTS: &[&str] = &[
     "captured_source_flow_replays_binding_lifetimes_rotation_and_revocation",
     "credentials_debug_and_durable_grants_do_not_expose_tokens",
+    "empty_existing_records_are_collisions_and_preflight_is_nonmutating",
     "expiry_is_valkey_authoritative_and_outage_never_falls_back",
     "independent_instances_single_use_and_exact_binding",
     "lost_write_response_is_unknown_and_never_retried",
@@ -106,7 +107,7 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
         &["test", "--locked", "-p", "ssx-infra", "--test", "t04"],
         records,
     )?;
-    if !output.contains("13 passed; 0 failed; 0 ignored") {
+    if !output.contains("14 passed; 0 failed; 0 ignored") {
         return Err("T04 native integration tests missing or ignored".into());
     }
     let domain_list = command(
