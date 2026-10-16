@@ -11,6 +11,7 @@ workspace = true
 
 [dependencies]
 ssx-domain.workspace = true
+ssx-registry.workspace = true
 ssx-application.workspace = true
 tokio.workspace = true
 reqwest.workspace = true

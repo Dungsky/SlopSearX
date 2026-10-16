@@ -2456,6 +2456,7 @@ dependencies = [
  "ssx-application",
  "ssx-domain",
  "ssx-json",
+ "ssx-registry",
  "time",
  "tokio",
  "tokio-rustls",
