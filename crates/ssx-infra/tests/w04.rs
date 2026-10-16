@@ -493,7 +493,14 @@ impl SavedAuthority for MutableAuthority {
 }
 #[tokio::test]
 async fn runner_revocation_shutdown_outer_drop_and_uncached_execution() {
-    for mode in ["revoked", "shutdown", "outerdrop", "success"] {
+    for mode in [
+        "denied",
+        "fingerprint",
+        "revoked",
+        "shutdown",
+        "outerdrop",
+        "success",
+    ] {
         let server = Server::start();
         let backend = Arc::new(server.store());
         let store = SavedStore::new(backend.clone(), TenantId::new("tenant").unwrap());
@@ -509,8 +516,12 @@ async fn runner_revocation_shutdown_outer_drop_and_uncached_execution() {
         let prepared = create_at(&p, "tenant", "saved-a", store.now().await.unwrap());
         store.create(&prepared).await.unwrap();
         let authority = Arc::new(MutableAuthority {
-            enabled: AtomicBool::new(true),
-            fingerprint: prepared.definition().policy_fingerprint.clone(),
+            enabled: AtomicBool::new(mode != "denied"),
+            fingerprint: if mode == "fingerprint" {
+                "changed".into()
+            } else {
+                prepared.definition().policy_fingerprint.clone()
+            },
         });
         let engine = Arc::new(HeldEngine {
             entered: Notify::new(),
@@ -534,6 +545,15 @@ async fn runner_revocation_shutdown_outer_drop_and_uncached_execution() {
         .unwrap();
         let (stop, rx) = watch::channel(false);
         let task = tokio::spawn(async move { runner.run_one(id("saved-a"), rx).await });
+        if matches!(mode, "denied" | "fingerprint") {
+            assert!(matches!(task.await.unwrap(), Err(RunnerError::Policy)));
+            assert_eq!(engine.calls.load(Ordering::SeqCst), 0);
+            let loaded = store.load(&id("saved-a")).await.unwrap().unwrap();
+            assert!(loaded.baseline.is_none() && loaded.latest_run_id.is_none());
+            search.shutdown().await;
+            backend.close().await;
+            continue;
+        }
         tokio::time::timeout(Duration::from_secs(2), engine.entered.notified())
             .await
             .unwrap();
@@ -1149,6 +1169,68 @@ async fn shutdown_interrupts_stalled_renewal_io_before_store_timeout() {
     assert!(matches!(result, Err(RunnerError::Shutdown)));
     assert!(started.elapsed() < Duration::from_millis(800));
     assert_eq!(engine.drops.load(Ordering::SeqCst), 1);
+    search.shutdown().await;
+    backend.close().await;
+}
+#[tokio::test]
+async fn shutdown_interrupts_post_acquisition_time_read_before_store_timeout() {
+    let server = Server::start();
+    let backend = Arc::new(server.store());
+    let store = SavedStore::new(backend.clone(), TenantId::new("tenant").unwrap());
+    let service = policy();
+    let limits = SavedLimits::default();
+    let auth = BTreeMap::from([("brave".into(), false)]);
+    let p = SavedPolicy {
+        search: &service,
+        saved_granted: true,
+        auth_configured: &auth,
+        limits: &limits,
+    };
+    let prepared = create_at(&p, "tenant", "saved-a", store.now().await.unwrap());
+    store.create(&prepared).await.unwrap();
+    let authority = Arc::new(MutableAuthority {
+        enabled: AtomicBool::new(true),
+        fingerprint: prepared.definition().policy_fingerprint.clone(),
+    });
+    let engine = Arc::new(HeldEngine {
+        entered: Notify::new(),
+        release: Notify::new(),
+        drops: AtomicUsize::new(0),
+        calls: AtomicUsize::new(0),
+    });
+    let search = SearchService::new(
+        SearchConfig::default(),
+        dependencies(vec![("brave", engine.clone())]),
+    )
+    .unwrap();
+    let runner =
+        SavedRunner::new(store, search.clone(), authority, Duration::from_secs(3)).unwrap();
+    let (stop, rx) = watch::channel(false);
+    let task = tokio::spawn(async move { runner.run_one(id("saved-a"), rx).await });
+    tokio::time::timeout(Duration::from_secs(2), engine.entered.notified())
+        .await
+        .unwrap();
+    redis::cmd("CLIENT")
+        .arg("PAUSE")
+        .arg(2000)
+        .arg("ALL")
+        .query::<()>(&mut server.connection())
+        .unwrap();
+    engine.release.notify_one();
+    tokio::time::timeout(Duration::from_secs(1), async {
+        while engine.drops.load(Ordering::SeqCst) != 1 {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .unwrap();
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    stop.send_replace(true);
+    let result = tokio::time::timeout(Duration::from_millis(800), task)
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(matches!(result, Err(RunnerError::Shutdown)));
     search.shutdown().await;
     backend.close().await;
 }

@@ -90,7 +90,8 @@ impl SavedRunner {
             if *shutdown.borrow() {
                 return Ok(());
             }
-            if let Ok(page) = self.store.scan_tenants(cursor, 128).await {
+            let page = tokio::select! {biased; _ = stopped(&mut shutdown) => return Ok(()), page = self.store.scan_tenants(cursor,128) => page};
+            if let Ok(page) = page {
                 cursor = page.cursor;
                 for tenant in page.values {
                     let mut runner = self.clone();
@@ -107,10 +108,9 @@ impl SavedRunner {
     /// Repair/discover one bounded tenant batch; Valkey remains scheduling authority.
     pub async fn run_due(
         &self,
-        shutdown: watch::Receiver<bool>,
+        mut shutdown: watch::Receiver<bool>,
     ) -> Result<Vec<Value>, RunnerError> {
-        self.store.repair_indexes().await?;
-        let ids = self.store.due_ids(128).await?;
+        let ids = tokio::select! {biased; _ = stopped(&mut shutdown) => return Err(RunnerError::Shutdown), ids = async {self.store.repair_indexes().await?;self.store.due_ids(128).await} => ids?};
         let mut pending = tokio::task::JoinSet::new();
         let mut reports = Vec::new();
         for id in ids {
@@ -223,7 +223,7 @@ impl SavedRunner {
         local: &mut watch::Receiver<bool>,
     ) -> Result<Value, RunnerError> {
         let d = claim.definition();
-        let started = self.store.now().await?;
+        let started = self.now_owned(shutdown, local).await?;
         let slot = d.slot(instant)?;
         self.revalidate(d)?;
         let cancellation = SearchCancellation::default();
@@ -264,14 +264,14 @@ impl SavedRunner {
                 _ = &mut deadline => {cancellation.cancel(); let _ = search.await; break None;}
             }
         };
-        let observed = self.store.now().await?;
+        let observed = self.now_owned(shutdown, local).await?;
         let observation = match response {
             Some(Ok(response)) => observe(d, &response, observed)?,
             other => {
                 ssx_json::json!({"window":d.window()?,"observed_at":observed,"query_id":"","cached":false,"coverage":{},"discovered_count":0,"records":{},"incomparable_reasons":["dispatch_failed"],"operational_error":if other.is_none(){"TimeoutError"}else{"SearchError"}})
             }
         };
-        let finished = self.store.now().await?;
+        let finished = self.now_owned(shutdown, local).await?;
         let (mut report, baseline) = compare_observations(
             d,
             observation,
@@ -315,6 +315,17 @@ impl SavedRunner {
             Ok(report)
         } else {
             Err(RunnerError::LeaseLost)
+        }
+    }
+    async fn now_owned(
+        &self,
+        shutdown: &mut watch::Receiver<bool>,
+        local: &mut watch::Receiver<bool>,
+    ) -> Result<f64, RunnerError> {
+        tokio::select! {biased;
+            _ = stopped(shutdown) => Err(RunnerError::Shutdown),
+            _ = stopped(local) => Err(RunnerError::Shutdown),
+            result = self.store.now() => Ok(result?),
         }
     }
 }
