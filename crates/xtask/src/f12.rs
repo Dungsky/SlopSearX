@@ -97,15 +97,14 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
         if pin["path"] != path {
             return Err("F12 source path mismatch".into());
         }
-        for args in [
-            vec!["hash-object".to_string(), "--".into(), path.into()],
-            vec!["rev-parse".into(), format!("{BASELINE}:{path}")],
-        ] {
-            let args: Vec<_> = args.iter().map(String::as_str).collect();
-            if pin["git_blob"] != command(root, "git", &args, records)?.trim() {
-                return Err(format!("F12 source drift: {path}"));
-            }
-        }
+        crate::date_amendment::source(
+            root,
+            path,
+            BASELINE,
+            pin["git_blob"].as_str().ok_or("F12 source blob")?,
+            None,
+            records,
+        )?;
     }
     for args in [
         vec![

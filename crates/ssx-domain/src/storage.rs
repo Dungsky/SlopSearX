@@ -521,6 +521,9 @@ pub struct StoredSearchResponse {
     pub ranking_explanation: String,
     #[serde(default)]
     pub dispatched_engine_count: i64,
+    /// Optional additive extension: legacy unbounded records retain their bytes.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub date_filter: Option<crate::PublicationDateProof>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
@@ -599,6 +602,7 @@ impl StoredSearchResponse {
             cached_error: response.cached_error,
             ranking_explanation: response.ranking_explanation.clone(),
             dispatched_engine_count: response.dispatched_engine_count,
+            date_filter: response.date_filter.clone(),
         })
     }
 
@@ -626,6 +630,7 @@ impl StoredSearchResponse {
             cached_error: self.cached_error,
             ranking_explanation: self.ranking_explanation,
             dispatched_engine_count: self.dispatched_engine_count,
+            date_filter: self.date_filter,
         }
     }
 }
@@ -754,6 +759,14 @@ pub fn decode_response_with_limits(
             0,
             "dispatched_engine_count",
         )?,
+        date_filter: object
+            .get("date_filter")
+            .filter(|v| !v.is_null())
+            .map(|v| {
+                crate::PublicationDateProof::from_value(v.clone())
+                    .map_err(|_| StorageError::InvalidResponse)
+            })
+            .transpose()?,
     })
 }
 

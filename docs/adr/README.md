@@ -12,3 +12,4 @@ use a new record and link the successor.
 - [004 — Valkey authority and Rust cutover](004-rust-valkey-authority-and-migration.md)
 - [005 — Native protocol, TLS and platform contract](005-rust-protocol-tls-and-platforms.md)
 - [006 — Bounded adapter HTTP sessions](006-adapter-http-bounds.md)
+- [007 — Native shared execution and client admission](007-native-shared-search-execution.md)

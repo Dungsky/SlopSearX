@@ -412,3 +412,9 @@ The combined source manifest retains all complete A02 and A03 oracle records: 37
 ## F13 integration after A03 acceptance
 
 All complete parent records are preserved: 379 source paths and 17 developer-oracle invocations. A03 was accepted in PR #975 at `5c1b48b9e625501ab61828299168101ac00301b3`. Earlier counts describe historical checkpoints. The F13 raw snapshot EOF exception remains narrowly bound in the native hygiene ledger.
+
+## F14 execution and PR874 publication-date amendment
+
+F14 adds exactly two temporary developer-only source capture programs and two invocation rows. All 379 prior source records and all 17 prior invocation records, including both distinct W01 commands, remain unchanged; the resulting exact source set is 381 (122 runtime, 258 backend-coupled tooling/test, one client), with 19 developer-oracle invocations. Neither exporter is a runtime exception or mandatory gate dependency; G08 retires executable Python while retaining immutable JSON observations.
+
+The historical 730c corpus preserves all initial 46 objects and 24 source bindings, adding only two availability observations. A separate independently recaptured d207 corpus contains 14 date admission and eight cache mutation observations across 11 source bindings. PR874 changes eight current Python anchors (formatter, MCP tools, HTTP server, service, and their four regression modules); historical captures retain original baseline identities. The native checker admits only the exact reviewed old/new Git blobs and new source SHA bindings. This source-freshness bridge does not assert unchanged behavior: bounded requests now require explicit audited OpenAlex and exact date evidence, with the corrupt self-consistent cache-scope case explicitly hardened against current authority. F09's 15 named native expectations remain unchanged. T02/T06/portal successors own proof envelope/availability mapping and surface contract qualification.
