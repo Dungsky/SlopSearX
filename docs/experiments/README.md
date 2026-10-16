@@ -6,6 +6,9 @@ The objective is material, evidenced improvements delivered to the repository.
 Every experiment also produces evidence and a decision; weak candidates are
 rejected. Follow [the loop design](DESIGN.md) for opportunity selection, evidence
 standards and delivery accounting. Production operation belongs to operators.
+The active tooling and prospective native receipt boundary is documented in
+the [Rust rewrite O03 contract](../rust-rewrite/O03-tooling-and-evidence.md);
+that contract defines migration work and does not authorize or perform runs.
 
 Before implementing the complete-pool selector, follow the [v0.6.0 release
 reconciliation](slopsearx-v0.6-release-reconciliation.md): reuse shipped Jev,

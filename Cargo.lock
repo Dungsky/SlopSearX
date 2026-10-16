@@ -434,9 +434,9 @@ dependencies = [
 
 [[package]]
 name = "core-foundation"
-version = "0.10.1"
+version = "0.9.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b2a6cd9ae233e7f62ba4e9353e81a88df7fc8a5987b8d445b4d90c879bd156f6"
+checksum = "91e195e091a93c46f7102ec7818a2aa394e1e1771c3ab4825963fa03e45afb8f"
 dependencies = [
  "core-foundation-sys",
  "libc",
@@ -444,9 +444,9 @@ dependencies = [
 
 [[package]]
 name = "core-foundation"
-version = "0.9.4"
+version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "91e195e091a93c46f7102ec7818a2aa394e1e1771c3ab4825963fa03e45afb8f"
+checksum = "b2a6cd9ae233e7f62ba4e9353e81a88df7fc8a5987b8d445b4d90c879bd156f6"
 dependencies = [
  "core-foundation-sys",
  "libc",
@@ -1803,7 +1803,6 @@ dependencies = [
  "combine",
  "futures-util",
  "itoa",
- "num-bigint",
  "num-bigint 0.5.1",
  "percent-encoding",
  "pin-project-lite",
@@ -1900,7 +1899,6 @@ dependencies = [
  "cfg-if",
  "getrandom 0.2.17",
  "libc",
- "untrusted",
  "untrusted 0.9.0",
  "windows-sys 0.52.0",
 ]
@@ -2049,7 +2047,6 @@ dependencies = [
  "aws-lc-rs",
  "ring",
  "rustls-pki-types",
- "untrusted",
  "untrusted 0.9.0",
 ]
 
@@ -3366,7 +3363,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 3.0.9",
- "synstructure",
  "synstructure 0.14.0",
 ]
 
@@ -3388,7 +3384,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 3.0.9",
- "synstructure",
  "synstructure 0.14.0",
 ]
 

@@ -24,7 +24,7 @@
     },
     {
       "path": "docs/rust-rewrite/inventory/README.md",
-      "git_blob": "9658c541b4ea1fd4c9f2c92dbeecc45624cd53f3"
+      "git_blob": "028850d7532335b4b8a16d8a0db1f665ebf1f9d7"
     },
     {
       "path": "docs/rust-rewrite/inventory/core-contracts.json",
@@ -37,6 +37,10 @@
     {
       "path": "docs/rust-rewrite/inventory/python-boundary.md",
       "git_blob": "ceb41e527385cfef044db2c4cfb28fcd569ab0ae"
+    },
+    {
+      "path": "docs/rust-rewrite/inventory/o03-active-tooling.json",
+      "git_blob": "92416a57a087d5f2e1b13f04c94dfd8cbd5b49e7"
     },
     {
       "path": "docs/rust-rewrite/inventory/python-disposition.json",
