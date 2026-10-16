@@ -11,6 +11,10 @@
       "git_blob": "650a47a473f3f6e19118773dfc32fc54b0c5f586"
     },
     {
+      "path": "docs/rust-rewrite/f09/oracle/export.py",
+      "git_blob": "cca9dc3d5ccbe57e5b6f9bbe0ed2a53016aef7af"
+    },
+    {
       "path": "docs/rust-rewrite/f10/oracle/export.py",
       "git_blob": "5bdc1cc2189f036ce77999bd1a9387ccf7cc4902"
     },
@@ -19,8 +23,12 @@
       "git_blob": "137d2af01f941343ee8eebabf9ab1e0d6ae63fa7"
     },
     {
+      "path": "docs/rust-rewrite/f12/oracle/export.py",
+      "git_blob": "905f48ae80aba2fc5d6d667231c117a0248d1513"
+    },
+    {
       "path": "docs/rust-rewrite/inventory/DRIFT.md",
-      "git_blob": "f9352f3caf52ac0455e1a1de68ed98d53a2f8bf9"
+      "git_blob": "432ac5abee6ac3647b88e23fc686b63d1c701afd"
     },
     {
       "path": "docs/rust-rewrite/inventory/README.md",
@@ -44,11 +52,11 @@
     },
     {
       "path": "docs/rust-rewrite/inventory/python-disposition.json",
-      "git_blob": "132e1d28480bffbfdd9a47e28e27875c3d8143c4"
+      "git_blob": "1445f58ebed819ac38fda14f71115024a08b47c8"
     },
     {
       "path": "docs/rust-rewrite/inventory/python-invocations.json",
-      "git_blob": "fabf3b257b06e45fdde601eb3cd586a3e42ba12a"
+      "git_blob": "278a9e8d148c108223f4551a70aa56f683028333"
     },
     {
       "path": "docs/rust-rewrite/inventory/surface-contracts.md",
@@ -69,6 +77,10 @@
     {
       "path": "docs/rust-rewrite/replay/oracle/export_mcp.py",
       "git_blob": "3c3104a3bc8a275454c4a8eca48e4b427c2a45ca"
+    },
+    {
+      "path": "docs/rust-rewrite/t04/capture.py",
+      "git_blob": "a9ebd31d5ce256fbb7f4c7c4ce54982d63f9ac98"
     },
     {
       "path": "docs/rust-rewrite/t09/capture.py",
@@ -1529,14 +1541,6 @@
     {
       "path": "tests/test_workflow_recent_indexes.py",
       "git_blob": "0cd352d9c80cd52ca6aa41d929654dea714b4221"
-    },
-    {
-      "path": "docs/rust-rewrite/t04/capture.py",
-      "git_blob": "a9ebd31d5ce256fbb7f4c7c4ce54982d63f9ac98"
-    },
-    {
-      "path": "docs/rust-rewrite/f09/oracle/export.py",
-      "git_blob": "cca9dc3d5ccbe57e5b6f9bbe0ed2a53016aef7af"
     }
   ]
 }

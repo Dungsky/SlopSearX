@@ -144,6 +144,9 @@ jobs:
       - name: Shared policy, filters and scope evidence
         run: cargo xtask check F09 --output target/rust-evidence/F09.json
 
+      - name: Optional Jev routing and deterministic fallback evidence
+        run: cargo xtask check F12 --output target/rust-evidence/F12.json
+
       - name: Deterministic ranking, scholarly grouping and retrieval evidence
         run: cargo xtask check F11 --output target/rust-evidence/F11.json
 
@@ -183,6 +186,7 @@ jobs:
             target/rust-evidence/F05.json
             target/rust-evidence/F06.json
             target/rust-evidence/F09.json
+            target/rust-evidence/F12.json
             target/rust-evidence/F07.json
             target/rust-evidence/W01.json
             target/rust-evidence/O03.json
