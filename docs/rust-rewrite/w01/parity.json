@@ -2,13 +2,14 @@
   "plan_id": "W01",
   "issue": 905,
   "baseline": "cfd7a0af61a22cfd040a7fcd41ad950f82005959",
-  "status": "implemented_pending_identity_wiring_and_independent_acceptance",
+  "status": "implemented_pending_independent_identity_review_and_acceptance",
   "parity": [
     "complete source job query attempt and coverage records with legacy defaults and lossless opaque provenance",
     "source monotone ceilings, legacy usage reconstruction, reserve-before-dispatch, interrupted unknown attempts and one-time settlement",
     "every admitted result charged while new lead identities alone deduplicate",
     "typed tenant ownership, prepared authoritative reload, cancellation signals and absolute deadline equality",
-    "source F07 literal keys and exact idempotency ready recent assets with bounded derived index repair"
+    "source F07 literal keys and exact idempotency ready recent assets with bounded derived index repair",
+    "actual lead-v1 SHA256 over accepted F11 normalized URL UTF-8 bytes; application response settlement, duplicate charges, truthy cursor and result caps"
   ],
   "intentional_differences": [
     {
@@ -58,5 +59,14 @@
     "accepted F11 normalization leaf and actual lead-v1 application wiring",
     "independent review and exact-head delivery acceptance",
     "W02 runner and later service/portal runtime integration"
-  ]
+  ],
+  "identity_evidence": {
+    "artifact": "crates/xtask/fixtures/w01/identity.json",
+    "exporter": "docs/rust-rewrite/w01/oracle/identity.py",
+    "identities": 382,
+    "settlements": 9,
+    "source_baseline": "cfd7a0af61a22cfd040a7fcd41ad950f82005959",
+    "normalization_dependency": "accepted F11 PR963/main fd80e36e; no duplicated normalization",
+    "old_oracles": "unchanged"
+  }
 }

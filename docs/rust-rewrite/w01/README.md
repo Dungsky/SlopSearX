@@ -1,6 +1,7 @@
 # W01 research records and conserved accounting
 
-Baseline: `cfd7a0af61a22cfd040a7fcd41ad950f82005959`, with accepted F05/F07.
+Source baseline: `cfd7a0af61a22cfd040a7fcd41ad950f82005959`, with accepted F05/F07.
+Accepted F11 main `fd80e36e6e1868d5c47f3f3d93c78952fcbc20e5` is integrated normally.
 Issue: [#905](https://github.com/magnus919/SlopSearX/issues/905).
 
 `ssx_domain::research` owns the durable job/query/attempt/coverage schema and pure
@@ -122,8 +123,40 @@ Portal impact: this package does not wire into the active Python server/portal o
 change its browser-visible contract. Later shared-runtime integration owns the
 portal contract/browser gate. The existing Python portal remains active.
 
-Downstream: W02 receives authoritative record, reservation/settlement, prepared
-admission, discovery, cancellation and typed ownership APIs. W01 lead settlement
-currently accepts validated `LeadId` values at the application boundary. Actual
-URL-to-lead identity wiring awaits acceptance of F11's shared normalization leaf;
-injected identity accounting evidence alone is not final W01 acceptance.
+`ssx_application::research::lead_id(url)` now computes the source lead-v1
+SHA256 identity from accepted F11 `normalise_url` and UTF-8 bytes.
+`ssx_application::research::finish_attempt` takes an optional typed SearchResponse
+and settles its actual result URLs through the domain accounting transition.
+Use it inside `ResearchStore::mutate` after recording the current query outcome,
+snapshot cursor and provenance. Domain remains independent of application.
+W02 receives these APIs; this package implements no runner or provider dispatch.
+
+The source normalizer strips its exact tracking-query set and preserves host
+case, fragments, nonempty final-segment params and malformed-URL fallbacks.
+Those distinctions therefore remain significant to lead identity. Source uses a
+truthy cursor: null and empty cursor both produce no admissions; the native
+settlement now preserves this case as well. Result metadata and engine do not
+participate in the hash. Duplicate URLs still consume each admitted result slot.
+
+A separate source capture `identity.json` records 382 actual source
+`research_budget.finish_attempt` lead identities, using every accepted F11 URL
+fixture, plus nine full settlement observations (duplicate, cap, prior-seen,
+missing/empty cursor, missing/empty response and exhausted/lowered-cap cases).
+The original W01 accounting corpus/exporter and all F11 oracle files remain
+unchanged. Independent native constants pin both new artifacts; native replay
+rejects altered answers even when provenance metadata is repaired. The native
+gate replays the original ten multistep cases through actual application identity,
+then checks private-store reservation, duplicate charging, history retention and
+cap-limited second settlement using actual URL responses.
+
+Reproduce the separate developer-only identity capture with pinned Python3.14.7:
+
+```sh
+/private/tmp/slopsearx-rust-oracle-py314/bin/python -B docs/rust-rewrite/w01/oracle/identity.py --source-root /clean/pinned/source --f11-fixtures docs/rust-rewrite/f11 --output crates/xtask/fixtures/w01/identity.json
+```
+
+The capture verifies source Git/current-file bytes before imports and records
+F11 input-shard hashes. It makes no provider or store calls. Independent source
+recapture/review and exact-head CI remain acceptance gates; replay alone does not
+establish oracle provenance. G08 retires this executable oracle before backend
+removal. Portal remains unchanged because active runtime wiring is deferred.

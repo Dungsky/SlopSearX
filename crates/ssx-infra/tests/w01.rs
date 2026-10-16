@@ -1167,3 +1167,93 @@ async fn existing_empty_legacy_identity_survives_only_faithful_materialization()
     );
     assert_eq!(preserved.budget_used["attempts"], 2);
 }
+
+#[tokio::test]
+async fn actual_url_settlement_is_fenced_charged_and_retained_across_retry() {
+    let server = Server::start();
+    let store = scoped(&server);
+    store.create(&job()).await.unwrap();
+    let owner = claim(&store, "identity-owner", 30).await;
+    store
+        .mutate(&id(), &owner.token, |job| {
+            initialize(job)?;
+            job.reserve_attempt(0, AttemptId::new("first-url-attempt")?, now(11.0))?;
+            Ok(())
+        })
+        .await
+        .unwrap();
+    let response = ssx_domain::SearchResponse {
+        results: [
+            "https://example.com/p?utm_source=x",
+            "https://example.com/p",
+        ]
+        .into_iter()
+        .map(|url| ssx_domain::SearchResult {
+            url: url.into(),
+            ..Default::default()
+        })
+        .collect(),
+        ..Default::default()
+    };
+    let reserved = found(&store).await;
+    assert!(
+        store
+            .mutate(&id(), &owner.token, |job| {
+                let attempt = &mut job.queries[0].attempts[0];
+                attempt.state = "done".into();
+                attempt.cursor = Some(String::new());
+                attempt.admitted_result_ids = vec![":0".into()];
+                let lead = ssx_application::research::lead_id(&response.results[0].url)
+                    .as_str()
+                    .to_owned();
+                attempt.new_lead_ids = vec![lead.clone()];
+                job.seen_lead_ids = vec![lead];
+                job.budget_used.insert("results".into(), 1);
+                Ok(())
+            })
+            .await
+            .is_err()
+    );
+    assert_eq!(found(&store).await, reserved);
+    let done = store
+        .mutate(&id(), &owner.token, |job| {
+            job.queries[0].state = "done".into();
+            job.queries[0].cursor = Some("snapshot-one".into());
+            job.queries[0].result_count = 2;
+            ssx_application::research::finish_attempt(job, 0, Some(&response), now(12.0))
+        })
+        .await
+        .unwrap();
+    let identity = ssx_application::research::lead_id(&response.results[0].url)
+        .as_str()
+        .to_owned();
+    assert_eq!(done.seen_lead_ids, vec![identity.clone()]);
+    assert_eq!(done.budget_used["results"], 2);
+    let first = done.queries[0].attempts[0].clone();
+    store
+        .mutate(&id(), &owner.token, |job| {
+            job.reserve_attempt(0, AttemptId::new("second-url-attempt")?, now(13.0))?;
+            Ok(())
+        })
+        .await
+        .unwrap();
+    let done = store
+        .mutate(&id(), &owner.token, |job| {
+            job.queries[0].state = "done".into();
+            job.queries[0].cursor = Some("snapshot-two".into());
+            job.queries[0].result_count = 2;
+            ssx_application::research::finish_attempt(job, 0, Some(&response), now(14.0))
+        })
+        .await
+        .unwrap();
+    assert_eq!(done.budget_used["results"], 3);
+    assert_eq!(done.seen_lead_ids, vec![identity]);
+    assert_eq!(done.queries[0].attempts[0], first);
+    assert!(done.queries[0].attempts[1].new_lead_ids.is_empty());
+    assert_eq!(
+        done.queries[0].attempts[1].admitted_result_ids,
+        vec!["snapshot-two:0"]
+    );
+    assert_eq!(done.stop_reason.as_deref(), Some("result_budget_exhausted"));
+    assert_eq!(found(&store).await, done);
+}

@@ -1,4 +1,4 @@
-//! Consumer-owned injection seams. No search or policy implementation is present.
+//! Consumer-owned injection seams and pure deterministic search algorithms.
 use ssx_domain::{AdapterOutcome, StoreRead};
 use std::{future::Future, pin::Pin, sync::Arc};
 pub type PortFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
@@ -79,3 +79,13 @@ impl Runtime {
         ready
     }
 }
+
+pub mod ranking;
+pub mod retrieval;
+pub mod scholarly;
+mod urls;
+pub use urls::normalise_url;
+
+mod text;
+
+pub mod research;

@@ -147,3 +147,33 @@ The first W01 frozen F03 run correctly failed on the newly staged, unclassified
 exporter. Its failed source-bound evidence is retained; this explicit inventory
 addition closes that failure rather than weakening exact-set validation. W01's
 native hardening differences are recorded separately in `../w01/parity.json`.
+## F11 temporary pure-algorithm oracle addition
+
+F11 adds `docs/rust-rewrite/f11/oracle/export.py` against accepted F05 revision
+`7cc420f7ffb61127750e77bf6130e225925f9186`. It captures only deterministic
+ranking, bounded scholarly grouping and structural URL classification from
+synthetic/public inputs. Native F11 CI replays committed JSON without Python,
+DNS, providers or shared stores. The exporter is backend-coupled developer
+tooling, owned by F11 for evidence and G08 for executable retirement; it is not
+a client exception or mandatory native runtime/gate dependency.
+
+The reviewed manifest grows from 365 to 366 Python paths and from 242 to 243
+backend-coupled tooling/test paths. Historical F01 baseline identities and
+validation reports remain unchanged. F01 source fixture updates cover this
+new temporary file and these reviewed inventory documents only; existing
+Python runtime source pins are preserved.
+
+
+## W01 accepted-F11 integration and isolated identity capture
+
+The normal merge retains both accepted F11 and reviewed W01 oracle inventory
+entries. W01 adds a separately reviewed developer-only `w01/oracle/identity.py`
+source capture of actual source research settlement identities, with no provider,
+store or runtime execution. It consumes all accepted F11 URL fixture inputs and
+records their shard hashes; F11 and original W01 oracle bytes are unchanged.
+W01 owns migration qualification and G08 retires this executable oracle before
+backend removal. The union now has 368 Python source paths, including 245
+backend-coupled tooling/test paths, and five developer oracle invocation rows.
+Existing mandatory/runtime Python commands and all existing runtime source pins
+remain unchanged. Native F01 exact inventory and source pins must reject stale
+merged documentation hashes before a narrow reviewed refresh.

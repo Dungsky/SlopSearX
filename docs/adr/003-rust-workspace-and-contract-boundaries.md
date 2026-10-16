@@ -80,3 +80,24 @@ The F05 legacy reader retains opaque object insertion order with pinned `indexma
 inside `ssx-json`: Python `str(dict)` makes that order observable. Canonical
 identity profiles still sort keys explicitly. Neither serde_json `preserve_order`
 nor `arbitrary_precision` is enabled globally.
+
+## F11 amendment: shared pure publication codecs
+
+F11 extracts the accepted F05 DOI normalizer and publication-field allowlist,
+without semantic changes, to `ssx-publication`. This leaf depends only on
+`ssx-json`. `ssx-wire` re-exports its existing public functions; application
+ranking consumes the same codec directly. Application does not depend on wire,
+and wire does not depend on domain. This avoids duplicating Unicode casefold,
+DOI validation or publication limits in scholarly grouping. F05 byte/DTO goldens
+remain required. The F11 native gate verifies this dependency boundary.
+
+
+## W01 amendment: application research lead identity
+
+The application may consume the already pinned pure `sha2` codec to derive
+source lead-v1 SHA256 identities from F11 `normalise_url` UTF-8 bytes. Research
+settlement owns this policy; domain accepts typed `LeadId` values and does not
+depend on application. This allowance adds no socket, storage, configuration,
+provider or wire dependency. W01 source-captured identities and settlements run
+alongside F11 normalization evidence; the F11 dependency guard explicitly permits
+this pure hashing dependency while retaining its other boundary checks.

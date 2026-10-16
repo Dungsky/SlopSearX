@@ -511,7 +511,9 @@ impl ResearchJob {
         a.error = q.error.clone();
         a.engine_coverage = q.engine_coverage.clone();
         a.enforcement = q.enforcement.clone();
-        if let (Some(leads), Some(cursor)) = (leads, &q.cursor) {
+        if let (Some(leads), Some(cursor)) =
+            (leads, q.cursor.as_ref().filter(|cursor| !cursor.is_empty()))
+        {
             let available =
                 self.budget_limits["results"].saturating_sub(self.budget_used["results"]);
             if leads.len() as u64 > available {
@@ -794,6 +796,7 @@ impl ResearchJob {
                     let cursor = attempt
                         .cursor
                         .as_ref()
+                        .filter(|cursor| !cursor.is_empty())
                         .ok_or(DomainError("research admissions require snapshot cursor"))?;
                     for (i, result) in attempt
                         .admitted_result_ids
