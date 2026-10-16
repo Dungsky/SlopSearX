@@ -26,6 +26,10 @@ impl Number {
         }
         Ok(Self(if raw == "-0" { "0".into() } else { raw.into() }))
     }
+    /// Already typed finite float; shared formatting, without token reparsing.
+    pub fn from_f64(value: f64) -> Result<Self, canonical::FloatFormatError> {
+        canonical::try_python_float(value).map(Self)
+    }
     pub fn as_str(&self) -> &str {
         &self.0
     }
@@ -400,7 +404,9 @@ mod literal_tests {
 }
 
 pub mod canonical;
-pub use canonical::{JsonProfile, canonical_json, canonical_json_text, python_float};
+pub use canonical::{
+    FloatFormatError, JsonProfile, canonical_json, canonical_json_text, python_float,
+};
 #[cfg(test)]
 mod boundary_tests {
     use super::*;
@@ -446,24 +452,60 @@ mod object_order_tests {
     }
 }
 
-pub fn casefold(value: &str) -> String {
+fn casefold_table() -> &'static std::collections::BTreeMap<String, String> {
     static TABLE: std::sync::OnceLock<std::collections::BTreeMap<String, String>> =
         std::sync::OnceLock::new();
-    let table = TABLE.get_or_init(|| {
+    TABLE.get_or_init(|| {
         serde_json::from_str(include_str!(
             "../../../contracts/unicode/casefold-16.0.0.json"
         ))
         .expect("reviewed Unicode table")
-    });
+    })
+}
+/// Borrow one Unicode16 full casefold mapping without allocating a lookup key.
+/// None preserves the original scalar. Surrogates cannot be Rust chars.
+/// Cold immutable-table initialization belongs to shared-process startup, not
+/// caller output accounting; consumers must retain their own destination owner.
+pub fn casefold_char(ch: char) -> Option<&'static str> {
+    let mut encoded = [0; 4];
+    casefold_table()
+        .get(ch.encode_utf8(&mut encoded))
+        .map(String::as_str)
+}
+pub fn casefold(value: &str) -> String {
     let mut out = String::new();
     for ch in value.chars() {
-        if let Some(folded) = table.get(&ch.to_string()) {
+        if let Some(folded) = casefold_char(ch) {
             out.push_str(folded)
         } else {
             out.push(ch)
         }
     }
     out
+}
+#[cfg(test)]
+mod borrowed_casefold_tests {
+    #[test]
+    fn every_reviewed_mapping_matches_borrowed_and_existing_whole_string_paths() {
+        let table: std::collections::BTreeMap<String, String> = serde_json::from_str(include_str!(
+            "../../../contracts/unicode/casefold-16.0.0.json"
+        ))
+        .unwrap();
+        assert!(!table.is_empty());
+        for (key, value) in &table {
+            let mut chars = key.chars();
+            let ch = chars.next().unwrap();
+            assert!(chars.next().is_none());
+            assert_eq!(super::casefold_char(ch), Some(value.as_str()));
+            assert_eq!(super::casefold(key), *value);
+        }
+        for ch in ['0', ' ', '🙂', '\u{d7ff}', '\u{e000}', '\u{10ffff}'] {
+            assert_eq!(super::casefold_char(ch), None);
+            assert_eq!(super::casefold(&ch.to_string()), ch.to_string());
+        }
+        assert!(char::from_u32(0xd800).is_none());
+        assert!(char::from_u32(0xdfff).is_none());
+    }
 }
 
 /// Python Unicode whitespace, including the four ASCII information separators.

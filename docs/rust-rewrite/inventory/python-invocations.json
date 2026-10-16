@@ -14,7 +14,7 @@
       "100644": 729
     },
     "configured_precommit_hook_rows": 15,
-    "developer_oracle_invocation_rows": 25
+    "developer_oracle_invocation_rows": 37
   },
   "interpreter_invocations": [
     {
@@ -8505,6 +8505,114 @@
       "migration_owner": "A04",
       "retirement_owner": "G08",
       "disposition": "retain reproducible source observations during migration; retire executable Python before backend removal; retain JSON evidence"
+    },
+    {
+      "path": "docs/rust-rewrite/a07/README.md",
+      "example_path": "docs/rust-rewrite/a07/oracle/export_complete.py",
+      "evidence": "PYTHONPATH=. /private/tmp/slopsearx-rust-oracle-py314/bin/python docs/rust-rewrite/a07/oracle/export_complete.py",
+      "classification": "temporary backend-coupled developer oracle; never a mandatory native gate or runtime dependency",
+      "migration_owner": "A07",
+      "retirement_owner": "G08",
+      "disposition": "historical invocation recipe only; existing producers retain pinned original source/root and tmp outputs; no new run requested; retire executable Python before backend removal; retain JSON evidence"
+    },
+    {
+      "path": "docs/rust-rewrite/a07/README.md",
+      "example_path": "docs/rust-rewrite/a07/oracle/export_date_grammar.py",
+      "evidence": "PYTHONPATH=. /private/tmp/slopsearx-rust-oracle-py314/bin/python docs/rust-rewrite/a07/oracle/export_date_grammar.py",
+      "classification": "temporary backend-coupled developer oracle; never a mandatory native gate or runtime dependency",
+      "migration_owner": "A07",
+      "retirement_owner": "G08",
+      "disposition": "historical invocation recipe only; existing producers retain pinned original source/root and tmp outputs; no new run requested; retire executable Python before backend removal; retain JSON evidence"
+    },
+    {
+      "path": "docs/rust-rewrite/a07/README.md",
+      "example_path": "docs/rust-rewrite/a07/oracle/export_digits.py",
+      "evidence": "PYTHONPATH=. /private/tmp/slopsearx-rust-oracle-py314/bin/python docs/rust-rewrite/a07/oracle/export_digits.py",
+      "classification": "temporary backend-coupled developer oracle; never a mandatory native gate or runtime dependency",
+      "migration_owner": "A07",
+      "retirement_owner": "G08",
+      "disposition": "historical invocation recipe only; existing producers retain pinned original source/root and tmp outputs; no new run requested; retire executable Python before backend removal; retain JSON evidence"
+    },
+    {
+      "path": "docs/rust-rewrite/a07/README.md",
+      "example_path": "docs/rust-rewrite/a07/oracle/export_empty_iterables.py",
+      "evidence": "PYTHONPATH=. /private/tmp/slopsearx-rust-oracle-py314/bin/python docs/rust-rewrite/a07/oracle/export_empty_iterables.py",
+      "classification": "temporary backend-coupled developer oracle; never a mandatory native gate or runtime dependency",
+      "migration_owner": "A07",
+      "retirement_owner": "G08",
+      "disposition": "historical invocation recipe only; existing producers retain pinned original source/root and tmp outputs; no new run requested; retire executable Python before backend removal; retain JSON evidence"
+    },
+    {
+      "path": "docs/rust-rewrite/a07/README.md",
+      "example_path": "docs/rust-rewrite/a07/oracle/export_gene_shapes.py",
+      "evidence": "PYTHONPATH=. /private/tmp/slopsearx-rust-oracle-py314/bin/python docs/rust-rewrite/a07/oracle/export_gene_shapes.py",
+      "classification": "temporary backend-coupled developer oracle; never a mandatory native gate or runtime dependency",
+      "migration_owner": "A07",
+      "retirement_owner": "G08",
+      "disposition": "historical invocation recipe only; existing producers retain pinned original source/root and tmp outputs; no new run requested; retire executable Python before backend removal; retain JSON evidence"
+    },
+    {
+      "path": "docs/rust-rewrite/a07/README.md",
+      "example_path": "docs/rust-rewrite/a07/oracle/export_numeric.py",
+      "evidence": "PYTHONPATH=. /private/tmp/slopsearx-rust-oracle-py314/bin/python docs/rust-rewrite/a07/oracle/export_numeric.py",
+      "classification": "temporary backend-coupled developer oracle; never a mandatory native gate or runtime dependency",
+      "migration_owner": "A07",
+      "retirement_owner": "G08",
+      "disposition": "historical invocation recipe only; existing producers retain pinned original source/root and tmp outputs; no new run requested; retire executable Python before backend removal; retain JSON evidence"
+    },
+    {
+      "path": "docs/rust-rewrite/a07/README.md",
+      "example_path": "docs/rust-rewrite/a07/oracle/export_sequences.py",
+      "evidence": "PYTHONPATH=. /private/tmp/slopsearx-rust-oracle-py314/bin/python docs/rust-rewrite/a07/oracle/export_sequences.py",
+      "classification": "temporary backend-coupled developer oracle; never a mandatory native gate or runtime dependency",
+      "migration_owner": "A07",
+      "retirement_owner": "G08",
+      "disposition": "historical invocation recipe only; existing producers retain pinned original source/root and tmp outputs; no new run requested; retire executable Python before backend removal; retain JSON evidence"
+    },
+    {
+      "path": "docs/rust-rewrite/a07/README.md",
+      "example_path": "docs/rust-rewrite/a07/oracle/export_source.py",
+      "evidence": "PYTHONPATH=. /private/tmp/slopsearx-rust-oracle-py314/bin/python docs/rust-rewrite/a07/oracle/export_source.py",
+      "classification": "temporary backend-coupled developer oracle; never a mandatory native gate or runtime dependency",
+      "migration_owner": "A07",
+      "retirement_owner": "G08",
+      "disposition": "historical invocation recipe only; existing producers retain pinned original source/root and tmp outputs; no new run requested; retire executable Python before backend removal; retain JSON evidence"
+    },
+    {
+      "path": "docs/rust-rewrite/a07/README.md",
+      "example_path": "docs/rust-rewrite/a07/oracle/export_supplement.py",
+      "evidence": "PYTHONPATH=. /private/tmp/slopsearx-rust-oracle-py314/bin/python docs/rust-rewrite/a07/oracle/export_supplement.py",
+      "classification": "temporary backend-coupled developer oracle; never a mandatory native gate or runtime dependency",
+      "migration_owner": "A07",
+      "retirement_owner": "G08",
+      "disposition": "historical invocation recipe only; existing producers retain pinned original source/root and tmp outputs; no new run requested; retire executable Python before backend removal; retain JSON evidence"
+    },
+    {
+      "path": "docs/rust-rewrite/a07/README.md",
+      "example_path": "docs/rust-rewrite/a07/oracle/export_timeout_loopback.py",
+      "evidence": "PYTHONPATH=. /private/tmp/slopsearx-rust-oracle-py314/bin/python docs/rust-rewrite/a07/oracle/export_timeout_loopback.py",
+      "classification": "temporary backend-coupled developer oracle; never a mandatory native gate or runtime dependency",
+      "migration_owner": "A07",
+      "retirement_owner": "G08",
+      "disposition": "historical invocation recipe only; existing producers retain pinned original source/root and tmp outputs; no new run requested; retire executable Python before backend removal; retain JSON evidence"
+    },
+    {
+      "path": "docs/rust-rewrite/a07/README.md",
+      "example_path": "docs/rust-rewrite/a07/oracle/export_source_repr.py",
+      "evidence": "PYTHONPATH=. /private/tmp/slopsearx-rust-oracle-py314/bin/python docs/rust-rewrite/a07/oracle/export_source_repr.py",
+      "classification": "temporary backend-coupled developer oracle; never a mandatory native gate or runtime dependency",
+      "migration_owner": "A07",
+      "retirement_owner": "G08",
+      "disposition": "historical invocation recipe only; existing producers retain pinned original source/root and tmp outputs; no new run requested; retire executable Python before backend removal; retain JSON evidence"
+    },
+    {
+      "path": "docs/rust-rewrite/a07/README.md",
+      "example_path": "docs/rust-rewrite/a07/oracle/export_payload_adapter_controls.py",
+      "evidence": "PYTHONPATH=. /private/tmp/slopsearx-rust-oracle-py314/bin/python docs/rust-rewrite/a07/oracle/export_payload_adapter_controls.py",
+      "classification": "temporary backend-coupled developer oracle; never a mandatory native gate or runtime dependency",
+      "migration_owner": "A07",
+      "retirement_owner": "G08",
+      "disposition": "historical invocation recipe only; existing producers retain pinned original source/root and tmp outputs; no new run requested; retire executable Python before backend removal; retain JSON evidence"
     }
   ]
 }

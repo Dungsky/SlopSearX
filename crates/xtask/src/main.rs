@@ -3,6 +3,7 @@ mod a01;
 mod a02;
 mod a03;
 mod a04;
+mod a07;
 mod date_amendment;
 mod f05;
 mod f06;
@@ -446,6 +447,7 @@ fn execute(root: &Path, id: &str, records: &mut Vec<Value>) -> Result<()> {
     match id {
         "A01" => a01::check(root, records),
         "A04" => a04::check(root, records),
+        "A07" => a07::check(root, records),
         "A03" => a03::check(root, records),
         "A02" => a02::check(root, records),
         "O03" => o03::check(root, records),
@@ -581,7 +583,9 @@ fn main() {
             }
         }
     }
-    let scope = if id == "A03" {
+    let scope = if id == "A07" {
+        "source-bound biomedical factories/config/scope,172 offline controls and charged runtime/context/compact regressions; no provider calls, global G02 or full HTML/MCP transport claim"
+    } else if id == "A03" {
         "source-mapped GitHub, Hugging Face, Stack Exchange and Hacker News adapters through caller-owned F08/F10; offline loopback/private Valkey only, no provider or deployment claim"
     } else if id == "A02" {
         "source-bound pypi/rubygems/dockerhub adapters through registry and caller-owned F08 pool; no live providers, deployment or full server parity claim"

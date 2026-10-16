@@ -2187,3 +2187,156 @@ async fn live_circuit_rechecked_after_awaited_cooldown_before_dispatch() {
         "engine dispatched after the circuit became open while pre-dispatch I/O awaited"
     );
 }
+
+struct ContextProbe {
+    seen: Mutex<Vec<(Instant, Instant)>>,
+    early: bool,
+}
+impl SearchEngine for ContextProbe {
+    fn search<'a>(&'a self, _: &'a SearchRequest) -> PortFuture<'a, AdapterResponse> {
+        panic!("context override must be used")
+    }
+    fn search_with_context<'a>(
+        &'a self,
+        _: &'a SearchRequest,
+        context: ssx_application::SearchContext,
+    ) -> PortFuture<'a, AdapterResponse> {
+        Box::pin(async move {
+            let deadline = Instant::from_std(context.deadline);
+            self.seen.lock().unwrap().push((Instant::now(), deadline));
+            if !self.early {
+                tokio::time::sleep_until(deadline).await;
+            }
+            AdapterResponse {
+                status: EngineStatus::Timeout,
+                latency_ms: FiniteF64::new(7.0).unwrap(),
+                ..Default::default()
+            }
+        })
+    }
+}
+
+#[tokio::test(start_paused = true)]
+async fn context_deadlines_preserve_service_binding_and_adapter_health_origins() {
+    // Service earlier, binding earlier, exact tie, and genuine early adapter Timeout.
+    for (service_ms, binding_ms, early, expected_status, observed) in [
+        (100, 200, false, EngineStatus::Unavailable, false),
+        (200, 100, false, EngineStatus::Timeout, false),
+        (100, 100, false, EngineStatus::Unavailable, false),
+        (100, 200, true, EngineStatus::Timeout, true),
+    ] {
+        let probe = Arc::new(ContextProbe {
+            seen: Mutex::new(vec![]),
+            early,
+        });
+        let mut deps = dependencies(vec![("brave", probe.clone())]);
+        deps.engines.get_mut("brave").unwrap().timeout = Duration::from_millis(binding_ms);
+        let sink = Arc::new(RecordingSink::default());
+        deps.metrics = sink.clone();
+        let service = SearchService::new(SearchConfig::default(), deps).unwrap();
+        let start = Instant::now();
+        let mut p = proposal("context origin");
+        p.request.interactive_timeout_ms = Some(service_ms);
+        let response = service.search(p).await.unwrap();
+        let seen = probe.seen.lock().unwrap().clone();
+        assert_eq!(seen.len(), 1);
+        assert_eq!(
+            seen[0].1,
+            start + Duration::from_millis(service_ms.min(binding_ms))
+        );
+        assert_eq!(
+            json!(response.engine_outcomes[0].status),
+            json!(expected_status)
+        );
+        assert_eq!(
+            response.deadline_exceeded,
+            !early && service_ms <= binding_ms
+        );
+        assert_eq!(
+            sink.0.lock().unwrap().contains(&"search_engine_observed"),
+            observed
+        );
+        let health = ssx_application::health::build_engine_health(
+            service.health().get("brave"),
+            None,
+            SystemSearchClock.capture().0,
+            300.0,
+        )
+        .unwrap();
+        assert_eq!(
+            health["last_observed_latency_ms"],
+            if observed { json!(7.0) } else { Value::Null }
+        );
+        assert_eq!(
+            health["circuit_consecutive_errors"],
+            json!(u64::from(expected_status == EngineStatus::Timeout))
+        );
+        service.shutdown().await;
+    }
+}
+
+#[tokio::test(start_paused = true)]
+async fn context_default_dispatches_legacy_once_and_queue_consumes_service_bound() {
+    let mut legacy = FixedEngine::new("brave");
+    legacy.delay = Duration::from_millis(40);
+    let legacy = Arc::new(legacy);
+    let probe = Arc::new(ContextProbe {
+        seen: Mutex::new(vec![]),
+        early: true,
+    });
+    let deps = dependencies(vec![
+        ("brave", legacy.clone()),
+        ("wikipedia", probe.clone()),
+    ]);
+    let service = SearchService::new(
+        SearchConfig {
+            max_parallel_engines: 1,
+            ..Default::default()
+        },
+        deps,
+    )
+    .unwrap();
+    let start = Instant::now();
+    let mut p = proposal("queue context");
+    p.request.interactive_timeout_ms = Some(100);
+    service.search(p).await.unwrap();
+    assert_eq!(legacy.calls.load(Ordering::SeqCst), 1);
+    let seen = probe.seen.lock().unwrap().clone();
+    assert_eq!(seen.len(), 1);
+    assert_eq!(seen[0].1, start + Duration::from_millis(100));
+    assert_eq!(seen[0].1 - seen[0].0, Duration::from_millis(60));
+    service.shutdown().await;
+}
+
+#[tokio::test(start_paused = true)]
+async fn context_full_service_deadline_retains_synthetic_timeout_health() {
+    let probe = Arc::new(ContextProbe {
+        seen: Mutex::new(vec![]),
+        early: false,
+    });
+    let mut deps = dependencies(vec![("brave", probe.clone())]);
+    deps.engines.get_mut("brave").unwrap().timeout = Duration::from_secs(10);
+    let sink = Arc::new(RecordingSink::default());
+    deps.metrics = sink.clone();
+    let service = SearchService::new(SearchConfig::default(), deps).unwrap();
+    let start = Instant::now();
+    let response = service.search(proposal("full context")).await.unwrap();
+    assert_eq!(
+        probe.seen.lock().unwrap()[0].1,
+        start + Duration::from_secs(10)
+    );
+    assert_eq!(response.engine_outcomes[0].status, "timeout");
+    assert!(!response.deadline_exceeded);
+    assert!(!sink.0.lock().unwrap().contains(&"search_engine_observed"));
+    let health = ssx_application::health::build_engine_health(
+        service.health().get("brave"),
+        None,
+        SystemSearchClock.capture().0,
+        300.0,
+    )
+    .unwrap();
+    assert_eq!(health["status"], json!("timeout"));
+    assert_eq!(health["last_observed_latency_ms"], Value::Null);
+    assert_eq!(health["circuit_consecutive_errors"], json!(1));
+    service.shutdown().await;
+}
