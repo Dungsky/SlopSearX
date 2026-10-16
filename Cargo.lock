@@ -2419,6 +2419,7 @@ dependencies = [
 name = "ssx-config"
 version = "0.1.0"
 dependencies = [
+ "indexmap",
  "serde",
  "serde-saphyr",
  "serde_json",
@@ -2479,9 +2480,11 @@ dependencies = [
  "ssx-application",
  "ssx-domain",
  "ssx-json",
+ "ssx-registry",
  "time",
  "tokio",
  "tokio-rustls",
+ "url",
 ]
 
 [[package]]
@@ -2534,6 +2537,8 @@ version = "0.1.0"
 dependencies = [
  "serde",
  "serde_json",
+ "ssx-application",
+ "ssx-domain",
 ]
 
 [[package]]
@@ -2543,8 +2548,11 @@ dependencies = [
  "clap",
  "serde_json",
  "ssx-application",
+ "ssx-config",
+ "ssx-domain",
  "ssx-http",
  "ssx-infra",
+ "ssx-registry",
  "tokio",
 ]
 

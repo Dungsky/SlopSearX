@@ -144,6 +144,9 @@ jobs:
       - name: Layered configuration and engine registry evidence
         run: cargo xtask check F06 --output target/rust-evidence/F06.json
 
+      - name: Shared policy, filters and scope evidence
+        run: cargo xtask check F09 --output target/rust-evidence/F09.json
+
       - name: Deterministic ranking, scholarly grouping and retrieval evidence
         run: cargo xtask check F11 --output target/rust-evidence/F11.json
 
@@ -159,6 +162,9 @@ jobs:
 
       - name: Native distributed quota cooldown and observed health evidence
         run: cargo xtask check F10 --output target/rust-evidence/F10.json
+
+      - name: Native npm and crates registry pilot adapters
+        run: cargo xtask check A01 --output target/rust-evidence/A01.json
 
       - name: Native readiness and Python bridge smoke
         env:
@@ -178,12 +184,14 @@ jobs:
             target/rust-evidence/T05.json
             target/rust-evidence/F05.json
             target/rust-evidence/F06.json
+            target/rust-evidence/F09.json
             target/rust-evidence/F07.json
             target/rust-evidence/W01.json
             target/rust-evidence/O03.json
             target/rust-evidence/F08.json
             target/rust-evidence/F10.json
             target/rust-evidence/F11.json
+            target/rust-evidence/A01.json
             target/rust-feature-graph.txt
           if-no-files-found: warn
 

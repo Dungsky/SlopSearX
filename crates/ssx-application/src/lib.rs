@@ -1,7 +1,25 @@
 //! Consumer-owned injection seams and pure deterministic search algorithms.
-use ssx_domain::{AdapterOutcome, StoreRead};
+use ssx_domain::{AdapterOutcome, AdapterResponse, SearchRequest, StoreRead};
 use std::{future::Future, pin::Pin, sync::Arc};
 pub type PortFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
+/// Application-owned search port implemented by concrete engine adapters.
+/// This executable port is distinct from `Engine`, which is only a foundation
+/// readiness probe and does not represent provider search behavior.
+pub trait SearchEngine: Send + Sync {
+    fn search<'a>(&'a self, request: &'a SearchRequest) -> PortFuture<'a, AdapterResponse>;
+}
+/// Application-owned pre-dispatch admission result, kept independent of Valkey.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AdmissionDecision {
+    Allowed,
+    Denied,
+    Unavailable,
+}
+/// Shared quota/cooldown authority injected into provider adapter factories.
+pub trait SearchAdmission: Send + Sync {
+    fn admit<'a>(&'a self, engine: &'static str) -> PortFuture<'a, AdmissionDecision>;
+}
+/// Foundation readiness probe only; never use this as the adapter search API.
 pub trait Engine: Send + Sync {
     fn probe(&self) -> PortFuture<'_, AdapterOutcome>;
 }
@@ -93,5 +111,9 @@ pub mod health;
 pub mod rate;
 pub mod research;
 pub mod retry_after;
+
+pub mod filters;
+pub mod policy;
+pub mod scope;
 
 pub mod oauth;
