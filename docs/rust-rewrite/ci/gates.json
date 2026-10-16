@@ -1699,6 +1699,10 @@
               "run": "cargo xtask check F05 --output target/rust-evidence/F05.json"
             },
             {
+              "name": "Deterministic ranking, scholarly grouping and retrieval evidence",
+              "run": "cargo xtask check F11 --output target/rust-evidence/F11.json"
+            },
+            {
               "name": "Native Valkey ownership and lifecycle evidence",
               "run": "cargo xtask check F07 --output target/rust-evidence/F07.json"
             },
@@ -1716,7 +1720,7 @@
               "with": {
                 "if-no-files-found": "warn",
                 "name": "rust-foundation-${{ matrix.target }}-${{ github.sha }}",
-                "path": "target/rust-evidence/F03.json\ntarget/rust-evidence/F04.json\ntarget/rust-evidence/F05.json\ntarget/rust-evidence/F07.json\ntarget/rust-feature-graph.txt\n"
+                "path": "target/rust-evidence/F03.json\ntarget/rust-evidence/F04.json\ntarget/rust-evidence/F05.json\ntarget/rust-evidence/F07.json\ntarget/rust-evidence/F11.json\ntarget/rust-feature-graph.txt\n"
               }
             }
           ],

@@ -132,6 +132,9 @@ jobs:
       - name: Typed records and stable serialization evidence
         run: cargo xtask check F05 --output target/rust-evidence/F05.json
 
+      - name: Deterministic ranking, scholarly grouping and retrieval evidence
+        run: cargo xtask check F11 --output target/rust-evidence/F11.json
+
       - name: Native Valkey ownership and lifecycle evidence
         run: cargo xtask check F07 --output target/rust-evidence/F07.json
 
@@ -150,6 +153,7 @@ jobs:
             target/rust-evidence/F04.json
             target/rust-evidence/F05.json
             target/rust-evidence/F07.json
+            target/rust-evidence/F11.json
             target/rust-feature-graph.txt
           if-no-files-found: warn
 

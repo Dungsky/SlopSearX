@@ -11,3 +11,6 @@ workspace = true
 
 [dependencies]
 ssx-domain.workspace = true
+ssx-json.workspace = true
+ssx-publication.workspace = true
+url.workspace = true
