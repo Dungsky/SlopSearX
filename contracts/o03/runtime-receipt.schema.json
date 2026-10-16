@@ -334,7 +334,7 @@
       "properties": {
         "git_commit": {
           "type": "string",
-          "pattern": "^[a-f0-9]{40,64}$"
+          "pattern": "^([a-f0-9]{40}|[a-f0-9]{64})$"
         },
         "dirty": {
           "const": false

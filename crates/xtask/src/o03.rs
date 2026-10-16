@@ -1,4 +1,5 @@
 //! O03 inventory and prospective contract validation. This check performs no experiment work.
+mod numeric;
 use crate::{Result, command};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
@@ -428,14 +429,7 @@ fn validate_source_receipt(value: Value) -> Result<()> {
         "source receipt plan id violates schema pattern",
     )?;
     ensure(
-        (40..=64).contains(&receipt.git_commit.len()),
-        "source Git commit malformed",
-    )?;
-    ensure(
-        receipt
-            .git_commit
-            .bytes()
-            .all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase()),
+        valid_git_commit(&receipt.git_commit),
         "source Git commit malformed",
     )?;
     ensure(!receipt.dirty, "source receipt must bind a clean tree")?;
@@ -450,14 +444,7 @@ fn validate_source_receipt(value: Value) -> Result<()> {
 
 fn validate_source_binding(source: &SourceBinding) -> Result<()> {
     ensure(
-        (40..=64).contains(&source.git_commit.len()),
-        "runtime source Git commit malformed",
-    )?;
-    ensure(
-        source
-            .git_commit
-            .bytes()
-            .all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase()),
+        valid_git_commit(&source.git_commit),
         "runtime source Git commit malformed",
     )?;
     ensure(
@@ -475,6 +462,13 @@ fn valid_plan_id(value: &str) -> bool {
     let mut bytes = value.bytes();
     bytes.next().is_some_and(|b| b.is_ascii_uppercase())
         && bytes.all(|b| b.is_ascii_uppercase() || b.is_ascii_digit() || b == b'-')
+}
+
+fn valid_git_commit(value: &str) -> bool {
+    matches!(value.len(), 40 | 64)
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase())
 }
 
 fn validate_runtime_receipt(value: Value) -> Result<()> {
@@ -732,7 +726,7 @@ fn validate_qualification_fixture(value: Value, root: &Path) -> Result<()> {
         serde_json::from_value(value).map_err(|e| format!("qualification receipt shape: {e}"))?;
     let runtime_path = root.join("crates/xtask/fixtures/o03/runtime-receipt.accepted.json");
     let runtime_bytes = fs::read(&runtime_path).map_err(|e| e.to_string())?;
-    let runtime: Value = serde_json::from_slice(&runtime_bytes).map_err(|e| e.to_string())?;
+    let runtime = numeric::receipt_value(&runtime_bytes)?;
     ensure(
         q.plan_id == runtime["plan_id"].as_str().unwrap_or_default(),
         "qualification plan does not match its runtime receipt",
@@ -889,7 +883,7 @@ fn validate_contract_fixtures(root: &Path, records: &mut Vec<Value>) -> Result<(
     let mut schema_cache = std::collections::BTreeMap::new();
     for (name, kind, expected_valid, expected_schema_valid) in cases {
         let path = root.join("crates/xtask/fixtures/o03").join(name);
-        let value: Value = serde_json::from_slice(
+        let value = numeric::receipt_value(
             &fs::read(&path).map_err(|e| format!("missing O03 fixture {}: {e}", path.display()))?,
         )
         .map_err(|e| format!("invalid O03 fixture {}: {e}", path.display()))?;
@@ -980,7 +974,10 @@ fn validate_schema_tree(schema: &Value, root: &Value, where_: &str) -> Result<()
         ensure(
             matches!(
                 pattern,
-                "^[A-Z][A-Z0-9-]*$" | "^[a-f0-9]{64}$" | "^[a-f0-9]{40}$" | "^[a-f0-9]{40,64}$"
+                "^[A-Z][A-Z0-9-]*$"
+                    | "^[a-f0-9]{64}$"
+                    | "^[a-f0-9]{40}$"
+                    | "^([a-f0-9]{40}|[a-f0-9]{64})$"
             ),
             &format!("{where_}: unsupported pattern {pattern}"),
         )?;
@@ -1159,12 +1156,7 @@ fn schema_pattern_matches(pattern: &str, value: &str) -> bool {
                     .bytes()
                     .all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase())
         }
-        "^[a-f0-9]{40,64}$" => {
-            (40..=64).contains(&value.len())
-                && value
-                    .bytes()
-                    .all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase())
-        }
+        "^([a-f0-9]{40}|[a-f0-9]{64})$" => valid_git_commit(value),
         _ => false,
     }
 }
@@ -1175,7 +1167,15 @@ fn schema_type_matches(kind: &str, value: &Value) -> bool {
         "array" => value.is_array(),
         "string" => value.is_string(),
         "boolean" => value.is_boolean(),
-        "integer" => value.as_i64().is_some() || value.as_u64().is_some(),
+        // Direct Value callers can assess only the represented value. Receipt
+        // ingress must use numeric::receipt_value first for lexical exactness.
+        "integer" => {
+            value.as_i64().is_some()
+                || value.as_u64().is_some()
+                || value
+                    .as_f64()
+                    .is_some_and(|n| n.is_finite() && n.fract() == 0.0)
+        }
         "number" => value.is_number(),
         _ => false,
     }
@@ -1545,6 +1545,91 @@ mod tests {
         let mut unsupported_type_form = impossible;
         unsupported_type_form["properties"]["binary"]["type"] = serde_json::json!(["object"]);
         assert!(validate_schema("test", &unsupported_type_form, &["binary"]).is_err());
+    }
+
+    #[test]
+    fn git_commit_ids_accept_only_sha1_or_sha256_lengths_in_schema_and_semantics() {
+        let pattern = "^([a-f0-9]{40}|[a-f0-9]{64})$";
+        let schema = serde_json::json!({
+            "type": "object",
+            "properties": {
+                "git_commit": {"type": "string", "pattern": pattern}
+            }
+        });
+        for length in [40, 64] {
+            let commit = "a".repeat(length);
+            let instance = serde_json::json!({"git_commit": commit});
+            assert!(valid_git_commit(&"a".repeat(length)));
+            assert!(validate_schema_instance(&schema, &instance, &schema, "receipt").is_ok());
+        }
+        for length in [39, 41, 50, 63, 65] {
+            let commit = "a".repeat(length);
+            let instance = serde_json::json!({"git_commit": commit});
+            assert!(!valid_git_commit(&"a".repeat(length)));
+            assert!(validate_schema_instance(&schema, &instance, &schema, "receipt").is_err());
+        }
+    }
+
+    #[test]
+    fn schema_integer_accepts_integral_decimal_representation() {
+        let value: Value = serde_json::from_str("1.0").unwrap();
+        assert!(schema_type_matches("integer", &value));
+    }
+
+    #[test]
+    fn receipt_ingress_accepts_decimal_and_exponent_spellings_before_typed_decode() {
+        fn spell(value: &Value, exponent: bool) -> String {
+            match value {
+                Value::Number(n) => format!("{n}{}", if exponent { "e0" } else { ".0" }),
+                Value::Array(a) => format!(
+                    "[{}]",
+                    a.iter()
+                        .map(|v| spell(v, exponent))
+                        .collect::<Vec<_>>()
+                        .join(",")
+                ),
+                Value::Object(o) => format!(
+                    "{{{}}}",
+                    o.iter()
+                        .map(|(k, v)| format!(
+                            "{}:{}",
+                            serde_json::to_string(k).unwrap(),
+                            spell(v, exponent)
+                        ))
+                        .collect::<Vec<_>>()
+                        .join(",")
+                ),
+                _ => serde_json::to_string(value).unwrap(),
+            }
+        }
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        for (file, schema, validate) in [
+            (
+                "source-receipt.valid.json",
+                "source-receipt.schema.json",
+                validate_source_receipt as fn(Value) -> Result<()>,
+            ),
+            (
+                "runtime-receipt.accepted.json",
+                "runtime-receipt.schema.json",
+                validate_runtime_receipt,
+            ),
+        ] {
+            let bytes = fs::read(root.join("crates/xtask/fixtures/o03").join(file)).unwrap();
+            let original: Value = serde_json::from_slice(&bytes).unwrap();
+            let schema: Value =
+                serde_json::from_slice(&fs::read(root.join("contracts/o03").join(schema)).unwrap())
+                    .unwrap();
+            for exponent in [false, true] {
+                let spelled = spell(&original, exponent);
+                let normalized = numeric::receipt_value(spelled.as_bytes()).unwrap();
+                assert_eq!(normalized, original);
+                validate_schema_instance(&schema, &normalized, &schema, "receipt").unwrap();
+                validate(normalized).unwrap();
+                // Normalization cannot substitute canonical bytes for exact receipt binding.
+                assert_ne!(sha256_hex(spelled.as_bytes()), sha256_hex(&bytes));
+            }
+        }
     }
 
     #[test]
