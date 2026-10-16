@@ -2,6 +2,7 @@
 mod a01;
 mod a02;
 mod a03;
+mod a04;
 mod date_amendment;
 mod f05;
 mod f06;
@@ -444,6 +445,7 @@ fn execute(root: &Path, id: &str, records: &mut Vec<Value>) -> Result<()> {
     }
     match id {
         "A01" => a01::check(root, records),
+        "A04" => a04::check(root, records),
         "A03" => a03::check(root, records),
         "A02" => a02::check(root, records),
         "O03" => o03::check(root, records),

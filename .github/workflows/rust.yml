@@ -186,6 +186,9 @@ jobs:
       - name: Native developer and community adapters
         run: cargo xtask check A03 --output target/rust-evidence/A03.json
 
+      - name: Native Brave, Wikipedia, and Reddit adapters
+        run: cargo xtask check A04 --output target/rust-evidence/A04.json
+
       - name: Native readiness and Python bridge smoke
         env:
           SSX_SERVER_BIN: target/${{ matrix.target }}/debug/ssx-server
@@ -219,6 +222,7 @@ jobs:
             target/rust-evidence/A01.json
             target/rust-evidence/A02.json
             target/rust-evidence/A03.json
+            target/rust-evidence/A04.json
             target/rust-feature-graph.txt
           if-no-files-found: warn
 

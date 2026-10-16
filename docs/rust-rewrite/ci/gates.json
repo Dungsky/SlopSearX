@@ -1775,6 +1775,10 @@
               "run": "cargo xtask check A03 --output target/rust-evidence/A03.json"
             },
             {
+              "name": "Native Brave, Wikipedia, and Reddit adapters",
+              "run": "cargo xtask check A04 --output target/rust-evidence/A04.json"
+            },
+            {
               "env": {
                 "SSX_SERVER_BIN": "target/${{ matrix.target }}/debug/ssx-server"
               },
@@ -1788,7 +1792,7 @@
               "with": {
                 "if-no-files-found": "warn",
                 "name": "rust-foundation-${{ matrix.target }}-${{ github.sha }}",
-                "path": "target/rust-evidence/F03.json\ntarget/rust-evidence/F04.json\ntarget/rust-evidence/T01.json\ntarget/rust-evidence/T04.json\ntarget/rust-evidence/T05.json\ntarget/rust-evidence/F05.json\ntarget/rust-evidence/F06.json\ntarget/rust-evidence/F09.json\ntarget/rust-evidence/F12.json\ntarget/rust-evidence/F07.json\ntarget/rust-evidence/W00.json\ntarget/rust-evidence/W01.json\ntarget/rust-evidence/O03.json\ntarget/rust-evidence/F08.json\ntarget/rust-evidence/F10.json\ntarget/rust-evidence/F11.json\ntarget/rust-evidence/F13.json\ntarget/rust-evidence/F14.json\ntarget/rust-evidence/T09.json\ntarget/rust-evidence/A01.json\ntarget/rust-evidence/A02.json\ntarget/rust-evidence/A03.json\ntarget/rust-feature-graph.txt\n"
+                "path": "target/rust-evidence/F03.json\ntarget/rust-evidence/F04.json\ntarget/rust-evidence/T01.json\ntarget/rust-evidence/T04.json\ntarget/rust-evidence/T05.json\ntarget/rust-evidence/F05.json\ntarget/rust-evidence/F06.json\ntarget/rust-evidence/F09.json\ntarget/rust-evidence/F12.json\ntarget/rust-evidence/F07.json\ntarget/rust-evidence/W00.json\ntarget/rust-evidence/W01.json\ntarget/rust-evidence/O03.json\ntarget/rust-evidence/F08.json\ntarget/rust-evidence/F10.json\ntarget/rust-evidence/F11.json\ntarget/rust-evidence/F13.json\ntarget/rust-evidence/F14.json\ntarget/rust-evidence/T09.json\ntarget/rust-evidence/A01.json\ntarget/rust-evidence/A02.json\ntarget/rust-evidence/A03.json\ntarget/rust-evidence/A04.json\ntarget/rust-feature-graph.txt\n"
               }
             }
           ],

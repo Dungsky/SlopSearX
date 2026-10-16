@@ -74,3 +74,17 @@ This is a deliberate cold ephemeral client quota transition, not a durable recor
 F14 composes canonical cache admission from actual execution outcomes: deadline-truncated evidence and downstream rerank fallback are skipped, while full fresh results survive oversized/failed optional writes. Source suggestion keys/1800s TTL stay literal; malformed typed suggestion data is a cache miss or provider fallback. New logical adapter generation/scope-order routing extensions cold the recomputable search cache without changing any durable snapshot/result IDs. [ADR 007](../../adr/007-native-shared-search-execution.md) records the lifecycle, local-calendar and malformed-Brave boundaries.
 
 PR874 date evidence is an additive optional closed field. Unbounded native serialization omits it, retaining accepted legacy fixture bytes; the new Python writer emits null, and both readers treat missing/null as no proof. Bounded legacy cache records miss until fresh retrieval supplies exact evidence. Current scope and request bounds remain authoritative over persisted scope/proof. Wrong provenance or malformed proof rejects optional storage without losing fresh complete results. Snapshot evidence carries a valid proof through the existing bounded codec; no identifiers or durable state keys change.
+
+## A04 subreddit cache identity integration
+
+`SearchRequest.subreddit = None` retains every existing `search:v2:<digest>` base
+key byte. Some(exact string), including empty, uses the disjoint base namespace
+`search:v2:subreddit:<sha256(JSON([legacy-base-key, exact-subreddit]))>`. The
+accepted `search:native:v1` composed key and singleflight bind this base key;
+validated dispatch retains the identical optional value. Explicit empty is
+separate from omission (`/r//search.json` versus `/r/all/search.json`). General
+categories may ignore subreddit at the provider but remain conservatively
+separated in cache identity. This is additive recomputable cache state, not a
+durable migration: old omitted-field caches remain valid, newly scoped entries
+start cold and expire normally, and snapshot/result identifiers stay unchanged.
+No public wire parameter or production rollout is introduced.
