@@ -4,6 +4,7 @@ mod f07;
 mod f08;
 mod f10;
 mod f11;
+mod o03;
 mod o06;
 mod replay;
 mod t01;
@@ -429,6 +430,7 @@ fn execute(root: &Path, id: &str, records: &mut Vec<Value>) -> Result<()> {
         return Err(format!("unknown plan id: {id}"));
     }
     match id {
+        "O03" => o03::check(root, records),
         "O06" => o06::check(root, records),
         "F01" | "F02" => source_check(root, id, records),
         "F04" => replay::check(root, records),
@@ -552,7 +554,11 @@ fn main() {
             }
         }
     }
-    let scope = if id == "O06" {
+    let scope = if id == "O03" {
+        "active tooling inventory and prospective evidence contracts only; no experiment, provider call, receipt issuance or historical evidence mutation"
+    } else if id == "T01" {
+        "synthetic MCP registry, real stdio/streamable HTTP/legacy SSE and gateway SDK qualification; no production tool parity or OAuth authorization-server claim"
+    } else if id == "O06" {
         "additive CI inventory, native helpers and protected review trust preparation; pending-owner mappings are not semantic parity or cutover evidence"
     } else {
         "foundation checks only; no feature parity certification"
