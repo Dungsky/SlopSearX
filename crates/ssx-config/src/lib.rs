@@ -81,6 +81,10 @@ impl Default for RankingConfig {
 pub struct RoutingConfig {
     pub enabled: bool,
     pub topics: Option<Value>,
+    /// Original named-topic insertion order; YAML aliases/merges are resolved first.
+    /// Not serialized as configuration or accepted from the YAML overlay.
+    #[serde(skip)]
+    pub named_topic_order: Vec<String>,
     pub fallback: Option<Value>,
     pub budget: Option<Value>,
 }
@@ -89,6 +93,7 @@ impl Default for RoutingConfig {
         Self {
             enabled: true,
             topics: None,
+            named_topic_order: Vec::new(),
             fallback: None,
             budget: None,
         }
@@ -361,7 +366,7 @@ fn load_config_entries(
     if path.exists() {
         let raw = fs::read_to_string(path)
             .map_err(|error| ConfigError(format!("config file: {error}")))?;
-        let parsed = yaml::parse(&raw)?;
+        let (parsed, named_topic_order) = yaml::parse_with_topic_order(&raw)?;
         if !parsed.is_null()
             && parsed != json!(false)
             && parsed != json!(0)
@@ -372,6 +377,7 @@ fn load_config_entries(
                 .as_object()
                 .ok_or_else(|| ConfigError("config root must be a mapping".into()))?;
             apply_file(&mut config, root)?;
+            config.routing.named_topic_order = named_topic_order;
         }
     }
     apply_environment(&mut config, env)?;

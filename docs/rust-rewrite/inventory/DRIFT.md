@@ -207,6 +207,15 @@ and browser namespace drain/relogin consequences are recorded in
 [the T09 parity ledger](../t09/PARITY.md). No G04/G07 cutover is authorized or
 claimed by this module; legacy audit retention and durable workflow idempotency
 remain required handoff obligations.
+## F09 temporary source oracle
+
+F09 adds one developer-only exporter for synthetic scope, policy, filter, date
+and named-topic ordering observations. This is backend-coupled migration tooling,
+not a client exception. Native F09 consumes pinned JSON and never executes Python.
+G08 retires the exporter before backend removal. The exact inventory becomes
+371 Python paths (122 runtime, 248 tooling/test, one client) and eight developer
+oracle invocation rows. Existing runtime and baseline hashes are unchanged.
+
 
 ## T04 isolated OAuth reference
 
@@ -227,3 +236,18 @@ original 61 plus fifteen integer drain-setting cases. Historical section counts
 above describe their original isolated additions; existing runtime/source and
 prior oracle bytes remain unchanged. T04 is accepted at `403dfd3720e969fa829f426136bf0f05b0360c56`;
 T09 acceptance and combined-source qualification remain separate.
+## F09 and T04 integration
+
+Both temporary oracles remain inventoried exactly once. The combined inventory
+contains 372 Python sources: 122 backend/runtime, 249 backend-coupled tooling/test
+and one client-only source. Historical isolated-addition counts above are retained.
+
+## Accepted F09, T04 and T09 integration
+
+The exact combined inventory has 373 Python source paths: 122 backend/runtime,
+250 backend-coupled tooling/test and one client-only, with ten developer-oracle
+invocations. F09, T04 and T09 temporary exporters remain inventoried once each;
+G08 retains executable retirement ownership. Historical isolated/earlier union
+counts above remain historical. All original runtime and source oracle bytes
+are unchanged. F09 is accepted at `6ae5e34fed19e8e9da7c19b95eeea894512f0e6d`;
+T09 remains in review and requires qualification against the combined source.
