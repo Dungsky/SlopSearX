@@ -2,7 +2,10 @@
 // Native final-input/errors=replace port of CPython 3.14.7
 // Objects/unicodeobject.c _PyUnicode_DecodeUnicodeEscapeInternal.
 // Native Unicode16 name/alias tables retain exact source lookup semantics.
-use crate::Text;
+use crate::{
+    Text,
+    bounded::{Error as OutputError, PointSink},
+};
 pub(crate) fn decode(bytes: &[u8]) -> Option<Text> {
     decode_mode(bytes, false)
 }
@@ -11,19 +14,29 @@ pub(crate) fn decode_strict(bytes: &[u8]) -> Option<Text> {
 }
 fn decode_mode(bytes: &[u8], strict: bool) -> Option<Text> {
     let mut out = Vec::with_capacity(bytes.len());
+    if !decode_into(bytes, strict, &mut out).expect("legacy Vec emission is infallible") {
+        return None;
+    }
+    Some(Text::from_codepoints(out).unwrap())
+}
+pub(crate) fn decode_into(
+    bytes: &[u8],
+    strict: bool,
+    out: &mut impl PointSink,
+) -> Result<bool, OutputError> {
     let mut cursor = 0;
     while cursor < bytes.len() {
         let first = bytes[cursor];
         cursor += 1;
         if first != b'\\' {
-            out.push(u32::from(first));
+            out.emit(u32::from(first))?;
             continue;
         }
         let Some(&marker) = bytes.get(cursor) else {
             if strict {
-                return None;
+                return Ok(false);
             }
-            out.push(0xfffd);
+            out.emit(0xfffd)?;
             break;
         };
         cursor += 1;
@@ -41,7 +54,7 @@ fn decode_mode(bytes: &[u8], strict: bool) -> Option<Text> {
             _ => None,
         };
         if let Some(point) = simple {
-            out.push(point);
+            out.emit(point)?;
             continue;
         }
         if marker == b'\n' {
@@ -57,7 +70,7 @@ fn decode_mode(bytes: &[u8], strict: bool) -> Option<Text> {
                     break;
                 }
             }
-            out.push(point);
+            out.emit(point)?;
             continue;
         }
         let digits = match marker {
@@ -67,9 +80,9 @@ fn decode_mode(bytes: &[u8], strict: bool) -> Option<Text> {
             b'N' => {
                 if bytes.get(cursor) != Some(&b'{') {
                     if strict {
-                        return None;
+                        return Ok(false);
                     }
-                    out.push(0xfffd);
+                    out.emit(0xfffd)?;
                     continue;
                 }
                 cursor += 1;
@@ -79,28 +92,29 @@ fn decode_mode(bytes: &[u8], strict: bool) -> Option<Text> {
                 }
                 if cursor == bytes.len() {
                     if strict {
-                        return None;
+                        return Ok(false);
                     }
-                    out.push(0xfffd);
+                    out.emit(0xfffd)?;
                     break;
                 }
                 if cursor == start {
                     if strict {
-                        return None;
+                        return Ok(false);
                     }
-                    out.push(0xfffd);
+                    out.emit(0xfffd)?;
                     continue;
                 }
                 let point = lookup_name(&bytes[start..cursor]);
                 cursor += 1;
                 if strict && point.is_none() {
-                    return None;
+                    return Ok(false);
                 }
-                out.push(point.unwrap_or(0xfffd));
+                out.emit(point.unwrap_or(0xfffd))?;
                 continue;
             }
             _ => {
-                out.extend([92, u32::from(marker)]);
+                out.emit(92)?;
+                out.emit(u32::from(marker))?;
                 continue;
             }
         };
@@ -115,15 +129,15 @@ fn decode_mode(bytes: &[u8], strict: bool) -> Option<Text> {
             cursor += 1;
         }
         if strict && (!valid || value > 0x10ffff) {
-            return None;
+            return Ok(false);
         }
-        out.push(if valid && value <= 0x10ffff {
+        out.emit(if valid && value <= 0x10ffff {
             value
         } else {
             0xfffd
-        });
+        })?;
     }
-    Some(Text::from_codepoints(out).unwrap())
+    Ok(true)
 }
 
 fn lookup_name(bytes: &[u8]) -> Option<u32> {
@@ -158,4 +172,61 @@ fn lookup_name(bytes: &[u8]) -> Option<u32> {
         })
         .ok()
         .map(|i| crate::unicode_names::NAMES[i].1)
+}
+
+#[cfg(test)]
+mod bounded_tests {
+    use super::*;
+    fn charged_decode(bytes: &[u8]) -> crate::BudgetText {
+        let budget = ssx_owned_budget::Budget::new((bytes.len() * 4).max(1)).unwrap();
+        let mut output = crate::BudgetTextBuilder::new(&budget, bytes.len()).unwrap();
+        assert_eq!(decode_into(bytes, false, &mut output), Ok(true));
+        let output = output.finish();
+        assert_eq!(budget.snapshot().unwrap().used, bytes.len() * 4);
+        output
+    }
+    #[test]
+    fn emission_failure_does_not_become_source_unicode_failure() {
+        let budget = ssx_owned_budget::Budget::new(1).unwrap();
+        let mut output = crate::BudgetTextBuilder::new(&budget, 0).unwrap();
+        assert_eq!(
+            decode_into(b"A\\N{INVALID}", true, &mut output),
+            Err(OutputError::OutputBound)
+        );
+        assert_eq!(decode_into(b"\\N{INVALID}", true, &mut output), Ok(false));
+    }
+    #[test]
+    fn complete_unicode_escape_source_vectors() {
+        let rows: serde_json::Value =
+            serde_json::from_str(include_str!("../tests/unicode-escape-source.json")).unwrap();
+        assert_eq!(rows.as_array().unwrap().len(), 340);
+        for row in rows.as_array().unwrap() {
+            let hex = row["input_hex"].as_str().unwrap();
+            let bytes = (0..hex.len())
+                .step_by(2)
+                .map(|i| u8::from_str_radix(&hex[i..i + 2], 16).unwrap())
+                .collect::<Vec<_>>();
+            let expected = row["expected_codepoints"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|p| u32::try_from(p.as_u64().unwrap()).unwrap())
+                .collect::<Vec<_>>();
+            assert_eq!(charged_decode(&bytes).codepoints(), expected, "{hex}");
+        }
+    }
+    #[test]
+    fn every_source_name_alias_sequence_case_and_range_control() {
+        let rows: Vec<(String, Vec<u32>)> =
+            serde_json::from_str(include_str!("../tests/unicode-name-source.json")).unwrap();
+        assert_eq!(rows.len(), 104357);
+        for (name, expected) in rows {
+            let body = format!("\\N{{{name}}}");
+            assert_eq!(
+                charged_decode(body.as_bytes()).codepoints(),
+                expected,
+                "name={name:?}"
+            );
+        }
+    }
 }

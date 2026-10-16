@@ -179,7 +179,7 @@ impl Error for XmlParseFailure {
 
 // No URL/public ID or context is read. The only write is to a non-null output
 // supplied by libxml2; failing loads never transfer ownership of an input.
-unsafe extern "C" fn refuse_external_resource(
+pub(crate) unsafe extern "C" fn refuse_external_resource(
   _context: *mut c_void,
   _url: *const c_char,
   _public_id: *const c_char,
@@ -791,7 +791,8 @@ impl Parser {
 }
 
 #[cfg(test)]
-static A05_REFUSALS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+pub(crate) static A05_REFUSALS: std::sync::atomic::AtomicUsize =
+  std::sync::atomic::AtomicUsize::new(0);
 
 #[cfg(test)]
 mod a05_policy_tests {

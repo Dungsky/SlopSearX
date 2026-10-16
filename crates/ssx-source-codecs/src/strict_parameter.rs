@@ -12,78 +12,15 @@ fn text(points: Vec<u32>) -> Text {
     Text::from_codepoints(points).expect("strict decoder checked Unicode range")
 }
 fn unicode(bytes: &[u8], name: &str) -> Option<Option<Text>> {
-    match name {
-        "utf-8" | "utf-8-sig" => {
-            let bytes = if name == "utf-8-sig" {
-                bytes.strip_prefix(&[0xef, 0xbb, 0xbf]).unwrap_or(bytes)
-            } else {
-                bytes
-            };
-            Some(std::str::from_utf8(bytes).ok().map(Text::from))
-        }
-        "utf-7" => Some(crate::utf7::decode_strict(bytes).map(text)),
-        "utf-16" | "utf-16-le" | "utf-16-be" => {
-            let (bytes, little) = if name == "utf-16" {
-                if let Some(rest) = bytes.strip_prefix(&[0xff, 0xfe]) {
-                    (rest, true)
-                } else if let Some(rest) = bytes.strip_prefix(&[0xfe, 0xff]) {
-                    (rest, false)
-                } else {
-                    (bytes, cfg!(target_endian = "little"))
-                }
-            } else {
-                (bytes, name == "utf-16-le")
-            };
-            if !bytes.len().is_multiple_of(2) {
-                return Some(None);
-            }
-            let units = bytes.as_chunks::<2>().0.iter().map(|b| {
-                if little {
-                    u16::from_le_bytes(*b)
-                } else {
-                    u16::from_be_bytes(*b)
-                }
-            });
-            let mut points = Vec::with_capacity(bytes.len());
-            for decoded in char::decode_utf16(units) {
-                match decoded {
-                    Ok(character) => points.push(u32::from(character)),
-                    Err(_) => return Some(None),
-                }
-            }
-            Some(Some(text(points)))
-        }
-        "utf-32" | "utf-32-le" | "utf-32-be" => {
-            let (bytes, little) = if name == "utf-32" {
-                if let Some(rest) = bytes.strip_prefix(&[0xff, 0xfe, 0, 0]) {
-                    (rest, true)
-                } else if let Some(rest) = bytes.strip_prefix(&[0, 0, 0xfe, 0xff]) {
-                    (rest, false)
-                } else {
-                    (bytes, cfg!(target_endian = "little"))
-                }
-            } else {
-                (bytes, name == "utf-32-le")
-            };
-            if !bytes.len().is_multiple_of(4) {
-                return Some(None);
-            }
-            let mut points = Vec::with_capacity(bytes.len() / 4);
-            for b in bytes.as_chunks::<4>().0 {
-                let c = if little {
-                    u32::from_le_bytes(*b)
-                } else {
-                    u32::from_be_bytes(*b)
-                };
-                if c > 0x10ffff || (0xd800..0xe000).contains(&c) {
-                    return Some(None);
-                }
-                points.push(c);
-            }
-            Some(Some(text(points)))
-        }
-        _ => None,
+    if name == "utf-7" {
+        return Some(crate::utf7::decode_strict(bytes).map(text));
     }
+    let mut points = Vec::new();
+    crate::bounded_parameter::unicode_into(bytes, name, &mut points).map(|result| {
+        result
+            .expect("legacy Vec output is infallible")
+            .then(|| text(points))
+    })
 }
 pub(crate) fn decode(bytes: &[u8], label: &str) -> Result<Option<Text>, ParameterError> {
     if label.contains('\0') {
@@ -243,11 +180,46 @@ mod tests {
         out
     }
     fn check_mode(
+        body: &[u8],
+        label: &str,
         actual: Result<Option<Text>, ParameterError>,
         mode: u8,
         points: Option<Vec<u32>>,
         context: &str,
     ) {
+        use crate::{BoundedParameterError, BoundedStrictAsciiOutcome};
+        let budget = ssx_owned_budget::Budget::new(1024 * 1024).unwrap();
+        let charged = crate::strict_parameter_ascii_bounded(body, label, &budget, &|| Ok(()));
+        match mode {
+            0 => assert!(
+                matches!(charged, Ok(BoundedStrictAsciiOutcome::UnicodeFailure)),
+                "charged {context}"
+            ),
+            1 => {
+                let expected = points.as_ref().expect("valid source points");
+                if expected.iter().all(|&p| p < 128) {
+                    let Ok(BoundedStrictAsciiOutcome::Ascii(output)) = charged else {
+                        panic!("charged ASCII {context}");
+                    };
+                    let expected: Vec<u8> = expected.iter().map(|&p| p as u8).collect();
+                    assert_eq!(output.as_str().as_bytes(), expected, "charged {context}");
+                } else {
+                    assert!(
+                        matches!(charged, Ok(BoundedStrictAsciiOutcome::NonAscii)),
+                        "charged NonAscii {context}"
+                    );
+                }
+            }
+            2 => assert!(
+                matches!(
+                    charged,
+                    Err(BoundedParameterError::RuntimeError("internal codec error"))
+                ),
+                "charged {context}"
+            ),
+            _ => panic!("invalid source mode"),
+        }
+        assert_eq!(budget.snapshot().unwrap().used, 0, "charged {context}");
         match mode {
             0 => assert_eq!(actual, Ok(None), "{context}"),
             1 => assert_eq!(
@@ -309,6 +281,8 @@ mod tests {
                 body.extend(pair.to_be_bytes());
                 body.extend(b"\x1b(B");
                 check_mode(
+                    &body,
+                    codec,
                     decode(&body, codec),
                     mode,
                     points,
@@ -341,6 +315,8 @@ mod tests {
             };
             let body = unhex(row["body_hex"].as_str().unwrap());
             check_mode(
+                &body,
+                row["codec"].as_str().unwrap(),
                 decode(&body, row["codec"].as_str().unwrap()),
                 mode,
                 points,
@@ -368,6 +344,8 @@ mod tests {
                 body.extend(pair.to_be_bytes());
                 body.extend(b"~}");
                 check_mode(
+                    &body,
+                    "hz",
                     decode(&body, "hz"),
                     mode,
                     (mode == 1).then(|| rows[i][usize::from(pair)].clone()),
@@ -533,6 +511,8 @@ mod tests {
                     None
                 };
                 check_mode(
+                    &body,
+                    codec,
                     decode(&body, codec),
                     mode,
                     expected,

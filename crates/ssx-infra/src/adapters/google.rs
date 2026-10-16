@@ -1,13 +1,13 @@
 //! Google HTML adapter. Provider HTML and source order are preserved, including
 //! source's permissive `http` prefix and position gaps after skipped nodes.
 use super::duckduckgo::{
-    ScrapeConfig, ScrapeRuntime, elapsed, headers, http_error, parse_document, python_form, select,
-    select_with_context, text,
+    ScrapeConfig, ScrapeRuntime, elapsed, headers, http_error, python_form, select,
+    select_with_context,
 };
 use crate::http::{AdapterHttp, Cancellation, Error as HttpError, Options, Request};
 use ssx_application::{AdmissionDecision, PortFuture, SearchAdmission, SearchEngine};
-use ssx_domain::{AdapterResponse, EngineStatus, SearchRequest, SearchResult};
-use std::{collections::HashSet, sync::Arc, time::Instant};
+use ssx_domain::{AdapterResponse, EngineStatus, SearchRequest};
+use std::{sync::Arc, time::Instant};
 
 #[derive(Clone, Debug)]
 pub struct GoogleConfig {
@@ -33,12 +33,14 @@ pub(super) struct GoogleAdapter {
     admission: Arc<dyn SearchAdmission>,
     config: GoogleConfig,
     runtime: ScrapeRuntime,
+    parser: Arc<crate::html::ParserPool>,
 }
 impl GoogleAdapter {
-    pub(super) fn new(
+    pub(super) fn with_parser(
         http: Arc<AdapterHttp>,
         admission: Arc<dyn SearchAdmission>,
         config: GoogleConfig,
+        parser: Arc<crate::html::ParserPool>,
     ) -> Self {
         let runtime = ScrapeRuntime::new(&config.scrape);
         Self {
@@ -46,7 +48,12 @@ impl GoogleAdapter {
             admission,
             config,
             runtime,
+            parser,
         }
+    }
+    #[cfg(test)]
+    pub(super) fn test_feedback(&self) -> Vec<bool> {
+        self.runtime.test_events()
     }
     async fn run(
         &self,
@@ -168,9 +175,12 @@ impl GoogleAdapter {
         if !(200..300).contains(&resp.status) {
             return response(EngineStatus::Error, vec![], Some(http_error(&resp)));
         }
-        let body = match super::duckduckgo::decode(&resp, deadline, operation.clone()).await {
+        let body = match super::duckduckgo::decode(&self.parser, resp, operation.clone()).await {
             Ok(body) => body,
-            Err(error) => return response(EngineStatus::Error, vec![], Some(error)),
+            Err(error) => {
+                let (status, message) = helper_failure(error);
+                return response(status, vec![], message);
+            }
         };
         if body.flags.google_challenge {
             self.runtime.feedback(proxy.as_deref(), false);
@@ -178,16 +188,25 @@ impl GoogleAdapter {
         }
         self.runtime.feedback(proxy.as_deref(), true);
         match parse(
+            &self.parser,
             &body.text,
             &self.config.max_results,
-            deadline,
             operation.clone(),
         )
         .await
         {
-            Ok(rows) => response(EngineStatus::Ok, rows, None),
-            Err(e) => response(EngineStatus::Error, vec![], Some(e)),
+            Ok(rows) => rows.into_adapter_response(elapsed(started)),
+            Err(e) => {
+                let (status, message) = helper_failure(e);
+                response(status, vec![], message)
+            }
         }
+    }
+}
+fn helper_failure(error: crate::html::OperationFailure) -> (EngineStatus, Option<String>) {
+    match error {
+        crate::html::OperationFailure::Deadline => (EngineStatus::Timeout, None),
+        error => (EngineStatus::Error, Some(error.to_string())),
     }
 }
 impl SearchEngine for GoogleAdapter {
@@ -202,58 +221,77 @@ impl SearchEngine for GoogleAdapter {
         Box::pin(self.run(r, Some(context)))
     }
 }
+pub(super) const GOOGLE_CHALLENGE: &[&str] = &[
+    "challenge",
+    "recaptcha",
+    "cf-browser-verification",
+    "unusual traffic",
+    "verify you're not a robot",
+    "g-recaptcha",
+];
 pub(super) fn challenge(raw: &ssx_source_codecs::Text) -> bool {
-    [
-        "challenge",
-        "recaptcha",
-        "cf-browser-verification",
-        "unusual traffic",
-        "verify you're not a robot",
-        "g-recaptcha",
-    ]
-    .iter()
-    .any(|s| raw.contains_ascii_lower(s))
+    GOOGLE_CHALLENGE.iter().any(|s| raw.contains_ascii_lower(s))
 }
 async fn parse(
-    raw: &ssx_source_codecs::Text,
+    parser: &crate::html::ParserPool,
+    raw: &ssx_source_codecs::BudgetText,
     max: &ssx_json::Value,
-    deadline: tokio::time::Instant,
     operation: Arc<crate::html_budget::Operation>,
-) -> Result<Vec<SearchResult>, String> {
-    let doc = parse_document(raw, deadline, operation).await?;
-    extract_tree(&doc, super::RowLimit::from_value(max))
+) -> Result<crate::html::ProducedHtmlBatch, crate::html::OperationFailure> {
+    parser
+        .project_rows_with_operation(
+            raw.codepoints(),
+            crate::html::row_wire::Layout::Google,
+            super::RowLimit::from_value(max),
+            "",
+            operation,
+        )
+        .await
 }
 pub(super) fn extract_tree(
     doc: &crate::html::Html,
     max: super::RowLimit,
-) -> Result<Vec<SearchResult>, String> {
-    let mut rows = vec![];
-    let mut seen = HashSet::new();
+    budget: &ssx_owned_budget::Budget,
+) -> Result<ssx_owned_budget::OwnedVec<crate::html::child_rows::Row>, crate::html::OperationFailure>
+{
+    use crate::html::{
+        OperationFailure as Failure,
+        child_rows::{Row, optional_text, owned},
+    };
+    let mut rows = ssx_owned_budget::OwnedVec::new(budget).map_err(|_| Failure::Resource)?;
+    // Keys borrow the affine tree. The sorted charged index owns no cloned URL
+    // strings or private hash-table backing; each insertion keeps old+new peak.
+    let mut seen =
+        ssx_owned_budget::OwnedVec::<&str>::new(budget).map_err(|_| Failure::Resource)?;
     for (i, node) in doc.select(&select("div.g")).enumerate() {
-        if max.reached(rows.len())? {
+        if max.reached(rows.len()).map_err(Failure::Parse)? {
             break;
         }
         let Some(link) = select_with_context(node, "a[href^='http']").next() else {
             continue;
         };
         let url = link.value().attr("href").unwrap_or("");
-        if url.is_empty() || !seen.insert(url.to_owned()) {
+        if url.is_empty() {
             continue;
         }
-        rows.push(SearchResult {
-            url: url.into(),
-            title: select_with_context(node, "h3")
-                .next()
-                .map(text)
-                .unwrap_or_default(),
-            content: select_with_context(node, "span.aCOpRe, div.VwiC3b, span.st")
-                .next()
-                .map(text)
-                .unwrap_or_default(),
-            engine: "google".into(),
-            position: (i + 1) as i64,
-            ..SearchResult::default()
-        });
+        let index = match seen.as_slice().binary_search(&url) {
+            Ok(_) => continue,
+            Err(index) => index,
+        };
+        seen.try_push(url).map_err(|_| Failure::Resource)?;
+        seen.as_mut_slice()[index..].rotate_right(1);
+        rows.try_push(Row {
+            url: owned(budget, url)?,
+            title: optional_text(budget, select_with_context(node, "h3").next())?,
+            content: optional_text(
+                budget,
+                select_with_context(node, "span.aCOpRe, div.VwiC3b, span.st").next(),
+            )?,
+            position: i64::try_from(i + 1).map_err(|_| Failure::Resource)?,
+            img_src: None,
+            media: None,
+        })
+        .map_err(|_| Failure::Resource)?;
     }
     Ok(rows)
 }

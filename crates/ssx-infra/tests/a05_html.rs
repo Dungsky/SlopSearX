@@ -32,11 +32,26 @@ impl Transport for Replay {
                 return Err(Error::Network);
             }
             let mut headers = reqwest::header::HeaderMap::new();
-            for (k, v) in ex["headers"].as_object().unwrap() {
-                headers.insert(
-                    reqwest::header::HeaderName::from_bytes(k.as_bytes()).unwrap(),
-                    v.as_str().unwrap().parse().unwrap(),
-                );
+            if let Some(pairs) = ex["headers"].as_array() {
+                for pair in pairs {
+                    headers.append(
+                        reqwest::header::HeaderName::from_bytes(
+                            pair[0].as_str().unwrap().as_bytes(),
+                        )
+                        .unwrap(),
+                        reqwest::header::HeaderValue::from_bytes(
+                            pair[1].as_str().unwrap().as_bytes(),
+                        )
+                        .unwrap(),
+                    );
+                }
+            } else {
+                for (k, v) in ex["headers"].as_object().unwrap() {
+                    headers.insert(
+                        reqwest::header::HeaderName::from_bytes(k.as_bytes()).unwrap(),
+                        v.as_str().unwrap().parse().unwrap(),
+                    );
+                }
             }
             Ok(Response {
                 status: ex["status"].as_u64().unwrap() as u16,
@@ -158,7 +173,7 @@ async fn run(case: &Value) {
         assert_eq!(actual, expected, "{id}: complete adapter-owned headers");
     }
     http.shutdown_and_wait().await;
-    println!("A05_CASE {id}");
+    println!("\nA05_CASE {id}");
 }
 #[tokio::test]
 async fn source_corpus_complete_outcomes_and_requests() {
@@ -218,6 +233,18 @@ async fn source_corpus_complete_outcomes_and_requests() {
         }
     }
     assert!(failures.is_empty(), "source mismatches: {failures:?}");
+}
+#[tokio::test]
+async fn source_charset_pipeline_complete_outcomes_and_requests() {
+    let corpus: Value = serde_json::from_str(include_str!(
+        "../../../docs/rust-rewrite/a05/http-charset-pipeline-source.json"
+    ))
+    .unwrap();
+    let cases = corpus["cases"].as_array().unwrap();
+    assert_eq!(cases.len(), 26);
+    for case in cases {
+        run(case).await;
+    }
 }
 struct Deny;
 impl SearchAdmission for Deny {
@@ -287,67 +314,7 @@ async fn reply(stream: &mut tokio::net::TcpStream, body: &str, cookie: bool) {
     stream.write_all(header.as_bytes()).await.unwrap();
     stream.write_all(body.as_bytes()).await.unwrap();
 }
-#[tokio::test]
-async fn loopback_cookie_isolation_bootstrap_fallback_and_exact_order() {
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let base = format!("http://{}", listener.local_addr().unwrap());
-    let seen = Arc::new(Mutex::new(vec![]));
-    let captured = seen.clone();
-    let server = tokio::spawn(async move {
-        let (mut warm, _) = listener.accept().await.unwrap();
-        assert!(read_request(&mut warm).await.starts_with("GET /warm"));
-        reply(&mut warm, "warm", false).await;
-        for i in 0..6 {
-            let (mut stream, _) = listener.accept().await.unwrap();
-            let request = read_request(&mut stream).await;
-            captured.lock().unwrap().push(request);
-            reply(&mut stream,match i%3 {0=>"<html/>",1=>"challenge",_=>"<table><tr><td><a class='result-link' href='/a'>A</a></td></tr><tr><td class='result-snippet'>S</td></tr></table>"},i%3==0).await;
-        }
-    });
-    let mut config = HtmlConfig::default();
-    config.duckduckgo.bootstrap_url = format!("{base}/home");
-    config.duckduckgo.base_url = format!("{base}/html");
-    config.duckduckgo.fallback_base_url = format!("{base}/lite");
-    let http = Arc::new(AdapterHttp::default());
-    warm(&http, &base).await;
-    let mut registry = Registry::builtins().unwrap();
-    register_html(
-        &mut registry,
-        http.clone(),
-        Arc::new(AllowAllAdmission),
-        config,
-    )
-    .unwrap();
-    let engine = registry.instantiate("duckduckgo").unwrap();
-    for _ in 0..2 {
-        let result = engine
-            .search(&SearchRequest {
-                query: "A B".into(),
-                ..SearchRequest::default()
-            })
-            .await;
-        assert_eq!(result.status, EngineStatus::Ok);
-        assert_eq!(result.results[0].url, "/a");
-        assert_eq!(result.results[0].content, "S");
-    }
-    server.await.unwrap();
-    let requests = seen.lock().unwrap().clone();
-    assert_eq!(requests.len(), 6);
-    for (i, r) in requests.iter().enumerate() {
-        assert!(r.starts_with(match i % 3 {
-            0 => "GET /home HTTP/1.1",
-            1 => "POST /html HTTP/1.1",
-            _ => "POST /lite HTTP/1.1",
-        }));
-        assert_eq!(r.to_lowercase().contains("cookie: local=yes"), i % 3 != 0);
-        if i % 3 != 0 {
-            assert!(r.ends_with("q=A+B"));
-            assert!(r.contains("sec-fetch-site: same-origin"));
-        }
-    }
-    drop(requests);
-    http.shutdown_and_wait().await;
-}
+
 #[tokio::test]
 async fn cancellation_during_bootstrap_sends_no_search_or_fallback() {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -655,7 +622,7 @@ fn blocked_helper_fixture(
     std::fs::write(
         &script,
         format!(
-            "#!/bin/sh\nprintf '%s' \"$$\" > '{}'\nexec /bin/sleep 30\n",
+            "#!/bin/sh\nprintf '%s\\n' \"$$\" > '{}'\nexec /bin/sleep 30\n",
             pid.display()
         ),
     )
@@ -666,25 +633,35 @@ fn blocked_helper_fixture(
     (directory, pid, pool)
 }
 #[cfg(unix)]
-async fn fixture_pid(path: &std::path::Path) -> String {
-    tokio::time::timeout(std::time::Duration::from_secs(2), async {
+async fn fixture_pid(path: &std::path::Path, pool: &ssx_infra::html::ParserPool) -> String {
+    let observed = tokio::time::timeout(std::time::Duration::from_secs(2), async {
         loop {
-            if let Ok(pid) = std::fs::read_to_string(path) {
-                if !pid.is_empty() {
-                    break pid;
-                }
+            if let Ok(pid) = std::fs::read_to_string(path)
+                && pid.ends_with('\n')
+                && pid.trim().parse::<u32>().is_ok_and(|value| value > 0)
+            {
+                break pid;
             }
             tokio::time::sleep(std::time::Duration::from_millis(5)).await;
         }
     })
-    .await
-    .unwrap()
+    .await;
+    match observed {
+        Ok(pid) => pid,
+        Err(error) => {
+            pool.shutdown()
+                .await
+                .expect("fixture timeout cleanup verifies reap");
+            panic!("complete owned PID missing at {path:?}: {error}");
+        }
+    }
 }
+
 #[cfg(unix)]
 fn assert_reaped(pid: &str) {
     assert!(
         !std::process::Command::new("/bin/kill")
-            .args(["-0", pid])
+            .args(["-0", pid.trim()])
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
             .status()
@@ -706,7 +683,7 @@ async fn helper_deadline_kills_and_reaps_before_releasing_slot() {
             )
             .await
     });
-    let pid = fixture_pid(&pid).await;
+    let pid = fixture_pid(&pid, &pool).await;
     let result = tokio::time::timeout(std::time::Duration::from_secs(2), task)
         .await
         .unwrap()
@@ -730,7 +707,7 @@ async fn helper_future_cancellation_kills_and_reaps_before_releasing_slot() {
             )
             .await
     });
-    let pid = fixture_pid(&pid).await;
+    let pid = fixture_pid(&pid, &pool).await;
     task.abort();
     let _ = task.await;
     tokio::time::timeout(std::time::Duration::from_secs(2), async {
@@ -757,7 +734,7 @@ async fn helper_shutdown_kills_and_reaps_and_closes_admission() {
             )
             .await
     });
-    let pid = fixture_pid(&pid).await;
+    let pid = fixture_pid(&pid, &pool).await;
     tokio::time::timeout(std::time::Duration::from_secs(2), pool.shutdown())
         .await
         .unwrap()
@@ -798,7 +775,7 @@ fn native_codec_helper_fixture(
     std::fs::write(
         &script,
         format!(
-            "#!/bin/sh\nprintf '%s' \"$$\" > '{}'\nexec '{}'\n",
+            "#!/bin/sh\nprintf '%s\\n' \"$$\" > '{}'\nexec '{}'\n",
             pid.display(),
             helper.display()
         ),
@@ -825,7 +802,7 @@ async fn stateful_codec_deadline_kills_reaps_and_releases_permit() {
             )
             .await
     });
-    let pid = fixture_pid(&pid).await;
+    let pid = fixture_pid(&pid, &pool).await;
     let result = tokio::time::timeout(std::time::Duration::from_secs(2), task)
         .await
         .unwrap()
@@ -863,7 +840,7 @@ async fn stateful_codec_cancellation_kills_reaps_and_releases_permit() {
             )
             .await
     });
-    let pid = fixture_pid(&pid).await;
+    let pid = fixture_pid(&pid, &pool).await;
     // Permit enough time for real helper admission/input delivery; no sleep
     // executable substitutes for the native stateful decoder in this fixture.
     tokio::time::sleep(std::time::Duration::from_millis(100)).await;
@@ -903,7 +880,7 @@ fn native_helper_rejects_noncanonical_frames() {
     for (name, bytes, diagnostic) in [
         (
             "version",
-            frame(2, 0, 0, &[]),
+            frame(5, 0, 0, &[]),
             "invalid HTML helper protocol version",
         ),
         ("operation", frame(1, 2, 0, &[]), "invalid helper operation"),

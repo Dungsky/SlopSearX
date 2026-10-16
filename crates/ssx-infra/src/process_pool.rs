@@ -186,11 +186,15 @@ impl ProcessPool {
     /// receiver cancellation until frame resources drop and cleanup is verified.
     /// The caller retains its original owner while consuming returned bytes.
     /// Unknown cleanup/panic permanently poisons admission and retains this lease.
-    pub async fn exchange_with_lease<L: Send + 'static>(
+    /// Payload storage is owned beside the lease through verified cleanup; the
+    /// IO writer only borrows its bytes. On verified disposal payload drops
+    /// before the lease. Audited backend owners must provide nonpanicking
+    /// AsRef/Drop; these generic bounds do not prove allocation accounting.
+    pub async fn exchange_with_lease<L: Send + 'static, P: AsRef<[u8]> + Send + Sync + 'static>(
         &self,
         deadline: Instant,
         header: Vec<u8>,
-        payload: Vec<u8>,
+        payload: P,
         bound: usize,
         lease: L,
     ) -> Result<Vec<u8>, ProcessError> {
@@ -216,7 +220,9 @@ impl ProcessPool {
                 completed: false,
                 cleanup_verified: false,
                 permit: Some(permit),
-                lease: Some(lease),
+                // Storage drops before caller accounting on verified cleanup.
+                // Unknown cleanup retains both via the existing Active guard.
+                lease: Some((payload, lease)),
             };
             let task = tokio::spawn(async move {
                 let mut active = active;
@@ -225,10 +231,10 @@ impl ProcessPool {
                     &inner,
                     &mut sender,
                     &mut shutdown,
+                    &active.lease.as_ref().expect("active request owner").0,
                     Request {
                         deadline,
                         header,
-                        payload,
                         bound,
                     },
                 )
@@ -258,19 +264,18 @@ impl ProcessPool {
 struct Request {
     deadline: Instant,
     header: Vec<u8>,
-    payload: Vec<u8>,
     bound: usize,
 }
-async fn run_worker(
+async fn run_worker<P: AsRef<[u8]> + Sync>(
     inner: &Inner,
     sender: &mut oneshot::Sender<Result<Vec<u8>, ProcessError>>,
     shutdown: &mut tokio::sync::watch::Receiver<bool>,
+    payload: &P,
     request: Request,
 ) -> Result<Vec<u8>, ProcessError> {
     let Request {
         deadline,
         header,
-        payload,
         bound,
     } = request;
     if sender.is_closed() {
@@ -311,7 +316,7 @@ async fn run_worker(
     let work = async {
         let write = async move {
             stdin.write_all(&header).await.map_err(io)?;
-            stdin.write_all(&payload).await.map_err(io)?;
+            stdin.write_all(payload.as_ref()).await.map_err(io)?;
             stdin.shutdown().await.map_err(io)?;
             drop(stdin);
             Ok::<(), ProcessError>(())
@@ -352,6 +357,15 @@ async fn run_worker(
     {
         let gate = inner.cleanup_gate.lock().unwrap().clone();
         if let Some(gate) = gate {
+            gate.observed_pid
+                .store(child.id().unwrap_or(0), std::sync::atomic::Ordering::SeqCst);
+            eprintln!(
+                "private cleanup phase: helper={} pid={:?} status={:?} result={:?}",
+                inner.helper.display(),
+                child.id(),
+                child.try_wait(),
+                result.as_ref().map(Vec::len)
+            );
             gate.entered.add_permits(1);
             gate.release.acquire().await.unwrap().forget();
         }
@@ -395,6 +409,7 @@ fn fail_cleanup(inner: &Inner) {
 struct CleanupGate {
     entered: Semaphore,
     release: Semaphore,
+    observed_pid: std::sync::atomic::AtomicU32,
 }
 
 #[cfg(test)]
@@ -450,54 +465,189 @@ mod cleanup_tests {
         );
     }
     #[cfg(unix)]
+    struct ChargedPayload {
+        bytes: ssx_owned_budget::OwnedVec<u8>,
+        dropped: Arc<std::sync::atomic::AtomicBool>,
+    }
+    #[cfg(unix)]
+    impl AsRef<[u8]> for ChargedPayload {
+        fn as_ref(&self) -> &[u8] {
+            self.bytes.as_slice()
+        }
+    }
+    #[cfg(unix)]
+    impl Drop for ChargedPayload {
+        fn drop(&mut self) {
+            self.dropped
+                .store(true, std::sync::atomic::Ordering::SeqCst);
+        }
+    }
+    #[cfg(unix)]
+    fn charged_payload() -> (
+        ChargedPayload,
+        ssx_owned_budget::Budget,
+        Arc<std::sync::atomic::AtomicBool>,
+    ) {
+        let budget = ssx_owned_budget::Budget::new(131072).unwrap();
+        let mut bytes = ssx_owned_budget::OwnedVec::with_capacity(&budget, 65536).unwrap();
+        bytes.try_extend_from_slice(&[7; 65536]).unwrap();
+        let dropped = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        (
+            ChargedPayload {
+                bytes,
+                dropped: dropped.clone(),
+            },
+            budget,
+            dropped,
+        )
+    }
+    #[cfg(unix)]
     fn fixture(body: &str) -> (PathBuf, PathBuf) {
-        use std::os::unix::fs::PermissionsExt;
-        let id = std::time::SystemTime::now()
+        let stamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
             .as_nanos();
-        let path = std::env::temp_dir().join(format!("a06-lease-{}-{id}", std::process::id()));
-        let pid = path.with_extension("pid");
-        std::fs::write(
-            &path,
-            format!("#!/bin/sh\necho $$ > '{}'\n{body}\n", pid.display()),
-        )
-        .unwrap();
-        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o700)).unwrap();
-        (path, pid)
+        fixture_at_stamp(body, stamp)
     }
     #[cfg(unix)]
-    async fn actual_pid(path: &PathBuf) -> String {
+    fn fixture_at_stamp(body: &str, stamp: u128) -> (PathBuf, PathBuf) {
+        use std::os::unix::fs::PermissionsExt;
+        static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+        for _ in 0..64 {
+            let sequence = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            let directory = std::env::temp_dir().join(format!(
+                "a06-lease-{}-{stamp}-{sequence}",
+                std::process::id()
+            ));
+            match std::fs::create_dir(&directory) {
+                Ok(()) => {}
+                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+                Err(error) => panic!("create private fixture directory: {error}"),
+            }
+            let path = directory.join("worker");
+            let pid = directory.join("worker.pid");
+            std::fs::write(
+                &path,
+                format!("#!/bin/sh\necho $$ > '{}'\n{body}\n", pid.display()),
+            )
+            .unwrap();
+            std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o700)).unwrap();
+            eprintln!(
+                "private fixture: helper={} pidfile={}",
+                path.display(),
+                pid.display()
+            );
+            return (path, pid);
+        }
+        panic!("private fixture directory collision limit");
+    }
+    #[cfg(unix)]
+    fn cleanup_fixture(path: PathBuf, pid: PathBuf) {
+        let directory = path.parent().unwrap().to_owned();
+        let _ = std::fs::remove_file(path.with_extension("ready"));
+        let _ = std::fs::remove_file(path);
+        let _ = std::fs::remove_file(pid);
+        let _ = std::fs::remove_dir(directory);
+    }
+    #[cfg(unix)]
+    #[test]
+    fn concurrent_fixtures_with_identical_clock_have_exclusive_identities() {
+        let threads = (0..16)
+            .map(|slot| {
+                std::thread::spawn(move || {
+                    let body = format!("#fixture-slot-{slot}");
+                    let (path, pid) = fixture_at_stamp(&body, 0);
+                    (path, pid, body)
+                })
+            })
+            .collect::<Vec<_>>();
+        let rows = threads
+            .into_iter()
+            .map(|thread| thread.join().unwrap())
+            .collect::<Vec<_>>();
+        let distinct = rows
+            .iter()
+            .map(|(path, _, _)| path)
+            .collect::<std::collections::HashSet<_>>();
+        assert_eq!(distinct.len(), 16);
+        for (path, pid, body) in rows {
+            let source = std::fs::read_to_string(&path).unwrap();
+            assert!(source.ends_with(&format!("{body}\n")));
+            assert!(source.contains(&format!("echo $$ > '{}'", pid.display())));
+            cleanup_fixture(path, pid);
+        }
+    }
+    #[cfg(unix)]
+    fn complete_pid_record(s: &str) -> Option<&str> {
+        let pid = s.trim();
+        (s.ends_with('\n') && pid.parse::<u32>().is_ok_and(|pid| pid > 0)).then_some(pid)
+    }
+    #[cfg(unix)]
+    #[test]
+    fn incomplete_pid_record_is_not_child_readiness() {
+        for raw in ["", "123", "0\n", "-1\n", "bad\n"] {
+            assert_eq!(complete_pid_record(raw), None);
+        }
+        assert_eq!(complete_pid_record("123\n"), Some("123"));
+    }
+    #[cfg(unix)]
+    async fn wait_pid_record(path: &PathBuf) -> Option<String> {
         tokio::time::timeout(std::time::Duration::from_secs(2), async {
             loop {
-                if let Ok(s) = std::fs::read_to_string(path) {
-                    break s.trim().to_owned();
+                if let Ok(s) = std::fs::read_to_string(path)
+                    && let Some(pid) = complete_pid_record(&s)
+                {
+                    break pid.to_owned();
                 }
                 tokio::time::sleep(std::time::Duration::from_millis(2)).await;
             }
         })
         .await
-        .unwrap()
+        .ok()
+    }
+    #[cfg(unix)]
+    async fn actual_pid(path: &PathBuf) -> String {
+        wait_pid_record(path)
+            .await
+            .expect("complete child PID record")
+    }
+    #[cfg(unix)]
+    async fn release_gate_and_shutdown(
+        pool: &ProcessPool,
+        gate: &CleanupGate,
+    ) -> Result<(), String> {
+        gate.release.add_permits(1);
+        tokio::time::timeout(std::time::Duration::from_secs(2), pool.shutdown())
+            .await
+            .map_err(|_| "test shutdown deadline".to_owned())?
+            .map_err(|error| format!("test shutdown: {error:?}"))
     }
     #[cfg(unix)]
     fn pid_gone(pid: &str) -> bool {
-        !std::process::Command::new("/bin/kill")
+        let observation = std::process::Command::new("/bin/kill")
             .args(["-0", pid])
-            .stderr(std::process::Stdio::null())
-            .status()
-            .unwrap()
-            .success()
+            .output()
+            .unwrap();
+        eprintln!(
+            "private PID probe: pid={pid} exit={:?} stderr={}",
+            observation.status.code(),
+            String::from_utf8_lossy(&observation.stderr)
+        );
+        !observation.status.success()
     }
     #[cfg(unix)]
     #[tokio::test]
     async fn cancelled_caller_lease_survives_blocked_cleanup_until_real_reap() {
-        let (path, pidfile) = fixture("exec /bin/sleep 30");
+        let (path, pidfile) =
+            fixture("IFS= read -r first; printf 'ready\\n' > \"$0.ready\"; while :; do :; done");
         let pool = ProcessPool::new(path.clone(), NonZeroUsize::new(1).unwrap()).unwrap();
         let gate = Arc::new(CleanupGate {
             entered: Semaphore::new(0),
             release: Semaphore::new(0),
+            observed_pid: std::sync::atomic::AtomicU32::new(0),
         });
         *pool.inner.cleanup_gate.lock().unwrap() = Some(gate.clone());
+        let (payload, payload_budget, payload_dropped) = charged_payload();
         let accounting = Arc::new(Semaphore::new(1));
         let lease = Arc::new(accounting.clone().acquire_owned().await.unwrap());
         let weak = Arc::downgrade(&lease);
@@ -506,34 +656,102 @@ mod cleanup_tests {
             worker
                 .exchange_with_lease(
                     Instant::now() + std::time::Duration::from_secs(10),
-                    vec![],
-                    vec![7; 65536],
+                    b"start\n".to_vec(),
+                    payload,
                     2,
                     lease,
                 )
                 .await
         });
-        let pid = actual_pid(&pidfile).await;
+        let Some(pid) = wait_pid_record(&pidfile).await else {
+            caller.abort();
+            let _ = caller.await;
+            let cleanup = release_gate_and_shutdown(&pool, &gate).await;
+            panic!("child PID readiness failed; cleanup={cleanup:?}");
+        };
+        let readyfile = path.with_extension("ready");
+        let ready = tokio::time::timeout(std::time::Duration::from_secs(2), async {
+            loop {
+                if std::fs::read(&readyfile).is_ok_and(|bytes| bytes == b"ready\n") {
+                    break;
+                }
+                tokio::task::yield_now().await;
+            }
+        })
+        .await;
+        if ready.is_err() {
+            caller.abort();
+            let _ = caller.await;
+            let cleanup = release_gate_and_shutdown(&pool, &gate).await;
+            panic!("child did not acknowledge consumed request header; cleanup={cleanup:?}");
+        }
         caller.abort();
         let _ = caller.await;
-        tokio::time::timeout(std::time::Duration::from_secs(2), gate.entered.acquire())
-            .await
-            .unwrap()
-            .unwrap()
-            .forget();
+        match tokio::time::timeout(std::time::Duration::from_secs(2), gate.entered.acquire()).await
+        {
+            Ok(Ok(permit)) => permit.forget(),
+            error => {
+                let cleanup = release_gate_and_shutdown(&pool, &gate).await;
+                panic!("cleanup gate entry failed: {error:?}; cleanup={cleanup:?}");
+            }
+        }
+        let held_payload = payload_budget.snapshot();
+        let held_drop = payload_dropped.load(std::sync::atomic::Ordering::SeqCst);
+        let observed_pid = gate.observed_pid.load(std::sync::atomic::Ordering::SeqCst);
         let blocked = accounting.clone().try_acquire_owned().is_err();
         let alive = !pid_gone(&pid);
         let slots = pool.available_slots();
-        gate.release.add_permits(1);
-        pool.shutdown().await.unwrap();
+        release_gate_and_shutdown(&pool, &gate).await.unwrap();
+        assert_eq!(held_payload.unwrap().used, 65536);
+        assert!(!held_drop);
+        assert_eq!(observed_pid, pid.parse::<u32>().unwrap());
+        assert_eq!(payload_budget.snapshot().unwrap().used, 0);
+        assert!(payload_dropped.load(std::sync::atomic::Ordering::SeqCst));
         assert!(blocked, "caller accounting reopened before cleanup");
         assert!(alive, "gate did not block actual live child cleanup");
         assert_eq!(slots, 0);
         assert_eq!(accounting.available_permits(), 1);
         assert!(weak.upgrade().is_none());
         assert!(pid_gone(&pid));
-        let _ = std::fs::remove_file(path);
-        let _ = std::fs::remove_file(pidfile);
+        cleanup_fixture(path, pidfile);
+    }
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn missing_request_readiness_releases_gate_before_bounded_shutdown() {
+        let (path, pidfile) = fixture("exec /bin/sleep 30");
+        let pool = ProcessPool::new(path.clone(), NonZeroUsize::new(1).unwrap()).unwrap();
+        let gate = Arc::new(CleanupGate {
+            entered: Semaphore::new(0),
+            release: Semaphore::new(0),
+            observed_pid: std::sync::atomic::AtomicU32::new(0),
+        });
+        *pool.inner.cleanup_gate.lock().unwrap() = Some(gate.clone());
+        let (payload, budget, dropped) = charged_payload();
+        let worker = pool.clone();
+        let caller = tokio::spawn(async move {
+            worker
+                .exchange_with_lease(
+                    Instant::now() + std::time::Duration::from_secs(10),
+                    vec![],
+                    payload,
+                    2,
+                    (),
+                )
+                .await
+        });
+        let pid = wait_pid_record(&pidfile).await;
+        let missing = !path.with_extension("ready").exists();
+        // Model the readiness-failure branch: release first, then bound drain.
+        // No assertion can leave a supervisor wedged behind this gate.
+        let cleanup = release_gate_and_shutdown(&pool, &gate).await;
+        let result = tokio::time::timeout(std::time::Duration::from_secs(2), caller).await;
+        assert!(missing);
+        cleanup.unwrap();
+        assert_eq!(result.unwrap().unwrap(), Err(ProcessError::Shutdown));
+        assert_eq!(budget.snapshot().unwrap().used, 0);
+        assert!(dropped.load(std::sync::atomic::Ordering::SeqCst));
+        assert!(pid_gone(&pid.expect("complete child PID before shutdown")));
+        cleanup_fixture(path, pidfile);
     }
     #[cfg(unix)]
     #[tokio::test]
@@ -547,13 +765,14 @@ mod cleanup_tests {
         {
             let (path, pidfile) = fixture(body);
             let pool = ProcessPool::new(path.clone(), NonZeroUsize::new(1).unwrap()).unwrap();
+            let (payload, payload_budget, payload_dropped) = charged_payload();
             let accounting = Arc::new(Semaphore::new(1));
             let lease = Arc::new(accounting.clone().acquire_owned().await.unwrap());
             let result = pool
                 .exchange_with_lease(
                     Instant::now() + std::time::Duration::from_secs(2),
                     vec![],
-                    vec![],
+                    payload,
                     2,
                     lease,
                 )
@@ -567,10 +786,11 @@ mod cleanup_tests {
                 }
             );
             pool.shutdown().await.unwrap();
+            assert_eq!(payload_budget.snapshot().unwrap().used, 0);
+            assert!(payload_dropped.load(std::sync::atomic::Ordering::SeqCst));
             assert_eq!(accounting.available_permits(), 1);
             assert!(pid_gone(&actual_pid(&pidfile).await));
-            let _ = std::fs::remove_file(path);
-            let _ = std::fs::remove_file(pidfile);
+            cleanup_fixture(path, pidfile);
         }
     }
     #[cfg(unix)]
@@ -582,8 +802,10 @@ mod cleanup_tests {
         let gate = Arc::new(CleanupGate {
             entered: Semaphore::new(0),
             release: Semaphore::new(0),
+            observed_pid: std::sync::atomic::AtomicU32::new(0),
         });
         *pool.inner.delivery_gate.lock().unwrap() = Some(gate.clone());
+        let (payload, payload_budget, payload_dropped) = charged_payload();
         let accounting = Arc::new(Semaphore::new(1));
         let lease = Arc::new(accounting.clone().acquire_owned().await.unwrap());
         let worker = pool.clone();
@@ -592,22 +814,104 @@ mod cleanup_tests {
                 .exchange_with_lease(
                     Instant::now() + std::time::Duration::from_secs(10),
                     vec![],
-                    vec![],
+                    payload,
                     2,
                     lease,
                 )
                 .await
         });
-        gate.entered.acquire().await.unwrap().forget();
+        match tokio::time::timeout(std::time::Duration::from_secs(2), gate.entered.acquire()).await
+        {
+            Ok(Ok(permit)) => permit.forget(),
+            error => {
+                caller.abort();
+                let _ = caller.await;
+                let cleanup = release_gate_and_shutdown(&pool, &gate).await;
+                panic!("delivery gate entry failed: {error:?}; cleanup={cleanup:?}");
+            }
+        }
         caller.abort();
         let _ = caller.await;
-        assert_eq!(accounting.available_permits(), 0);
-        gate.release.add_permits(1);
-        pool.shutdown().await.unwrap();
+        let held_admission = accounting.available_permits();
+        let held_payload = payload_budget.snapshot();
+        let held_drop = payload_dropped.load(std::sync::atomic::Ordering::SeqCst);
+        release_gate_and_shutdown(&pool, &gate).await.unwrap();
+        assert_eq!(held_admission, 0);
+        assert_eq!(held_payload.unwrap().used, 65536);
+        assert!(!held_drop);
+        assert_eq!(payload_budget.snapshot().unwrap().used, 0);
+        assert!(payload_dropped.load(std::sync::atomic::Ordering::SeqCst));
         assert_eq!(accounting.available_permits(), 1);
         assert!(pid_gone(&actual_pid(&pidfile).await));
-        let _ = std::fs::remove_file(path);
-        let _ = std::fs::remove_file(pidfile);
+        cleanup_fixture(path, pidfile);
+    }
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn charged_payload_survives_supervisor_panic_without_false_drain() {
+        let pool =
+            ProcessPool::new(PathBuf::from("unused"), NonZeroUsize::new(1).unwrap()).unwrap();
+        let (payload, budget, dropped) = charged_payload();
+        let active = Active {
+            inner: pool.inner.clone(),
+            completed: false,
+            cleanup_verified: false,
+            permit: Some(pool.inner.permits.clone().acquire_owned().await.unwrap()),
+            lease: Some((payload, ())),
+        };
+        {
+            let mut state = pool.inner.state.lock().unwrap();
+            state.active += 1;
+        }
+        let task = tokio::spawn(async move {
+            let _active = active;
+            panic!("injected charged-payload supervisor fault");
+        });
+        pool.inner.state.lock().unwrap().tasks.push(task);
+        assert_eq!(pool.shutdown().await, Err(ProcessError::Supervisor));
+        assert_eq!(pool.available_slots(), 0);
+        assert_eq!(budget.snapshot().unwrap().used, 65536);
+        assert!(!dropped.load(std::sync::atomic::Ordering::SeqCst));
+    }
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn charged_payload_releases_after_write_and_read_failures() {
+        for write_failure in [false, true] {
+            let (path, pidfile) = fixture(if write_failure {
+                "exec 0<&-; while :; do :; done"
+            } else {
+                "/bin/cat >/dev/null; printf x"
+            });
+            let pool = ProcessPool::new(path.clone(), NonZeroUsize::new(1).unwrap()).unwrap();
+            let (payload, budget, dropped) = charged_payload();
+            let header_budget = ssx_owned_budget::Budget::new(8 * 1024 * 1024).unwrap();
+            let header_charge = header_budget.reserve(4 * 1024 * 1024).unwrap();
+            let header = if write_failure {
+                vec![7; 4 * 1024 * 1024]
+            } else {
+                Vec::new()
+            };
+            let result = pool
+                .exchange_with_lease(
+                    Instant::now() + std::time::Duration::from_secs(5),
+                    header,
+                    payload,
+                    2,
+                    header_charge,
+                )
+                .await;
+            eprintln!("private pipe failure: write={write_failure} result={result:?}");
+            if write_failure {
+                assert!(matches!(result, Err(ProcessError::Io(_))));
+            } else {
+                assert_eq!(result, Err(ProcessError::Truncated));
+            }
+            pool.shutdown().await.unwrap();
+            assert_eq!(budget.snapshot().unwrap().used, 0);
+            assert_eq!(header_budget.snapshot().unwrap().used, 0);
+            assert!(dropped.load(std::sync::atomic::Ordering::SeqCst));
+            assert!(pid_gone(&actual_pid(&pidfile).await));
+            cleanup_fixture(path, pidfile);
+        }
     }
     #[cfg(unix)]
     #[tokio::test]
@@ -618,6 +922,7 @@ mod cleanup_tests {
         pool.inner
             .cleanup_error
             .store(true, std::sync::atomic::Ordering::SeqCst);
+        let (payload, payload_budget, payload_dropped) = charged_payload();
         let accounting = Arc::new(Semaphore::new(1));
         let lease = Arc::new(accounting.clone().acquire_owned().await.unwrap());
         let weak = Arc::downgrade(&lease);
@@ -627,7 +932,7 @@ mod cleanup_tests {
                 .exchange_with_lease(
                     Instant::now() + std::time::Duration::from_secs(10),
                     vec![],
-                    vec![],
+                    payload,
                     2,
                     lease,
                 )
@@ -637,13 +942,14 @@ mod cleanup_tests {
         assert_eq!(caller.await.unwrap(), Err(ProcessError::CleanupUnverified));
         assert_eq!(pool.shutdown().await, Err(ProcessError::CleanupUnverified));
         assert_eq!(pool.available_slots(), 0);
+        assert_eq!(payload_budget.snapshot().unwrap().used, 65536);
+        assert!(!payload_dropped.load(std::sync::atomic::Ordering::SeqCst));
         assert_eq!(accounting.available_permits(), 0);
         assert!(weak.upgrade().is_some());
         assert!(
             pid_gone(&pid),
             "injected uncertainty follows actual successful reap"
         );
-        let _ = std::fs::remove_file(path);
-        let _ = std::fs::remove_file(pidfile);
+        cleanup_fixture(path, pidfile);
     }
 }

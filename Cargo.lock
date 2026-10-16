@@ -1370,6 +1370,7 @@ dependencies = [
  "libc",
  "pkg-config",
  "sha2",
+ "ssx-owned-budget",
  "vcpkg",
 ]
 
@@ -2538,6 +2539,7 @@ dependencies = [
  "serde_json",
  "sha2",
  "ssx-json",
+ "ssx-owned-budget",
  "url",
 ]
 

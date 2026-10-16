@@ -9,6 +9,16 @@
 pub mod bindings;
 mod c_helpers;
 
+/// Default-off dedicated-child allocation candidate; not adapter activation.
+#[cfg(feature = "owned-budget-child")]
+pub mod budgeted;
+
+/// Affine, immutable HTML tree candidate; default off, no adapter activation.
+#[cfg(feature = "owned-budget-child")]
+pub mod readonly_html;
+
+pub(crate) static PARSER_INITIALIZED: std::sync::Mutex<bool> = std::sync::Mutex::new(false);
+
 /// XML and HTML parsing
 pub mod parser;
 
@@ -37,7 +47,7 @@ pub mod reader;
 pub mod io;
 
 /// Ensure libxml2's global parser state is initialised. Safe to call from
-/// any number of threads — internally guarded by `std::sync::Once` so the
+/// any number of threads — internally guarded by one initialization mutex so the
 /// underlying `xmlInitParser()` runs exactly once. The crate's entry points
 /// (`Parser`, `Document::new`, `SchemaParserContext`, `TextReader::from_file`,
 /// `xpath::is_well_formed_xpath`, `io` registration) call it themselves; call it
@@ -46,9 +56,13 @@ pub mod io;
 /// See libxml2's own thread-safety guidance:
 /// <https://dev.w3.org/XInclude-Test-Suite/libxml2-2.4.24/doc/threads.html>
 pub fn init_parser() {
-  use std::sync::Once;
-  static INIT: Once = Once::new();
-  INIT.call_once(|| unsafe {
-    bindings::xmlInitParser();
-  });
+  // Same gate as optional dedicated-child allocator installation. Legacy safe
+  // entry points cannot initialize C concurrently with callback replacement.
+  let mut initialized = PARSER_INITIALIZED.lock().unwrap_or_else(|e| e.into_inner());
+  if !*initialized {
+    *initialized = true;
+    unsafe {
+      bindings::xmlInitParser();
+    }
+  }
 }

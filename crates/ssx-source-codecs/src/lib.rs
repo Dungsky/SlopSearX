@@ -2,10 +2,12 @@
 mod alias_only;
 mod aliases;
 mod bounded;
+mod bounded_http;
 pub use bounded::{
     BoundedStrictAsciiOutcome, BudgetAscii, BudgetText, BudgetTextBuilder,
     Error as BoundedTextError,
 };
+pub use bounded_http::{BoundedDecodeError, decode_http_bounded};
 mod doublebyte;
 mod gb18030_ranges;
 mod hz;
@@ -85,7 +87,7 @@ mod unicode_escape;
 mod unicode_name_ranges;
 mod unicode_names;
 mod utf7;
-pub use text::Text;
+pub use text::{Text, contains_ascii_lower_with_scratch};
 /// Native source codec registry. None denotes an internal registry omission,
 /// never a runtime fallback to another backend.
 /// Empty bodies short-circuit before registry rejection, matching HTTPX.
@@ -182,3 +184,8 @@ pub fn strict_idna_parameter(bytes: &[u8]) -> Result<StrictAsciiOutcome, Paramet
         )),
     }
 }
+
+mod bounded_parameter;
+pub use bounded_parameter::{
+    BoundedParameterError, lookup_http_encoding_bounded, strict_parameter_ascii_bounded,
+};

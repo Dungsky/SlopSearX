@@ -16,7 +16,7 @@ impl Layout {
             Self::Google => 3,
         }
     }
-    fn from_tag(tag: u8) -> Result<Self, Error> {
+    pub(super) fn from_tag(tag: u8) -> Result<Self, Error> {
         match tag {
             0 => Ok(Self::DdgHtml),
             1 => Ok(Self::DdgLite),
@@ -53,6 +53,7 @@ pub struct Row<'a> {
 // frame allowance must be smaller when other allocations overlap.
 pub const MAX_FRAME_BYTES: usize = 256 * 1024 * 1024;
 const HEADER: usize = 15;
+#[cfg(test)]
 const MIN_ROW: usize = 33;
 fn valid_flags(layout: Layout, fallback: bool, image: bool) -> Result<(), Error> {
     if layout != Layout::DdgImage && (fallback || image) {
@@ -61,6 +62,7 @@ fn valid_flags(layout: Layout, fallback: bool, image: bool) -> Result<(), Error>
         Ok(())
     }
 }
+#[cfg(test)]
 pub fn encoded_size(
     layout: Layout,
     rows: &[Row<'_>],
@@ -96,6 +98,7 @@ pub fn encoded_size(
     Ok(size)
 }
 /// Caller precharges the exact destination; this function allocates nothing.
+#[cfg(test)]
 pub fn encode(
     layout: Layout,
     rows: &[Row<'_>],
@@ -140,10 +143,46 @@ pub fn encode(
     }
     check()
 }
+/// Stream an already-owned row batch without creating a second frame buffer.
+/// Checked sizing completes before any bytes are published.
+#[cfg(test)]
+pub fn write(
+    layout: Layout,
+    rows: &[Row<'_>],
+    writer: &mut impl std::io::Write,
+) -> std::io::Result<()> {
+    let size = encoded_size(layout, rows, || Ok(()))
+        .map_err(|error| std::io::Error::other(format!("{error:?}")))?;
+    writer.write_all(&(size as u64).to_be_bytes())?;
+    writer.write_all(b"A05R\x02\x02")?;
+    writer.write_all(&[layout.tag()])?;
+    writer.write_all(&(rows.len() as u64).to_be_bytes())?;
+    for row in rows {
+        writer.write_all(&row.position.to_be_bytes())?;
+        writer.write_all(&[
+            u8::from(row.query_title_fallback) | (u8::from(row.img_src.is_some()) << 1)
+        ])?;
+        for field in [
+            Some(row.url),
+            Some(row.title),
+            Some(row.content),
+            row.img_src,
+        ]
+        .into_iter()
+        .flatten()
+        {
+            writer.write_all(&(field.len() as u64).to_be_bytes())?;
+            writer.write_all(field.as_bytes())?;
+        }
+    }
+    writer.flush()
+}
+#[cfg(test)]
 struct Cursor<'a> {
     bytes: &'a [u8],
     at: usize,
 }
+#[cfg(test)]
 impl<'a> Cursor<'a> {
     fn take(&mut self, length: usize) -> Result<&'a [u8], Error> {
         let end = self.at.checked_add(length).ok_or(Error::Overflow)?;
@@ -195,11 +234,13 @@ impl<'a> Cursor<'a> {
 }
 /// Construction validates the entire immutable frame before any row is exposed.
 /// Expected layout comes from the trusted parent operation, never the response.
+#[cfg(test)]
 pub struct Rows<'a> {
     bytes: &'a [u8],
     count: usize,
     layout: Layout,
 }
+#[cfg(test)]
 impl<'a> Rows<'a> {
     pub fn validate(
         bytes: &'a [u8],
@@ -274,6 +315,14 @@ mod tests {
         let mut frame = vec![0; encoded_size(Layout::DdgImage, &rows, || Ok(())).unwrap()];
         encode(Layout::DdgImage, &rows, &mut frame, || Ok(())).unwrap();
         frame
+    }
+    #[test]
+    fn streaming_legacy_rows_are_byte_identical_to_checked_buffer_encoder() {
+        let expected = frame();
+        let mut streamed = Vec::new();
+        write(Layout::DdgImage, &[row()], &mut streamed).unwrap();
+        assert_eq!(&streamed[..8], &(expected.len() as u64).to_be_bytes());
+        assert_eq!(&streamed[8..], expected);
     }
     #[test]
     fn complete_rows_roundtrip_preserves_raw_fields_and_explicit_fallback() {
@@ -452,4 +501,107 @@ mod tests {
         data[24..32].copy_from_slice(&(MAX_FRAME_BYTES as u64 + 1).to_be_bytes());
         assert!(Rows::validate(&data, Layout::DdgImage, || Ok(())).is_err());
     }
+}
+
+/// Version3 carries the child's already source-sanitized image media fields.
+/// Raw result URL and img_src stay separate and unchanged.
+#[derive(Clone, Copy)]
+pub struct ImageMedia<'a> {
+    pub url: Option<&'a str>,
+    pub thumbnail: Option<&'a str>,
+    pub source: Option<&'a str>,
+}
+#[derive(Clone, Copy)]
+pub struct ExtendedRow<'a> {
+    pub base: Row<'a>,
+    pub media: Option<ImageMedia<'a>>,
+}
+pub fn extended_size(layout: Layout, rows: &[ExtendedRow<'_>]) -> Result<usize, Error> {
+    let mut size = HEADER;
+    for row in rows {
+        valid_flags(
+            layout,
+            row.base.query_title_fallback,
+            row.base.img_src.is_some(),
+        )?;
+        if row.media.is_some() && (layout != Layout::DdgImage || row.base.img_src.is_none()) {
+            return Err(Error::Flags);
+        }
+        size = size.checked_add(9).ok_or(Error::Overflow)?;
+        for field in [
+            Some(row.base.url),
+            Some(row.base.title),
+            Some(row.base.content),
+            row.base.img_src,
+        ]
+        .into_iter()
+        .flatten()
+        {
+            size = size
+                .checked_add(8)
+                .and_then(|n| n.checked_add(field.len()))
+                .ok_or(Error::Overflow)?;
+        }
+        if let Some(media) = row.media {
+            size = size.checked_add(1).ok_or(Error::Overflow)?;
+            for field in [media.url, media.thumbnail, media.source]
+                .into_iter()
+                .flatten()
+            {
+                size = size
+                    .checked_add(8)
+                    .and_then(|n| n.checked_add(field.len()))
+                    .ok_or(Error::Overflow)?;
+            }
+        }
+        if size > MAX_FRAME_BYTES {
+            return Err(Error::Size);
+        }
+    }
+    Ok(size)
+}
+pub fn write_extended(
+    layout: Layout,
+    rows: &[ExtendedRow<'_>],
+    writer: &mut impl std::io::Write,
+) -> std::io::Result<()> {
+    let size =
+        extended_size(layout, rows).map_err(|error| std::io::Error::other(format!("{error:?}")))?;
+    writer.write_all(&(size as u64).to_be_bytes())?;
+    writer.write_all(b"A05R\x03\x02")?;
+    writer.write_all(&[layout.tag()])?;
+    writer.write_all(&(rows.len() as u64).to_be_bytes())?;
+    fn field(writer: &mut impl std::io::Write, value: &str) -> std::io::Result<()> {
+        writer.write_all(&(value.len() as u64).to_be_bytes())?;
+        writer.write_all(value.as_bytes())
+    }
+    for row in rows {
+        writer.write_all(&row.base.position.to_be_bytes())?;
+        writer.write_all(&[u8::from(row.base.query_title_fallback)
+            | (u8::from(row.base.img_src.is_some()) << 1)
+            | (u8::from(row.media.is_some()) << 2)])?;
+        for value in [
+            Some(row.base.url),
+            Some(row.base.title),
+            Some(row.base.content),
+            row.base.img_src,
+        ]
+        .into_iter()
+        .flatten()
+        {
+            field(writer, value)?;
+        }
+        if let Some(media) = row.media {
+            writer.write_all(&[u8::from(media.url.is_some())
+                | (u8::from(media.thumbnail.is_some()) << 1)
+                | (u8::from(media.source.is_some()) << 2)])?;
+            for value in [media.url, media.thumbnail, media.source]
+                .into_iter()
+                .flatten()
+            {
+                field(writer, value)?;
+            }
+        }
+    }
+    writer.flush()
 }

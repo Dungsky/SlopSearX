@@ -40,6 +40,7 @@ license = "MIT"
 repository = "https://github.com/KWARC/rust-libxml"
 
 [features]
+owned-budget-child = ["dep:ssx-owned-budget"]
 default = ["runtime"]
 runtime = ["bindgen/runtime"]
 static = ["bindgen/static"]
@@ -168,3 +169,7 @@ version = "0.3.2"
 
 [build-dependencies.sha2]
 version = "=0.11.1"
+
+[dependencies.ssx-owned-budget]
+path = "../../crates/ssx-owned-budget"
+optional = true

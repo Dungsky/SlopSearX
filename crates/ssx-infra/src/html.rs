@@ -3,9 +3,84 @@
 use crate::process_pool::{ProcessError, ProcessPool};
 use serde::{Deserialize, Serialize};
 use ssx_source_codecs::Text;
-use std::{collections::BTreeMap, path::PathBuf, sync::OnceLock};
+use std::{path::PathBuf, sync::OnceLock};
 use tokio::time::Instant;
 
+/// Operation-facing errors preserve execution/resource origin without matching
+/// diagnostic strings. Legacy public parser APIs retain String compatibility.
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) enum OperationFailure {
+    Deadline,
+    Resource,
+    Cancelled,
+    Shutdown,
+    Invariant(&'static str),
+    Codec(&'static str),
+    Selector(SelectorFailure),
+    Parse(&'static str),
+    Failure(String),
+}
+impl std::fmt::Display for OperationFailure {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Deadline => f.write_str("HTML parser deadline exceeded"),
+            Self::Resource => f.write_str(crate::html_budget::RESOURCE_ERROR),
+            Self::Cancelled => f.write_str("HTML parser cancelled"),
+            Self::Shutdown => f.write_str("HTML parser shutdown"),
+            Self::Invariant(message) | Self::Codec(message) | Self::Parse(message) => {
+                f.write_str(message)
+            }
+            Self::Failure(message) => f.write_str(message),
+            Self::Selector(error) => std::fmt::Display::fmt(error, f),
+        }
+    }
+}
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) enum SelectorFailure {
+    NullCharacter,
+    RuntimeCodec,
+    OverflowCodec,
+    IntegerLimit(usize),
+}
+impl std::fmt::Display for SelectorFailure {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::NullCharacter => f.write_str("embedded null character"),
+            Self::RuntimeCodec => f.write_str("internal codec error"),
+            Self::OverflowCodec => f.write_str("Python int too large to convert to C ssize_t"),
+            Self::IntegerLimit(digits) => write!(
+                f,
+                "Exceeds the limit (4300 digits) for integer string conversion: value has {digits} digits; use sys.set_int_max_str_digits() to increase the limit"
+            ),
+        }
+    }
+}
+impl From<String> for OperationFailure {
+    fn from(message: String) -> Self {
+        Self::Failure(message)
+    }
+}
+impl From<&str> for OperationFailure {
+    fn from(message: &str) -> Self {
+        Self::Failure(message.into())
+    }
+}
+impl From<ProcessError> for OperationFailure {
+    fn from(error: ProcessError) -> Self {
+        match error {
+            ProcessError::Deadline => Self::Deadline,
+            ProcessError::Allocation => Self::Resource,
+            ProcessError::CleanupUnverified => {
+                Self::Invariant("HTML helper process failure: CleanupUnverified")
+            }
+            ProcessError::Supervisor => Self::Invariant("HTML helper process failure: Supervisor"),
+            ProcessError::OutputBound => Self::Resource,
+            ProcessError::Cancelled => Self::Cancelled,
+            ProcessError::Shutdown => Self::Shutdown,
+            other => Self::Failure(process_error(other)),
+        }
+    }
+}
 // F08 admits 32MiB decoded bytes. Every applicable source codec's scalar output
 // requires at most four UTF8 bytes per input byte (family proof remains a gate).
 const MAX_POINTS: usize = 32 * 1024 * 1024;
@@ -45,14 +120,24 @@ struct WorkerFailure {
     stage: WorkerStage,
     message: String,
 }
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Html {
     nodes: Vec<Node>,
+    // Declaration order releases every owned tree allocation before its charge.
+    #[serde(skip)]
+    charge: Option<TreeCharge>,
 }
-#[derive(Clone, Debug, Serialize, Deserialize)]
+struct TreeCharge(ssx_owned_budget::Charge);
+impl std::fmt::Debug for TreeCharge {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("TreeCharge").field(&self.0.bytes()).finish()
+    }
+}
+#[derive(Debug, Serialize, Deserialize)]
 struct Node {
     name: String,
-    attrs: BTreeMap<String, String>,
+    #[serde(with = "attribute_map")]
+    attrs: Vec<(String, String)>,
     text: String,
     parent: Option<usize>,
     children: Vec<usize>,
@@ -63,21 +148,24 @@ pub struct ElementRef<'a> {
     tree: &'a Html,
     index: usize,
 }
-pub struct Selector(String);
-impl Selector {
-    pub fn parse(css: &str) -> Result<Self, &'static str> {
+pub struct Selector<'css>(&'css str);
+impl<'css> Selector<'css> {
+    pub fn parse(css: &'css str) -> Result<Self, &'static str> {
         if css.is_empty() {
             Err("empty selector")
         } else {
-            Ok(Self(css.into()))
+            Ok(Self(css))
         }
     }
 }
 impl Html {
-    pub fn select<'a>(&'a self, selector: &'a Selector) -> impl Iterator<Item = ElementRef<'a>> {
+    pub fn select<'a>(
+        &'a self,
+        selector: &'a Selector<'_>,
+    ) -> impl Iterator<Item = ElementRef<'a>> {
         self.nodes.iter().enumerate().filter_map(move |(index, _)| {
             let n = ElementRef { tree: self, index };
-            n.matches(&selector.0).then_some(n)
+            n.matches(selector.0).then_some(n)
         })
     }
     fn validate(&self) -> bool {
@@ -125,8 +213,10 @@ impl<'a> ElementRef<'a> {
     pub fn attr(self, key: &str) -> Option<&'a str> {
         self.tree.nodes[self.index]
             .attrs
-            .get(key)
-            .map(String::as_str)
+            .iter()
+            .rev()
+            .find(|(name, _)| name == key)
+            .map(|(_, value)| value.as_str())
     }
     pub fn text(self) -> impl Iterator<Item = &'a str> {
         self.descendants(true).filter_map(move |n| {
@@ -226,22 +316,46 @@ impl ParserPool {
     pub async fn shutdown(&self) -> Result<(), String> {
         self.process.shutdown().await.map_err(process_error)
     }
+    pub(crate) async fn parse_rows_with_operation(
+        &self,
+        points: &[u32],
+        layout: row_wire::Layout,
+        limit: crate::adapters::RowLimit,
+        operation: std::sync::Arc<crate::html_budget::Operation>,
+    ) -> Result<rows_parent::OwnedRows, OperationFailure> {
+        rows_parent::parse(&self.process, points, layout, limit, operation).await
+    }
+    pub(crate) async fn project_rows_with_operation(
+        &self,
+        points: &[u32],
+        layout: row_wire::Layout,
+        limit: crate::adapters::RowLimit,
+        query: &str,
+        operation: std::sync::Arc<crate::html_budget::Operation>,
+    ) -> Result<ProducedHtmlBatch, OperationFailure> {
+        let rows = self
+            .parse_rows_with_operation(points, layout, limit, operation)
+            .await?;
+        rows_projection::project(rows, layout, query).await
+    }
     pub async fn parse(&self, raw: &str, deadline: Instant) -> Result<Html, String> {
         self.parse_text(&Text::from(raw), deadline).await
     }
     pub async fn parse_text(&self, raw: &Text, deadline: Instant) -> Result<Html, String> {
-        self.parse_text_with_operation(raw, deadline, None).await
+        self.parse_text_with_operation(raw.codepoints(), deadline, None)
+            .await
+            .map_err(|error| error.to_string())
     }
-    async fn parse_text_with_operation(
+    pub(crate) async fn parse_text_with_operation(
         &self,
-        raw: &Text,
+        raw: &[u32],
         deadline: Instant,
         operation: Option<std::sync::Arc<crate::html_budget::Operation>>,
-    ) -> Result<Html, String> {
-        if raw.codepoints().len() > MAX_POINTS {
+    ) -> Result<Html, OperationFailure> {
+        if raw.len() > MAX_POINTS {
             return Err("HTML decoded input exceeds codec expansion bound".into());
         }
-        let count = raw.codepoints().len();
+        let count = raw.len();
         let size = count
             .checked_mul(4)
             .ok_or("HTML codepoint frame overflow")?;
@@ -249,7 +363,7 @@ impl ParserPool {
         input
             .try_reserve_exact(size)
             .map_err(|_| "HTML codepoint frame allocation failed")?;
-        for point in raw.codepoints() {
+        for point in raw {
             input.extend_from_slice(&point.to_be_bytes());
         }
         match self
@@ -278,14 +392,15 @@ impl ParserPool {
     ) -> Result<DecodedText, String> {
         self.decode_detect_with_operation(bytes, label, deadline, None)
             .await
+            .map_err(|error| error.to_string())
     }
-    async fn decode_detect_with_operation(
+    pub(crate) async fn decode_detect_with_operation(
         &self,
         bytes: &[u8],
         label: &str,
         deadline: Instant,
         operation: Option<std::sync::Arc<crate::html_budget::Operation>>,
-    ) -> Result<DecodedText, String> {
+    ) -> Result<DecodedText, OperationFailure> {
         if bytes.len() > MAX_POINTS {
             return Err("HTTP text body exceeds transport bound".into());
         }
@@ -304,10 +419,27 @@ impl ParserPool {
             WorkerOutput::Decoded(points, flags) if points.len() <= bytes.len() => {
                 Text::from_codepoints(points)
                     .map(|text| DecodedText { text, flags })
-                    .map_err(str::to_owned)
+                    .map_err(OperationFailure::from)
             }
             _ => Err("HTML helper invalid decoder response".into()),
         }
+    }
+    #[cfg(test)]
+    pub(crate) async fn decode_bounded_with_operation(
+        &self,
+        bytes: &[u8],
+        label: &str,
+        operation: std::sync::Arc<crate::html_budget::Operation>,
+    ) -> Result<BoundedDecodedText, OperationFailure> {
+        bounded_decode::decode(&self.process, bytes, label, operation).await
+    }
+    pub(crate) async fn decode_http_with_operation(
+        &self,
+        bytes: &[u8],
+        headers: &reqwest::header::HeaderMap,
+        operation: std::sync::Arc<crate::html_budget::Operation>,
+    ) -> Result<BoundedDecodedText, OperationFailure> {
+        bounded_decode::decode_headers(&self.process, bytes, headers, operation).await
     }
     async fn exchange(
         &self,
@@ -317,7 +449,7 @@ impl ParserPool {
         count: usize,
         deadline: Instant,
         lease: Option<std::sync::Arc<crate::html_budget::Operation>>,
-    ) -> Result<WorkerOutput, String> {
+    ) -> Result<WorkerOutput, OperationFailure> {
         let mut header = PROTOCOL_MAGIC.to_vec();
         header.push(PROTOCOL_VERSION);
         header.extend([
@@ -330,7 +462,7 @@ impl ParserPool {
             .process
             .exchange_with_lease(deadline, header, input, output_bound(count)?, lease)
             .await
-            .map_err(process_error)?;
+            .map_err(OperationFailure::from)?;
         let response: Result<WorkerOutput, WorkerFailure> =
             serde_json::from_slice(&response).map_err(|e| e.to_string())?;
         response.map_err(|failure| {
@@ -341,9 +473,9 @@ impl ParserPool {
                     WorkerStage::Parse
                 }
             {
-                failure.message
+                OperationFailure::Failure(failure.message)
             } else {
-                "HTML helper invalid error stage".into()
+                OperationFailure::from("HTML helper invalid error stage")
             }
         })
     }
@@ -358,7 +490,7 @@ fn process_error(error: ProcessError) -> String {
         other => format!("HTML helper process failure: {other}"),
     }
 }
-static POOL: OnceLock<ParserPool> = OnceLock::new();
+static POOL: OnceLock<std::sync::Arc<ParserPool>> = OnceLock::new();
 /// Explicit shutdown must complete before the backend runtime is torn down.
 pub async fn shutdown() -> Result<(), String> {
     if let Some(pool) = POOL.get() {
@@ -367,7 +499,7 @@ pub async fn shutdown() -> Result<(), String> {
         Ok(())
     }
 }
-fn default_pool() -> &'static ParserPool {
+fn default_pool() -> &'static std::sync::Arc<ParserPool> {
     POOL.get_or_init(|| {
         let exe = std::env::current_exe().expect("native executable path");
         let parent = exe.parent().expect("executable directory");
@@ -376,11 +508,13 @@ fn default_pool() -> &'static ParserPool {
         } else {
             parent
         };
-        ParserPool::new(
-            parent.join("ssx-html-parser"),
-            std::num::NonZeroUsize::new(4).unwrap(),
+        std::sync::Arc::new(
+            ParserPool::new(
+                parent.join("ssx-html-parser"),
+                std::num::NonZeroUsize::new(4).unwrap(),
+            )
+            .expect("bounded native helper pool capacity"),
         )
-        .expect("bounded native helper pool capacity")
     })
 }
 pub async fn parse(raw: &Text, deadline: Instant) -> Result<Html, String> {
@@ -396,24 +530,8 @@ pub async fn decode_detect(
 ) -> Result<DecodedText, String> {
     default_pool().decode_detect(bytes, label, deadline).await
 }
-pub(crate) async fn parse_with_operation(
-    raw: &Text,
-    deadline: Instant,
-    operation: std::sync::Arc<crate::html_budget::Operation>,
-) -> Result<Html, String> {
-    default_pool()
-        .parse_text_with_operation(raw, deadline, Some(operation))
-        .await
-}
-pub(crate) async fn decode_with_operation(
-    bytes: &[u8],
-    label: &str,
-    deadline: Instant,
-    operation: std::sync::Arc<crate::html_budget::Operation>,
-) -> Result<DecodedText, String> {
-    default_pool()
-        .decode_detect_with_operation(bytes, label, deadline, Some(operation))
-        .await
+pub(crate) fn shared_pool() -> std::sync::Arc<ParserPool> {
+    default_pool().clone()
 }
 /// Dedicated helper entry. No sockets, credentials, arbitrary file names or
 /// external-resource-capable API is exposed by its protocol.
@@ -422,7 +540,19 @@ pub fn helper_main() -> Result<(), String> {
     let mut input = std::io::stdin().lock();
     let mut prefix = [0; 5];
     input.read_exact(&mut prefix).map_err(|e| e.to_string())?;
-    if &prefix[..4] != PROTOCOL_MAGIC || prefix[4] != PROTOCOL_VERSION {
+    if &prefix[..4] != PROTOCOL_MAGIC {
+        return Err("invalid HTML helper protocol version".into());
+    }
+    if prefix[4] == http_headers::VERSION {
+        return bounded_decode::worker_headers(&mut input, &mut std::io::stdout().lock());
+    }
+    if prefix[4] == rows_worker::VERSION {
+        return rows_worker::worker(&mut input, &mut std::io::stdout().lock());
+    }
+    if prefix[4] == 2 {
+        return bounded_decode::worker(&mut input, &mut std::io::stdout().lock());
+    }
+    if prefix[4] != PROTOCOL_VERSION {
         return Err("invalid HTML helper protocol version".into());
     }
     let mut mode = [0; 2];
@@ -499,15 +629,21 @@ pub fn helper_main() -> Result<(), String> {
     output.flush().map_err(|e| e.to_string())
 }
 fn parse_native(raw: &Text) -> Result<Html, String> {
+    parse_native_points(raw.codepoints())
+}
+fn parse_native_points(points: &[u32]) -> Result<Html, String> {
     // Exact source declaration predicate is qualified separately; no arbitrary
     // PI/doctype stripping is permitted.
-    if encoding_declaration(raw.codepoints()) {
+    if encoding_declaration(points) {
         return Err("Unicode strings with encoding declaration are not supported. Please use bytes input or XML fragments without declaration.".into());
     }
-    let (doc, _) = libxml::parser::Parser::parse_untrusted_html_codepoints(raw.codepoints())
+    let (doc, _) = libxml::parser::Parser::parse_untrusted_html_codepoints(points)
         .map_err(|_| "Document is empty")?;
     let root = doc.get_root_element().ok_or("Document is empty")?;
-    let mut tree = Html { nodes: vec![] };
+    let mut tree = Html {
+        nodes: vec![],
+        charge: None,
+    };
     let mut stack = vec![(root, None)];
     while let Some((node, parent)) = stack.pop() {
         let element = node.is_element_node();
@@ -528,7 +664,7 @@ fn parse_native(raw: &Text) -> Result<Html, String> {
             attrs: if element {
                 node.get_properties().into_iter().collect()
             } else {
-                BTreeMap::new()
+                Vec::new()
             },
             text: if text {
                 node.get_content()
@@ -606,3 +742,58 @@ fn encoding_declaration(points: &[u32]) -> bool {
 fn decode_native(bytes: &[u8], label: &str) -> Result<Text, String> {
     ssx_source_codecs::decode_http(bytes, label).map_err(|error| error.to_string())
 }
+
+#[path = "html_bounded_decode.rs"]
+mod bounded_decode;
+#[path = "html_decode_wire.rs"]
+mod decode_wire;
+pub(crate) use bounded_decode::Decoded as BoundedDecodedText;
+
+#[path = "html_wire.rs"]
+pub(crate) mod row_wire;
+#[path = "html_rows_worker.rs"]
+mod rows_worker;
+
+#[path = "html_rows_borrowed.rs"]
+pub(crate) mod rows_borrowed;
+
+#[path = "html_rows_parent.rs"]
+mod rows_parent;
+
+#[path = "html_rows_projection.rs"]
+mod rows_projection;
+pub(crate) use rows_projection::Batch as ProducedHtmlBatch;
+
+#[path = "html_http_headers.rs"]
+mod http_headers;
+
+// Preserve the legacy tree IPC map shape. Only the isolated legacy deserializer
+// constructs this map; the actual row-producing child uses charged ordered pairs.
+mod attribute_map {
+    use serde::ser::SerializeMap;
+    use serde::{Deserialize, Deserializer, Serializer};
+    pub(super) fn serialize<S: Serializer>(
+        attrs: &[(String, String)],
+        s: S,
+    ) -> Result<S::Ok, S::Error> {
+        let mut map = s.serialize_map(Some(attrs.len()))?;
+        for (key, value) in attrs {
+            map.serialize_entry(key, value)?;
+        }
+        map.end()
+    }
+    pub(super) fn deserialize<'de, D: Deserializer<'de>>(
+        d: D,
+    ) -> Result<Vec<(String, String)>, D::Error> {
+        Ok(
+            std::collections::BTreeMap::<String, String>::deserialize(d)?
+                .into_iter()
+                .collect(),
+        )
+    }
+}
+#[path = "html_charged_flatten.rs"]
+mod charged_flatten;
+
+#[path = "html_child_rows.rs"]
+pub(crate) mod child_rows;

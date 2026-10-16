@@ -6,7 +6,7 @@ use std::{collections::BTreeSet, path::Path};
 const CORPUS: &str = "4a83fb3db44894679213ba96941915dc12ad0bf00ad5cbfc691fb0410a86fc2e";
 const REVIEW: &str = "63bb5265fbc7e2228b121d44823a476b544a1968bbfd823791f50cdad515e81e";
 const REVIEW_2: &str = "fa247104d9829f24ec5d3ddd62c1c47cfb640e9dedd5e7edd8823fc4900302d2";
-const COVERAGE: &str = "f2da311992169f60c10377251a7986ffb8695fe273b8867971fffea380b9ccb4";
+const COVERAGE: &str = "4e37c9ffaf8b99fb3f81ad70dedb1bc3c8dcf2b93816a215188888e34118e70e";
 const UNICODE_BOUNDARY: &str = "69e4594300a116e547a3eeca1b98a47a3f57dd3eade381bf083c1c7c57e97b4c";
 fn digest(bytes: &[u8]) -> String {
     Sha256::digest(bytes)
@@ -119,6 +119,23 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
         }
         cases.extend(rows.iter().cloned());
     }
+    let charset = pinned(
+        root,
+        "docs/rust-rewrite/a05/http-charset-pipeline-source.json",
+        "1d91dfdcf14a1e0d63bdeb0624849e144facaf473c4dae0478ffbe8fa6100d46",
+    )?;
+    if charset["source_commit"] != corpus["source_commit"]
+        || charset["source_files"] != corpus["source_files"]
+        || coverage["charset_pipeline_corpus_sha256"]
+            != "1d91dfdcf14a1e0d63bdeb0624849e144facaf473c4dae0478ffbe8fa6100d46"
+    {
+        return Err("A05 charset source identity invalid".into());
+    }
+    let charset_cases = charset["cases"].as_array().ok_or("missing charset cases")?;
+    if charset_cases.len() != 26 {
+        return Err("A05 charset cases incomplete".into());
+    }
+    cases.extend(charset_cases.iter().cloned());
     let ids: BTreeSet<_> = cases.iter().filter_map(|v| v["id"].as_str()).collect();
     let frozen_ids: BTreeSet<_> = coverage["case_ids"]
         .as_array()
@@ -138,6 +155,16 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
     if expected.len() != 13 {
         return Err("A05 native inventory incomplete".into());
     }
+    let expected_helpers: BTreeSet<_> = coverage["native_helper_unit_tests"]
+        .as_array()
+        .ok_or("missing A05 helper unit inventory")?
+        .iter()
+        .filter_map(Value::as_str)
+        .collect();
+    if expected_helpers.len() != 6 {
+        return Err("A05 helper unit inventory incomplete".into());
+    }
+    let successors: BTreeSet<_> = expected.union(&expected_helpers).copied().collect();
     let mappings = coverage["source_tests"]
         .as_array()
         .ok_or("missing source mapping")?;
@@ -145,7 +172,7 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
     for row in mappings {
         let name = row["source_test"].as_str().ok_or("missing source test")?;
         if !source_tests.insert(name)
-            || !expected.contains(
+            || !successors.contains(
                 row["native_test"]
                     .as_str()
                     .ok_or("missing native successor")?,
@@ -262,6 +289,201 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
         .collect();
     if passed_units != expected_units || !units_output.contains("1 passed; 0 failed; 0 ignored;") {
         return Err("A05 required units did not execute".into());
+    }
+    let expected_helper_units: BTreeSet<_> = coverage["native_helper_unit_tests"]
+        .as_array()
+        .ok_or("missing A05 unit inventory")?
+        .iter()
+        .filter_map(Value::as_str)
+        .collect();
+    if expected_helper_units.len() != 6 {
+        return Err("A05 unit inventory incomplete".into());
+    }
+    let helper_units_list = command(
+        root,
+        "cargo",
+        &[
+            "test",
+            "--locked",
+            "-p",
+            "ssx-infra",
+            "--lib",
+            "adapters::html_helper_tests::",
+            "--",
+            "--list",
+        ],
+        records,
+    )?;
+    let listed_helper_units: BTreeSet<_> = helper_units_list
+        .lines()
+        .filter_map(|line| line.strip_suffix(": test"))
+        .collect();
+    if listed_helper_units != expected_helper_units {
+        return Err("A05 unit tests missing/extra".into());
+    }
+    let helper_units_output = command(
+        root,
+        "cargo",
+        &[
+            "test",
+            "--locked",
+            "-p",
+            "ssx-infra",
+            "--lib",
+            "adapters::html_helper_tests::",
+            "--",
+            "--nocapture",
+        ],
+        records,
+    )?;
+    let passed_helper_units: BTreeSet<_> = helper_units_output
+        .lines()
+        .filter_map(|line| line.strip_prefix("test ")?.strip_suffix(" ... ok"))
+        .collect();
+    if passed_helper_units != expected_helper_units
+        || !helper_units_output.contains("6 passed; 0 failed; 0 ignored;")
+    {
+        return Err("A05 required units did not execute".into());
+    }
+    let expected_scenarios: BTreeSet<_> = coverage["helper_scenario_ids"]
+        .as_array()
+        .ok_or("missing A05 helper scenario inventory")?
+        .iter()
+        .filter_map(Value::as_str)
+        .collect();
+    let completed_scenarios: BTreeSet<_> = helper_units_output
+        .lines()
+        .filter_map(|line| line.strip_prefix("A05_HELPER "))
+        .collect();
+    if expected_scenarios.len() != 10 || completed_scenarios != expected_scenarios {
+        return Err("A05 helper scenarios did not all execute".into());
+    }
+    let expected_cpu: BTreeSet<_> = coverage["bounded_cpu_scenario_ids"]
+        .as_array()
+        .ok_or("missing bounded CPU scenario inventory")?
+        .iter()
+        .filter_map(Value::as_str)
+        .collect();
+    let completed_cpu: BTreeSet<_> = helper_units_output
+        .lines()
+        .filter_map(|line| line.strip_prefix("A05_BOUNDED_CPU "))
+        .collect();
+    if expected_cpu.len() != 3 || completed_cpu != expected_cpu {
+        return Err("A05 bounded CPU scenarios did not all execute".into());
+    }
+    let held: BTreeSet<_> = helper_units_output
+        .lines()
+        .filter_map(|line| line.strip_prefix("A05_HELD_HANDOFF "))
+        .collect();
+    let expected_held: BTreeSet<_> = coverage["held_handoff_scenario_ids"]
+        .as_array()
+        .ok_or("missing held handoff inventory")?
+        .iter()
+        .filter_map(Value::as_str)
+        .collect();
+    if expected_held != BTreeSet::from(["deadline"]) || held != expected_held {
+        return Err("A05 held handoff deadline did not execute".into());
+    }
+    let expected_wire: BTreeSet<_> = coverage["native_html_phase_tests"]
+        .as_array()
+        .ok_or("missing decoder wire test inventory")?
+        .iter()
+        .filter_map(Value::as_str)
+        .collect();
+    let wire_output = command(
+        root,
+        "cargo",
+        &[
+            "test",
+            "--locked",
+            "-p",
+            "ssx-infra",
+            "--lib",
+            "html::",
+            "--",
+            "--nocapture",
+        ],
+        records,
+    )?;
+    let passed_wire: BTreeSet<_> = wire_output
+        .lines()
+        .filter_map(|line| line.strip_prefix("test ")?.strip_suffix(" ... ok"))
+        .collect();
+    if expected_wire.len() != 18
+        || passed_wire != expected_wire
+        || !wire_output.contains("18 passed; 0 failed; 0 ignored;")
+    {
+        return Err("A05 decoder wire tests did not all execute".into());
+    }
+    let header_cpu: BTreeSet<_> = helper_units_output
+        .lines()
+        .filter_map(|line| line.strip_prefix("A05_HEADER_CPU "))
+        .collect();
+    let expected_header_cpu: BTreeSet<_> = coverage["header_cpu_scenario_ids"]
+        .as_array()
+        .ok_or("missing header CPU inventory")?
+        .iter()
+        .filter_map(Value::as_str)
+        .collect();
+    if expected_header_cpu != BTreeSet::from(["cancel"]) || header_cpu != expected_header_cpu {
+        return Err("A05 header CPU cancellation did not execute".into());
+    }
+    let selector_worker: BTreeSet<_> = wire_output
+        .lines()
+        .filter_map(|line| line.strip_prefix("A05_SELECTOR_WORKER "))
+        .collect();
+    let expected_selector_worker: BTreeSet<_> = coverage["selector_worker_case_ids"]
+        .as_array()
+        .ok_or("missing selector worker cases")?
+        .iter()
+        .filter_map(Value::as_str)
+        .collect();
+    if expected_selector_worker.len() != 179 || selector_worker != expected_selector_worker {
+        return Err("A05 selector worker source cases did not execute".into());
+    }
+    let expected_rows: BTreeSet<_> = coverage["rows_cpu_scenario_ids"]
+        .as_array()
+        .ok_or("missing rows CPU scenarios")?
+        .iter()
+        .filter_map(Value::as_str)
+        .collect();
+    let completed_rows: BTreeSet<_> = helper_units_output
+        .lines()
+        .filter_map(|line| line.strip_prefix("A05_ROWS_CPU "))
+        .collect();
+    if expected_rows.len() != 3 || completed_rows != expected_rows {
+        return Err("A05 rows CPU scenarios did not all execute".into());
+    }
+    let expected_selector: BTreeSet<_> = coverage["native_selector_tests"]
+        .as_array()
+        .ok_or("missing shared selector tests")?
+        .iter()
+        .filter_map(Value::as_str)
+        .collect();
+    let selector_output = command(
+        root,
+        "cargo",
+        &[
+            "test",
+            "--locked",
+            "-p",
+            "ssx-infra",
+            "--lib",
+            "adapters::http_charset::tests::",
+            "--",
+            "--nocapture",
+        ],
+        records,
+    )?;
+    let passed_selector: BTreeSet<_> = selector_output
+        .lines()
+        .filter_map(|line| line.strip_prefix("test ")?.strip_suffix(" ... ok"))
+        .collect();
+    if expected_selector.len() != 5
+        || passed_selector != expected_selector
+        || !selector_output.contains("5 passed; 0 failed; 0 ignored;")
+    {
+        return Err("A05 shared selector tests did not all execute".into());
     }
     qualify_helper_linkage(root, records)?;
     for evidence in coverage["codec_evidence"]

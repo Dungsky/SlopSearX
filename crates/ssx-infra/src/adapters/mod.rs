@@ -424,9 +424,9 @@ fn broad_scalar_output(
     }
 }
 
-mod html_timeout;
 mod duckduckgo;
 mod google;
+mod html_timeout;
 pub use duckduckgo::{DuckDuckGoConfig, ScrapeConfig};
 pub use google::GoogleConfig;
 
@@ -442,16 +442,37 @@ pub fn register_html(
     admission: Arc<dyn SearchAdmission>,
     config: HtmlConfig,
 ) -> Result<(), RegistryError> {
+    register_html_with_parser(
+        registry,
+        http,
+        admission,
+        config,
+        crate::html::shared_pool(),
+    )
+}
+
+/// Register factories sharing a caller-owned parser lifecycle. Retain `parser`
+/// and await its shutdown before tearing down the async runtime. Dropping an
+/// engine or search future does not replace that explicit cleanup boundary.
+pub fn register_html_with_parser(
+    registry: &mut Registry,
+    http: Arc<AdapterHttp>,
+    admission: Arc<dyn SearchAdmission>,
+    config: HtmlConfig,
+    parser: Arc<crate::html::ParserPool>,
+) -> Result<(), RegistryError> {
     let h = http.clone();
     let a = admission.clone();
     let c = config.duckduckgo;
+    let ddg_parser = parser.clone();
     registry.register(
         "duckduckgo",
         Arc::new(move || {
-            Box::new(duckduckgo::DuckDuckGoAdapter::new(
+            Box::new(duckduckgo::DuckDuckGoAdapter::with_parser(
                 h.clone(),
                 a.clone(),
                 c.clone(),
+                ddg_parser.clone(),
             )) as Box<dyn ssx_registry::Engine>
         }) as EngineFactory,
     )?;
@@ -459,10 +480,11 @@ pub fn register_html(
     registry.register(
         "google",
         Arc::new(move || {
-            Box::new(google::GoogleAdapter::new(
+            Box::new(google::GoogleAdapter::with_parser(
                 http.clone(),
                 admission.clone(),
                 c.clone(),
+                parser.clone(),
             )) as Box<dyn ssx_registry::Engine>
         }) as EngineFactory,
     )?;
@@ -475,6 +497,47 @@ pub(crate) fn html_detector_flags(raw: &ssx_source_codecs::Text) -> crate::html:
         duckduckgo_legitimate_empty: duckduckgo::legitimate_empty(raw),
         google_challenge: google::challenge(raw),
     }
+}
+
+/// Same source predicates over charge-owned decoded points. The static maximum
+/// is derived from the actual closed pattern lists, not a configurable cap.
+pub(crate) fn html_detector_flags_points(
+    points: &[u32],
+    checkpoint: &dyn Fn() -> Result<(), ssx_source_codecs::BoundedTextError>,
+) -> Result<crate::html::DetectorFlags, ssx_source_codecs::BoundedTextError> {
+    const fn maximum(patterns: &[&str], mut value: usize) -> usize {
+        let mut at = 0;
+        while at < patterns.len() {
+            if patterns[at].len() > value {
+                value = patterns[at].len();
+            }
+            at += 1;
+        }
+        value
+    }
+    const SIZE: usize = maximum(
+        google::GOOGLE_CHALLENGE,
+        maximum(duckduckgo::DDG_EMPTY, maximum(duckduckgo::DDG_CHALLENGE, 0)),
+    );
+    let mut scratch = [0usize; SIZE];
+    let mut any = |patterns: &[&str]| -> Result<bool, ssx_source_codecs::BoundedTextError> {
+        for pattern in patterns {
+            if ssx_source_codecs::contains_ascii_lower_with_scratch(
+                points,
+                pattern,
+                &mut scratch[..pattern.len()],
+                checkpoint,
+            )? {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    };
+    Ok(crate::html::DetectorFlags {
+        duckduckgo_challenge: any(duckduckgo::DDG_CHALLENGE)?,
+        duckduckgo_legitimate_empty: any(duckduckgo::DDG_EMPTY)?,
+        google_challenge: any(google::GOOGLE_CHALLENGE)?,
+    })
 }
 
 /// Closed helper-facing config. Invalid types raise only upon a selected row,
@@ -498,22 +561,45 @@ impl RowLimit {
             ssx_json::Value::Object(_) => Self::Invalid(3),
         }
     }
-    fn reached(self, count: usize) -> Result<bool, String> {
+    fn reached(self, count: usize) -> Result<bool, &'static str> {
         match self {
             Self::Number(number) => Ok(count as f64 >= number),
             Self::Unlimited => Ok(false),
-            Self::Invalid(tag) => {
-                let name = match tag {
-                    0 => "NoneType",
-                    1 => "str",
-                    2 => "list",
-                    3 => "dict",
-                    _ => return Err("invalid HTML row-limit tag".into()),
-                };
-                Err(format!(
-                    "'>=' not supported between instances of 'int' and '{name}'"
-                ))
-            }
+            Self::Invalid(0) => Err("'>=' not supported between instances of 'int' and 'NoneType'"),
+            Self::Invalid(1) => Err("'>=' not supported between instances of 'int' and 'str'"),
+            Self::Invalid(2) => Err("'>=' not supported between instances of 'int' and 'list'"),
+            Self::Invalid(3) => Err("'>=' not supported between instances of 'int' and 'dict'"),
+            Self::Invalid(_) => Err("invalid HTML row-limit tag"),
         }
     }
 }
+
+#[cfg(test)]
+mod html_helper_tests;
+
+// Child-only row extraction uses no caller query bytes. Image fallback is
+// carried as a wire flag and applied by the trusted parent after validation.
+pub(crate) fn html_extract_rows(
+    doc: &crate::html::Html,
+    layout: crate::html::row_wire::Layout,
+    limit: RowLimit,
+    budget: &ssx_owned_budget::Budget,
+) -> Result<ssx_owned_budget::OwnedVec<crate::html::child_rows::Row>, crate::html::OperationFailure>
+{
+    use crate::html::row_wire::Layout;
+    match layout {
+        Layout::Google => google::extract_tree(doc, limit, budget),
+        other => duckduckgo::extract_tree(
+            doc,
+            "",
+            limit,
+            other == Layout::DdgImage,
+            other == Layout::DdgLite,
+            budget,
+        ),
+    }
+}
+
+// Shared selector single-owned by A06; consumed inside existing helpers.
+pub mod http_charset;
+pub mod http_headers;

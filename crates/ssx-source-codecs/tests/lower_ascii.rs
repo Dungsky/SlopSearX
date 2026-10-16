@@ -25,5 +25,47 @@ fn source_ascii_substring_lowering_preimages_and_complete_controls() {
             row["expected"].as_bool().unwrap(),
             "{row}"
         );
+        let needle = row["needle"].as_str().unwrap();
+        let mut scratch = vec![0; needle.len()];
+        assert_eq!(
+            ssx_source_codecs::contains_ascii_lower_with_scratch(
+                text.codepoints(),
+                needle,
+                &mut scratch,
+                &|| Ok(())
+            )
+            .unwrap(),
+            row["expected"].as_bool().unwrap(),
+            "borrowed {row}"
+        );
     }
+}
+
+#[test]
+fn borrowed_search_rejects_short_scratch_non_ascii_and_deadline_without_ownership_escape() {
+    use ssx_source_codecs::{
+        BoundedTextError as Error, contains_ascii_lower_with_scratch as search,
+    };
+    let points = [0x130, 0x307, 0x212a, b'a' as u32];
+    assert_eq!(
+        search(&points, "ka", &mut [0], &|| Ok(())),
+        Err(Error::OutputBound)
+    );
+    assert_eq!(
+        search(&points, "é", &mut [0; 2], &|| Ok(())),
+        Err(Error::NonAscii)
+    );
+    let calls = std::cell::Cell::new(0);
+    let check = || {
+        calls.set(calls.get() + 1);
+        if calls.get() == 4 {
+            Err(Error::Deadline)
+        } else {
+            Ok(())
+        }
+    };
+    assert_eq!(
+        search(&points, "ka", &mut [0; 2], &check),
+        Err(Error::Deadline)
+    );
 }

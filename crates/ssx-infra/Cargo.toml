@@ -26,7 +26,7 @@ redis.workspace = true
 scraper.workspace = true
 html5ever.workspace = true
 encoding_rs.workspace = true
-libxml.workspace = true
+libxml = { workspace = true, features = ["owned-budget-child"] }
 ssx-source-codecs.workspace = true
 ssx-owned-budget.workspace = true
 quick-xml.workspace = true

@@ -5,7 +5,7 @@ use crate::http::{
     Session,
 };
 use ssx_application::{AdmissionDecision, PortFuture, SearchAdmission, SearchEngine};
-use ssx_domain::{AdapterResponse, EngineStatus, FiniteF64, SearchRequest, SearchResult};
+use ssx_domain::{AdapterResponse, EngineStatus, FiniteF64, SearchRequest};
 use std::{
     sync::{Arc, Mutex},
     time::{Duration, Instant},
@@ -27,21 +27,35 @@ impl Default for ScrapeConfig {
         }
     }
 }
-pub(super) struct ScrapeRuntime(Mutex<ProxyRotation>);
+pub(super) struct ScrapeRuntime {
+    pool: Mutex<ProxyRotation>,
+    #[cfg(test)]
+    events: Mutex<Vec<bool>>,
+}
 impl ScrapeRuntime {
     pub(super) fn new(c: &ScrapeConfig) -> Self {
-        Self(Mutex::new(ProxyRotation::new(
-            c.proxy_pool.clone(),
-            c.scrape_proxy_url.clone(),
-            Duration::from_secs(c.proxy_cooloff_seconds),
-        )))
+        Self {
+            pool: Mutex::new(ProxyRotation::new(
+                c.proxy_pool.clone(),
+                c.scrape_proxy_url.clone(),
+                Duration::from_secs(c.proxy_cooloff_seconds),
+            )),
+            #[cfg(test)]
+            events: Mutex::new(Vec::new()),
+        }
+    }
+    #[cfg(test)]
+    pub(super) fn test_events(&self) -> Vec<bool> {
+        self.events.lock().unwrap().clone()
     }
     pub(super) fn select(&self) -> Option<String> {
-        self.0.lock().unwrap().select(Instant::now())
+        self.pool.lock().unwrap().select(Instant::now())
     }
     pub(super) fn feedback(&self, p: Option<&str>, success: bool) {
+        #[cfg(test)]
+        self.events.lock().unwrap().push(success);
         if let Some(p) = p {
-            let mut pool = self.0.lock().unwrap();
+            let mut pool = self.pool.lock().unwrap();
             if success {
                 pool.success(p)
             } else {
@@ -75,17 +89,27 @@ impl Default for DuckDuckGoConfig {
         }
     }
 }
+#[derive(Clone, Copy)]
+enum EndpointLayout {
+    Html,
+    Lite,
+    Image,
+}
 pub(super) struct DuckDuckGoAdapter {
     http: Arc<AdapterHttp>,
     admission: Arc<dyn SearchAdmission>,
     config: DuckDuckGoConfig,
     runtime: ScrapeRuntime,
+    parser: Arc<crate::html::ParserPool>,
+    #[cfg(test)]
+    test_bootstrap_budget: Option<Duration>,
 }
 impl DuckDuckGoAdapter {
-    pub(super) fn new(
+    pub(super) fn with_parser(
         http: Arc<AdapterHttp>,
         admission: Arc<dyn SearchAdmission>,
         config: DuckDuckGoConfig,
+        parser: Arc<crate::html::ParserPool>,
     ) -> Self {
         let runtime = ScrapeRuntime::new(&config.scrape);
         Self {
@@ -93,7 +117,19 @@ impl DuckDuckGoAdapter {
             admission,
             config,
             runtime,
+            parser,
+            #[cfg(test)]
+            test_bootstrap_budget: None,
         }
+    }
+    #[cfg(test)]
+    pub(super) fn with_test_bootstrap_budget(mut self, budget: Duration) -> Self {
+        self.test_bootstrap_budget = Some(budget);
+        self
+    }
+    #[cfg(test)]
+    pub(super) fn test_feedback(&self) -> Vec<bool> {
+        self.runtime.events.lock().unwrap().clone()
     }
     async fn run(
         &self,
@@ -101,12 +137,17 @@ impl DuckDuckGoAdapter {
         context: Option<ssx_application::SearchContext>,
     ) -> AdapterResponse {
         let started = Instant::now();
-        let done = |out: Outcome| AdapterResponse {
-            status: out.status,
-            results: out.results,
-            error_message: out.error,
-            latency_ms: elapsed(started),
-            ..AdapterResponse::default()
+        let done = |out: Outcome| {
+            if let Some(batch) = out.batch {
+                batch.into_adapter_response(elapsed(started))
+            } else {
+                AdapterResponse {
+                    status: out.status,
+                    error_message: out.error,
+                    latency_ms: elapsed(started),
+                    ..AdapterResponse::default()
+                }
+            }
         };
         match self.admission.admit("duckduckgo").await {
             AdmissionDecision::Allowed => {}
@@ -159,6 +200,8 @@ impl DuckDuckGoAdapter {
                 request.headers.insert(key, value.parse().unwrap());
             }
             if let Ok(duration) = Duration::try_from_secs_f64(bootstrap) {
+                #[cfg(test)]
+                let duration = self.test_bootstrap_budget.unwrap_or(duration);
                 session.set_deadline(
                     deadline.min(
                         tokio::time::Instant::now()
@@ -179,8 +222,11 @@ impl DuckDuckGoAdapter {
                 &operation,
                 &self.config.base_url,
                 &input.query,
-                image,
-                false,
+                if image {
+                    EndpointLayout::Image
+                } else {
+                    EndpointLayout::Html
+                },
                 proxy.as_deref(),
             )
             .await;
@@ -193,12 +239,16 @@ impl DuckDuckGoAdapter {
                 &operation,
                 &self.config.fallback_base_url,
                 &input.query,
-                false,
-                true,
+                EndpointLayout::Lite,
                 proxy.as_deref(),
             )
             .await;
-        if fallback.status == EngineStatus::Ok && !fallback.results.is_empty() {
+        if fallback.status == EngineStatus::Ok
+            && fallback
+                .batch
+                .as_ref()
+                .is_some_and(|batch| !batch.is_empty())
+        {
             return done(fallback);
         }
         let base = &self.config.base_url;
@@ -242,10 +292,10 @@ impl DuckDuckGoAdapter {
         operation: &Arc<crate::html_budget::Operation>,
         url: &str,
         query: &str,
-        image: bool,
-        lite: bool,
+        layout: EndpointLayout,
         proxy: Option<&str>,
     ) -> Outcome {
+        let image = matches!(layout, EndpointLayout::Image);
         if tokio::time::Instant::now() >= operation.deadline {
             return Outcome::new(EngineStatus::Timeout);
         }
@@ -305,11 +355,19 @@ impl DuckDuckGoAdapter {
             self.runtime.feedback(proxy, false);
             return Outcome::retry(format!("{url}: {}", http_error(&resp)));
         }
-        let body = match decode(&resp, deadline, operation.clone()).await {
+        let body = match decode(&self.parser, resp, operation.clone()).await {
             Ok(body) => body,
             Err(error) => {
-                self.runtime.feedback(proxy, false);
-                return Outcome::retry(format!("{url}: {error}"));
+                if !matches!(
+                    error,
+                    crate::html::OperationFailure::Invariant(_)
+                        | crate::html::OperationFailure::Resource
+                        | crate::html::OperationFailure::Cancelled
+                        | crate::html::OperationFailure::Shutdown
+                ) {
+                    self.runtime.feedback(proxy, false);
+                }
+                return helper_failure(url, error);
             }
         };
         if body.flags.duckduckgo_challenge {
@@ -319,27 +377,34 @@ impl DuckDuckGoAdapter {
             return out;
         }
         let results = match parse(
+            &self.parser,
             &body.text,
             query,
             &self.config.max_results,
-            image,
-            lite,
-            deadline,
+            layout,
             operation.clone(),
         )
         .await
         {
             Ok(r) => r,
             Err(e) => {
-                self.runtime.feedback(proxy, false);
-                return Outcome::retry(format!("{url}: {e}"));
+                if !matches!(
+                    e,
+                    crate::html::OperationFailure::Invariant(_)
+                        | crate::html::OperationFailure::Resource
+                        | crate::html::OperationFailure::Cancelled
+                        | crate::html::OperationFailure::Shutdown
+                ) {
+                    self.runtime.feedback(proxy, false);
+                }
+                return helper_failure(url, e);
             }
         };
         if image || !results.is_empty() || body.flags.duckduckgo_legitimate_empty {
             self.runtime.feedback(proxy, true);
             return Outcome {
                 status: EngineStatus::Ok,
-                results,
+                batch: Some(results),
                 error: None,
                 retriable: false,
             };
@@ -393,7 +458,7 @@ impl SearchEngine for DuckDuckGoAdapter {
 }
 struct Outcome {
     status: EngineStatus,
-    results: Vec<SearchResult>,
+    batch: Option<crate::html::ProducedHtmlBatch>,
     error: Option<String>,
     retriable: bool,
 }
@@ -401,7 +466,7 @@ impl Outcome {
     fn new(status: EngineStatus) -> Self {
         Self {
             status,
-            results: vec![],
+            batch: None,
             error: None,
             retriable: false,
         }
@@ -436,20 +501,8 @@ pub(super) fn headers() -> reqwest::header::HeaderMap {
     }
     h
 }
-pub(super) fn select(s: &str) -> Selector {
+pub(super) fn select(s: &str) -> Selector<'_> {
     Selector::parse(s).expect("static CSS")
-}
-pub(super) fn text(node: ElementRef<'_>) -> String {
-    let mut text = node.text().collect::<String>();
-    let leading = text.len() - text.trim_start_matches(python_whitespace).len();
-    let end = text.trim_end_matches(python_whitespace).len();
-    if leading >= end {
-        text.clear();
-    } else {
-        text.truncate(end);
-        text.drain(..leading);
-    }
-    text
 }
 /// The native source tree preserves context-first selector order.
 pub(super) fn select_with_context<'a>(
@@ -519,37 +572,51 @@ pub(super) fn python_form(fields: &[(&str, &str)]) -> Result<String, String> {
 // CPython3.14 str.isspace/strip predicate, including its C0 separators.
 // Apply only at the source's text_content().strip() extraction boundaries;
 // attributes and internal text remain byte-for-byte untrimmed.
-fn python_whitespace(c: char) -> bool {
-    matches!(c,'\u{0009}'..='\u{000d}'|'\u{001c}'..='\u{0020}'|'\u{0085}'|'\u{00a0}'|'\u{1680}'|'\u{2000}'..='\u{200a}'|'\u{2028}'|'\u{2029}'|'\u{202f}'|'\u{205f}'|'\u{3000}')
-}
 
-pub(super) async fn parse_document(
-    raw: &ssx_source_codecs::Text,
-    deadline: tokio::time::Instant,
-    operation: Arc<crate::html_budget::Operation>,
-) -> Result<Html, String> {
-    crate::html::parse_with_operation(raw, deadline, operation).await
+fn helper_failure(url: &str, error: crate::html::OperationFailure) -> Outcome {
+    match error {
+        crate::html::OperationFailure::Deadline => Outcome::new(EngineStatus::Timeout),
+        crate::html::OperationFailure::Resource => {
+            Outcome::error(crate::html_budget::RESOURCE_ERROR)
+        }
+        crate::html::OperationFailure::Cancelled => Outcome::error("HTML parser cancelled"),
+        crate::html::OperationFailure::Shutdown => Outcome::error("HTML parser shutdown"),
+        crate::html::OperationFailure::Invariant(message) => Outcome::error(message),
+        crate::html::OperationFailure::Codec(message)
+        | crate::html::OperationFailure::Parse(message) => {
+            Outcome::retry(format!("{url}: {message}"))
+        }
+        crate::html::OperationFailure::Selector(error) => Outcome::retry(format!("{url}: {error}")),
+        crate::html::OperationFailure::Failure(message) => {
+            Outcome::retry(format!("{url}: {message}"))
+        }
+    }
 }
 
 pub(super) async fn decode(
-    r: &Response,
-    deadline: tokio::time::Instant,
+    parser: &crate::html::ParserPool,
+    r: Response,
     operation: Arc<crate::html_budget::Operation>,
-) -> Result<crate::html::DecodedText, String> {
-    let charset = r
-        .headers
-        .get("content-type")
-        .and_then(|v| v.to_str().ok())
-        .and_then(|v| {
-            v.split(';').find_map(|part| {
-                let (k, v) = part.split_once('=')?;
-                k.trim()
-                    .eq_ignore_ascii_case("charset")
-                    .then(|| v.trim().trim_matches(['\'', '"']))
-            })
-        });
-    crate::html::decode_with_operation(&r.body, charset.unwrap_or("utf-8"), deadline, operation)
-        .await
+) -> Result<crate::html::BoundedDecodedText, crate::html::OperationFailure> {
+    // Storage precedes its charge in field drop order, including caller abort.
+    struct ChargedResponse {
+        response: Response,
+        _charge: crate::html_budget::Charge,
+    }
+    let charge = operation
+        .budget
+        .0
+        .reserve(r.body.capacity())
+        .map_err(|_| crate::html::OperationFailure::Resource)?;
+    let r = ChargedResponse {
+        response: r,
+        _charge: charge,
+    };
+    let result = parser
+        .decode_http_with_operation(&r.response.body, &r.response.headers, operation)
+        .await;
+    drop(r);
+    result
 }
 
 pub(super) fn http_error(r: &Response) -> String {
@@ -569,54 +636,51 @@ pub(super) fn http_error(r: &Response) -> String {
         r.status
     )
 }
+pub(super) const DDG_CHALLENGE: &[&str] = &[
+    "challenge",
+    "verify you're human",
+    "hcaptcha",
+    "cf-browser-verification",
+    "ddg_sl_",
+    "data-challenge",
+    "bots use duckduckgo",
+    "anomaly detected",
+];
 pub(super) fn challenge(raw: &ssx_source_codecs::Text) -> bool {
-    [
-        "challenge",
-        "verify you're human",
-        "hcaptcha",
-        "cf-browser-verification",
-        "ddg_sl_",
-        "data-challenge",
-        "bots use duckduckgo",
-        "anomaly detected",
-    ]
-    .iter()
-    .any(|s| raw.contains_ascii_lower(s))
+    DDG_CHALLENGE.iter().any(|s| raw.contains_ascii_lower(s))
 }
+pub(super) const DDG_EMPTY: &[&str] = &[
+    "class=\"no-results\"",
+    "no results</div>",
+    "no results for",
+    "did not match any documents",
+];
 pub(super) fn legitimate_empty(raw: &ssx_source_codecs::Text) -> bool {
-    [
-        "class=\"no-results\"",
-        "no results</div>",
-        "no results for",
-        "did not match any documents",
-    ]
-    .iter()
-    .any(|s| raw.contains_ascii_lower(s))
-}
-fn unwrap_redirect(raw: &str) -> String {
-    if !raw.contains("//duckduckgo.com/l/") {
-        return raw.into();
-    }
-    let query = raw
-        .split_once('?')
-        .map(|(_, q)| q.split('#').next().unwrap_or(q))
-        .unwrap_or("");
-    url::form_urlencoded::parse(query.as_bytes())
-        .find(|(k, v)| k == "uddg" && !v.is_empty())
-        .map(|(_, v)| v.into_owned())
-        .unwrap_or_else(|| raw.into())
+    DDG_EMPTY.iter().any(|s| raw.contains_ascii_lower(s))
 }
 async fn parse(
-    raw: &ssx_source_codecs::Text,
+    parser: &crate::html::ParserPool,
+    raw: &ssx_source_codecs::BudgetText,
     query: &str,
     max: &ssx_json::Value,
-    image: bool,
-    lite: bool,
-    deadline: tokio::time::Instant,
+    layout: EndpointLayout,
     operation: Arc<crate::html_budget::Operation>,
-) -> Result<Vec<SearchResult>, String> {
-    let doc = parse_document(raw, deadline, operation).await?;
-    extract_tree(&doc, query, super::RowLimit::from_value(max), image, lite)
+) -> Result<crate::html::ProducedHtmlBatch, crate::html::OperationFailure> {
+    use crate::html::row_wire::Layout;
+    let layout = match layout {
+        EndpointLayout::Html => Layout::DdgHtml,
+        EndpointLayout::Lite => Layout::DdgLite,
+        EndpointLayout::Image => Layout::DdgImage,
+    };
+    parser
+        .project_rows_with_operation(
+            raw.codepoints(),
+            layout,
+            super::RowLimit::from_value(max),
+            query,
+            operation,
+        )
+        .await
 }
 pub(super) fn extract_tree(
     doc: &Html,
@@ -624,8 +688,14 @@ pub(super) fn extract_tree(
     max: super::RowLimit,
     image: bool,
     lite: bool,
-) -> Result<Vec<SearchResult>, String> {
-    let mut rows = vec![];
+    budget: &ssx_owned_budget::Budget,
+) -> Result<ssx_owned_budget::OwnedVec<crate::html::child_rows::Row>, crate::html::OperationFailure>
+{
+    use crate::html::{
+        OperationFailure as Failure,
+        child_rows::{Row, optional_text, owned, prefixed, text, unwrap_redirect},
+    };
+    let mut rows = ssx_owned_budget::OwnedVec::new(budget).map_err(|_| Failure::Resource)?;
     let nodes = if image {
         ".tile--img, .result--image, .tile, .image-result"
     } else if lite {
@@ -634,7 +704,7 @@ pub(super) fn extract_tree(
         ".result"
     };
     for (i, node) in doc.select(&select(nodes)).enumerate() {
-        if max.reached(rows.len())? {
+        if max.reached(rows.len()).map_err(Failure::Parse)? {
             break;
         }
         let (url, title, content, img_src) = if image {
@@ -649,9 +719,9 @@ pub(super) fn extract_tree(
                 })
                 .unwrap_or("");
             let src = if src.starts_with("//") {
-                format!("https:{src}")
+                prefixed(budget, "https:", src)?
             } else {
-                src.into()
+                owned(budget, src)?
             };
             let title = image
                 .and_then(|n| {
@@ -660,27 +730,35 @@ pub(super) fn extract_tree(
                         .filter(|v| !v.is_empty())
                         .or_else(|| n.value().attr("title"))
                 })
-                .filter(|v| !v.is_empty())
-                .map(str::to_owned)
-                .or_else(|| link.map(text))
-                .filter(|v| !v.is_empty())
-                .unwrap_or_else(|| query.into());
-            let url = unwrap_redirect(link.and_then(|n| n.value().attr("href")).unwrap_or(""));
+                .filter(|v| !v.is_empty());
+            let title = match title {
+                Some(title) => owned(budget, title)?,
+                None => optional_text(budget, link)?,
+            };
+            let title = if title.is_empty() {
+                owned(budget, query)?
+            } else {
+                title
+            };
+            let url = unwrap_redirect(
+                budget,
+                link.and_then(|n| n.value().attr("href")).unwrap_or(""),
+            )?;
             if url.is_empty() {
                 continue;
             }
             (
                 url,
                 title,
-                select_with_context(node, ".tile__caption, .result__content, .caption")
-                    .next()
-                    .map(text)
-                    .unwrap_or_default(),
+                optional_text(
+                    budget,
+                    select_with_context(node, ".tile__caption, .result__content, .caption").next(),
+                )?,
                 Some(src),
             )
         } else if lite {
-            let url = unwrap_redirect(node.value().attr("href").unwrap_or(""));
-            let title = text(node);
+            let url = unwrap_redirect(budget, node.value().attr("href").unwrap_or(""))?;
+            let title = text(budget, node)?;
             if url.is_empty() || title.is_empty() {
                 continue;
             }
@@ -693,67 +771,63 @@ pub(super) fn extract_tree(
                     .filter_map(ElementRef::wrap)
                     .find(|n| n.value().name() == "tr")
             });
-            let content = next
-                .and_then(|r| select_with_context(r, "td[class*='result-snippet']").next())
-                .map(text)
-                .unwrap_or_default();
+            let content = optional_text(
+                budget,
+                next.and_then(|r| select_with_context(r, "td[class*='result-snippet']").next()),
+            )?;
             (url, title, content, None)
         } else {
             let Some(link) = select_with_context(node, ".result__a").next() else {
                 continue;
             };
-            let url = select_with_context(link, ".result__url")
-                .next()
-                .map(text)
-                .unwrap_or_else(|| link.value().attr("href").unwrap_or("").into());
-            let url = if url.contains("//duckduckgo.com/l/") && url.contains("?uddg=") {
-                url.rsplit("?uddg=").next().unwrap().into()
+            let url = match select_with_context(link, ".result__url").next() {
+                Some(node) => text(budget, node)?,
+                None => owned(budget, link.value().attr("href").unwrap_or(""))?,
+            };
+            let url = if url.as_str().contains("//duckduckgo.com/l/")
+                && url.as_str().contains("?uddg=")
+            {
+                owned(budget, url.as_str().rsplit("?uddg=").next().unwrap())?
             } else {
                 url
             };
             (
                 url,
-                text(link),
-                select_with_context(node, ".result__snippet")
-                    .next()
-                    .map(text)
-                    .unwrap_or_default(),
+                text(budget, link)?,
+                optional_text(budget, select_with_context(node, ".result__snippet").next())?,
                 None,
             )
         };
         let media = img_src
             .as_ref()
-            .filter(|src| !src.is_empty())
-            .and_then(|src| {
-                ssx_domain::storage::build_media(
+            .filter(|s| !s.is_empty())
+            .map(|src| {
+                #[cfg(test)]
+                crate::html::child_rows::observe_sanitizer_entry(budget);
+                ssx_domain::storage::build_media_bounded(
+                    budget,
                     "image",
-                    Some(src),
-                    Some(src),
-                    Some(&url),
+                    Some(src.as_str()),
+                    Some(src.as_str()),
+                    Some(url.as_str()),
                     None,
                     None,
                     None,
                 )
-            });
-        rows.push(SearchResult {
+                .map_err(|_| Failure::Resource)
+            })
+            .transpose()?
+            .flatten();
+        let position = if lite { rows.len() + 1 } else { i + 1 };
+        rows.try_push(Row {
             url,
             title,
             content,
-            engine: "duckduckgo".into(),
-            position: if lite {
-                (rows.len() + 1) as i64
-            } else {
-                (i + 1) as i64
-            },
-            category: if image {
-                "images".into()
-            } else {
-                "general".into()
-            },
+            position: i64::try_from(position).map_err(|_| Failure::Resource)?,
             img_src: img_src.filter(|s| !s.is_empty()),
             media,
-            ..SearchResult::default()
-        });
+        })
+        .map_err(|_| Failure::Resource)?;
     }
     Ok(rows)
 }
