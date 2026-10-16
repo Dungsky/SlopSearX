@@ -112,6 +112,14 @@ async fn serve(
         }
         request.push_str(&String::from_utf8_lossy(&body));
         seen.lock().unwrap().push(request);
+        if path.contains("idle-expiry") {
+            tokio::time::sleep(Duration::from_millis(5200)).await;
+        }
+        if path.contains("hold") {
+            let mut byte = [0; 1];
+            let _ = io.read(&mut byte).await;
+            return;
+        }
         if path.contains("slow") {
             let _ = io
                 .get_mut()
@@ -1058,5 +1066,192 @@ async fn repeated_content_encoding_headers_decode_in_wire_order() {
                 .map(|r| r.body),
             expected
         );
+    }
+}
+
+#[tokio::test]
+async fn adapter_admission_spans_routes_and_ephemeral_sessions() {
+    if default_ca_environment("adapter_admission_spans_routes_and_ephemeral_sessions") {
+        return;
+    }
+    let first = server().await;
+    let second = server().await;
+    let http = AdapterHttp::default();
+    let cancel = Cancellation::default();
+    let mut tasks = tokio::task::JoinSet::new();
+    for index in 0..20 {
+        let options = if index < 10 {
+            Options {
+                proxy: Some(if index % 2 == 0 {
+                    first.url.clone()
+                } else {
+                    second.url.clone()
+                }),
+                ..Options::default()
+            }
+        } else {
+            Options {
+                trust_env: false,
+                ..Options::default()
+            }
+        };
+        let mut session = http
+            .session(
+                options,
+                tokio::time::Instant::now() + Duration::from_secs(10),
+                if index == 0 {
+                    cancel.clone()
+                } else {
+                    Cancellation::default()
+                },
+            )
+            .unwrap();
+        let url = format!("{}/hold", first.url);
+        tasks.spawn(async move { session.execute(Request::get(&url).unwrap()).await });
+    }
+    wait_seen(&first, 15).await;
+    wait_seen(&second, 5).await;
+    let mut queued = http
+        .session(
+            Options {
+                trust_env: false,
+                ..Options::default()
+            },
+            tokio::time::Instant::now() + Duration::from_millis(100),
+            Cancellation::default(),
+        )
+        .unwrap();
+    assert_eq!(
+        queued
+            .execute(Request::get(&format!("{}/hold", first.url)).unwrap())
+            .await
+            .unwrap_err(),
+        Error::Deadline
+    );
+    assert_eq!(
+        first.accepts.load(Ordering::SeqCst) + second.accepts.load(Ordering::SeqCst),
+        20
+    );
+    cancel.cancel();
+    assert_eq!(
+        tasks.join_next().await.unwrap().unwrap().unwrap_err(),
+        Error::Cancelled
+    );
+    let mut replacement = session(&http);
+    assert_eq!(
+        replacement
+            .execute(Request::get(&first.url).unwrap())
+            .await
+            .unwrap()
+            .status,
+        200
+    );
+    http.shutdown();
+    while let Some(result) = tasks.join_next().await {
+        assert_eq!(result.unwrap().unwrap_err(), Error::Closed);
+    }
+    wait_open(&first, 0).await;
+    wait_open(&second, 0).await;
+}
+
+#[tokio::test]
+async fn adapter_idle_budget_spans_routes_and_ephemeral_sessions() {
+    if default_ca_environment("adapter_idle_budget_spans_routes_and_ephemeral_sessions") {
+        return;
+    }
+    let first = server().await;
+    let second = server().await;
+    let http = AdapterHttp::default();
+    let mut sessions = Vec::new();
+    for index in 0..20 {
+        let mut session = http
+            .session(
+                Options {
+                    proxy: Some(if index % 2 == 0 {
+                        first.url.clone()
+                    } else {
+                        second.url.clone()
+                    }),
+                    trust_env: index < 12,
+                    ..Options::default()
+                },
+                tokio::time::Instant::now() + Duration::from_secs(10),
+                Cancellation::default(),
+            )
+            .unwrap();
+        session
+            .execute(Request::get(&format!("http://origin{index}.invalid/ok")).unwrap())
+            .await
+            .unwrap();
+        sessions.push(session);
+    }
+    tokio::time::timeout(Duration::from_secs(2), async {
+        while first.open.load(Ordering::SeqCst) + second.open.load(Ordering::SeqCst) != 10 {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .unwrap();
+    assert_eq!(
+        first.accepts.load(Ordering::SeqCst) + second.accepts.load(Ordering::SeqCst),
+        20
+    );
+    http.shutdown();
+    wait_open(&first, 0).await;
+    wait_open(&second, 0).await;
+    drop(sessions);
+}
+
+#[tokio::test]
+async fn expired_idle_routes_release_adapter_retention_before_checkout_and_return() {
+    if default_ca_environment(
+        "expired_idle_routes_release_adapter_retention_before_checkout_and_return",
+    ) {
+        return;
+    }
+    for expire_during_response in [false, true] {
+        let old = server().await;
+        let next = server().await;
+        let http = AdapterHttp::default();
+        for n in 0..10 {
+            pooled(&http, &old)
+                .execute(Request::get(&format!("http://old{n}.invalid/ok")).unwrap())
+                .await
+                .unwrap();
+        }
+        assert_eq!(old.accepts.load(Ordering::SeqCst), 10);
+        if !expire_during_response {
+            tokio::time::sleep(Duration::from_millis(5200)).await;
+            wait_open(&old, 0).await;
+        }
+        let mut first = http
+            .session(
+                Options {
+                    proxy: Some(next.url.clone()),
+                    ..Options::default()
+                },
+                tokio::time::Instant::now() + Duration::from_secs(10),
+                Cancellation::default(),
+            )
+            .unwrap();
+        let path = if expire_during_response {
+            "idle-expiry"
+        } else {
+            "ok"
+        };
+        first
+            .execute(Request::get(&format!("http://new.invalid/{path}")).unwrap())
+            .await
+            .unwrap();
+        wait_open(&old, 0).await;
+        for _ in 0..2 {
+            pooled(&http, &next)
+                .execute(Request::get("http://new.invalid/ok").unwrap())
+                .await
+                .unwrap();
+        }
+        assert_eq!(next.accepts.load(Ordering::SeqCst), 1);
+        http.shutdown();
+        wait_open(&next, 0).await;
     }
 }

@@ -30,12 +30,15 @@
     }
   ],
   "tests": [
+    "adapter_admission_spans_routes_and_ephemeral_sessions",
+    "adapter_idle_budget_spans_routes_and_ephemeral_sessions",
     "chunked_compression_expansion_and_false_length",
     "deadline_cancel_shutdown_and_429_never_retry",
     "empty_roots_only_rejected_before_pool_reuse",
     "env_proxy_child",
     "environment_ca_override_explicit_ignore_and_no_proxy_only",
     "environment_proxy_and_no_proxy_use_real_subprocesses",
+    "expired_idle_routes_release_adapter_retention_before_checkout_and_return",
     "gzip_expansion_and_request_bounds",
     "idle_expiry_reconnects",
     "proxy_churn_bounded_overflow_ephemeral",

@@ -21,8 +21,9 @@ headers and body bytes reach the adapter; 429 remains an ordinary response and
 provider-specific status/challenge/parsing classification remains adapter-owned.
 No exception or Rust error string containing upstream credentials is synthesized.
 
-The owned pool has 20 connection permits, ten retained idle origin-specific
-clients and five-second idle expiry. Each client retains at most one connection
+Each adapter shares 20 active connection permits and ten idle-retention permits
+across every retained route and ephemeral pool. Idle origin-specific clients
+have five-second expiry. Each client retains at most one connection
 for its one origin. A checkout reserves one idle slot; concurrent overflow
 clients are dropped after the request. The first eight route keys (including a
 direct key, as in the source dictionary) are retained. Additional explicit

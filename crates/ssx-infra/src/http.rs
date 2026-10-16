@@ -12,7 +12,7 @@ use std::{
     sync::{Arc, Mutex, Weak},
     time::{Duration, Instant},
 };
-use tokio::sync::{Notify, Semaphore, watch};
+use tokio::sync::{Notify, OwnedSemaphorePermit, Semaphore, watch};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Error {
@@ -130,32 +130,35 @@ impl Cancellation {
     }
 }
 struct Idle {
+    _retention: OwnedSemaphorePermit,
     origin: String,
     client: Client,
     used: Instant,
 }
 struct Pool {
+    idle: Arc<Semaphore>,
     slots: Mutex<Vec<(bool, Option<Idle>)>>,
     permits: Arc<Semaphore>,
     options: Options,
 }
 impl Pool {
-    fn new(options: Options) -> Self {
+    fn new(options: Options, idle: Arc<Semaphore>) -> Self {
         Self {
+            idle,
             slots: Mutex::new((0..10).map(|_| (false, None)).collect()),
             permits: Arc::new(Semaphore::new(20)),
             options,
         }
     }
-    fn checkout(self: &Arc<Self>, url: &Url) -> Result<Checkout> {
+    fn checkout(self: &Arc<Self>, url: &Url, state: Arc<Mutex<State>>) -> Result<Checkout> {
         let origin = url.origin().ascii_serialization();
         let mut slots = self.slots.lock().unwrap();
         if self.permits.is_closed() {
             return Err(Error::Closed);
         }
-        // At most ten idle clients, each permanently tied to one origin. The other
-        // ten concurrent requests use non-retained clients. This enforces a global
-        // cap instead of mistaking reqwest's per-host setting for a global cap.
+        // Origin slots bound each pool; adapter-wide retention permits are acquired
+        // when returning clients, so all route and ephemeral pools together
+        // retain at most ten idle connections.
         let slot = slots
             .iter()
             .position(|(busy, s)| {
@@ -187,11 +190,22 @@ impl Pool {
             build_client(&self.options)?
         };
         Ok(Checkout {
+            state,
             pool: self.clone(),
             slot,
             origin,
             client: Some(client),
         })
+    }
+    fn expire_idle(&self) {
+        for (_, idle) in self.slots.lock().unwrap().iter_mut() {
+            if idle
+                .as_ref()
+                .is_some_and(|entry| entry.used.elapsed() >= Duration::from_secs(5))
+            {
+                *idle = None;
+            }
+        }
     }
     fn close(&self) {
         self.permits.close();
@@ -203,6 +217,7 @@ impl Pool {
     }
 }
 struct Checkout {
+    state: Arc<Mutex<State>>,
     pool: Arc<Pool>,
     slot: Option<usize>,
     origin: String,
@@ -210,19 +225,27 @@ struct Checkout {
 }
 impl Drop for Checkout {
     fn drop(&mut self) {
+        // Match shutdown's state -> pool lock order. Expiry may have elapsed
+        // during the response, so reclaim before attempting idle retention too.
+        self.state.lock().unwrap().expire_idle();
         if let Some(n) = self.slot {
             let mut slots = self.pool.slots.lock().unwrap();
             if self.pool.permits.is_closed() {
                 return;
             }
-            slots[n] = (
-                false,
-                Some(Idle {
+            slots[n].0 = false;
+            slots[n].1 = self
+                .pool
+                .idle
+                .clone()
+                .try_acquire_owned()
+                .ok()
+                .map(|permit| Idle {
+                    _retention: permit,
                     origin: self.origin.clone(),
                     client: self.client.take().unwrap(),
                     used: Instant::now(),
-                }),
-            );
+                });
         }
     }
 }
@@ -265,22 +288,38 @@ struct State {
     injected: Option<Arc<dyn Transport>>,
     all_pools: Vec<Weak<Pool>>,
 }
+impl State {
+    fn expire_idle(&mut self) {
+        self.all_pools.retain(|pool| {
+            if let Some(pool) = pool.upgrade() {
+                pool.expire_idle();
+                true
+            } else {
+                false
+            }
+        });
+    }
+}
 pub struct AdapterHttp {
+    idle: Arc<Semaphore>,
+    connections: Arc<Semaphore>,
     decoder: Arc<Decoder>,
-    state: Mutex<State>,
+    state: Arc<Mutex<State>>,
     stop: Cancellation,
 }
 impl Default for AdapterHttp {
     fn default() -> Self {
         Self {
+            idle: Arc::new(Semaphore::new(10)),
+            connections: Arc::new(Semaphore::new(20)),
             decoder: Arc::new(Decoder::default()),
-            state: Mutex::new(State {
+            state: Arc::new(Mutex::new(State {
                 closed: false,
                 used: false,
                 pools: HashMap::new(),
                 injected: None,
                 all_pools: Vec::new(),
-            }),
+            })),
             stop: Cancellation::default(),
         }
     }
@@ -355,11 +394,11 @@ impl AdapterHttp {
                 .iter()
                 .any(|k| std::env::var(k).is_ok_and(|v| !v.is_empty())));
         let pool = if ephemeral || (!s.pools.contains_key(&options.proxy) && s.pools.len() >= 8) {
-            Arc::new(Pool::new(options.clone()))
+            Arc::new(Pool::new(options.clone(), self.idle.clone()))
         } else {
             s.pools
                 .entry(options.proxy.clone())
-                .or_insert_with(|| Arc::new(Pool::new(options.clone())))
+                .or_insert_with(|| Arc::new(Pool::new(options.clone(), self.idle.clone())))
                 .clone()
         };
         s.all_pools.retain(|p| p.strong_count() > 0);
@@ -367,6 +406,8 @@ impl AdapterHttp {
             s.all_pools.push(Arc::downgrade(&pool));
         }
         Ok(Session {
+            state: self.state.clone(),
+            connections: self.connections.clone(),
             decoder: self.decoder.clone(),
             pool,
             injected: s.injected.clone(),
@@ -385,6 +426,8 @@ impl AdapterHttp {
         let mut s = self.state.lock().unwrap();
         s.closed = true;
         self.stop.cancel();
+        self.connections.close();
+        self.idle.close();
         self.decoder.close();
         for p in s.all_pools.drain(..).filter_map(|p| p.upgrade()) {
             p.close();
@@ -407,6 +450,8 @@ impl Drop for AdapterHttp {
     }
 }
 pub struct Session {
+    state: Arc<Mutex<State>>,
+    connections: Arc<Semaphore>,
     decoder: Arc<Decoder>,
     pool: Arc<Pool>,
     injected: Option<Arc<dyn Transport>>,
@@ -522,13 +567,21 @@ impl Session {
         }
     }
     async fn network(&self, mut r: Request) -> Result<Response> {
+        // Route-specific and ephemeral clients share the adapter's admission
+        // budget. Keep ownership until the response body has been consumed.
+        let _adapter_permit = self
+            .connections
+            .acquire()
+            .await
+            .map_err(|_| Error::Closed)?;
         let _permit = self
             .pool
             .permits
             .acquire()
             .await
             .map_err(|_| Error::Closed)?;
-        let checkout = self.pool.checkout(&r.url)?;
+        self.state.lock().unwrap().expire_idle();
+        let checkout = self.pool.checkout(&r.url, self.state.clone())?;
         r.headers
             .entry(header::ACCEPT_ENCODING)
             .or_insert(HeaderValue::from_static("gzip, deflate"));
