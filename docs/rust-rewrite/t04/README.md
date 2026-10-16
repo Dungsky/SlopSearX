@@ -10,11 +10,30 @@ membership or tenant decisions here. T05 owns protocol/endpoint validation.
 
 ## Configuration and protocol boundary
 
-Composition supplies a captured F06 configuration projection explicitly:
-OAuth enabled, issuer, TTLs, static-bearer configured, Valkey handle and authority
-identifier. No module reads ambient URLs or credentials. `OAuthMode::configured`
-preserves disabled, static bearer, OAuth and combined OAuth-plus-static-bearer
-modes; T05 must preserve the outer static gate in combined mode. OAuth requires
+Composition supplies captured F06 values and an explicit authentication
+composition choice: OAuth enabled, issuer, TTLs, an explicitly requested static
+wrapper, Valkey handle and authority identifier. No module reads ambient URLs or
+credentials. `OAuthMode::configured` enumerates disabled, static bearer, OAuth and
+explicitly combined OAuth-plus-static-bearer helper compositions; its static flag
+is not an instruction to layer credentials automatically from raw config presence.
+
+The pinned source distinguishes entrypoint selection from helper composition.
+[`server.py:437-453`](../../../slopsearx/mcp/server.py#L437-L453) selects OAuth alone
+when OAuth is enabled, passing an empty static token even if one is configured;
+otherwise it selects static bearer when configured.
+[`security.py:64-79`](../../../slopsearx/mcp/security.py#L64-L79) can deliberately
+wrap an OAuth server with an outer static gate. `Both` represents that explicit
+helper use, not CLI precedence. T05 must preserve the CLI selection contract.
+
+`OAuthStore::load_token` validates a stored OAuth grant; it does not authorize a
+transport request. T05 enforces the selected transport middleware. Static bearer
+and OAuth tokens are independent credentials: revoking an OAuth pair does not
+revoke the operator static token.
+The source network SSE entrypoint at `server.py:463-467` bypasses auth assembly;
+T05 closes that bypass under issue #900's explicit all-network-transport scope,
+while retaining trusted stdio and auto-approval without a new consent policy.
+These source anchors refer to accepted baseline `1f3f5bc8`; they do not change
+T04 runtime behavior or activate an endpoint. OAuth requires
 an HTTP(S) issuer and derives the `/mcp` resource URL. It strips raw trailing
 slashes before independently normalizing issuer/resource URLs, retaining slashes
 introduced by dot-segment normalization. User-info, query and fragment components

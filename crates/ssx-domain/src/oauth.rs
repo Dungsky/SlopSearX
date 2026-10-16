@@ -203,8 +203,11 @@ impl OAuthSettings {
     }
 }
 
-/// Source static bearer wrapping can coexist with OAuth. T05 applies the outer
-/// bearer gate in Both mode; this value never carries the static credential.
+/// Explicit composition choices, not CLI authentication precedence. The source
+/// helper can wrap OAuth with static bearer (security.py:64-79); the CLI instead
+/// selects OAuth over a configured static token (server.py:437-453). Both means
+/// an explicitly requested helper wrapper, never automatic raw-config layering.
+/// Trusted stdio and source auto-approval remain separate T05 contracts.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OAuthMode {
     Disabled,
@@ -213,6 +216,8 @@ pub enum OAuthMode {
     Both(OAuthSettings),
 }
 impl OAuthMode {
+    /// The static flag explicitly requests an outer wrapper. A CLI caller must
+    /// resolve source OAuth precedence before constructing this composition.
     pub fn configured(
         enabled: bool,
         issuer: &str,
