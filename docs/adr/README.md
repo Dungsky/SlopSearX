@@ -11,3 +11,4 @@ use a new record and link the successor.
 - [003 — Rust workspace and contract boundaries](003-rust-workspace-and-contract-boundaries.md)
 - [004 — Valkey authority and Rust cutover](004-rust-valkey-authority-and-migration.md)
 - [005 — Native protocol, TLS and platform contract](005-rust-protocol-tls-and-platforms.md)
+- [006 — Bounded adapter HTTP sessions](006-adapter-http-bounds.md)

@@ -19,3 +19,8 @@ consume its bounded lossless JSON values independently; it has no backend or
 network dependencies. The native gate rejects serde_json `arbitrary_precision`
 feature unification and qualifies huge integers and ordinary reserved-looking
 object keys through storage and public DTO serialization.
+
+F08 adds [ADR 006](../../adr/006-adapter-http-bounds.md), exactly pinned flate2
+1.1.9 and reqwest's cookies feature for isolated search jars with bounded,
+independently counted encoded/decoded bodies. Decoder ownership and shutdown
+are qualified separately from provider parsers in the [F08 handoff](../f08/README.md).

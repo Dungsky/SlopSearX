@@ -390,10 +390,9 @@ pub fn check(root: &Path, records: &mut Vec<serde_json::Value>) -> Result<()> {
         .as_array()
         .ok_or("missing wire dependencies")?
     {
-        if dependency["name"]
-            .as_str()
-            .is_some_and(|name| name.starts_with("ssx-") && name != "ssx-json")
-        {
+        if dependency["name"].as_str().is_some_and(|name| {
+            name.starts_with("ssx-") && name != "ssx-json" && name != "ssx-publication"
+        }) {
             return Err("wire crate depends on backend internals".into());
         }
     }
