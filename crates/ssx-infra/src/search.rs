@@ -810,6 +810,7 @@ fn cache_key(
     composed_key(
         &CacheKeyInput {
             query: request.query.clone(),
+            subreddit: request.subreddit.clone(),
             language: request.language.clone(),
             safesearch: request.safesearch.into(),
             categories: request.categories.clone().unwrap_or_default(),

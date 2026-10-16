@@ -479,3 +479,70 @@ contains 382 paths and 20 developer-oracle invocations. Historical source
 observations and their original provenance remain unchanged. Both W01 rows,
 W00's source integration mapping and F14's exact PR874 bridge are retained.
 Final publication requires accepted upstream integration and qualification.
+
+## A04 temporary source-capture oracles
+
+A04 adds two temporary, offline-only Python 3.14.7 exporters under
+`docs/rust-rewrite/a04/oracle/`: `export_cases.py` reproduces all 37 original
+source captures and their per-record config/status/exception context, while
+`export_matrix.py` captures supplementary Brave, Wikipedia, and Reddit edge
+cases. Both use actual source adapter methods with `httpx.MockTransport`; no
+provider, DNS, or paid calls occur. Mandatory native A04 gates consume only the
+committed JSON packs and never execute either exporter. A04 owns the source
+observations; G08 owns executable retirement before backend removal.
+
+The current source-path manifest grows by two backend-coupled tooling files,
+and the developer-oracle invocation appendix grows by two rows. Historical F01
+baseline identities remain unchanged. F01 documentary source pins require the
+normal reviewed refresh; no runtime Python behavior or public client exception
+is added.
+
+## A04 corrected capture inventory
+
+The frozen A04 packet retains 37 original observations and their context, 104 supplementary source observations, and six tagged nonfinite observations documenting the accepted F05 finite-output boundary. The same two developer-only exporters now have three explicit invocation records. This checkpoint inventories 377 Python source paths and 15 developer-oracle invocations; historical example and py.txt counts remain unchanged. All earlier complete source and invocation records are preserved. Staged source paths are checked exactly before F01 documentary pins are refreshed.
+
+
+## A04 fourth-review source semantics and explicit representations
+
+The corrected packet preserves all 37 original source records/context, all 110
+previous ordinary records, and all six tagged nonfinite observations. The
+ordinary matrix now has 296 authentic source observations. A separate 14-record
+representation fixture retains source boolean/overrange media and non-string
+selftext outcomes alongside explicitly reviewed native whole-response refusals.
+The existing two source exporters have four separate commands; all previous 15
+full developer invocation rows are unchanged and the appendix now contains 16.
+Python source paths remain exactly 377; historical example count 49 and all
+historical py.txt counts/modes remain unchanged. This entry changes no accepted
+runtime Python source pin or historical reference capture.
+
+
+The final A04 fourth-review extension retains that 296/14 checkpoint as an exact
+record prefix. It now inventories 333 ordinary source observations and 126
+explicit representation observations, with source-error precedence controls.
+The same fourth exporter command captures approved String/Option<String>
+malformed-output refusals across all three adapters; the four commands and all
+16 invocation rows remain unchanged. Source-path and historical counts remain
+377 and 49 respectively. No runtime/reference source pin changes.
+
+
+## A04 fifth-review source JSON boundary observations
+
+The A04-owned offline exporter adds a separate `--source-json-output` invocation
+and source_json.json evidence for byte encoding, Python numeric decoding,
+Unicode scalar output boundaries, and bounded native JSON resources. Existing
+37/context/333/126/6 captures and all historical/runtime source pins remain
+unchanged. The existing exporter path is reused: projected Python source paths
+remain377, developer oracle invocation rows become17, and historical example
+reference count remains49. Source-success/native-refusal deltas and actual
+Python decoder exceptions are explicit in A04/PARITY.md and the new corpus;
+they do not establish arbitrary JSON or other-adapter parity. Public codec and
+storage remain unchanged. This entry requires narrow own-document/exporter
+anchor review; it does not authorize refreshing runtime source pins.
+
+## A04 accepted-main integration preparation
+
+The reviewed A04 checkpoint is integrated with accepted F14 main `576d43b03c0378ffe113a1386b1ec88eaa4323df`. All complete parent inventory records remain unchanged: the additive union has 383 Python source paths and 24 developer-oracle invocation rows, including both W01 commands. Historical A04 captures and source pins are immutable. Its shared filter-semantics observation now uses the accepted exact PR874 source-freshness bridge and separately bound 22-case date evidence; this does not change adapter runtime semantics. Parent integration review, exact-head CI and acceptance remain pending.
+
+## A04 accepted W00 main integration
+
+The fully qualified A04/F14 checkpoint `ca7c6209b4b5e67f5916297e632afbd93f09d758` is normally integrated with accepted W00 main `950071404c61eabc1201730362baccd01b3f2295`. The complete-record union is384 Python source paths and25 developer-oracle invocations. Both parent records and all raw captures remain exact. W00 adds saved modules, gate and evidence metadata; A04 runtime and its exact optional-subreddit cache/flight correction remain unchanged. This entry changes only combined documentary bindings; independent integration review and acceptance remain pending.

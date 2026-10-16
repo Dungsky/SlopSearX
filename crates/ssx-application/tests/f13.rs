@@ -357,6 +357,7 @@ fn native_v1_identity_bytes_survive_tuple_encoding_change() {
     for i in 0..100 {
         let input = CacheKeyInput {
             query: format!(" \u{1c} q 🦀 café / + % {i} \u{1f}"),
+            subreddit: None,
             language: "fr".into(),
             safesearch: i % 3,
             categories: vec!["news".into(), format!("z{i}"), "a".into()],

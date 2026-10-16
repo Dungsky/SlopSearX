@@ -219,6 +219,8 @@ pub struct SearchRequest {
     pub query: String,
     pub categories: Option<Vec<String>>,
     pub engines: Option<Vec<String>>,
+    /// Provider-specific subreddit scope used by Reddit's `reddit:subreddit` category.
+    pub subreddit: Option<String>,
     pub language: String,
     pub page: u64,
     pub time_range: Option<String>,
@@ -241,6 +243,7 @@ impl Default for SearchRequest {
             query: String::new(),
             categories: None,
             engines: None,
+            subreddit: None,
             language: "en".into(),
             page: 1,
             time_range: None,
