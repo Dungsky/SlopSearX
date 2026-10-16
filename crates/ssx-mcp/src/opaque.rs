@@ -511,6 +511,71 @@ fn validate_reply(fields: &BTreeMap<String, Box<RawValue>>, expected: Option<&st
     }
     Ok(())
 }
+/// Incremental upstream lines: every byte is visited once, with no front-drains.
+/// The exchange enforces its cumulative wire-byte limit before feeding chunks.
+#[derive(Default)]
+struct GatewaySse {
+    line: Vec<u8>,
+    data: Vec<u8>,
+    has_data: bool,
+    skip_lf: bool,
+    events: usize,
+    #[cfg(test)]
+    inspected: usize,
+}
+impl GatewaySse {
+    fn push(&mut self, chunk: &[u8], expected: Option<&str>) -> Result<Option<String>> {
+        for &byte in chunk {
+            #[cfg(test)]
+            {
+                self.inspected += 1;
+            }
+            if self.skip_lf {
+                self.skip_lf = false;
+                if byte == b'\n' {
+                    continue;
+                }
+            }
+            if byte == b'\r' || byte == b'\n' {
+                self.skip_lf = byte == b'\r';
+                if self.line.is_empty() {
+                    if self.has_data {
+                        self.has_data = false;
+                        // rmcp stateful priming events carry empty data. SSE
+                        // dispatch ignores empty assembled data; preserve the
+                        // flag separately so empty multiline fields still join.
+                        if self.data.is_empty() {
+                            continue;
+                        }
+                        self.events += 1;
+                        if self.events > 128 {
+                            return Err("MCP SSE exceeds 128 events".into());
+                        }
+                        let message = String::from_utf8(std::mem::take(&mut self.data))?;
+                        let fields: BTreeMap<String, Box<RawValue>> =
+                            serde_json::from_str(&message)?;
+                        if fields.contains_key("result") || fields.contains_key("error") {
+                            validate_reply(&fields, expected)?;
+                            return Ok(Some(message));
+                        }
+                    }
+                } else if self.line == b"data" || self.line.starts_with(b"data:") {
+                    let value = self.line.get(5..).unwrap_or_default();
+                    let value = value.strip_prefix(b" ").unwrap_or(value);
+                    if self.has_data {
+                        self.data.push(b'\n');
+                    }
+                    self.has_data = true;
+                    self.data.extend_from_slice(value);
+                }
+                self.line.clear();
+            } else {
+                self.line.push(byte);
+            }
+        }
+        Ok(None)
+    }
+}
 #[derive(Clone)]
 pub struct RawGateway {
     http: reqwest::Client,
@@ -580,44 +645,19 @@ impl RawGateway {
         let expected = request.id.as_ref().map(|v| key(v)).transpose()?;
         let read = async {
             let mut bytes = Vec::new();
-            let mut data = Vec::new();
+            let mut frames = GatewaySse::default();
             let mut total = 0usize;
-            let mut events = 0usize;
             while let Some(chunk) = response.chunk().await? {
                 total = total.saturating_add(chunk.len());
                 if total > 4 * 1024 * 1024 {
                     return Err("remote MCP body exceeds 4 MiB".into());
                 }
-                bytes.extend_from_slice(&chunk);
                 if sse {
-                    while let Some(end) = bytes.iter().position(|b| *b == b'\n') {
-                        let mut line: Vec<u8> = bytes.drain(..=end).collect();
-                        line.pop();
-                        if line.last() == Some(&b'\r') {
-                            line.pop();
-                        }
-                        if line.is_empty() {
-                            if !data.is_empty() {
-                                events += 1;
-                                if events > 128 {
-                                    return Err("MCP SSE exceeds 128 events".into());
-                                }
-                                let message = String::from_utf8(std::mem::take(&mut data))?;
-                                let fields: BTreeMap<String, Box<RawValue>> =
-                                    serde_json::from_str(&message)?;
-                                if fields.contains_key("result") || fields.contains_key("error") {
-                                    validate_reply(&fields, expected.as_deref())?;
-                                    return Ok(Some(message));
-                                }
-                            }
-                        } else if let Some(value) = line.strip_prefix(b"data:") {
-                            let value = value.strip_prefix(b" ").unwrap_or(value);
-                            if !data.is_empty() {
-                                data.push(b'\n');
-                            }
-                            data.extend_from_slice(value);
-                        }
+                    if let Some(message) = frames.push(&chunk, expected.as_deref())? {
+                        return Ok(Some(message));
                     }
+                } else {
+                    bytes.extend_from_slice(&chunk);
                 }
             }
             if sse {
@@ -960,6 +1000,78 @@ mod tests {
 #[cfg(test)]
 mod close_tests {
     use super::*;
+    #[test]
+    fn gateway_sse_visits_line_heavy_input_once() -> Result<()> {
+        let mut input = b":\n".repeat(1_000_000);
+        input.extend_from_slice(b"data: {\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{}}\n\n");
+        for size in [input.len(), 1, 8192] {
+            let mut parser = GatewaySse::default();
+            let mut result = None;
+            for chunk in input.chunks(size) {
+                result = parser.push(chunk, Some("integer:1"))?.or(result);
+            }
+            assert!(result.is_some());
+            assert_eq!(parser.inspected, input.len());
+        }
+        Ok(())
+    }
+    #[test]
+    fn gateway_sse_preserves_fragmented_lines_and_event_limits() -> Result<()> {
+        for delimiter in ["\n", "\r\n", "\r"] {
+            let event = format!(
+                "data: {{\"jsonrpc\":\"2.0\",{delimiter}data: \"id\":1,\"result\":\"雪\"}}{delimiter}{delimiter}"
+            );
+            for size in 1..=event.len() {
+                let mut parser = GatewaySse::default();
+                let mut result = None;
+                for chunk in event.as_bytes().chunks(size) {
+                    result = parser.push(chunk, Some("integer:1"))?.or(result);
+                }
+                let fields: Value = serde_json::from_str(&result.unwrap())?;
+                assert_eq!(fields["result"], "雪");
+            }
+        }
+        let notification = b"data: {\"jsonrpc\":\"2.0\",\"method\":\"progress\"}\n\n";
+        let mut parser = GatewaySse::default();
+        for _ in 0..128 {
+            assert!(parser.push(notification, Some("integer:1"))?.is_none());
+        }
+        assert!(parser.push(notification, Some("integer:1")).is_err());
+        assert!(GatewaySse::default().push(b"data: \xff\n\n", None).is_err());
+        assert!(GatewaySse::default().push(b"data: {}\n", None)?.is_none());
+        Ok(())
+    }
+    #[test]
+    fn gateway_sse_skips_empty_sdk_priming_without_losing_multiline_data() -> Result<()> {
+        // rmcp 3.5.1 ServerSseMessage::priming emits empty data, id and retry.
+        for delimiter in ["\n", "\r\n", "\r"] {
+            let prime =
+                format!("id: 0{delimiter}retry: 1000{delimiter}data:{delimiter}{delimiter}");
+            let reply = format!(
+                "data:{delimiter}data: {{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":\"雪\"}}{delimiter}{delimiter}"
+            );
+            for size in 1..=reply.len() {
+                let mut parser = GatewaySse::default();
+                for _ in 0..129 {
+                    for chunk in prime.as_bytes().chunks(size) {
+                        assert!(parser.push(chunk, Some("integer:1"))?.is_none());
+                    }
+                }
+                assert_eq!(parser.events, 0);
+                let mut result = None;
+                for chunk in reply.as_bytes().chunks(size) {
+                    result = parser.push(chunk, Some("integer:1"))?.or(result);
+                }
+                let result = result.unwrap();
+                assert!(result.starts_with('\n')); // Empty first data line survives joining.
+                assert_eq!(serde_json::from_str::<Value>(&result)?["result"], "雪");
+                assert_eq!(parser.events, 1);
+            }
+        }
+        // Empty data is ignored, but a nonempty invalid JSON event still fails.
+        assert!(GatewaySse::default().push(b"data: nope\n\n", None).is_err());
+        Ok(())
+    }
     #[tokio::test]
     async fn exchange_shares_deadline_across_headers_and_body() -> Result<()> {
         use tokio::io::{AsyncReadExt, AsyncWriteExt};
