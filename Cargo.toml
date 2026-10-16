@@ -36,6 +36,7 @@ ryu = { version = "=1.0.23" }
 flate2 = "=1.1.9"
 ssx-publication = { path = "crates/ssx-publication" }
 ssx-json = { path = "crates/ssx-json" }
+ssx-owned-budget = { path = "crates/ssx-owned-budget" }
 ssx-domain = { path = "crates/ssx-domain" }
 ssx-wire = { path = "crates/ssx-wire" }
 ssx-application = { path = "crates/ssx-application" }

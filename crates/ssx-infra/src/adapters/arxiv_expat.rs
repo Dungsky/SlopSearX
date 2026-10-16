@@ -573,8 +573,10 @@ mod allocation_tests {
     }
     #[tokio::test(flavor = "current_thread")]
     async fn many_empty_author_slots_yield_during_projection_cost_preflight() {
-        let mut e = Entry::default();
-        e.authors = vec![String::new(); 1_000_000];
+        let e = Entry {
+            authors: vec![String::new(); 1_000_000],
+            ..Entry::default()
+        };
         assert!(
             tokio::time::timeout(
                 std::time::Duration::from_millis(1),

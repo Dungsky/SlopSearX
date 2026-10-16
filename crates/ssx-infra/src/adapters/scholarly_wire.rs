@@ -63,12 +63,15 @@ fn parameters(base: &str, pairs: &[(&str, &str)]) -> Result<String, url::ParseEr
     Ok(url.into())
 }
 pub fn arxiv_url(base: &str, query: &str, limit: usize) -> Result<String, url::ParseError> {
+    arxiv_url_text(base, query, &limit.to_string())
+}
+fn arxiv_url_text(base: &str, query: &str, limit: &str) -> Result<String, url::ParseError> {
     parameters(
         base,
         &[
             ("search_query", &arxiv_query(query)),
             ("start", "0"),
-            ("max_results", &limit.to_string()),
+            ("max_results", limit),
             ("sortBy", "relevance"),
             ("sortOrder", "descending"),
         ],
@@ -79,17 +82,49 @@ pub fn semantic_scholar_url(
     query: &str,
     limit: usize,
 ) -> Result<String, url::ParseError> {
+    semantic_scholar_url_text(base, query, &limit.to_string())
+}
+fn semantic_scholar_url_text(
+    base: &str,
+    query: &str,
+    limit: &str,
+) -> Result<String, url::ParseError> {
     parameters(
         base,
         &[
             ("query", query),
-            ("limit", &limit.to_string()),
+            ("limit", limit),
             (
                 "fields",
                 "title,url,abstract,citationCount,publicationDate,externalIds,authors",
             ),
         ],
     )
+}
+/// Raw scalar variants preserve F06 type until request rendering. Existing usize
+/// helpers remain compatibility conveniences for their accepted integer controls.
+pub fn arxiv_url_scalar(
+    base: &str,
+    query: &str,
+    limit: &super::scholarly_config::Scalar,
+) -> Result<String, url::ParseError> {
+    arxiv_url_text(base, query, &limit.query_text())
+}
+pub fn semantic_scholar_url_scalar(
+    base: &str,
+    query: &str,
+    limit: &super::scholarly_config::Scalar,
+) -> Result<String, url::ParseError> {
+    semantic_scholar_url_text(base, query, &limit.query_text())
+}
+pub fn openalex_url_scalar(
+    base: &str,
+    query: &str,
+    limit: &super::scholarly_config::Scalar,
+    lower: Option<&str>,
+    upper: Option<&str>,
+) -> String {
+    openalex_url_text(base, query, &limit.python_text(), lower, upper)
 }
 /// Actual OpenAlex validates dates/time_range before quota admission. The
 /// enclosing service's relative-window/proof policy remains authoritative.
@@ -114,6 +149,15 @@ pub fn openalex_url(
     base: &str,
     query: &str,
     limit: usize,
+    lower: Option<&str>,
+    upper: Option<&str>,
+) -> String {
+    openalex_url_text(base, query, &limit.to_string(), lower, upper)
+}
+fn openalex_url_text(
+    base: &str,
+    query: &str,
+    limit: &str,
     lower: Option<&str>,
     upper: Option<&str>,
 ) -> String {
@@ -155,10 +199,12 @@ mod tests {
                     .as_u64()
                     .unwrap_or(if engine == "openalex" { 10 } else { 5 })
                     as usize;
-                let mut request = ssx_domain::SearchRequest::default();
-                request.date_from = row["params"]["date_from"].as_str().map(str::to_owned);
-                request.date_to = row["params"]["date_to"].as_str().map(str::to_owned);
-                request.time_range = row["params"]["time_range"].as_str().map(str::to_owned);
+                let request = ssx_domain::SearchRequest {
+                    date_from: row["params"]["date_from"].as_str().map(str::to_owned),
+                    date_to: row["params"]["date_to"].as_str().map(str::to_owned),
+                    time_range: row["params"]["time_range"].as_str().map(str::to_owned),
+                    ..Default::default()
+                };
                 if engine == "openalex"
                     && let Err(message) = openalex_preflight(&request)
                 {

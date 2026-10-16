@@ -147,7 +147,8 @@ pub struct F10Admission {
 }
 impl F10Admission {
     /// The composition root retains this handle for lifecycle, reactivation and
-    /// cooldown operations; the adapter bridge only acquires quota decisions.
+    /// cooldown operations; the adapter bridge handles quota admission and
+    /// optional upstream cooldown feedback through the same limiter.
     pub fn new(limiter: Arc<tokio::sync::Mutex<RateLimiter>>) -> Self {
         Self { limiter }
     }
@@ -168,6 +169,23 @@ impl SearchAdmission for F10Admission {
                 Ok(_) => AdmissionDecision::Denied,
                 Err(_) => AdmissionDecision::Unavailable,
             }
+        })
+    }
+    fn set_upstream_cooldown<'a>(
+        &'a self,
+        engine: &'static str,
+        seconds: f64,
+    ) -> PortFuture<'a, ()> {
+        Box::pin(async move {
+            let Ok(key) = EngineKey::new(engine) else {
+                return;
+            };
+            let mut limiter = self.limiter.lock().await;
+            // Use the exact same process-local epoch as admission. Source
+            // adapters ignore optional cooldown publication failures.
+            let _ = limiter
+                .set_upstream_cooldown(&key, seconds, f10_monotonic_seconds())
+                .await;
         })
     }
 }
@@ -433,3 +451,15 @@ fn broad_scalar_output(
         }
     }
 }
+
+pub mod semantic_scholar;
+
+pub mod scholarly_order;
+
+pub mod scholarly_sort;
+
+pub mod scholarly_config;
+
+pub mod source_payload;
+
+pub mod scholarly_frame;

@@ -2494,7 +2494,9 @@ dependencies = [
  "ssx-application",
  "ssx-domain",
  "ssx-json",
+ "ssx-owned-budget",
  "ssx-registry",
+ "ssx-source-codecs",
  "ssx-source-xml",
  "time",
  "tokio",
@@ -2540,6 +2542,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "ssx-owned-budget"
+version = "0.1.0"
+
+[[package]]
 name = "ssx-publication"
 version = "0.1.0"
 dependencies = [
@@ -2569,6 +2575,15 @@ dependencies = [
  "ssx-infra",
  "ssx-registry",
  "tokio",
+]
+
+[[package]]
+name = "ssx-source-codecs"
+version = "0.1.0"
+dependencies = [
+ "flate2",
+ "serde_json",
+ "ssx-owned-budget",
 ]
 
 [[package]]
