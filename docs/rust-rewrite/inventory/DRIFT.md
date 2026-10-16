@@ -355,3 +355,33 @@ backend-coupled tooling/test and one client-only source, with 14 developer-oracl
 invocation rows. Earlier counts and statuses describe historical checkpoints.
 Only the three merged inventory-document F01 anchors require documentary
 refresh; accepted runtime, oracle and source capture identities remain unchanged.
+
+## A05 HTML adapter source and temporary oracle
+
+A05 starts at `01876639fb8d87123f12293c02821981cff3f8b9`, after accepted A01
+PR #969. DuckDuckGo/Google Python source and named regression identities remain
+pinned in `a05/corpus.json`; native code uses accepted registry/HTTP/quota seams.
+One backend-coupled offline exporter is added under `a05/oracle/export.py`, owned
+by A05/G08. It is never called by runtime, CI or native gates; G08 retires the
+executable and retains the historical JSON. Disposition/source counts grow by
+one; developer-only oracle invocation inventory grows by one. No plan edges or
+mandatory Python gates are removed.
+
+A05's complete outcome/request replay preserves the source 5 ms bootstrap bug,
+text versus lite/image redirect decoding, malformed-empty HTML failures and
+Python ASCII/Latin-1 codecs. `a05/README.md` records two precise reviewed
+differences: F08 typed network-error diagnostics omit arbitrary HTTPX exception
+text, and accepted F08 host-only cookies do not leak from parent to subdomain.
+Domain-cookie continuity remains supported. Live provider compatibility is
+unverified; no deployment or provider request is authorized by this evidence.
+
+A05 independent review appended 43 whole-source cases in `a05/corpus-review.json`
+while retaining the original 115-case file byte-for-byte. Corrections preserve
+context-inclusive lxml selectors, declarations/PI/open-comment empty-document
+classification, Python quote_plus bytes and UTF-32 decoding. No further parity
+exceptions were approved. The existing exporter optionally writes both pinned
+corpora; its invocation inventory row changes without adding Python sources or
+commands to native gates. The already-locked html5ever 0.39.0 package becomes a
+direct ssx-infra dependency for tokenization; Tokio test-util is enabled only as
+a dev dependency for the controlled bootstrap clock. Lock versions/checksums
+are unchanged. Exact source identity/pin changes require parent review.

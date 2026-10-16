@@ -3,7 +3,7 @@
   "baseline_sha": "20109f9083babd014971951e8c02565ae51c2326",
   "source": "Pinned F01 baseline inventory plus reviewed post-baseline additions recorded in DRIFT.md; source-set validation refreshed at acceptance.",
   "summary": {
-    "tracked_python_source_count": 377,
+    "tracked_python_source_count": 378,
     "extensionless_python_entrypoints": 1,
     "executable_config_python_invocation_lines": 63,
     "interpreter_configuration_lines": 106,
@@ -11,7 +11,7 @@
     "documented_example_invocation_references": 49,
     "source_classifications": {
       "backend/runtime": 122,
-      "backend-coupled tooling/test": 254,
+      "backend-coupled tooling/test": 255,
       "client-only": 1
     },
     "documentation_file_modes": {
@@ -19,8 +19,8 @@
     },
     "source_path_set_validation": {
       "method": "sorted exact-set comparison between git ls-files paths ending .py/.pyw/.pyi plus ssx and files[].path",
-      "tracked_expected_count": 377,
-      "manifest_count": 377,
+      "tracked_expected_count": 378,
+      "manifest_count": 378,
       "exact_match": true,
       "extensionless_python_paths": [
         "ssx"
@@ -4439,6 +4439,19 @@
       "evidence": "A02 source-bound offline CPython3.14.7/httpx0.28.1/lxml6.1.1 package-registry response/request observations; mandatory native gates consume immutable JSON only.",
       "reason": "No provider calls or runtime/client exception; G08 removes executable Python before backend removal.",
       "introduced_after_baseline": "025ab2f2d50febcb573ba62579eecf7e2d07ef3a"
+    },
+    {
+      "path": "docs/rust-rewrite/a05/oracle/export.py",
+      "classification": "backend-coupled tooling/test",
+      "migration_owner": "A05",
+      "migration_owners": [
+        "A05",
+        "G08"
+      ],
+      "disposition": "temporary_developer_oracle_retire_before_backend_removal",
+      "evidence": "A05 offline CPython3.14.7/httpx0.28.1/lxml6.1.1 complete HTML adapter outcomes and outbound exchanges; mandatory native gates consume frozen JSON only.",
+      "reason": "No provider calls, runtime or optional-client exception; G08 retires executable Python and retains historical JSON.",
+      "introduced_after_baseline": "01876639fb8d87123f12293c02821981cff3f8b9"
     }
   ],
   "documentation_examples": []

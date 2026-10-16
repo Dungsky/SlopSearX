@@ -167,3 +167,97 @@ pub fn register_packages(
     )?;
     Ok(())
 }
+
+mod html_timeout;
+mod duckduckgo;
+mod google;
+pub use duckduckgo::{DuckDuckGoConfig, ScrapeConfig};
+pub use google::GoogleConfig;
+
+/// Executable HTML factories; F06 catalog eligibility remains independent.
+#[derive(Clone, Debug, Default)]
+pub struct HtmlConfig {
+    pub duckduckgo: DuckDuckGoConfig,
+    pub google: GoogleConfig,
+}
+pub fn register_html(
+    registry: &mut Registry,
+    http: Arc<AdapterHttp>,
+    admission: Arc<dyn SearchAdmission>,
+    config: HtmlConfig,
+) -> Result<(), RegistryError> {
+    let h = http.clone();
+    let a = admission.clone();
+    let c = config.duckduckgo;
+    registry.register(
+        "duckduckgo",
+        Arc::new(move || {
+            Box::new(duckduckgo::DuckDuckGoAdapter::new(
+                h.clone(),
+                a.clone(),
+                c.clone(),
+            )) as Box<dyn ssx_registry::Engine>
+        }) as EngineFactory,
+    )?;
+    let c = config.google;
+    registry.register(
+        "google",
+        Arc::new(move || {
+            Box::new(google::GoogleAdapter::new(
+                http.clone(),
+                admission.clone(),
+                c.clone(),
+            )) as Box<dyn ssx_registry::Engine>
+        }) as EngineFactory,
+    )?;
+    Ok(())
+}
+
+pub(crate) fn html_detector_flags(raw: &ssx_source_codecs::Text) -> crate::html::DetectorFlags {
+    crate::html::DetectorFlags {
+        duckduckgo_challenge: duckduckgo::challenge(raw),
+        duckduckgo_legitimate_empty: duckduckgo::legitimate_empty(raw),
+        google_challenge: google::challenge(raw),
+    }
+}
+
+/// Closed helper-facing config. Invalid types raise only upon a selected row,
+/// preserving source valid-empty behavior without copying arbitrary config.
+#[derive(Clone, Copy)]
+pub(crate) enum RowLimit {
+    Number(f64),
+    Unlimited,
+    Invalid(u8),
+}
+impl RowLimit {
+    fn from_value(value: &ssx_json::Value) -> Self {
+        match value {
+            ssx_json::Value::Bool(value) => Self::Number(f64::from(u8::from(*value))),
+            ssx_json::Value::Number(number) => {
+                number.as_f64().map(Self::Number).unwrap_or(Self::Unlimited)
+            }
+            ssx_json::Value::Null => Self::Invalid(0),
+            ssx_json::Value::String(_) => Self::Invalid(1),
+            ssx_json::Value::Array(_) => Self::Invalid(2),
+            ssx_json::Value::Object(_) => Self::Invalid(3),
+        }
+    }
+    fn reached(self, count: usize) -> Result<bool, String> {
+        match self {
+            Self::Number(number) => Ok(count as f64 >= number),
+            Self::Unlimited => Ok(false),
+            Self::Invalid(tag) => {
+                let name = match tag {
+                    0 => "NoneType",
+                    1 => "str",
+                    2 => "list",
+                    3 => "dict",
+                    _ => return Err("invalid HTML row-limit tag".into()),
+                };
+                Err(format!(
+                    "'>=' not supported between instances of 'int' and '{name}'"
+                ))
+            }
+        }
+    }
+}

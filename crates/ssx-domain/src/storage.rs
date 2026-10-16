@@ -949,31 +949,72 @@ pub fn python_value_string(value: &Value) -> String {
 }
 
 fn python_repr(value: &Value) -> String {
+    let mut out = String::new();
+    write_python_repr(value, &mut out).expect("String writer cannot fail");
+    out
+}
+
+/// Write the legacy Python `str` representation without allocating intermediate
+/// child strings. The caller owns sink capacity, accounting and execution policy.
+pub fn write_python_value(value: &Value, out: &mut impl std::fmt::Write) -> std::fmt::Result {
     match value {
-        Value::Null => "None".into(),
-        Value::Bool(value) => if *value { "True" } else { "False" }.into(),
+        Value::String(text) => out.write_str(text),
+        _ => write_python_repr(value, out),
+    }
+}
+
+fn write_python_repr(value: &Value, out: &mut impl std::fmt::Write) -> std::fmt::Result {
+    match value {
+        Value::Null => out.write_str("None"),
+        Value::Bool(value) => out.write_str(if *value { "True" } else { "False" }),
         Value::Number(number) => {
             if number.is_f64() {
-                ssx_json::python_float(number.as_f64().expect("finite JSON invariant"))
-                    .expect("finite JSON invariant")
+                let text = ssx_json::python_float(number.as_f64().expect("finite JSON invariant"))
+                    .expect("finite JSON invariant");
+                out.write_str(&text)
             } else {
-                number.to_string()
+                out.write_str(number.as_str())
             }
         }
-        Value::String(text) => python_string_repr(text),
-        Value::Array(items) => format!(
-            "[{}]",
-            items.iter().map(python_repr).collect::<Vec<_>>().join(", ")
-        ),
-        Value::Object(items) => format!(
-            "{{{}}}",
-            items
-                .iter()
-                .map(|(key, value)| format!("{}: {}", python_string_repr(key), python_repr(value)))
-                .collect::<Vec<_>>()
-                .join(", ")
-        ),
+        Value::String(text) => write_python_string_repr(text, out),
+        Value::Array(items) => {
+            out.write_char('[')?;
+            for (index, item) in items.iter().enumerate() {
+                if index != 0 {
+                    out.write_str(", ")?;
+                }
+                write_python_repr(item, out)?;
+            }
+            out.write_char(']')
+        }
+        Value::Object(items) => {
+            out.write_char('{')?;
+            for (index, (key, value)) in items.iter().enumerate() {
+                if index != 0 {
+                    out.write_str(", ")?;
+                }
+                write_python_string_repr(key, out)?;
+                out.write_str(": ")?;
+                write_python_repr(value, out)?;
+            }
+            out.write_char('}')
+        }
     }
+}
+
+/// Checked count using exactly the same traversal as the writer. This is not a
+/// deadline-aware traversal; supervised callers retain process cancellation.
+pub fn python_value_string_len(value: &Value) -> Option<usize> {
+    struct Count(usize);
+    impl std::fmt::Write for Count {
+        fn write_str(&mut self, text: &str) -> std::fmt::Result {
+            self.0 = self.0.checked_add(text.len()).ok_or(std::fmt::Error)?;
+            Ok(())
+        }
+    }
+    let mut count = Count(0);
+    write_python_value(value, &mut count).ok()?;
+    Some(count.0)
 }
 #[derive(Deserialize)]
 struct PythonTextTables {
@@ -990,23 +1031,22 @@ fn python_text_tables() -> &'static PythonTextTables {
         .expect("reviewed Python Unicode16 text tables")
     })
 }
-fn python_string_repr(text: &str) -> String {
+fn write_python_string_repr(text: &str, out: &mut impl std::fmt::Write) -> std::fmt::Result {
     let quote = if text.contains('\'') && !text.contains('"') {
         '"'
     } else {
         '\''
     };
-    let mut out = String::new();
-    out.push(quote);
+    out.write_char(quote)?;
     for ch in text.chars() {
         match ch {
-            '\\' => out.push_str("\\\\"),
-            '\n' => out.push_str("\\n"),
-            '\r' => out.push_str("\\r"),
-            '\t' => out.push_str("\\t"),
+            '\\' => out.write_str("\\\\")?,
+            '\n' => out.write_str("\\n")?,
+            '\r' => out.write_str("\\r")?,
+            '\t' => out.write_str("\\t")?,
             ch if ch == quote => {
-                out.push('\\');
-                out.push(ch);
+                out.write_char('\\')?;
+                out.write_char(ch)?;
             }
             ch => {
                 let code = ch as u32;
@@ -1024,20 +1064,20 @@ fn python_string_repr(text: &str) -> String {
                     .is_ok();
                 if nonprintable {
                     if code <= 255 {
-                        out.push_str(&format!("\\x{code:02x}"));
+                        write!(out, "\\x{code:02x}")?;
                     } else if code <= 65535 {
-                        out.push_str(&format!("\\u{code:04x}"));
+                        write!(out, "\\u{code:04x}")?;
                     } else {
-                        out.push_str(&format!("\\U{code:08x}"));
+                        write!(out, "\\U{code:08x}")?;
                     }
                 } else {
-                    out.push(ch);
+                    out.write_char(ch)?;
                 }
             }
         }
     }
-    out.push(quote);
-    out
+    out.write_char(quote)?;
+    Ok(())
 }
 /// Normalize Python numeric whitespace, Unicode decimal digits and valid digit
 /// separators. Callers still validate numeric grammar, range and finite bounds.

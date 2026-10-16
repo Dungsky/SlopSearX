@@ -1,5 +1,6 @@
 //! Native infrastructure and isolated foundation fixtures.
 pub mod adapters;
+pub mod html;
 pub mod http;
 pub mod jev;
 pub mod valkey;
@@ -110,3 +111,7 @@ mod tests {
 }
 
 pub mod browser_identity;
+
+pub mod process_pool;
+
+mod html_budget;

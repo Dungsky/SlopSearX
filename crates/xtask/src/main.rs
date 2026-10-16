@@ -1,6 +1,7 @@
 //! Fail-closed native evidence runner. Owned check implementations are deliberately finite.
 mod a01;
 mod a02;
+mod a05;
 mod f05;
 mod f06;
 mod f07;
@@ -440,6 +441,7 @@ fn execute(root: &Path, id: &str, records: &mut Vec<Value>) -> Result<()> {
     match id {
         "A01" => a01::check(root, records),
         "A02" => a02::check(root, records),
+        "A05" => a05::check(root, records),
         "O03" => o03::check(root, records),
         "O06" => o06::check(root, records),
         "F01" | "F02" => source_check(root, id, records),
@@ -570,7 +572,9 @@ fn main() {
             }
         }
     }
-    let scope = if id == "A02" {
+    let scope = if id == "A05" {
+        "offline source-bound DuckDuckGo/Google HTML adapter replay and loopback sessions; explicit host-only cookie correction; no live provider or deployment claims"
+    } else if id == "A02" {
         "source-bound pypi/rubygems/dockerhub adapters through registry and caller-owned F08 pool; no live providers, deployment or full server parity claim"
     } else if id == "A01" {
         "source-mapped npm/crates registry adapters through F06 factories and F08 loopback sessions; no live provider calls, deployment, performance or full adapter parity claim"

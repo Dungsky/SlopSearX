@@ -1,0 +1,455 @@
+//! Private checked rows component; helper integration follows shared-ledger review.
+//! No storage JSON serialization, allocation, normalization or partial publication.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Layout {
+    DdgHtml,
+    DdgLite,
+    DdgImage,
+    Google,
+}
+impl Layout {
+    fn tag(self) -> u8 {
+        match self {
+            Self::DdgHtml => 0,
+            Self::DdgLite => 1,
+            Self::DdgImage => 2,
+            Self::Google => 3,
+        }
+    }
+    fn from_tag(tag: u8) -> Result<Self, Error> {
+        match tag {
+            0 => Ok(Self::DdgHtml),
+            1 => Ok(Self::DdgLite),
+            2 => Ok(Self::DdgImage),
+            3 => Ok(Self::Google),
+            _ => Err(Error::Layout),
+        }
+    }
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Error {
+    Truncated,
+    Overflow,
+    Version,
+    Operation,
+    Layout,
+    Flags,
+    Utf8,
+    Count,
+    Trailing,
+    Size,
+    Deadline,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Row<'a> {
+    pub position: i64,
+    pub query_title_fallback: bool,
+    pub url: &'a str,
+    pub title: &'a str,
+    pub content: &'a str,
+    pub img_src: Option<&'a str>,
+}
+// Upper bound from approved per-search allocation policy; actual reserved
+// frame allowance must be smaller when other allocations overlap.
+pub const MAX_FRAME_BYTES: usize = 256 * 1024 * 1024;
+const HEADER: usize = 15;
+const MIN_ROW: usize = 33;
+fn valid_flags(layout: Layout, fallback: bool, image: bool) -> Result<(), Error> {
+    if layout != Layout::DdgImage && (fallback || image) {
+        Err(Error::Flags)
+    } else {
+        Ok(())
+    }
+}
+pub fn encoded_size(
+    layout: Layout,
+    rows: &[Row<'_>],
+    mut check: impl FnMut() -> Result<(), Error>,
+) -> Result<usize, Error> {
+    check()?;
+    u64::try_from(rows.len()).map_err(|_| Error::Overflow)?;
+    let mut size = HEADER;
+    for row in rows {
+        check()?;
+        valid_flags(layout, row.query_title_fallback, row.img_src.is_some())?;
+        size = size.checked_add(9).ok_or(Error::Overflow)?;
+        for field in [
+            Some(row.url),
+            Some(row.title),
+            Some(row.content),
+            row.img_src,
+        ]
+        .into_iter()
+        .flatten()
+        {
+            u64::try_from(field.len()).map_err(|_| Error::Overflow)?;
+            size = size
+                .checked_add(8)
+                .and_then(|n| n.checked_add(field.len()))
+                .ok_or(Error::Overflow)?;
+            if size > MAX_FRAME_BYTES {
+                return Err(Error::Size);
+            }
+        }
+    }
+    check()?;
+    Ok(size)
+}
+/// Caller precharges the exact destination; this function allocates nothing.
+pub fn encode(
+    layout: Layout,
+    rows: &[Row<'_>],
+    destination: &mut [u8],
+    mut check: impl FnMut() -> Result<(), Error>,
+) -> Result<(), Error> {
+    check()?;
+    if destination.len() != encoded_size(layout, rows, &mut check)? {
+        return Err(Error::Size);
+    }
+    let mut cursor = 0usize;
+    let mut write = |bytes: &[u8]| -> Result<(), Error> {
+        let end = cursor.checked_add(bytes.len()).ok_or(Error::Overflow)?;
+        destination
+            .get_mut(cursor..end)
+            .ok_or(Error::Size)?
+            .copy_from_slice(bytes);
+        cursor = end;
+        Ok(())
+    };
+    write(b"A05R\x02\x02")?;
+    write(&[layout.tag()])?;
+    write(&(rows.len() as u64).to_be_bytes())?;
+    for row in rows {
+        check()?;
+        write(&row.position.to_be_bytes())?;
+        write(&[u8::from(row.query_title_fallback) | (u8::from(row.img_src.is_some()) << 1)])?;
+        for field in [
+            Some(row.url),
+            Some(row.title),
+            Some(row.content),
+            row.img_src,
+        ]
+        .into_iter()
+        .flatten()
+        {
+            check()?;
+            write(&(field.len() as u64).to_be_bytes())?;
+            write(field.as_bytes())?;
+            check()?;
+        }
+    }
+    check()
+}
+struct Cursor<'a> {
+    bytes: &'a [u8],
+    at: usize,
+}
+impl<'a> Cursor<'a> {
+    fn take(&mut self, length: usize) -> Result<&'a [u8], Error> {
+        let end = self.at.checked_add(length).ok_or(Error::Overflow)?;
+        let value = self.bytes.get(self.at..end).ok_or(Error::Truncated)?;
+        self.at = end;
+        Ok(value)
+    }
+    fn number(&mut self) -> Result<u64, Error> {
+        Ok(u64::from_be_bytes(
+            self.take(8)?.try_into().map_err(|_| Error::Truncated)?,
+        ))
+    }
+    fn string(&mut self, check: &mut impl FnMut() -> Result<(), Error>) -> Result<&'a str, Error> {
+        check()?;
+        let length = usize::try_from(self.number()?).map_err(|_| Error::Overflow)?;
+        let value = std::str::from_utf8(self.take(length)?).map_err(|_| Error::Utf8)?;
+        check()?;
+        Ok(value)
+    }
+    fn row(
+        &mut self,
+        layout: Layout,
+        check: &mut impl FnMut() -> Result<(), Error>,
+    ) -> Result<Row<'a>, Error> {
+        check()?;
+        let position = i64::from_be_bytes(self.take(8)?.try_into().map_err(|_| Error::Truncated)?);
+        let flags = self.take(1)?[0];
+        if flags & !3 != 0 {
+            return Err(Error::Flags);
+        }
+        valid_flags(layout, flags & 1 != 0, flags & 2 != 0)?;
+        let url = self.string(check)?;
+        let title = self.string(check)?;
+        let content = self.string(check)?;
+        let img_src = if flags & 2 != 0 {
+            Some(self.string(check)?)
+        } else {
+            None
+        };
+        Ok(Row {
+            position,
+            query_title_fallback: flags & 1 != 0,
+            url,
+            title,
+            content,
+            img_src,
+        })
+    }
+}
+/// Construction validates the entire immutable frame before any row is exposed.
+/// Expected layout comes from the trusted parent operation, never the response.
+pub struct Rows<'a> {
+    bytes: &'a [u8],
+    count: usize,
+    layout: Layout,
+}
+impl<'a> Rows<'a> {
+    pub fn validate(
+        bytes: &'a [u8],
+        expected: Layout,
+        mut check: impl FnMut() -> Result<(), Error>,
+    ) -> Result<Self, Error> {
+        check()?;
+        if bytes.len() > MAX_FRAME_BYTES {
+            return Err(Error::Size);
+        }
+        let mut cursor = Cursor { bytes, at: 0 };
+        if cursor.take(5)? != b"A05R\x02" {
+            return Err(Error::Version);
+        }
+        if cursor.take(1)? != [2] {
+            return Err(Error::Operation);
+        }
+        let layout = Layout::from_tag(cursor.take(1)?[0])?;
+        if layout != expected {
+            return Err(Error::Layout);
+        }
+        let count = usize::try_from(cursor.number()?).map_err(|_| Error::Overflow)?;
+        if count > (bytes.len() - cursor.at) / MIN_ROW {
+            return Err(Error::Count);
+        }
+        for _ in 0..count {
+            cursor.row(layout, &mut check)?;
+        }
+        if cursor.at != bytes.len() {
+            return Err(Error::Trailing);
+        }
+        check()?;
+        Ok(Self {
+            bytes,
+            count,
+            layout,
+        })
+    }
+    pub fn for_each(
+        &self,
+        mut check: impl FnMut() -> Result<(), Error>,
+        mut visit: impl FnMut(Row<'a>) -> Result<(), Error>,
+    ) -> Result<(), Error> {
+        let mut cursor = Cursor {
+            bytes: self.bytes,
+            at: HEADER,
+        };
+        for _ in 0..self.count {
+            let row = cursor.row(self.layout, &mut check)?;
+            check()?;
+            visit(row)?;
+            check()?;
+        }
+        check()
+    }
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    fn row() -> Row<'static> {
+        Row {
+            position: -1,
+            query_title_fallback: true,
+            url: "//raw.example/é?x=1&y=2",
+            title: "",
+            content: " \u{1c}text\n",
+            img_src: Some("data:raw"),
+        }
+    }
+    fn frame() -> Vec<u8> {
+        let rows = [row()];
+        let mut frame = vec![0; encoded_size(Layout::DdgImage, &rows, || Ok(())).unwrap()];
+        encode(Layout::DdgImage, &rows, &mut frame, || Ok(())).unwrap();
+        frame
+    }
+    #[test]
+    fn complete_rows_roundtrip_preserves_raw_fields_and_explicit_fallback() {
+        let data = frame();
+        let rows = Rows::validate(&data, Layout::DdgImage, || Ok(())).unwrap();
+        let mut actual = vec![];
+        rows.for_each(
+            || Ok(()),
+            |r| {
+                actual.push(r);
+                Ok(())
+            },
+        )
+        .unwrap();
+        assert_eq!(actual, [row()]);
+        let ordinary = Row {
+            query_title_fallback: false,
+            img_src: None,
+            ..row()
+        };
+        for layout in [
+            Layout::DdgHtml,
+            Layout::DdgLite,
+            Layout::DdgImage,
+            Layout::Google,
+        ] {
+            let mut data = vec![0; encoded_size(layout, &[ordinary], || Ok(())).unwrap()];
+            encode(layout, &[ordinary], &mut data, || Ok(())).unwrap();
+            Rows::validate(&data, layout, || Ok(()))
+                .unwrap()
+                .for_each(
+                    || Ok(()),
+                    |r| {
+                        assert_eq!(r, ordinary);
+                        Ok(())
+                    },
+                )
+                .unwrap();
+        }
+    }
+    #[test]
+    fn full_frame_validation_rejects_truncation_trailing_tags_counts_and_utf8() {
+        let data = frame();
+        for length in 0..data.len() {
+            assert!(
+                Rows::validate(&data[..length], Layout::DdgImage, || Ok(())).is_err(),
+                "prefix {length}"
+            );
+        }
+        let mut trailing = data.clone();
+        trailing.push(0);
+        assert!(matches!(
+            Rows::validate(&trailing, Layout::DdgImage, || Ok(())),
+            Err(Error::Trailing)
+        ));
+        assert!(matches!(
+            Rows::validate(&data, Layout::Google, || Ok(())),
+            Err(Error::Layout)
+        ));
+        for index in [0, 4, 5, 6, 23] {
+            let mut bad = data.clone();
+            bad[index] = 0xff;
+            assert!(Rows::validate(&bad, Layout::DdgImage, || Ok(())).is_err());
+        }
+        for index in [7, 24] {
+            let mut bad = data.clone();
+            bad[index..index + 8].fill(0xff);
+            assert!(Rows::validate(&bad, Layout::DdgImage, || Ok(())).is_err());
+        }
+        let mut bad = data.clone();
+        bad[32] = 0xff;
+        assert!(matches!(
+            Rows::validate(&bad, Layout::DdgImage, || Ok(())),
+            Err(Error::Utf8)
+        ));
+        let mut cursor = Cursor {
+            bytes: &[],
+            at: usize::MAX,
+        };
+        assert_eq!(cursor.take(1), Err(Error::Overflow));
+    }
+    #[test]
+    fn cancellation_checks_cover_encode_full_validation_and_projection() {
+        let data = frame();
+        let mut calls = 0;
+        let result = Rows::validate(&data, Layout::DdgImage, || {
+            calls += 1;
+            if calls == 4 {
+                Err(Error::Deadline)
+            } else {
+                Ok(())
+            }
+        });
+        assert!(matches!(result, Err(Error::Deadline)));
+        let rows = Rows::validate(&data, Layout::DdgImage, || Ok(())).unwrap();
+        let mut visited = 0;
+        assert_eq!(
+            rows.for_each(
+                || Err(Error::Deadline),
+                |_| {
+                    visited += 1;
+                    Ok(())
+                }
+            ),
+            Err(Error::Deadline)
+        );
+        assert_eq!(visited, 0);
+        let mut output = vec![0; data.len()];
+        assert_eq!(
+            encode(Layout::DdgImage, &[row()], &mut output, || Err(
+                Error::Deadline
+            )),
+            Err(Error::Deadline)
+        );
+        assert_eq!(
+            encode(Layout::DdgImage, &[row()], &mut output[..1], || Ok(())),
+            Err(Error::Size)
+        );
+    }
+    #[test]
+    fn size_counting_checks_deadline_and_whole_field_work_has_a_frame_bound() {
+        let rows = [row(), row(), row()];
+        let mut calls = 0;
+        assert_eq!(
+            encoded_size(Layout::DdgImage, &rows, || {
+                calls += 1;
+                if calls == 3 {
+                    Err(Error::Deadline)
+                } else {
+                    Ok(())
+                }
+            }),
+            Err(Error::Deadline)
+        );
+        assert_eq!(calls, 3);
+        let mut untouched = [0xa5; 1];
+        let mut calls = 0;
+        assert_eq!(
+            encode(Layout::DdgImage, &rows, &mut untouched, || {
+                calls += 1;
+                if calls == 4 {
+                    Err(Error::Deadline)
+                } else {
+                    Ok(())
+                }
+            }),
+            Err(Error::Deadline)
+        );
+        assert_eq!(untouched, [0xa5]);
+        let large = "é".repeat(512 * 1024);
+        let large_row = Row {
+            title: &large,
+            ..row()
+        };
+        let size = encoded_size(Layout::DdgImage, &[large_row], || Ok(())).unwrap();
+        assert!(size <= MAX_FRAME_BYTES);
+        let mut data = vec![0; size];
+        encode(Layout::DdgImage, &[large_row], &mut data, || Ok(())).unwrap();
+        let mut checks = 0;
+        let parsed = Rows::validate(&data, Layout::DdgImage, || {
+            checks += 1;
+            Ok(())
+        })
+        .unwrap();
+        assert!(checks >= 10); // Checks bracket whole fields; not each byte/chunk.
+        parsed
+            .for_each(
+                || Ok(()),
+                |actual| {
+                    assert_eq!(actual, large_row);
+                    Ok(())
+                },
+            )
+            .unwrap();
+        // Announced oversized field fails before UTF8/copy, without allocating it.
+        data[24..32].copy_from_slice(&(MAX_FRAME_BYTES as u64 + 1).to_be_bytes());
+        assert!(Rows::validate(&data, Layout::DdgImage, || Ok(())).is_err());
+    }
+}
