@@ -23,6 +23,7 @@ mod t05;
 mod t09;
 mod w00;
 mod w01;
+mod w11;
 use serde::Deserialize;
 use serde_json::{Value, json};
 use std::{
@@ -461,6 +462,7 @@ fn execute(root: &Path, id: &str, records: &mut Vec<Value>) -> Result<()> {
         "F07" => f07::check(root, records),
         "W00" => w00::check(root, records),
         "W01" => w01::check(root, records),
+        "W11" => w11::check(root, records),
         "F08" => f08::check(root, records),
         "F09" => f09::check(root, records),
         "F10" => f10::check(root, records),

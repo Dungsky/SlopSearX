@@ -3,14 +3,14 @@
   "baseline_sha": "20109f9083babd014971951e8c02565ae51c2326",
   "source": "Pinned F01 baseline inventory plus reviewed post-baseline additions recorded in DRIFT.md; source-set validation refreshed at acceptance.",
   "summary": {
-    "tracked_python_source_count": 384,
+    "tracked_python_source_count": 385,
     "extensionless_python_entrypoints": 1,
     "executable_config_python_invocation_lines": 63,
     "interpreter_configuration_lines": 106,
     "documentation_shebang_script_count": 8,
     "documented_example_invocation_references": 49,
     "source_classifications": {
-      "backend-coupled tooling/test": 261,
+      "backend-coupled tooling/test": 262,
       "backend/runtime": 122,
       "client-only": 1
     },
@@ -19,8 +19,8 @@
     },
     "source_path_set_validation": {
       "method": "sorted exact-set comparison between git ls-files paths ending .py/.pyw/.pyi plus ssx and files[].path",
-      "tracked_expected_count": 384,
-      "manifest_count": 384,
+      "tracked_expected_count": 385,
+      "manifest_count": 385,
       "exact_match": true,
       "extensionless_python_paths": [
         "ssx"
@@ -327,6 +327,19 @@
       "evidence": "W01 isolated developer-only source finish_attempt identity capture; accepted F11 public/synthetic URL inputs, no network/store; native gates read captured JSON only.",
       "reason": "Temporary backend-coupled reference oracle, not a runtime or client exception. G08 removes executable Python after native successor evidence is accepted.",
       "introduced_after_baseline": "cfd7a0af61a22cfd040a7fcd41ad950f82005959"
+    },
+    {
+      "path": "docs/rust-rewrite/w11/oracle/export.py",
+      "classification": "backend-coupled tooling/test",
+      "migration_owner": "W11",
+      "migration_owners": [
+        "W11",
+        "G08"
+      ],
+      "disposition": "temporary_developer_oracle_retire_before_backend_removal",
+      "evidence": "W11 offline AST plan digest/array normalization and actual staged-store read/retry observations against private disposable Valkey; native gate consumes immutable JSON only.",
+      "reason": "No backend imports, providers, live state, runtime or mandatory Python invocation. Retire executable Python in G08, retain JSON.",
+      "introduced_after_baseline": "1e9dd82d62456fe6f511cc5ade88bae619fac027"
     },
     {
       "path": "engines/__init__.py",
