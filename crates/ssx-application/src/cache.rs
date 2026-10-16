@@ -102,6 +102,7 @@ impl ResponseView {
             all_unresponsive: source.all_unresponsive,
             cached_error: source.cached_error,
             dispatched_engine_count: source.dispatched_engine_count,
+            date_filter: source.date_filter.clone(),
             results: self.results().to_vec(),
             engine_outcomes: self.engine_outcomes().to_vec(),
             suggestions: self.suggestions().to_vec(),

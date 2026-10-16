@@ -156,6 +156,9 @@ jobs:
       - name: Canonical cache and immutable snapshot evidence
         run: cargo xtask check F13 --output target/rust-evidence/F13.json
 
+      - name: Integrated search execution and cancellation evidence
+        run: cargo xtask check F14 --output target/rust-evidence/F14.json
+
       - name: Native Valkey ownership and lifecycle evidence
         run: cargo xtask check F07 --output target/rust-evidence/F07.json
 
@@ -207,6 +210,7 @@ jobs:
             target/rust-evidence/F10.json
             target/rust-evidence/F11.json
             target/rust-evidence/F13.json
+            target/rust-evidence/F14.json
             target/rust-evidence/T09.json
             target/rust-evidence/A01.json
             target/rust-evidence/A02.json
