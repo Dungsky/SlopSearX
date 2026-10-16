@@ -4,7 +4,7 @@
   "sources": [
     {
       "path": "docs/adr/003-rust-workspace-and-contract-boundaries.md",
-      "git_blob": "c23e8327aa5820c0f51a45c50653583c4d8141e4"
+      "git_blob": "12917cc9b7db9acd1e706f85c35aa808f24fadf5"
     },
     {
       "path": "docs/adr/004-rust-valkey-authority-and-migration.md",

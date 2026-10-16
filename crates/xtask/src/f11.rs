@@ -181,7 +181,7 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
         ("ssx-publication", BTreeSet::from(["ssx-json"])),
         (
             "ssx-application",
-            BTreeSet::from(["ssx-domain", "ssx-json", "ssx-publication", "url"]),
+            BTreeSet::from(["ssx-domain", "ssx-json", "ssx-publication", "url", "sha2"]),
         ),
     ] {
         let p = metadata["packages"]
