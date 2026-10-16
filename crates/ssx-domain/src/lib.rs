@@ -38,3 +38,4 @@ impl From<ssx_json::Error> for DomainError {
 }
 
 pub mod rate;
+pub mod research;

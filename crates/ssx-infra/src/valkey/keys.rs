@@ -11,6 +11,10 @@ pub fn research(kind: &str, tenant: &TenantId, id: &str) -> Option<String> {
     };
     Some(format!("{prefix}:{tenant}:{id}"))
 }
+/// Additive W01 key: disjoint from legacy mcp:idem and unambiguous for colons.
+pub fn research_idempotency_v2(tenant: &TenantId, id: &str) -> String {
+    format!("mcp:idem-v2:{}:{tenant}:{id}", tenant.as_str().len())
+}
 pub fn snapshot(tenant: &TenantId, id: &str) -> String {
     format!("mcp:snapshot:{tenant}:{id}")
 }

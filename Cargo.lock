@@ -2375,6 +2375,7 @@ dependencies = [
 name = "ssx-application"
 version = "0.1.0"
 dependencies = [
+ "sha2",
  "ssx-domain",
  "ssx-json",
  "ssx-publication",
