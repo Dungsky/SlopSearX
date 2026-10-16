@@ -363,10 +363,9 @@ mod tests {
     #[test]
     fn synthetic_latency_is_not_observed() {
         let mut response = crate::AdapterResponse::default();
-        assert_eq!(
-            response.observed_latency_ms(),
-            Some(crate::FiniteF64::default())
-        );
+        assert_eq!(response.observed_latency_ms(), None);
+        response.latency_ms = crate::FiniteF64::new(2.0).unwrap();
+        assert_eq!(response.observed_latency_ms().unwrap().get(), 2.0);
         response.synthetic = true;
         assert_eq!(response.observed_latency_ms(), None);
     }
