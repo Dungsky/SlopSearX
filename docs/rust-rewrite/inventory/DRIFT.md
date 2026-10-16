@@ -189,6 +189,15 @@ reviewed refresh and adds the accepted F10 exporter blob pin. Existing W01/T01/F
 exporter bytes, Python runtime pins and historical F01 baseline evidence remain
 unchanged.
 
+## F09 temporary source oracle
+
+F09 adds one developer-only exporter for synthetic scope, policy, filter, date
+and named-topic ordering observations. This is backend-coupled migration tooling,
+not a client exception. Native F09 consumes pinned JSON and never executes Python.
+G08 retires the exporter before backend removal. The exact inventory becomes
+371 Python paths (122 runtime, 248 tooling/test, one client) and eight developer
+oracle invocation rows. Existing runtime and baseline hashes are unchanged.
+
 
 ## T04 isolated OAuth reference
 
@@ -199,3 +208,9 @@ no HTTP endpoint or provider is called. G08 removes it before backend retirement
 The exact Python source union has 371 paths: 122 backend/runtime, 248
 backend-coupled tooling/test and one client-only. Existing runtime/oracle bytes
 and all historical baseline identities remain unchanged.
+
+## F09 and T04 integration
+
+Both temporary oracles remain inventoried exactly once. The combined inventory
+contains 372 Python sources: 122 backend/runtime, 249 backend-coupled tooling/test
+and one client-only source. Historical isolated-addition counts above are retained.
