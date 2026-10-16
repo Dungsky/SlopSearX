@@ -375,6 +375,22 @@ fn automatic_policy_rechecks_advice_budget_and_current_provenance() {
             .contains(&"pubmed".into())
     );
     assert!(s.authorize_with_advice(proposal(), advice).is_err());
+    // Metadata must retain the score that actually passed eligibility, not an
+    // earlier rejected duplicate supplied through the public advice boundary.
+    let s = service();
+    let duplicate = vec![
+        ("arxiv".into(), FiniteF64::new(-1.0).unwrap()),
+        ("arxiv".into(), FiniteF64::new(0.9).unwrap()),
+        ("arxiv".into(), FiniteF64::new(0.8).unwrap()),
+    ];
+    let scope = s
+        .preview_with_advice(&proposal(), &duplicate)
+        .unwrap()
+        .scope;
+    assert_eq!(scope.selected_engines, vec!["brave", "arxiv"]);
+    assert_eq!(scope.jev_added_engines, vec!["arxiv"]);
+    assert_eq!(scope.jev_scores["arxiv"].get(), 0.9);
+    assert!(!scope.excluded_engines.iter().any(|e| e.engine == "arxiv"));
 }
 
 use std::{

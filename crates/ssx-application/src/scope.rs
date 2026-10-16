@@ -167,6 +167,7 @@ impl ScopeResolver {
             return d;
         }
         let mut proposed = Vec::new();
+        let mut proposed_scores = BTreeMap::new();
         for (n, score) in advice {
             if d.selected_engines.contains(n) || proposed.contains(n) {
                 continue;
@@ -180,6 +181,7 @@ impl ScopeResolver {
                 );
                 continue;
             }
+            proposed_scores.insert(n.clone(), score.clone());
             proposed.push(n.clone());
         }
         let remaining = self
@@ -207,15 +209,7 @@ impl ScopeResolver {
             }
             // Previously excluded engines cannot carry a contradictory admission.
             d.excluded_engines.retain(|e| e.engine != n);
-            d.jev_scores.insert(
-                n.clone(),
-                advice
-                    .iter()
-                    .find(|(name, _)| name == &n)
-                    .unwrap()
-                    .1
-                    .clone(),
-            );
+            d.jev_scores.insert(n.clone(), proposed_scores[&n].clone());
             d.jev_added_engines.push(n.clone());
             d.selected_engines.push(n);
         }

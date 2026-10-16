@@ -95,9 +95,9 @@ impl std::error::Error for RegistryError {}
 /// A factory may capture an immutable, cloneable application context (usually
 /// behind `Arc`) that owns shared runtime services and resolved engine-local
 /// configuration. Each factory then builds its engine without requiring an
-/// orchestrator edit. The registry intentionally does not depend on the config
-/// or application crates, avoiding a dependency cycle before adapter ports land.
-pub trait Engine: Send + Sync {}
+/// orchestrator edit. The executable search port is application-owned; the
+/// registry depends on that consumer contract and never on config or infra.
+pub use ssx_application::SearchEngine as Engine;
 pub type EngineFactory = Arc<dyn Fn() -> Box<dyn Engine> + Send + Sync>;
 
 #[derive(Clone)]
@@ -215,8 +215,16 @@ pub fn validate_descriptor(descriptor: &EngineDescriptor) -> Result<(), Registry
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ssx_domain::{AdapterResponse, SearchRequest};
     struct FixtureEngine;
-    impl Engine for FixtureEngine {}
+    impl Engine for FixtureEngine {
+        fn search<'a>(
+            &'a self,
+            _: &'a SearchRequest,
+        ) -> ssx_application::PortFuture<'a, AdapterResponse> {
+            Box::pin(async { AdapterResponse::default() })
+        }
+    }
 
     #[test]
     fn builtins_are_complete_and_unported_engines_are_unavailable() {

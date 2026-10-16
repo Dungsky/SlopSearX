@@ -1,4 +1,5 @@
 //! Native infrastructure and isolated foundation fixtures.
+pub mod adapters;
 pub mod http;
 pub mod jev;
 pub mod valkey;
