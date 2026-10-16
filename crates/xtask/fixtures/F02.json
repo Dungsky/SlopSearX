@@ -20,7 +20,7 @@
     },
     {
       "path": "docs/rust-rewrite/architecture/pins.json",
-      "git_blob": "a5294551c6b58dcf232c5885125168553bea3dc9"
+      "git_blob": "b0fde393be16e14cc94bb7834e547cace189ae93"
     },
     {
       "path": "docs/rust-rewrite/architecture/state-compatibility.md",

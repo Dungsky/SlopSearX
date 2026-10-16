@@ -1,6 +1,6 @@
 //! Actual browser transport. Workflow rendering/execution is injected by W10.
 use axum::{
-    Router,
+    Extension, Router,
     body::to_bytes,
     extract::{ConnectInfo, Request, State},
     http::{HeaderMap, HeaderValue, StatusCode},
@@ -27,6 +27,41 @@ pub struct BrowserRuntime {
     host: String,
     actions: BTreeSet<String>,
     mutations: BTreeSet<String>,
+}
+// Per-request state is never stored in the shared router configuration.
+#[derive(Clone)]
+struct BrowserRequest {
+    runtime: BrowserRuntime,
+    request_id: String,
+}
+impl std::ops::Deref for BrowserRequest {
+    type Target = BrowserRuntime;
+    fn deref(&self) -> &Self::Target {
+        &self.runtime
+    }
+}
+fn request_id(headers: &HeaderMap) -> Result<String, ()> {
+    if let Some(value) = headers.get("x-request-id").and_then(|v| v.to_str().ok())
+        && !value.is_empty()
+    {
+        return Ok(value.to_owned());
+    }
+    let mut bytes = [0_u8; 16];
+    rustls::crypto::aws_lc_rs::default_provider()
+        .secure_random
+        .fill(&mut bytes)
+        .map_err(|_| ())?;
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    let hex: String = bytes.iter().map(|b| format!("{b:02x}")).collect();
+    Ok(format!(
+        "{}-{}-{}-{}-{}",
+        &hex[..8],
+        &hex[8..12],
+        &hex[12..16],
+        &hex[16..20],
+        &hex[20..]
+    ))
 }
 impl BrowserRuntime {
     pub fn new(
@@ -147,6 +182,22 @@ pub fn browser_router(runtime: BrowserRuntime) -> Router {
         .with_state(runtime)
 }
 async fn boundary(State(rt): State<BrowserRuntime>, request: Request, next: Next) -> Response {
+    let id = match request_id(request.headers()) {
+        Ok(id) => id,
+        Err(()) => return problem(503, "Request identity unavailable"),
+    };
+    let request_rt = BrowserRequest {
+        runtime: rt,
+        request_id: id.clone(),
+    };
+    let mut response = boundary_request(request_rt, request, next).await;
+    // The ID came from an accepted header or our ASCII UUID formatter.
+    if let Ok(value) = HeaderValue::from_str(&id) {
+        response.headers_mut().insert("x-request-id", value);
+    }
+    response
+}
+async fn boundary_request(rt: BrowserRequest, mut request: Request, next: Next) -> Response {
     if request
         .extensions()
         .get::<ConnectInfo<BrowserTlsPeer>>()
@@ -158,6 +209,7 @@ async fn boundary(State(rt): State<BrowserRuntime>, request: Request, next: Next
     if hosts.len() != 1 || hosts[0].to_str().ok() != Some(rt.host.as_str()) {
         return problem(400, "Invalid request host");
     }
+    request.extensions_mut().insert(rt);
     let mut response = next.run(request).await;
     response
         .headers_mut()
@@ -283,7 +335,7 @@ fn network(request: &Request) -> String {
         .map_or_else(|| "unavailable".into(), |p| p.0.0.ip().to_string())
 }
 async fn auth(
-    rt: &BrowserRuntime,
+    rt: &BrowserRequest,
     headers: HeaderMap,
     target: String,
 ) -> Result<(BrowserSecret, BrowserSession), Box<Response>> {
@@ -305,7 +357,7 @@ async fn auth(
     let _ = rt
         .identity
         .audit(
-            "",
+            &rt.request_id,
             BrowserAuditAction::Login,
             BrowserAuditOutcome::Denied,
             reason,
@@ -332,7 +384,7 @@ fn context(session: &BrowserSession, headers: &HeaderMap) -> Result<BrowserConte
         }
     })
 }
-async fn login(State(rt): State<BrowserRuntime>, request: Request) -> Response {
+async fn login(Extension(rt): Extension<BrowserRequest>, request: Request) -> Response {
     let network = network(&request);
     if rt.identity.rate(BrowserRate::Login, &[&network]).await != Ok(true) {
         return problem(429, "Sign-in temporarily unavailable");
@@ -358,7 +410,7 @@ async fn login(State(rt): State<BrowserRuntime>, request: Request) -> Response {
         Err(_) => problem(503, "Sign-in temporarily unavailable"),
     }
 }
-async fn callback(State(rt): State<BrowserRuntime>, request: Request) -> Response {
+async fn callback(Extension(rt): Extension<BrowserRequest>, request: Request) -> Response {
     let transaction = match secret_cookie(request.headers(), TRANSACTION) {
         Ok(v) => v,
         Err(_) => return login_failure(),
@@ -393,7 +445,7 @@ async fn callback(State(rt): State<BrowserRuntime>, request: Request) -> Respons
             if rt
                 .identity
                 .audit(
-                    "",
+                    &rt.request_id,
                     BrowserAuditAction::Login,
                     BrowserAuditOutcome::Succeeded,
                     BrowserAuditReason::Ok,
@@ -412,7 +464,7 @@ async fn callback(State(rt): State<BrowserRuntime>, request: Request) -> Respons
             let _ = rt
                 .identity
                 .audit(
-                    "",
+                    &rt.request_id,
                     BrowserAuditAction::Login,
                     BrowserAuditOutcome::Denied,
                     BrowserAuditReason::CallbackRejected,
@@ -436,7 +488,7 @@ fn escape(v: &str) -> String {
         .replace('"', "&quot;")
         .replace('\'', "&#39;")
 }
-async fn tenant_choice(State(rt): State<BrowserRuntime>, request: Request) -> Response {
+async fn tenant_choice(Extension(rt): Extension<BrowserRequest>, request: Request) -> Response {
     let (_, s) = match auth(&rt, request.headers().clone(), request.uri().to_string()).await {
         Ok(v) => v,
         Err(r) => return *r,
@@ -461,7 +513,7 @@ async fn tenant_choice(State(rt): State<BrowserRuntime>, request: Request) -> Re
     }
 }
 fn csrf_valid(
-    rt: &BrowserRuntime,
+    rt: &BrowserRequest,
     expected: &BrowserSecret,
     headers: &HeaderMap,
     fields: &BTreeMap<String, String>,
@@ -482,7 +534,7 @@ fn csrf_valid(
         && from_form.is_none_or(|s| rt.identity.csrf(expected, s))
 }
 async fn denied(
-    rt: &BrowserRuntime,
+    rt: &BrowserRequest,
     action: BrowserAuditAction,
     reason: BrowserAuditReason,
     context: Option<&BrowserContext>,
@@ -491,7 +543,7 @@ async fn denied(
     let _ = rt
         .identity
         .audit(
-            "",
+            &rt.request_id,
             action,
             BrowserAuditOutcome::Denied,
             reason,
@@ -500,7 +552,7 @@ async fn denied(
         )
         .await;
 }
-async fn tenant_switch(State(rt): State<BrowserRuntime>, request: Request) -> Response {
+async fn tenant_switch(Extension(rt): Extension<BrowserRequest>, request: Request) -> Response {
     let (handle, s) = match auth(&rt, request.headers().clone(), request.uri().to_string()).await {
         Ok(v) => v,
         Err(r) => return *r,
@@ -552,7 +604,7 @@ async fn tenant_switch(State(rt): State<BrowserRuntime>, request: Request) -> Re
             if rt
                 .identity
                 .audit(
-                    "",
+                    &rt.request_id,
                     BrowserAuditAction::TenantSwitch,
                     BrowserAuditOutcome::Succeeded,
                     BrowserAuditReason::Ok,
@@ -580,7 +632,7 @@ async fn tenant_switch(State(rt): State<BrowserRuntime>, request: Request) -> Re
         }
     }
 }
-async fn logout(State(rt): State<BrowserRuntime>, request: Request) -> Response {
+async fn logout(Extension(rt): Extension<BrowserRequest>, request: Request) -> Response {
     let (handle, s) = match auth(&rt, request.headers().clone(), request.uri().to_string()).await {
         Ok(v) => v,
         Err(r) => return *r,
@@ -628,7 +680,7 @@ async fn logout(State(rt): State<BrowserRuntime>, request: Request) -> Response 
     if rt
         .identity
         .audit(
-            "",
+            &rt.request_id,
             BrowserAuditAction::Logout,
             BrowserAuditOutcome::Succeeded,
             BrowserAuditReason::Ok,
@@ -646,11 +698,11 @@ async fn logout(State(rt): State<BrowserRuntime>, request: Request) -> Response 
         .insert("clear-site-data", HeaderValue::from_static("\"cache\""));
     r
 }
-async fn workflows(State(rt): State<BrowserRuntime>, request: Request) -> Response {
+async fn workflows(Extension(rt): Extension<BrowserRequest>, request: Request) -> Response {
     read(rt, request, None).await
 }
 async fn detail(
-    State(rt): State<BrowserRuntime>,
+    Extension(rt): Extension<BrowserRequest>,
     axum::extract::Path((kind, id)): axum::extract::Path<(String, String)>,
     request: Request,
 ) -> Response {
@@ -661,7 +713,7 @@ fn unavailable() -> Response {
     *r.status_mut() = StatusCode::NOT_FOUND;
     r
 }
-async fn read(rt: BrowserRuntime, request: Request, object: Option<(String, String)>) -> Response {
+async fn read(rt: BrowserRequest, request: Request, object: Option<(String, String)>) -> Response {
     let (_, s) = match auth(&rt, request.headers().clone(), request.uri().to_string()).await {
         Ok(v) => v,
         Err(r) => return *r,
@@ -708,7 +760,7 @@ async fn read(rt: BrowserRuntime, request: Request, object: Option<(String, Stri
     if rt
         .identity
         .audit(
-            "",
+            &rt.request_id,
             BrowserAuditAction::Read,
             outcome,
             reason,
@@ -723,7 +775,7 @@ async fn read(rt: BrowserRuntime, request: Request, object: Option<(String, Stri
     match result{Ok(body)=>axum::response::Html(format!("<h1>Workflows</h1><pre>{}</pre><form method=\"post\" action=\"/auth/logout\"><input type=\"hidden\" name=\"csrf\" value=\"{}\"><button>Sign out</button></form>",escape(&body),c.csrf.expose())).into_response(),Err(_)=>unavailable()}
 }
 async fn mutation(
-    State(rt): State<BrowserRuntime>,
+    Extension(rt): Extension<BrowserRequest>,
     axum::extract::Path((kind, id, action)): axum::extract::Path<(String, String, String)>,
     request: Request,
 ) -> Response {
@@ -788,7 +840,7 @@ async fn mutation(
         let _ = rt
             .identity
             .audit(
-                "",
+                &rt.request_id,
                 audit,
                 BrowserAuditOutcome::Denied,
                 BrowserAuditReason::CsrfDenied,
@@ -877,7 +929,7 @@ async fn mutation(
             if rt
                 .identity
                 .audit(
-                    "",
+                    &rt.request_id,
                     audit,
                     BrowserAuditOutcome::Succeeded,
                     BrowserAuditReason::Ok,

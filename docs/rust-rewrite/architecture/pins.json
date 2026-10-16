@@ -124,11 +124,13 @@
     "aws-lc-rs": {
       "version": "=1.18.2",
       "source": "https://docs.rs/aws-lc-rs/1.18.2/aws_lc_rs/",
+      "retrieval_source": "Cargo registry package aws-lc-rs-1.18.2/Cargo.toml (locked package, inspected locally 2026-10-16)",
       "retrieved_identity": "T09 reuses accepted locked AWS-LC TLS backend; package metadata inspected locally; MSRV1.71; ISC AND (Apache-2.0 OR ISC)"
     },
     "base64": {
       "version": "=0.23.1",
       "source": "https://docs.rs/base64/0.23.1/base64/",
+      "retrieval_source": "https://docs.rs/base64/0.23.1/base64/",
       "retrieved_identity": "T09 promotes existing locked encoding package to exact direct edge; MSRV1.71; MIT OR Apache-2.0"
     }
   },
