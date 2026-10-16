@@ -2400,6 +2400,7 @@ dependencies = [
  "serde_json",
  "ssx-domain",
  "ssx-registry",
+ "url",
 ]
 
 [[package]]
@@ -2426,22 +2427,33 @@ dependencies = [
 name = "ssx-http"
 version = "0.1.0"
 dependencies = [
+ "aws-lc-rs",
  "axum",
+ "base64",
+ "rcgen",
+ "redis",
+ "reqwest",
+ "rustls",
  "serde_json",
+ "sha2",
  "ssx-application",
  "ssx-domain",
  "ssx-infra",
  "ssx-json",
  "ssx-wire",
  "tokio",
+ "tokio-rustls",
  "tower",
  "tower-http 0.7.1",
+ "url",
 ]
 
 [[package]]
 name = "ssx-infra"
 version = "0.1.0"
 dependencies = [
+ "aws-lc-rs",
+ "base64",
  "flate2",
  "quick-xml",
  "rcgen",
@@ -2449,6 +2461,7 @@ dependencies = [
  "reqwest",
  "rustls",
  "scraper",
+ "serde",
  "serde_json",
  "sha2",
  "ssx-application",
@@ -2457,6 +2470,7 @@ dependencies = [
  "time",
  "tokio",
  "tokio-rustls",
+ "url",
 ]
 
 [[package]]

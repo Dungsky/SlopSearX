@@ -188,3 +188,22 @@ F01 records the final merged inventory-document identities after the narrow
 reviewed refresh and adds the accepted F10 exporter blob pin. Existing W01/T01/F10
 exporter bytes, Python runtime pins and historical F01 baseline evidence remain
 unchanged.
+
+## T09 temporary browser identity oracle and native authority
+
+T09 adds `docs/rust-rewrite/t09/capture.py` against accepted F06/F07 main
+`1f3f5bc85083f4fd24bd9a2b07f161626e6bfef5`. It records 61 offline actual-source
+observations with 11 exact source hashes; native gates replay the JSON and never
+execute Python. Independent pinned-Python recapture matched every byte. T09 owns
+the evidence and G08 executable retirement. The current union grows from 370 to
+371 Python source paths and from 247 to 248 backend-coupled tooling/test paths;
+the developer-oracle invocation register grows from seven to eight rows.
+Existing runtime Python and prior oracle bytes/pins are unchanged.
+
+T09 uses maintained AWS-LC signature/HMAC/random APIs from the already locked
+TLS backend, server-authoritative Valkey time, exact-record session CAS and
+explicit typed input bounds. Named source coercion/config/redirect corrections
+and browser namespace drain/relogin consequences are recorded in
+[the T09 parity ledger](../t09/PARITY.md). No G04/G07 cutover is authorized or
+claimed by this module; legacy audit retention and durable workflow idempotency
+remain required handoff obligations.
