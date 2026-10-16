@@ -485,6 +485,30 @@ pub fn casefold(value: &str) -> String {
     }
     out
 }
+#[cfg(test)]
+mod borrowed_casefold_tests {
+    #[test]
+    fn every_reviewed_mapping_matches_borrowed_and_existing_whole_string_paths() {
+        let table: std::collections::BTreeMap<String, String> = serde_json::from_str(include_str!(
+            "../../../contracts/unicode/casefold-16.0.0.json"
+        ))
+        .unwrap();
+        assert!(!table.is_empty());
+        for (key, value) in &table {
+            let mut chars = key.chars();
+            let ch = chars.next().unwrap();
+            assert!(chars.next().is_none());
+            assert_eq!(super::casefold_char(ch), Some(value.as_str()));
+            assert_eq!(super::casefold(key), *value);
+        }
+        for ch in ['0', ' ', '🙂', '\u{d7ff}', '\u{e000}', '\u{10ffff}'] {
+            assert_eq!(super::casefold_char(ch), None);
+            assert_eq!(super::casefold(&ch.to_string()), ch.to_string());
+        }
+        assert!(char::from_u32(0xd800).is_none());
+        assert!(char::from_u32(0xdfff).is_none());
+    }
+}
 
 /// Python Unicode whitespace, including the four ASCII information separators.
 pub fn python_whitespace(ch: char) -> bool {

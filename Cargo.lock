@@ -2492,6 +2492,7 @@ dependencies = [
  "serde_json",
  "sha2",
  "ssx-application",
+ "ssx-config",
  "ssx-domain",
  "ssx-json",
  "ssx-owned-budget",

@@ -18,6 +18,7 @@ base64.workspace = true
 serde.workspace = true
 url.workspace = true
 ssx-domain.workspace = true
+ssx-config.workspace = true
 ssx-registry.workspace = true
 ssx-application.workspace = true
 tokio.workspace = true

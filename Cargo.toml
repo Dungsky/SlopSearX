@@ -11,6 +11,7 @@ license = "MIT"
 publish = false
 
 [workspace.dependencies]
+ssx-owned-budget = { path = "crates/ssx-owned-budget" }
 aws-lc-rs = "=1.18.2"
 base64 = "=0.23.1"
 tokio = { version = "=1.53.3", features = ["macros", "rt-multi-thread", "net", "signal", "sync", "time", "io-util", "process"] }
@@ -36,7 +37,6 @@ ryu = { version = "=1.0.23" }
 flate2 = "=1.1.9"
 ssx-publication = { path = "crates/ssx-publication" }
 ssx-json = { path = "crates/ssx-json" }
-ssx-owned-budget = { path = "crates/ssx-owned-budget" }
 ssx-domain = { path = "crates/ssx-domain" }
 ssx-wire = { path = "crates/ssx-wire" }
 ssx-application = { path = "crates/ssx-application" }

@@ -132,6 +132,8 @@ mod urls;
 pub use urls::normalise_url;
 
 mod text;
+/// Python str.isdigit character semantics, using the accepted Unicode16 properties.
+pub use text::digit as python_is_digit;
 
 mod calendar;
 pub use calendar::iso_timestamp;

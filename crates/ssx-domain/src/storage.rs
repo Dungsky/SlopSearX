@@ -1138,42 +1138,17 @@ fn write_python_string_repr(text: &str, out: &mut impl std::fmt::Write) -> std::
     };
     out.write_char(quote)?;
     for ch in text.chars() {
-        match ch {
-            '\\' => out.write_str("\\\\")?,
-            '\n' => out.write_str("\\n")?,
-            '\r' => out.write_str("\\r")?,
-            '\t' => out.write_str("\\t")?,
-            ch if ch == quote => {
-                out.write_char('\\')?;
-                out.write_char(ch)?;
-            }
-            ch => {
-                let code = ch as u32;
-                let nonprintable = python_text_tables()
-                    .nonprintable_ranges
-                    .binary_search_by(|&(start, end)| {
-                        if code < start {
-                            std::cmp::Ordering::Greater
-                        } else if code > end {
-                            std::cmp::Ordering::Less
-                        } else {
-                            std::cmp::Ordering::Equal
-                        }
-                    })
-                    .is_ok();
-                if nonprintable {
-                    if code <= 255 {
-                        write!(out, "\\x{code:02x}")?;
-                    } else if code <= 65535 {
-                        write!(out, "\\u{code:04x}")?;
-                    } else {
-                        write!(out, "\\U{code:08x}")?;
-                    }
+        out.write_str(
+            python_repr_character(
+                ch,
+                if quote == '"' {
+                    PythonReprQuote::Double
                 } else {
-                    out.write_char(ch)?;
-                }
-            }
-        }
+                    PythonReprQuote::Single
+                },
+            )
+            .as_str(),
+        )?;
     }
     out.write_char(quote)?;
     Ok(())

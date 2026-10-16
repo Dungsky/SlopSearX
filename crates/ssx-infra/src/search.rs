@@ -1,6 +1,6 @@
 //! Native shared search execution and task ownership.
 use ssx_application::{
-    Audit, Metrics, PortFuture, SearchEngine, Supervisor, TaskEvent, TaskState,
+    Audit, Metrics, PortFuture, SearchContext, SearchEngine, Supervisor, TaskEvent, TaskState,
     cache::{
         CacheAdmission, CacheEntry, CacheKeyInput, CanonicalCache, CanonicalResponse,
         RoutingIdentity, composed_key,
@@ -521,6 +521,84 @@ impl SearchService {
             .map_err(|_| SearchError::InvalidConfiguration)?;
         Ok(policy)
     }
+    /// Check workflow authority using the same current runtime policy as search.
+    pub fn validate_research_workflow(
+        &self,
+        job: &ssx_domain::research::ResearchJob,
+    ) -> Result<(), SearchError> {
+        self.current_policy(self.0.deps.clock.capture().0)?
+            .validate_research_workflow(job)
+            .map_err(SearchError::Policy)
+    }
+    /// Source coverage order and credential provenance from the trusted catalog.
+    pub fn research_coverage(
+        &self,
+        query: &ssx_domain::research::ResearchQuery,
+        response: &SearchResponse,
+    ) -> Result<Vec<ssx_domain::research::EngineCoverage>, SearchError> {
+        let policy = self.current_policy(self.0.deps.clock.capture().0)?;
+        let mut coverage = BTreeMap::new();
+        for outcome in &response.engine_outcomes {
+            let missing = self
+                .0
+                .registry
+                .descriptor(&outcome.engine)
+                .is_some_and(|descriptor| {
+                    descriptor.auth_class == ssx_registry::AuthClass::Required
+                })
+                && policy
+                    .catalog
+                    .get(&outcome.engine)
+                    .is_some_and(|capability| !capability.auth_ready);
+            coverage.insert(
+                outcome.engine.clone(),
+                ssx_domain::research::classify_coverage(
+                    outcome.engine.clone(),
+                    true,
+                    Some(&outcome.status),
+                    outcome.result_count.max(0) as u64,
+                    missing,
+                ),
+            );
+        }
+        for exclusion in &response.scope.excluded_engines {
+            coverage.insert(
+                exclusion.engine.clone(),
+                ssx_domain::research::classify_coverage(
+                    exclusion.engine.clone(),
+                    false,
+                    None,
+                    0,
+                    false,
+                ),
+            );
+        }
+        let mut ordered = Vec::new();
+        for name in query.engines.iter().chain(
+            response
+                .scope
+                .excluded_engines
+                .iter()
+                .map(|exclusion| &exclusion.engine),
+        ) {
+            if !ordered
+                .iter()
+                .any(|entry: &ssx_domain::research::EngineCoverage| &entry.engine == name)
+            {
+                ordered.push(coverage.remove(name).unwrap_or_else(|| {
+                    ssx_domain::research::classify_coverage(name.clone(), false, None, 0, false)
+                }));
+            }
+        }
+        Ok(ordered)
+    }
+    /// Synchronous delayed-publication gate for an authoritative store callback.
+    /// Returns no mutable policy and never dispatches optional providers.
+    pub fn revalidate_research_scope(&self, authority: &ValidatedScope) -> Result<(), SearchError> {
+        self.current_policy(self.0.deps.clock.capture().0)?
+            .with_revalidated(authority, |_| ())
+            .map_err(SearchError::Policy)
+    }
     /// Reuse this opaque authority after a transport's enforcement preview; the
     /// dispatch path revalidates it but never repeats optional routing disclosure.
     pub async fn prepare_scope(
@@ -584,9 +662,24 @@ impl SearchService {
         snapshots: &ssx_application::snapshot::SnapshotService,
         parents: &[ssx_domain::ArtifactRef],
     ) -> Result<CapturedSearch, SearchError> {
-        let capture = self
-            .capture_read(proposal, SearchCancellation::default())
-            .await?;
+        self.search_snapshot_with_cancellation(
+            proposal,
+            snapshots,
+            parents,
+            SearchCancellation::default(),
+        )
+        .await
+    }
+    /// Cancellation joins the owned search flight. Snapshot persistence may have
+    /// committed before cancellation; unknown completion never proves rollback.
+    pub async fn search_snapshot_with_cancellation(
+        &self,
+        proposal: ScopeProposal,
+        snapshots: &ssx_application::snapshot::SnapshotService,
+        parents: &[ssx_domain::ArtifactRef],
+        cancellation: SearchCancellation,
+    ) -> Result<CapturedSearch, SearchError> {
+        let capture = self.capture_read(proposal, cancellation.clone()).await?;
         let canonical = CanonicalResponse::new(capture.full_personalized());
         let snapshot = if let Ok(permit) = self.0.callers.clone().try_acquire_owned() {
             let _caller = CallerGuard {
@@ -594,8 +687,10 @@ impl SearchService {
                 done: self.0.callers_done.clone(),
             };
             let mut stop = self.0.stop.subscribe();
+            let mut cancel = cancellation.0.subscribe();
             tokio::select! {
                 biased;
+                _ = cancelled(&mut cancel) => Err(ssx_application::snapshot::SnapshotFailure::CompletionUnknown),
                 _ = cancelled(&mut stop) => Err(ssx_application::snapshot::SnapshotFailure::CompletionUnknown),
                 result = tokio::time::timeout(self.0.config.optional_port_timeout, snapshots.create(&canonical, parents)) => result.unwrap_or(Err(ssx_application::snapshot::SnapshotFailure::CompletionUnknown)),
             }
@@ -1033,7 +1128,77 @@ fn synthetic(status: EngineStatus, message: &str) -> AdapterResponse {
         ..Default::default()
     }
 }
-struct Finished(usize, AdapterResponse);
+struct Finished(usize, AdapterResponse, bool);
+impl Finished {
+    fn dispatched(
+        index: usize,
+        mut response: AdapterResponse,
+        execution_deadline: Instant,
+        service_deadline: Instant,
+        binding_timeout: Duration,
+    ) -> Self {
+        // Completion time, not collection time, determines origin. Service wins ties.
+        let completed_at = Instant::now();
+        let service_expired =
+            execution_deadline == service_deadline && completed_at >= service_deadline;
+        if !service_expired && completed_at >= execution_deadline {
+            response = timeout_response(binding_timeout);
+        }
+        Self(index, response, service_expired)
+    }
+
+    fn collect(self, responses: &mut [Option<AdapterResponse>], truncated: &mut bool) {
+        let Self(index, response, service_expired) = self;
+        if service_expired {
+            *truncated = true;
+        } else {
+            responses[index] = Some(response);
+        }
+    }
+}
+
+fn resolve_outcome(
+    response: Option<AdapterResponse>,
+    started: bool,
+    interactive: bool,
+    budget: Duration,
+    internal_failure: bool,
+) -> (AdapterResponse, Option<OutcomeOrigin>) {
+    let result = response.unwrap_or_else(|| {
+        if started && !interactive {
+            timeout_response(budget)
+        } else {
+            let mut response = synthetic(
+                EngineStatus::Unavailable,
+                if interactive {
+                    "interactive deadline reached"
+                } else {
+                    "not started before the search deadline"
+                },
+            );
+            if started {
+                response.latency_ms =
+                    ssx_domain::FiniteF64::new(budget.as_secs_f64() * 1000.0).unwrap();
+            }
+            response
+        }
+    });
+    let origin = if internal_failure {
+        None
+    } else {
+        Some(if !started {
+            OutcomeOrigin::Undispatched
+        } else if result.synthetic && interactive && result.status == EngineStatus::Unavailable {
+            OutcomeOrigin::CallerCancelled
+        } else if result.synthetic && result.status == EngineStatus::Timeout {
+            OutcomeOrigin::DispatchedSyntheticTimeout
+        } else {
+            OutcomeOrigin::AdapterReturned
+        })
+    };
+    (result, origin)
+}
+
 fn rerank_scope_and_results_public(
     names: &[String],
     results: &[ssx_domain::SearchResult],
@@ -1106,6 +1271,7 @@ async fn execute(
                         EngineStatus::Unavailable,
                         "not started before the search deadline",
                     ),
+                    false,
                 );
             }
             if let Some(cooldowns) = &owner.deps.cooldowns
@@ -1120,12 +1286,14 @@ async fn execute(
                         EngineStatus::RateLimited,
                         &format!("upstream cooldown active; retry in {seconds}s"),
                     ),
+                    false,
                 );
             }
             let Ok(_permit) = semaphore.acquire_owned().await else {
                 return Finished(
                     index,
                     synthetic(EngineStatus::Unavailable, "service closed"),
+                    false,
                 );
             };
             if Instant::now() >= deadline {
@@ -1135,6 +1303,7 @@ async fn execute(
                         EngineStatus::Unavailable,
                         "not started before the search deadline",
                     ),
+                    false,
                 );
             }
             if owner
@@ -1144,18 +1313,30 @@ async fn execute(
                 .get(&name)
                 .is_some_and(|h| !h.circuit_allowed(owner.deps.clock.capture().0))
             {
-                return Finished(index, synthetic(EngineStatus::Error, "circuit open"));
+                return Finished(index, synthetic(EngineStatus::Error, "circuit open"), false);
             }
             started.lock().unwrap()[index] = true;
-            let engine_deadline = Instant::now() + binding.timeout;
-            let mut response =
-                tokio::time::timeout_at(engine_deadline, binding.engine.search(&request))
-                    .await
-                    .unwrap_or_else(|_| timeout_response(binding.timeout));
-            if Instant::now() >= engine_deadline {
-                response = timeout_response(binding.timeout);
-            }
-            Finished(index, response)
+            // Overflow adds no tighter binding limit to the checked service bound.
+            let engine_deadline = Instant::now().checked_add(binding.timeout);
+            let execution_deadline = engine_deadline.map_or(deadline, |d| d.min(deadline));
+            let response = tokio::time::timeout_at(
+                execution_deadline,
+                binding.engine.search_with_context(
+                    &request,
+                    SearchContext {
+                        deadline: execution_deadline.into_std(),
+                    },
+                ),
+            )
+            .await
+            .unwrap_or_else(|_| timeout_response(binding.timeout));
+            Finished::dispatched(
+                index,
+                response,
+                execution_deadline,
+                deadline,
+                binding.timeout,
+            )
         });
         task_ids.insert(task.id(), index);
     }
@@ -1183,7 +1364,7 @@ async fn execute(
             _ = cancelled(&mut cancel) => { was_cancelled = true; break; }
             _ = tokio::time::sleep_until(deadline) => { truncated = true; break; }
             result = tasks.join_next_with_id() => match result {
-                Some(Ok((_, Finished(i, response)))) => responses[i] = Some(response),
+                Some(Ok((_, finished))) => finished.collect(&mut responses, &mut truncated),
                 Some(Err(error)) => { if let Some(i) = task_ids.get(&error.id()) { internal_failures.insert(*i); responses[*i] = Some(synthetic(EngineStatus::Error, "internal adapter task failure")); } },
                 _ => {},
             }
@@ -1223,39 +1404,13 @@ async fn execute(
     outcome_order.extend((0..names.len()).filter(|i| circuit(*i)));
     for i in outcome_order {
         let name = &names[i];
-        let mut result = responses[i].take().unwrap_or_else(|| {
-            if started[i] && !interactive {
-                timeout_response(budget)
-            } else {
-                let mut response = synthetic(
-                    EngineStatus::Unavailable,
-                    if interactive {
-                        "interactive deadline reached"
-                    } else {
-                        "not started before the search deadline"
-                    },
-                );
-                if started[i] {
-                    response.latency_ms =
-                        ssx_domain::FiniteF64::new(budget.as_secs_f64() * 1000.0).unwrap();
-                }
-                response
-            }
-        });
-        let origin = if internal_failures.contains(&i) {
-            None
-        } else {
-            Some(if !started[i] {
-                OutcomeOrigin::Undispatched
-            } else if result.synthetic && interactive && result.status == EngineStatus::Unavailable
-            {
-                OutcomeOrigin::CallerCancelled
-            } else if result.synthetic && result.status == EngineStatus::Timeout {
-                OutcomeOrigin::DispatchedSyntheticTimeout
-            } else {
-                OutcomeOrigin::AdapterReturned
-            })
-        };
+        let (mut result, origin) = resolve_outcome(
+            responses[i].take(),
+            started[i],
+            interactive,
+            budget,
+            internal_failures.contains(&i),
+        );
         match origin {
             None => {
                 inner
@@ -1538,6 +1693,111 @@ mod tests {
             Box::pin(async { AdapterResponse::default() })
         }
     }
+    #[tokio::test(start_paused = true)]
+    async fn cooperative_completion_collection_preserves_real_health_origin() {
+        // Each case invokes the production completion, collection, fallback and
+        // origin functions directly, bypassing the outer select intentionally.
+        for (service_ms, binding_ms, completed_ms, interactive, expected_origin) in [
+            (100, 200, 100, true, OutcomeOrigin::CallerCancelled),
+            (100, 200, 101, true, OutcomeOrigin::CallerCancelled),
+            (100, 100, 100, true, OutcomeOrigin::CallerCancelled),
+            (100, 100, 101, true, OutcomeOrigin::CallerCancelled),
+            (
+                100,
+                100,
+                100,
+                false,
+                OutcomeOrigin::DispatchedSyntheticTimeout,
+            ),
+            (
+                200,
+                100,
+                100,
+                true,
+                OutcomeOrigin::DispatchedSyntheticTimeout,
+            ),
+            (
+                200,
+                100,
+                101,
+                true,
+                OutcomeOrigin::DispatchedSyntheticTimeout,
+            ),
+            (200, 100, 50, true, OutcomeOrigin::AdapterReturned),
+        ] {
+            let start = Instant::now();
+            let service_deadline = start + Duration::from_millis(service_ms);
+            let binding_deadline = start + Duration::from_millis(binding_ms);
+            tokio::time::advance(Duration::from_millis(completed_ms)).await;
+            let finished = Finished::dispatched(
+                0,
+                AdapterResponse {
+                    status: EngineStatus::Timeout,
+                    latency_ms: ssx_domain::FiniteF64::new(7.0).unwrap(),
+                    ..Default::default()
+                },
+                binding_deadline.min(service_deadline),
+                service_deadline,
+                Duration::from_millis(binding_ms),
+            );
+            // Delayed collection must not reclassify a genuine early response.
+            tokio::time::advance(Duration::from_secs(1)).await;
+            let mut responses = vec![None];
+            let mut truncated = false;
+            finished.collect(&mut responses, &mut truncated);
+            let service_expired = service_ms <= binding_ms && completed_ms >= service_ms;
+            assert_eq!(truncated, service_expired);
+            assert_eq!(responses[0].is_none(), service_expired);
+            let (response, origin) = resolve_outcome(
+                responses[0].take(),
+                true,
+                interactive,
+                Duration::from_millis(service_ms),
+                false,
+            );
+            assert_eq!(origin, Some(expected_origin));
+            let mut health = HealthState::default();
+            let observed_at = SystemSearchClock.capture().0;
+            health.observe(origin.unwrap(), &response, observed_at);
+            let value = ssx_application::health::build_engine_health(
+                Some(&health),
+                None,
+                observed_at,
+                300.0,
+            )
+            .unwrap();
+            let caller = expected_origin == OutcomeOrigin::CallerCancelled;
+            assert_eq!(
+                value["status"],
+                ssx_json::json!(if caller { "unknown" } else { "timeout" })
+            );
+            assert_eq!(
+                value["circuit_consecutive_errors"],
+                ssx_json::json!(u64::from(!caller))
+            );
+            assert_eq!(
+                value["last_observed_latency_ms"],
+                if expected_origin == OutcomeOrigin::AdapterReturned {
+                    ssx_json::json!(7.0)
+                } else {
+                    ssx_json::Value::Null
+                }
+            );
+            if caller {
+                assert_eq!(value["status_at"], ssx_json::Value::Null);
+            } else {
+                let recorded =
+                    chrono::DateTime::parse_from_rfc3339(value["status_at"].as_str().unwrap())
+                        .unwrap();
+                assert!(
+                    (recorded.timestamp_micros() as f64 / 1_000_000.0 - observed_at.seconds())
+                        .abs()
+                        <= 0.000_001
+                );
+            }
+        }
+    }
+
     #[tokio::test]
     async fn zero_remaining_budget_never_polls_engine() {
         let calls = Arc::new(AtomicUsize::new(0));
