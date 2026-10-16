@@ -112,4 +112,8 @@ pub mod rate;
 pub mod research;
 pub mod retry_after;
 
+pub mod filters;
+pub mod policy;
+pub mod scope;
+
 pub mod oauth;
