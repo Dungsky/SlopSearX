@@ -310,3 +310,23 @@ client-only), and twelve complete developer-oracle invocation rows. Both distinc
 W01 commands remain unchanged. F12 is accepted at
 `d8bcf5ede0cfa0b359f8bd25cdca89c23366b7e2`; earlier counts and statuses describe
 historical checkpoints. Runtime and reference-oracle bytes remain unchanged.
+
+## W00 temporary saved-definition oracle
+
+W00 adds one offline developer exporter at
+`docs/rust-rewrite/w00/capture_source.py`, owned by W00/G08, against accepted
+main `66b29c3f8437af45a4f0d28f7c54a0f0727f7fa5`. It captures actual saved records,
+strict validation, configured-auth fingerprints, control revisions, source claim
+precision and arithmetic boundaries with private Valkey and no provider calls.
+The native W00 acceptance gate executes Rust tests only and consumes immutable
+reviewed JSON; G08 retires this Python exporter before backend removal.
+
+The existing 375 source rows and 12 developer invocation rows remain unchanged; the
+new counts are 376 and 13. Both distinct W01 invocation rows are preserved. No
+existing runtime, baseline source or legacy exporter identity is refreshed.
+Source claim identity uses actual source rehydration after cjson: a retained early
+failed capture hashed raw integer 1000 instead of the runner's float 1000.0. The
+corrected observation is independently reproducible and the old failure remains
+evidence, rather than a changed native hash rule. The [superseded capture and
+boundary failures](../w00/evidence/README.md) are committed historical evidence;
+current acceptance consumes only `w00/source.json`.

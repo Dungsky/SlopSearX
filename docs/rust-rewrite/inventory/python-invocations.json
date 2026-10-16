@@ -14,7 +14,7 @@
       "100644": 729
     },
     "configured_precommit_hook_rows": 15,
-    "developer_oracle_invocation_rows": 12
+    "developer_oracle_invocation_rows": 13
   },
   "interpreter_invocations": [
     {
@@ -8380,6 +8380,15 @@
       "migration_owner": "T05",
       "retirement_owner": "G08",
       "disposition": "retain source-captured portable JSON; retire executable Python before backend removal"
+    },
+    {
+      "path": "docs/rust-rewrite/w00/README.md",
+      "example_path": "docs/rust-rewrite/w00/capture_source.py",
+      "evidence": "PYTHONPATH=. SLOPSEARX_TEST_VALKEY_SERVER=/path/to/pinned/valkey-server /private/tmp/slopsearx-rust-oracle-py314/bin/python docs/rust-rewrite/w00/capture_source.py",
+      "classification": "temporary backend-coupled developer oracle; never a mandatory native gate or runtime dependency",
+      "migration_owner": "W00",
+      "retirement_owner": "G08",
+      "disposition": "retain independently recaptured saved-state JSON evidence; retire executable Python before backend removal"
     }
   ]
 }

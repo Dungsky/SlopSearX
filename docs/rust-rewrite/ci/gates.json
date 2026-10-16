@@ -1731,6 +1731,10 @@
               "run": "cargo xtask check F07 --output target/rust-evidence/F07.json"
             },
             {
+              "name": "Saved definitions revisions and schedule claim evidence",
+              "run": "cargo xtask check W00 --output target/rust-evidence/W00.json"
+            },
+            {
               "name": "Research records and conserved budget evidence",
               "run": "cargo xtask check W01 --output target/rust-evidence/W01.json"
             },
@@ -1768,7 +1772,7 @@
               "with": {
                 "if-no-files-found": "warn",
                 "name": "rust-foundation-${{ matrix.target }}-${{ github.sha }}",
-                "path": "target/rust-evidence/F03.json\ntarget/rust-evidence/F04.json\ntarget/rust-evidence/T01.json\ntarget/rust-evidence/T04.json\ntarget/rust-evidence/T05.json\ntarget/rust-evidence/F05.json\ntarget/rust-evidence/F06.json\ntarget/rust-evidence/F09.json\ntarget/rust-evidence/F12.json\ntarget/rust-evidence/F07.json\ntarget/rust-evidence/W01.json\ntarget/rust-evidence/O03.json\ntarget/rust-evidence/F08.json\ntarget/rust-evidence/F10.json\ntarget/rust-evidence/F11.json\ntarget/rust-evidence/T09.json\ntarget/rust-evidence/A01.json\ntarget/rust-feature-graph.txt\n"
+                "path": "target/rust-evidence/F03.json\ntarget/rust-evidence/F04.json\ntarget/rust-evidence/T01.json\ntarget/rust-evidence/T04.json\ntarget/rust-evidence/T05.json\ntarget/rust-evidence/F05.json\ntarget/rust-evidence/F06.json\ntarget/rust-evidence/F09.json\ntarget/rust-evidence/F12.json\ntarget/rust-evidence/F07.json\ntarget/rust-evidence/W00.json\ntarget/rust-evidence/W01.json\ntarget/rust-evidence/O03.json\ntarget/rust-evidence/F08.json\ntarget/rust-evidence/F10.json\ntarget/rust-evidence/F11.json\ntarget/rust-evidence/T09.json\ntarget/rust-evidence/A01.json\ntarget/rust-feature-graph.txt\n"
               }
             }
           ],
