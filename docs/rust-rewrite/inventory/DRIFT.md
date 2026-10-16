@@ -189,6 +189,24 @@ reviewed refresh and adds the accepted F10 exporter blob pin. Existing W01/T01/F
 exporter bytes, Python runtime pins and historical F01 baseline evidence remain
 unchanged.
 
+## T09 temporary browser identity oracle and native authority
+
+T09 adds `docs/rust-rewrite/t09/capture.py` against accepted F06/F07 main
+`1f3f5bc85083f4fd24bd9a2b07f161626e6bfef5`. It records 61 offline actual-source
+observations with 11 exact source hashes; native gates replay the JSON and never
+execute Python. Independent pinned-Python recapture matched every byte. T09 owns
+the evidence and G08 executable retirement. The current union grows from 370 to
+371 Python source paths and from 247 to 248 backend-coupled tooling/test paths;
+the developer-oracle invocation register grows from seven to eight rows.
+Existing runtime Python and prior oracle bytes/pins are unchanged.
+
+T09 uses maintained AWS-LC signature/HMAC/random APIs from the already locked
+TLS backend, server-authoritative Valkey time, exact-record session CAS and
+explicit typed input bounds. Named source coercion/config/redirect corrections
+and browser namespace drain/relogin consequences are recorded in
+[the T09 parity ledger](../t09/PARITY.md). No G04/G07 cutover is authorized or
+claimed by this module; legacy audit retention and durable workflow idempotency
+remain required handoff obligations.
 ## F09 temporary source oracle
 
 F09 adds one developer-only exporter for synthetic scope, policy, filter, date
@@ -209,11 +227,30 @@ The exact Python source union has 371 paths: 122 backend/runtime, 248
 backend-coupled tooling/test and one client-only. Existing runtime/oracle bytes
 and all historical baseline identities remain unchanged.
 
+## T04 and T09 accepted-main integration
+
+The union retains both independent temporary oracles exactly once: 372 Python
+source paths (122 backend/runtime, 249 backend-coupled tooling/test, one client-only)
+and nine developer-oracle invocations. T09 now has 76 source observations: the
+original 61 plus fifteen integer drain-setting cases. Historical section counts
+above describe their original isolated additions; existing runtime/source and
+prior oracle bytes remain unchanged. T04 is accepted at `403dfd3720e969fa829f426136bf0f05b0360c56`;
+T09 acceptance and combined-source qualification remain separate.
 ## F09 and T04 integration
 
 Both temporary oracles remain inventoried exactly once. The combined inventory
 contains 372 Python sources: 122 backend/runtime, 249 backend-coupled tooling/test
 and one client-only source. Historical isolated-addition counts above are retained.
+
+## Accepted F09, T04 and T09 integration
+
+The exact combined inventory has 373 Python source paths: 122 backend/runtime,
+250 backend-coupled tooling/test and one client-only, with ten developer-oracle
+invocations. F09, T04 and T09 temporary exporters remain inventoried once each;
+G08 retains executable retirement ownership. Historical isolated/earlier union
+counts above remain historical. All original runtime and source oracle bytes
+are unchanged. F09 is accepted at `6ae5e34fed19e8e9da7c19b95eeea894512f0e6d`;
+T09 remains in review and requires qualification against the combined source.
 
 ## A02 isolated package adapter observations
 
@@ -229,3 +266,13 @@ backend-coupled tooling/test and one client-only source. The developer oracle
 invocation register becomes 11 rows. The F01 fixture adds the two exporter blobs
 and refreshes only these three inventory document blobs; existing source pins
 and all historical baseline evidence remain unchanged.
+
+## Accepted T09 and A02 source inventory integration
+
+The normal merge retains the accepted browser-identity oracle and both existing
+W01 developer-oracle invocation rows, plus both A02 package-observation exporters.
+The exact union is 375 Python source paths: 122 backend/runtime, 252
+backend-coupled tooling/test and one client-only. The developer-oracle invocation
+register contains 12 rows. Historical isolated-addition counts above are retained.
+Only the three merged inventory-document F01 identities need documentary
+refresh; no existing oracle or runtime source identity is changed.

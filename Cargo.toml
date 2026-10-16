@@ -10,6 +10,8 @@ license = "MIT"
 publish = false
 
 [workspace.dependencies]
+aws-lc-rs = "=1.18.2"
+base64 = "=0.23.1"
 tokio = { version = "=1.53.3", features = ["macros", "rt-multi-thread", "net", "signal", "sync", "time", "io-util"] }
 axum = { version = "=0.8.9" }
 tower = { version = "=0.5.3", features = ["util"] }

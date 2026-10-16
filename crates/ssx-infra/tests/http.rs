@@ -609,30 +609,82 @@ async fn queue_time_counts_toward_aggregate_deadline() {
     if default_ca_environment("queue_time_counts_toward_aggregate_deadline") {
         return;
     }
+    // Establish actual saturation before starting the queued request's clock.
+    // Creating all deadlines before the first poll assumed scheduler timing.
     let s = server().await;
     let http = AdapterHttp::default();
+    let cancel = Cancellation::default();
     let mut tasks = tokio::task::JoinSet::new();
-    for _ in 0..21 {
+    for _ in 0..20 {
         let mut c = http
             .session(
                 Options {
                     proxy: Some(s.url.clone()),
                     ..Options::default()
                 },
-                tokio::time::Instant::now() + Duration::from_millis(500),
-                Cancellation::default(),
+                tokio::time::Instant::now() + Duration::from_secs(30),
+                cancel.clone(),
             )
             .unwrap();
         tasks.spawn(async move {
-            c.execute(Request::get("http://upstream.invalid/slow").unwrap())
+            c.execute(Request::get("http://upstream.invalid/hold").unwrap())
                 .await
-                .unwrap_err()
         });
     }
-    while let Some(result) = tasks.join_next().await {
-        assert_eq!(result.unwrap(), Error::Deadline);
-    }
+    tokio::time::timeout(Duration::from_secs(10), async {
+        while s.seen.lock().unwrap().len() < 20 {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("twenty holder requests must reach the peer before timing queue wait");
     assert_eq!(s.seen.lock().unwrap().len(), 20);
+    assert_eq!(s.open.load(Ordering::SeqCst), 20);
+    let queued_deadline = tokio::time::Instant::now() + Duration::from_secs(2);
+    let mut queued = http
+        .session(
+            Options {
+                proxy: Some(s.url.clone()),
+                ..Options::default()
+            },
+            queued_deadline,
+            Cancellation::default(),
+        )
+        .unwrap();
+    let before_execute = tokio::time::Instant::now();
+    assert!(
+        queued_deadline.saturating_duration_since(before_execute) >= Duration::from_secs(1),
+        "queued request must enter execute with a meaningful unexpired budget"
+    );
+    assert_eq!(
+        tokio::time::timeout(
+            Duration::from_secs(5),
+            queued.execute(Request::get("http://upstream.invalid/queued").unwrap())
+        )
+        .await
+        .expect("queued deadline must complete while holders stay active")
+        .unwrap_err(),
+        Error::Deadline
+    );
+    assert!(
+        before_execute.elapsed() >= Duration::from_secs(1),
+        "deadline must expire while execute waits for occupied capacity"
+    );
+    assert_eq!(
+        s.seen.lock().unwrap().len(),
+        20,
+        "queued request must never dispatch"
+    );
+    assert_eq!(s.open.load(Ordering::SeqCst), 20);
+    cancel.cancel();
+    let mut completed = 0;
+    while let Some(result) = tasks.join_next().await {
+        assert_eq!(result.unwrap().unwrap_err(), Error::Cancelled);
+        completed += 1;
+    }
+    assert_eq!(completed, 20);
+    http.shutdown();
+    wait_open(&s, 0).await;
 }
 #[tokio::test]
 async fn idle_expiry_reconnects() {

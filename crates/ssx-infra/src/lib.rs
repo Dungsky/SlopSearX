@@ -107,3 +107,5 @@ mod tests {
         assert_eq!(runtime.clock.unix_seconds(), 0);
     }
 }
+
+pub mod browser_identity;
