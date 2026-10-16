@@ -1,74 +1,69 @@
-# A07 biomedical semantic/transport candidate
+# A07 native biomedical adapters
 
-Baseline `1e9dd82d62456fe6f511cc5ade88bae619fac027` was freshly fetched and
-verified equal to main before work. A01 prerequisite is merged PR #969
-(`025ab2f2d50febcb573ba62579eecf7e2d07ef3a`) with accepted handoff and ancestry.
+The historical implementation baseline is
+`1e9dd82d62456fe6f511cc5ade88bae619fac027`, freshly fetched and verified before
+work. A01's prerequisite is merged PR #969 (`025ab2f2d50febcb573ba62579eecf7e2d07ef3a`)
+with its accepted handoff and ancestry. The A07 checkpoint is now normally merged
+with `1bad48bbe4e25e2f60d5b86668e92bbce922fdf0`, retaining F15, W11 and W02.
+Historical source pins remain historical; the gate verifies original native/CI
+Git blobs separately from live original provider/config/test bytes.
 
-The five native modules consume accepted F08 sessions, bounded source JSON,
-F06 raw ConfigScalar values and SearchEngine/SearchAdmission. ClinicalTrials
-owns batch-private mechanics; shared transport/config/Unicode/JSON remain
-separately owned. Factory activation remains pending review.
+ClinicalTrials, Europe PMC, PubMed, PubChem and UniProt are actual native
+implementations with registered factories. They consume shared F08 transport,
+SearchAdmission, F06 raw ConfigScalar settings and the accepted SearchContext.
+The source-compatible settings bridge preserves absent/blank endpoint defaults
+and nonblank override bytes. Actual registry tests verify all five factories,
+source categories and specialist cards, science selection, denied admission and
+Europe PMC's disabled-by-default policy. Factory availability does not grant
+selection. Registration adds no engine-specific orchestrator dispatch; historical catalog
+implementation flags remain unchanged. Shared caller-deadline propagation is
+described below.
 
-The first 91 controls, 25 nonempty raw-scalar controls, 6 PubMed numeric controls
-and 5 Unicode digit controls remain immutable. The complete capture preserves
-all 127 original inputs, ordered requests and prior outputs while adding engine
-set/tier/work_group and response answers/corrections/infoboxes/synthetic. Further
-45 reviewed shape controls cover sequence/empty-iterable behavior and ISO dates.
-All 172 distinct controls run through actual native parsers. Only measured
-latency is omitted from equality as nondeterminism.
+The immutable evidence contains 172 distinct actual source controls. These
+preserve the original 91, 25 nonempty-scalar, six numeric and five digit controls,
+plus 45 reviewed shape/date controls. Native replay uses actual parsers and
+compares ordered methods, URLs, parameters, request counts, adapter-owned headers,
+status and complete response/result fields, including actual media. Only measured
+latency is excluded as nondeterminism. The 31-case diagnostic ledger individually
+records reviewed differences: native/library exception wording and UniProt's
+pre-request TypeError supersession under the adapters-never-raise invariant.
+Source-authored messages and upstream 429 versus local-denial diagnostics remain
+separate. Python-library User-Agent identity and transport-generated headers are
+explicit request-comparison exclusions, not claims of byte-identical HTTPX output.
 
-Captures carry pinned source SHA256/Git blob identities and actual requests and
-outputs. Exporters used only HTTPX MockTransport. Original inline mocks are
-labeled synthetic; preexisting Europe PMC recordings retain exact bytes.
-Temporary Python exporters are historical evidence, never native/runtime gate
-dependencies; their inventory/retirement changes are proposed separately. Scoped
-Ruff passes. Formatting/import edits preserve exporter AST behavior; removing
-dead empty-iterable setup reproduces byte-identical output under Python -O.
+Source iterable behavior, raw scalar configuration, PubMed missing-summary
+positions/all authors, and stable UniProt promotion/species ties are covered.
+Europe PMC remains opt-in and lite-only, retains provider URLs, attribution and
+preprint notices, and does not claim date/paging enforcement or fetch abstracts,
+full text or cursors. Actual adapter-to-rank-to-compact tests preserve attribution,
+PPR notices and the 300-character snippet. Their PubMed-first URLs differ; no
+same-URL attribution replacement is claimed.
 
-Native replay compares ordered methods/URLs/counts, adapter-owned headers,
-status and complete result/response fields. Every diagnostic difference is
-individually fixed in proposed-differences.json: accepted Python-runtime/HTTPX
-wording and the source UniProt pre-try TypeError → classified Error correction.
-Source-authored PubMed/Europe PMC messages remain exact. Upstream 429/timeout
-absence remains distinct from local denial Some("rate limited"). Accept and
-explicit PubMed/UniProt User-Agent headers are exact; only Python-library
-User-Agent identity is excluded. Host/Connection/Accept-Encoding remain F08
-transport concerns rather than adapter-injected fields.
+PubMed's aggregate deadline covers both requests, decoding and normalization.
+Other direct adapters retain per-request network timers and cooperative bounded
+normalization without an invented aggregate timer. Caller context bounds all
+five through admission, requests and normalization. One 32 MiB invocation budget
+charges first-phase scratch, payload projection and ProducedBatch ownership.
+Quota failure is terminal Error with no partial successful output. Shared Python
+repr/digit/casefold behavior is reused without a Unicode/JSON library fork.
+Provider-sized CID, digit-scan and stable-rank phases yield cooperatively; actual
+pending-phase cancellation/deadline tests and removed-checkpoint mutations prove
+cleanup. See BOUNDED_RUNTIME.md for allocation measurements and exclusions.
 
-Source iterable semantics are preserved without permissive array coercion:
-empty sliced strings contain no malformed rows; maps still reject slicing;
-PubChem empty props strings/maps yield fallback compounds; explicitly validated
-PubMed/Europe PMC list fields still reject strings/maps. Native tests preserve
-all related UniProt records/species ties, bounded exact-match promotion,
-PubMed missing-summary positions and all six authors versus three in display.
+Parent review accepted the shared payload/batch, repr/scalar/casefold,
+factory/gate/metadata, runtime and main-preservation components. The integrated
+F03 workspace gate passed on `bff188e33b43c2d4e82bc61fa3dfea48c1d7b56c`: source and
+inventory checks, formatting, strict Clippy, workspace tests/build and native
+readiness. The integrated A07 suite includes 71 infrastructure units, 20 biomedical
+tests, seven context tests, seven factory tests, two compact consumers and four
+gate rejection tests. Exact frozen reports govern their source/log identities.
+Final scoped documentation-head reports and exact-head PR/CI are required delivery evidence.
 
-Europe PMC remains opt-in/lite-only, retains provider URLs/attribution/PPR notice
-and does not follow cursors, fetch abstracts/fulltext or claim date/paging
-filters. Actual adapter-to-rank/compact tests now qualify attribution/PPR and the
-300-Unicode-character snippet; the PubMed-first fixture has distinct URLs and
-does not prove same-URL attribution merging. HTML integration remains T03/G01.
-
-PubMed alone uses an aggregate deadline for ESearch, ESummary, source decoding
-and normalization checkpoints. The other four retain per-request network
-timeouts and cooperative bounded source decoding, without inventing an
-aggregate direct-adapter deadline. The deterministic deadline unit distinguishes
-expired network admission, PubMed expired parse budget and source resource
-bounds when no aggregate parse budget is supplied. Row-level yields do not
-qualify one large inner metadata loop as bounded work.
-
-Raw publication payload projection now uses the accepted charged visitor and
-ProducedBatch at runtime, under a shared 32 MiB row-output/scratch root. The new
-shared cooperative source_repr visitor and borrowed casefold scalar exposure
-remove the provisional infallible repr allocation path. See BOUNDED_RUNTIME.md
-for precise ownership, parser/input exclusions, quota hardening, phase evidence,
-measurements and remaining parent integration; this remains a candidate, not
-factory/global-memory/portal readiness.
-
-Validation includes 20 native tests / 172 original controls, seven context tests,
-two actual adapter→rank→compact tests, 14 real resource tests over eight prepared
-bodies, 12 accepted payload/batch tests, seven shared repr tests with 35 actual
-Python controls, shared domain/JSON tests, strict Clippy and formatting. The
-freeze receipt is the authority for terminal commands/source/log identities.
-Original captures and the 31-case diagnostic ledger remain unchanged. Temporary
-Python evidence is proposed for explicit inventory registration/G08 retirement;
-no runtime or required native gate invokes it.
+CI runs the real A07 gate and retains its source-bound report. The normal main
+union preserves 399 tracked Python source entries and 40 historical oracle
+invocations. Twelve A07 producers are explicitly inventoried for G08 retirement;
+the native A07 runtime/gate neither invokes nor requires them. Captures and their
+source provenance remain immutable. G02 global/query-input/DOM/returned-response
+accounting and T03/G01/T06 HTML/full-MCP integration remain genuine downstream
+boundaries; see PORTAL_IMPACT.md and REMAINING_A07.md. No live provider calls,
+production rollout or complete-milestone acceptance is claimed.

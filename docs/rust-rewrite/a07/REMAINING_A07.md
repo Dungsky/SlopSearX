@@ -1,71 +1,45 @@
-# Remaining work to close A07 / issue926
+# Remaining A07 delivery and downstream boundaries
 
-The runtime/repr/resource freeze is a reviewable component, not issue completion.
-The following work belongs to A07 itself and remains required after that review.
-Actual five-engine factories and the native gate now pass candidate tests; catalog declarations remain historical; candidate CI gate/artifact wiring and additive inventory have been implemented and await review.
+Native implementations, registered factories, raw F06 settings, context-aware
+execution, charged scratch/payload/result ownership and the real A07 gate are
+implemented and parent-reviewed. Actual five-engine registration, source category
+and Jev-card completeness, science selection and Europe PMC opt-in are tested.
+CI/O06 wiring and explicit temporary Python inventory/G08 retirement are integrated.
+The normal main merge preserves accepted F15, W11 and W02 and all complete parent
+inventory records: 399 tracked Python source paths and 40 oracle invocations.
 
-1. Review the implemented biomedical factory registration in
-   crates/ssx-infra/src/adapters/mod.rs, following EngineFactory ownership and the
-   accepted A01/A04 pattern. Capture the caller's shared HTTP/admission handles;
-   construct the five actual adapters with source-compatible resolved settings.
-   Add actual registry.instantiate-to-search tests for each engine, with ordered
-   requests, errors, cancellation and context, rather than constructor availability
-   alone. Duplicate/unknown factory behavior must remain fail-closed.
-2. Review the implemented real F06-to-factory config boundary for all five engines. Keep raw
-   ConfigScalar bool/integer/float/text values. Preserve Europe PMC disabled by
-   default and test opt-in through actual selection/dispatch. The source service's
-   _normalize_engine_configs omits only absent/blank base_url values before
-   adapter discovery (slopsearx/service.py251-268); missing configs use adapter
-   endpoints, and nonblank overrides pass through unchanged. EngineConfig defaults
-   do not create entries for most of these providers. The implemented factory bridge applies this normalization and preserves raw settings; seven actual factory/config/scope tests pass.
-   This is A07-owned integration, not a downstream excuse.
-3. Review the implemented real fail-closed A07 xtask gate and dispatch entry in
-   crates/xtask/src/a07.rs and crates/xtask/src/main.rs. It must validate immutable
-   nonexecutable source/case/coverage/diagnostic identities, unique complete172
-   primary controls and separate auxiliary controls, then execute the actual
-   adapter/factory/context/resource/compact native regressions. Missing fixtures,
-   changed identities, missing mapped consumers or failed test commands must
-   return nonzero. A passing placeholder/count-only collector is insufficient.
-   Temporary historical Python oracle files must not become runtime or mandatory
-   gate prerequisites: they are inventoried for G08 retirement, not executed or
-   required by native replay.
-4. Propose and review the shared implementation-status projection consistently
-   with the accepted registry/factory contract. Current F06 catalog fragments and
-   crates/xtask/src/f06.rs deliberately require all historical descriptors to say
-   unavailable, while Registry::is_available reflects attached factories. Do not
-   blindly flip the five immutable source projections or claim factory activation
-   solely from metadata. Reconcile this with the registry/F06 owner before edits.
-5. Review the implemented A07 gate/evidence artifact in .github/workflows/rust.yml
-   and the applicable O06/evidence manifests; register the explicit Python
-   inventory proposal, including the two new temporary exporters. Complete the
-   source-bound coverage disposition for every original test without claiming
-   downstream consumer proofs from adapter success tests. Run required native
-   checks on the final exact union/head and deliver the reviewed PR/merge workflow
-   under the parent owner's publication authorization.
+The historical baseline is `1e9dd82d62456fe6f511cc5ade88bae619fac027`; it is not a
+claim that current main still equals that revision. Current SourceJSON includes
+accepted-main F15 through the normal merge. The separate owned-parser donor was
+not transplanted. Original source/capture pins are retained and validated as
+historical or live according to their explicit gate classification.
 
-The proposed factory/gate/projection changes above require parent review before
-editing their shared paths, as requested at assignment. A07 must not be closed
-while required review/CI/inventory/delivery remains open. Factory and gate execution evidence is in FACTORY_GATE.md; presence alone does not complete issue926.
+## Required to finish A07 delivery
 
-## Genuine shared/downstream boundaries
+1. Retain final scoped source/parity/registry/inventory/CI gate reports binding
+   the final documentation head. The integrated F03 workspace conformance/build/readiness
+   pass is already accepted; prose changes do not justify another broad pass.
+2. Freeze the final exact source/artifact identities, native conformance and
+   registry evidence, source-test dispositions and portal impact for review.
+3. Publish the authorized ready PR, attach it, request required review and obtain
+   applicable checks on its exact head. Parent issue acceptance and merge follow
+   review/CI, not file presence or test counts. No production rollout is authorized.
 
-- Parent review/acceptance of this new cooperative repr/scalar/casefold component
-  is required before counting it as qualified shared runtime behavior. Current
-  tests are candidate evidence until that review; the payload/batch donor was
-  already separately accepted and copied under exact guards.
-- Input DOM/F08 storage has its inherited fixed codec/transport bounds, not the
-  row ledger. The accepted R2 owned parser depends on F15 absent from this branch;
-  guarded parser/F15 reconciliation is a shared integration decision. No wholesale
-  parser import occurred. Global admission, retained responses/clones/cache/flight
-  lifetimes and cold Unicode-table initialization remain G02 work. The32MiB
-  row-output cap does not close those full-milestone requirements.
-- T03/G01 owns actual HTML/portal output. Native actual adapter-to-rank-to-compact
-  tests now cover the source PPR notice and attribution plus PubMed-first distinct
-  URLs. They do not prove HTML rendering, same-URL attribution replacement or
-  full MCP transport/policy wiring. T06/transport owners retain the latter boundary.
-- Live provider certification and deployment remain unperformed and unauthorized;
-  all candidate evidence is offline fixtures, owned loopback or isolated source
-  controls. No paid/scientific/provider calls were made.
+## Genuine shared/full-milestone boundaries
 
-These shared boundaries remain mandatory for the full milestone, independently
-of the A07-owned factory/gate/delivery steps above.
+- G02 owns global admission, arbitrary raw query-plan input scans, input DOM/F08
+  ownership and retained response/cache/flight/clone lifetimes. The 32 MiB row
+  ledger ends at the documented AdapterResponse handoff and does not prove global
+  process memory, hard preemption or arbitrary-query CPU bounds. Any further
+  owned-parser integration is a guarded shared decision, not an absent F15 merge.
+- T03/G01 owns actual HTML/portal composition; T06 owns full MCP transport/policy
+  integration. Actual adapter/rank/compact tests prove their specific attribution
+  and preprint contracts, not HTML rendering or same-URL replacement. Portal impact
+  and the required unchanged-source portal CI disposition are in PORTAL_IMPACT.md.
+- G08 retires inventoried temporary executable source producers before backend
+  removal while preserving nonexecutable observations/provenance. They are not
+  native runtime or A07 gate dependencies.
+- Live certification and deployment remain unperformed and unauthorized. All A07
+  evidence uses stored fixtures, owned loopback or isolated historical source
+  observations. These boundaries remain mandatory for the full milestone even
+  after A07's focused implementation PR is accepted.

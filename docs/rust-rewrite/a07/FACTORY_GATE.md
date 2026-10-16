@@ -38,7 +38,18 @@ an unbounded handler waiting for a request that timed out before dispatch. Handl
 abort is fixture cleanup, not a socket-close proof. Runtime timeout code and all
 172 immutable source controls were unchanged.
 
-CI now includes the actual A07 gate and retained report; the O06 foundation job source projection was mechanically regenerated with every unrelated complete record preserved. The approved additive inventory registers12 exact-hash temporary producers with G08 retirement, preserving all prior records. Its396/37 totals are explicitly projected for this branch and must be recomputed after normal main integration. Historical native/CI source identities are verified against exact pinned Git blobs; original provider/config/test bindings remain live exact-byte checks. These metadata changes await parent review. Full global
-G02 retained-response/input accounting and actual HTML/MCP transport remain outside
-this component; issue926 is not complete until its remaining owned closure steps
-and parent delivery review finish.
+CI includes the actual A07 gate and retained report. The O06 foundation job
+projection was mechanically regenerated, preserving every unrelated complete
+record. Parent review accepted this metadata component and the exact-identity
+package/target/qualified-name correction. The normal F15/W11/W02 main merge
+preserves all parent and A07 inventory records: 399 tracked source paths and 40
+historical oracle invocations. The twelve exact-hash A07 producers have explicit
+G08 retirement; native replay does not execute or require them. Historical native/
+CI identities are checked against exact pinned Git blobs, while original provider,
+config and test bindings remain live exact-byte checks. Derived F01 bindings were
+updated only for the approved inventory union.
+
+The integrated F03 workspace gate passed. Final scoped documentation-head reports,
+focused PR delivery and exact-head review/CI are required; complete issue/milestone
+acceptance has not occurred. Global G02 input/retained-response accounting and
+actual HTML/full-MCP transport remain separate mandatory downstream boundaries.

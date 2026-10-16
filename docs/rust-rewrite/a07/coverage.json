@@ -3,7 +3,7 @@
   "plan_id": "A07",
   "issue": 926,
   "baseline": "1e9dd82d62456fe6f511cc5ade88bae619fac027",
-  "status": "implemented native runtime/factory/gate/CI candidate; final integrated conformance, inventory recomputation and reviewed exact-head delivery remain",
+  "status": "implemented and parent-reviewed runtime/factory/gate/CI, normally integrated with F15/W11/W02; final documentation-head reports and focused PR/exact-head CI govern delivery",
   "source_inventory": [
     {
       "path": "AGENTS.md",
@@ -1432,10 +1432,10 @@
     }
   ],
   "unresolved_required_parity": [
-    "normal reviewed main integration preserving W02/W11/F15 and donor provenance, final integrated native conformance/registry/source/parity/inventory gates, parent exact-head review and CI",
-    "committed inventory counts/source identity recomputation and focused reviewed PR delivery",
-    "actual HTML/portal and full MCP transport integration remain T03/G01/T06; portal impact reviewed in PORTAL_IMPACT.md, distinct-URL compact tests do not prove same-URL attribution replacement",
-    "G02 global/query-input/DOM/returned-response accounting and guarded owned-parser reconciliation if required remain explicit shared full-milestone boundaries"
+    "focused ready PR delivery with parent review/exact-head CI; final local source/parity/registry/inventory reports bind the documentation followup",
+    "actual HTML/portal and full MCP transport integration remain T03/G01/T06; PORTAL_IMPACT.md distinguishes unchanged current routes from future native composition",
+    "G02 global/query-input/DOM/returned-response accounting and guarded further owned-parser integration remain full-milestone boundaries; accepted F15 is already merged",
+    "G08 executable historical-source producer retirement before backend removal"
   ],
   "case_count": 172,
   "capture_relation": "Complete recapture preserves original127 source inputs/requests/prior fields;45 supplemental controls close reviewed iterable/date shape findings.172 unique controls native-replayed; older captures remain immutable.",
@@ -1456,10 +1456,10 @@
     "source_replay": "20 tests including172 original controls; exact request/fulloutput/diagnostic ledger",
     "context": "7 real context tests plus accepted seam/F14 tests",
     "compact_consumer": "2 actual adapter-to-rank-to-result_card tests; not full transport/HTML",
-    "runtime_units": "60 current infra unit tests including16 real resource cases,1 actual-media normalizer guard,15 shared payload/batch controls and7 shared repr tests; phase fullgate59 before media-only guard, targeted media replay passed; final integrated gate pending",
+    "runtime_units": "71 integrated infrastructure units, including16 A07 resource cases, actual-media guard, shared payload/batch/repr controls and accepted-main F15 units; exact integrated reports govern identities",
     "shared_controls": "35 actual Python repr controls,4 actual adapter payload/precedence controls,full existing casefold table equivalence",
     "quality": "strict scoped all-target Clippy, workspace fmt, domain/JSON tests; immutable receipt governs exact terminal source/log identities",
-    "batch_status": "shared repr/gate/metadata accepted; three provider-phase corrections and media evidence included in final runtime supplement; final integrated review/delivery required"
+    "batch_status": "parent-reviewed runtime/main-preservation components and integrated F03 pass; subsequent prose-only head is bound by final scoped reports and PR/head CI"
   },
   "native_identity_sources": [
     "Cargo.lock",
@@ -1618,5 +1618,16 @@
       "target": "test:a07_biomedical",
       "qualified_name": "uniprot_default_window_preserves_all_related_records_and_species_ties"
     }
+  },
+  "main_integration": {
+    "historical_baseline": "1e9dd82d62456fe6f511cc5ade88bae619fac027",
+    "accepted_main": "1bad48bbe4e25e2f60d5b86668e92bbce922fdf0",
+    "checkpoint": "d579f27b7c1a1798ed5c2243a28a1b41ea692c44",
+    "normal_merge": "8e5294a189f270295cc8e4340d7c56a21e0cdea0",
+    "derived_inventory_bindings": "bff188e33b43c2d4e82bc61fa3dfea48c1d7b56c",
+    "source_json_accepted_main_sha256": "0f42f0c200f1e84f427b03bcb5e9d8fc5251180b7d0f58e22c9e0b724370509d",
+    "source_paths": 399,
+    "historical_oracle_invocations": 40,
+    "separate_owned_parser_donor_adopted": false
   }
 }

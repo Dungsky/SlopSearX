@@ -112,16 +112,20 @@ The original 35-control tagged-depth capture is retained separately. The native
 metadata codec cannot parse its expanded depth99 tag tree, so the replay capture
 uses a lossless explicit nesting recipe; all 35 expected strings and reconstructed
 inputs are unchanged. The receipt records both hashes and equivalence checks.
-The two new Python exporters are temporary historical evidence proposals for
-G08, never runtime/native gate prerequisites. The old 172-source-control captures
-and accepted diagnostic ledger remain immutable.
+All twelve temporary Python producers are registered as historical developer
+evidence with explicit G08 retirement; they are never native runtime/A07 gate
+prerequisites. The 172 source captures and accepted diagnostic ledger are immutable.
 
-The immutable30d packet's shared repr/scalar/casefold component is accepted;
-complete runtime qualification remains separately reviewed. Actual factories and
-native gate now pass candidate tests (FACTORY_GATE.md). CI/O06/Python inventory
-integration and reviewed delivery remain A07-owned work. Full MCP transport,
-HTML/portal acceptance, R2 parser reconciliation if required and G02 retention
-closure remain shared boundaries. No commits, provider calls or deployment.
+Parent review accepted the shared repr/scalar/casefold, charged payload/batch,
+actual factories/gate/metadata and final provider-phase runtime components. The
+normal merge includes accepted F15/W11/W02; current SourceJSON is the exact F15
+main implementation, without transplanting the separate owned-parser donor.
+The merged inventory retains all parent/A07 records (399 source paths and 40
+oracle invocations), and CI/O06 wiring is implemented and reviewed. DCO commits
+and the normal merge exist. Final delivery retains scoped documentation-head report identities and requires
+PR/review/CI. G02 global/input/retention accounting and actual HTML/full
+MCP transport remain the explicit shared boundaries. No provider calls or
+production deployment occurred. See REMAINING_A07.md and PORTAL_IMPACT.md.
 
 
 ## Provider-sized phase closure supplement
