@@ -225,7 +225,14 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
     }
     test_inventory(
         root,
-        &["test", "--locked", "-p", "ssx-infra", "--lib", "adapters::"],
+        &[
+            "test",
+            "--locked",
+            "-p",
+            "ssx-infra",
+            "--lib",
+            "adapters::dockerhub::",
+        ],
         &unit,
         records,
     )?;

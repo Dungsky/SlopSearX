@@ -355,3 +355,43 @@ backend-coupled tooling/test and one client-only source, with 14 developer-oracl
 invocation rows. Earlier counts and statuses describe historical checkpoints.
 Only the three merged inventory-document F01 anchors require documentary
 refresh; accepted runtime, oracle and source capture identities remain unchanged.
+
+## A03 community adapters
+
+A03 adds exactly one temporary developer-only exporter,
+`docs/rust-rewrite/a03/capture.py`, owned by A03 with executable retirement under
+G08. Its pinned Python/HTTPX observations use injected offline transport only;
+mandatory native gates consume committed JSON without invoking Python. All
+373 existing source rows and ten developer invocation rows remain unchanged.
+The combined counts are 374 Python sources (122 backend/runtime, 251
+backend-coupled tooling/test, one client-only) and eleven developer-oracle
+invocations. No runtime source or accepted oracle pins are refreshed.
+
+
+
+## A03 integration with accepted F12
+
+This combined checkpoint retains every complete source/invocation record from
+A03 and accepted F12: 375 Python sources (122 backend/runtime, 252
+backend-coupled tooling/test, one client-only) and twelve developer-oracle
+invocations. Both W01 invocation rows remain distinct and unchanged. Source
+exporter/runtime bytes remain unchanged. F12 is accepted at
+`d8bcf5ede0cfa0b359f8bd25cdca89c23366b7e2`; T09 is accepted at
+`35d97ccf8c9b2d8246373b2024cc8d7a457705a3`. Earlier counts/statuses describe
+historical checkpoints; A03 acceptance remains pending.
+
+
+## A03 integration with accepted T05
+
+This checkpoint preserves every complete source/invocation record from both
+parents: 376 Python sources (122 backend/runtime, 253 backend-coupled
+tooling/test, one client-only) and thirteen developer-oracle invocation rows,
+including both distinct W01 commands. All runtime and reference-oracle bytes
+remain unchanged. T05 is accepted at
+`66b29c3f8437af45a4f0d28f7c54a0f0727f7fa5`; F12 and T09 remain accepted as
+recorded above. Earlier counts/statuses remain historical; A03 acceptance is
+pending.
+
+## A03 integration after A02 acceptance
+
+The combined source manifest retains all complete A02 and A03 oracle records: 378 Python source paths (122 runtime, 255 backend-coupled tooling/test, one client) and 15 developer oracle invocation records. Earlier counts above describe their historical checkpoints. No executable Python is granted a new runtime exception.
