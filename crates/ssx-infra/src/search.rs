@@ -521,6 +521,84 @@ impl SearchService {
             .map_err(|_| SearchError::InvalidConfiguration)?;
         Ok(policy)
     }
+    /// Check workflow authority using the same current runtime policy as search.
+    pub fn validate_research_workflow(
+        &self,
+        job: &ssx_domain::research::ResearchJob,
+    ) -> Result<(), SearchError> {
+        self.current_policy(self.0.deps.clock.capture().0)?
+            .validate_research_workflow(job)
+            .map_err(SearchError::Policy)
+    }
+    /// Source coverage order and credential provenance from the trusted catalog.
+    pub fn research_coverage(
+        &self,
+        query: &ssx_domain::research::ResearchQuery,
+        response: &SearchResponse,
+    ) -> Result<Vec<ssx_domain::research::EngineCoverage>, SearchError> {
+        let policy = self.current_policy(self.0.deps.clock.capture().0)?;
+        let mut coverage = BTreeMap::new();
+        for outcome in &response.engine_outcomes {
+            let missing = self
+                .0
+                .registry
+                .descriptor(&outcome.engine)
+                .is_some_and(|descriptor| {
+                    descriptor.auth_class == ssx_registry::AuthClass::Required
+                })
+                && policy
+                    .catalog
+                    .get(&outcome.engine)
+                    .is_some_and(|capability| !capability.auth_ready);
+            coverage.insert(
+                outcome.engine.clone(),
+                ssx_domain::research::classify_coverage(
+                    outcome.engine.clone(),
+                    true,
+                    Some(&outcome.status),
+                    outcome.result_count.max(0) as u64,
+                    missing,
+                ),
+            );
+        }
+        for exclusion in &response.scope.excluded_engines {
+            coverage.insert(
+                exclusion.engine.clone(),
+                ssx_domain::research::classify_coverage(
+                    exclusion.engine.clone(),
+                    false,
+                    None,
+                    0,
+                    false,
+                ),
+            );
+        }
+        let mut ordered = Vec::new();
+        for name in query.engines.iter().chain(
+            response
+                .scope
+                .excluded_engines
+                .iter()
+                .map(|exclusion| &exclusion.engine),
+        ) {
+            if !ordered
+                .iter()
+                .any(|entry: &ssx_domain::research::EngineCoverage| &entry.engine == name)
+            {
+                ordered.push(coverage.remove(name).unwrap_or_else(|| {
+                    ssx_domain::research::classify_coverage(name.clone(), false, None, 0, false)
+                }));
+            }
+        }
+        Ok(ordered)
+    }
+    /// Synchronous delayed-publication gate for an authoritative store callback.
+    /// Returns no mutable policy and never dispatches optional providers.
+    pub fn revalidate_research_scope(&self, authority: &ValidatedScope) -> Result<(), SearchError> {
+        self.current_policy(self.0.deps.clock.capture().0)?
+            .with_revalidated(authority, |_| ())
+            .map_err(SearchError::Policy)
+    }
     /// Reuse this opaque authority after a transport's enforcement preview; the
     /// dispatch path revalidates it but never repeats optional routing disclosure.
     pub async fn prepare_scope(
@@ -584,9 +662,24 @@ impl SearchService {
         snapshots: &ssx_application::snapshot::SnapshotService,
         parents: &[ssx_domain::ArtifactRef],
     ) -> Result<CapturedSearch, SearchError> {
-        let capture = self
-            .capture_read(proposal, SearchCancellation::default())
-            .await?;
+        self.search_snapshot_with_cancellation(
+            proposal,
+            snapshots,
+            parents,
+            SearchCancellation::default(),
+        )
+        .await
+    }
+    /// Cancellation joins the owned search flight. Snapshot persistence may have
+    /// committed before cancellation; unknown completion never proves rollback.
+    pub async fn search_snapshot_with_cancellation(
+        &self,
+        proposal: ScopeProposal,
+        snapshots: &ssx_application::snapshot::SnapshotService,
+        parents: &[ssx_domain::ArtifactRef],
+        cancellation: SearchCancellation,
+    ) -> Result<CapturedSearch, SearchError> {
+        let capture = self.capture_read(proposal, cancellation.clone()).await?;
         let canonical = CanonicalResponse::new(capture.full_personalized());
         let snapshot = if let Ok(permit) = self.0.callers.clone().try_acquire_owned() {
             let _caller = CallerGuard {
@@ -594,8 +687,10 @@ impl SearchService {
                 done: self.0.callers_done.clone(),
             };
             let mut stop = self.0.stop.subscribe();
+            let mut cancel = cancellation.0.subscribe();
             tokio::select! {
                 biased;
+                _ = cancelled(&mut cancel) => Err(ssx_application::snapshot::SnapshotFailure::CompletionUnknown),
                 _ = cancelled(&mut stop) => Err(ssx_application::snapshot::SnapshotFailure::CompletionUnknown),
                 result = tokio::time::timeout(self.0.config.optional_port_timeout, snapshots.create(&canonical, parents)) => result.unwrap_or(Err(ssx_application::snapshot::SnapshotFailure::CompletionUnknown)),
             }
