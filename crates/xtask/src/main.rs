@@ -1,5 +1,6 @@
 //! Fail-closed native evidence runner. Owned check implementations are deliberately finite.
 mod f05;
+mod f06;
 mod o06;
 mod replay;
 use serde::Deserialize;
@@ -427,6 +428,7 @@ fn execute(root: &Path, id: &str, records: &mut Vec<Value>) -> Result<()> {
         "F01" | "F02" => source_check(root, id, records),
         "F04" => replay::check(root, records),
         "F05" => f05::check(root, records),
+        "F06" => f06::check(root, records),
         "F03" => {
             source_check(root, "F01", records)?;
             source_check(root, "F02", records)?;
@@ -752,7 +754,7 @@ mod tests {
     fn unknown_and_unimplemented_fail() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
         assert!(
-            execute(&root, "F06", &mut vec![])
+            execute(&root, "F07", &mut vec![])
                 .unwrap_err()
                 .contains("unimplemented")
         );

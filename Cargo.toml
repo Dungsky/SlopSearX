@@ -36,6 +36,8 @@ ssx-application = { path = "crates/ssx-application" }
 ssx-infra = { path = "crates/ssx-infra" }
 ssx-http = { path = "crates/ssx-http" }
 ssx-mcp = { path = "crates/ssx-mcp" }
+ssx-config = { path = "crates/ssx-config" }
+ssx-registry = { path = "crates/ssx-registry" }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

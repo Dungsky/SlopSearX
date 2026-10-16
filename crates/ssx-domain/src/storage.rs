@@ -1032,7 +1032,9 @@ fn python_string_repr(text: &str) -> String {
     out.push(quote);
     out
 }
-fn normalize_python_number_text(text: &str) -> Result<String, StorageError> {
+/// Normalize Python numeric whitespace, Unicode decimal digits and valid digit
+/// separators. Callers still validate numeric grammar, range and finite bounds.
+pub fn normalize_python_number_text(text: &str) -> Result<String, StorageError> {
     let trimmed = text.trim_matches(|ch: char| {
         if ch.is_ascii() {
             ch.is_ascii_whitespace() || ch == '\u{b}'
