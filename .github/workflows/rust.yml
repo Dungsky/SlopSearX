@@ -170,6 +170,8 @@ jobs:
 
       - name: Research records and conserved budget evidence
         run: cargo xtask check W01 --output target/rust-evidence/W01.json
+      - name: Durable research execution and recovery evidence
+        run: cargo xtask check W02 --output target/rust-evidence/W02.json
       - name: Active experiment tooling inventory and native evidence contracts
         run: cargo xtask check O03 --output target/rust-evidence/O03.json
       - name: Native pooled HTTP session evidence
@@ -215,6 +217,7 @@ jobs:
             target/rust-evidence/F07.json
             target/rust-evidence/W00.json
             target/rust-evidence/W01.json
+            target/rust-evidence/W02.json
             target/rust-evidence/O03.json
             target/rust-evidence/F08.json
             target/rust-evidence/F10.json
