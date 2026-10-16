@@ -269,4 +269,5 @@ pub fn retained_ttl(
     NonZeroU64::new((delta as i64).saturating_add(300).max(1) as u64).ok_or(Failure::InvalidInput)
 }
 
+pub mod rate;
 pub mod research;

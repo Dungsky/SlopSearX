@@ -122,7 +122,7 @@ pub struct AdapterResponse {
 impl AdapterResponse {
     /// Synthetic deadline responses must never enter observed adapter health metrics.
     pub fn observed_latency_ms(&self) -> Option<FiniteF64> {
-        (!self.synthetic).then(|| self.latency_ms.clone())
+        (!self.synthetic && self.latency_ms.get() != 0.0).then(|| self.latency_ms.clone())
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

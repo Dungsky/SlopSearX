@@ -174,26 +174,17 @@ new temporary file and these reviewed inventory documents only; existing
 Python runtime source pins are preserved.
 
 
-## W01 accepted-F11 integration and isolated identity capture
+## Integrated W01, T01 and F10 source evidence
 
-The normal merge retains both accepted F11 and reviewed W01 oracle inventory
-entries. W01 adds a separately reviewed developer-only `w01/oracle/identity.py`
-source capture of actual source research settlement identities, with no provider,
-store or runtime execution. It consumes all accepted F11 URL fixture inputs and
-records their shard hashes; F11 and original W01 oracle bytes are unchanged.
-W01 owns migration qualification and G08 retires this executable oracle before
-backend removal. The union with accepted T01 has 369 Python source paths,
-including 246 backend-coupled tooling/test paths and six developer oracle
-invocation rows. Existing mandatory/runtime Python commands, source-oracle
-hashes, Python runtime pins and historical F01 baseline evidence remain
+The W01 branch retains its research exporter and identity capture, accepted T01
+retains the MCP exporter, and accepted F10 adds its quota/health exporter. These
+are temporary developer-only source oracles. Native acceptance gates consume
+captured JSON and do not execute the exporters or call providers; G08 owns their
+retirement before backend removal. The exact inventory union contains 370 Python
+source paths: 122 backend/runtime, 247 backend-coupled tooling/test and one
+client-only path. Its developer-oracle invocation register contains seven rows.
+
+F01 records the final merged inventory-document identities after the narrow
+reviewed refresh and adds the accepted F10 exporter blob pin. Existing W01/T01/F10
+exporter bytes, Python runtime pins and historical F01 baseline evidence remain
 unchanged.
-
-## Accepted T01 integration
-
-The normal integration also retains the accepted T01 MCP qualification and its
-developer-only `replay/oracle/export_mcp.py` source capture. The W01 research
-exporter and identity capture and T01 MCP exporter are temporary developer
-oracles; native acceptance gates consume captured JSON only and G08 owns their
-eventual retirement. F01 records the merged inventory-document identities after
-the narrow reviewed refresh; no source-oracle hashes, Python runtime pins or
-historical F01 baseline evidence change.
