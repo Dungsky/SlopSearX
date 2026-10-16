@@ -276,3 +276,33 @@ backend-coupled tooling/test and one client-only. The developer-oracle invocatio
 register contains 12 rows. Historical isolated-addition counts above are retained.
 Only the three merged inventory-document F01 identities need documentary
 refresh; no existing oracle or runtime source identity is changed.
+
+## F12 optional routing reference
+
+F12 adds `docs/rust-rewrite/f12/oracle/export.py`, a temporary offline source
+oracle pinned to Python 3.14.7, MCP 2.3.0 and FastMCP 4.0.11. Synthetic local
+transports capture exact Jev payloads, decisions, keyless/enhanced scopes and
+cache identities. Native gates read immutable JSON; they never invoke Python.
+F12/G08 own retirement before backend removal. The exact inventory now contains
+373 Python sources: 122 backend/runtime, 250 backend-coupled tooling/test and one
+client-only source, with ten developer-oracle invocation rows. Existing baseline
+source hashes and historical evidence are unchanged.
+
+## F12 integration with accepted T09
+
+The combined inventory retains all accepted-main Python source rows and adds
+exactly the F12 reference exporter: 374 source paths (122 backend/runtime,
+251 backend-coupled tooling/test, one client-only) and eleven developer-oracle
+invocations. All prior source records and oracle bytes remain unchanged.
+T09 is accepted at `35d97ccf8c9b2d8246373b2024cc8d7a457705a3`; F12 remains
+in review. Earlier counts and statuses above describe historical checkpoints.
+
+## A02 integration with accepted T09 and F12
+
+The normal integration preserves all reviewed A02 and accepted T09 records,
+plus the accepted F12 routing oracle, including both W01 invocation records. The exact union is
+376 Python source paths: 122 backend/runtime, 253 backend-coupled tooling/test
+and one client-only source, with 13 developer-oracle invocation rows. Earlier
+counts and in-review labels above describe historical checkpoints. Only the
+three merged inventory-document F01 anchors need documentary refresh; runtime
+and oracle source/capture identities remain unchanged.

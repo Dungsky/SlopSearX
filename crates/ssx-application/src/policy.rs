@@ -154,6 +154,7 @@ pub struct ScopePreview {
 pub struct ValidatedScope {
     proposal: ScopeProposal,
     preview: ScopePreview,
+    advice: Vec<(String, ssx_domain::FiniteF64)>,
 }
 impl ValidatedScope {
     pub fn preview(&self) -> &ScopePreview {
@@ -582,6 +583,14 @@ impl PolicyService {
     }
     /// Scope-only inspection performs no dispatch and yields no dispatch token.
     pub fn preview(&self, proposal: &ScopeProposal) -> Result<ScopePreview, PolicyError> {
+        self.preview_with_advice(proposal, &[])
+    }
+    /// Optional advice remains untrusted and traverses the same policy/filter gate.
+    pub fn preview_with_advice(
+        &self,
+        proposal: &ScopeProposal,
+        advice: &[(String, ssx_domain::FiniteF64)],
+    ) -> Result<ScopePreview, PolicyError> {
         let r = self.resolve_request(proposal)?;
         if r.interactive_timeout_ms
             .is_some_and(|ms| !(1..=30_000).contains(&ms))
@@ -633,7 +642,18 @@ impl PolicyService {
             }
             error
         })?;
-        let scope = self.resolver.resolve(&r, &self.catalog);
+        let advice = if ScopeResolver::allowed(&proposal.request) {
+            advice
+        } else {
+            &[]
+        };
+        let mut resolver = self.resolver.clone();
+        if !advice.is_empty() {
+            resolver
+                .sensitive
+                .extend(self.policy.sensitive_engines.iter().cloned());
+        }
+        let scope = resolver.with_specialist_advice(&r, &self.catalog, advice);
         if proposal.surface != SearchSurface::Http {
             self.engine_rejection(&scope.selected_engines, "engines")?;
         }
@@ -747,6 +767,13 @@ impl PolicyService {
         Ok(ScopePreview { scope, enforcement })
     }
     pub fn authorize(&self, proposal: ScopeProposal) -> Result<ValidatedScope, PolicyError> {
+        self.authorize_with_advice(proposal, Vec::new())
+    }
+    pub fn authorize_with_advice(
+        &self,
+        proposal: ScopeProposal,
+        advice: Vec<(String, ssx_domain::FiniteF64)>,
+    ) -> Result<ValidatedScope, PolicyError> {
         if proposal.surface == SearchSurface::Preview {
             return Err(PolicyError::new(
                 "invalid_scope",
@@ -754,7 +781,7 @@ impl PolicyService {
                 "scope preview cannot authorize dispatch",
             ));
         }
-        let preview = self.preview(&proposal)?;
+        let preview = self.preview_with_advice(&proposal, &advice)?;
         if preview.scope.selected_engines.is_empty() {
             return Err(PolicyError::new(
                 "invalid_scope",
@@ -782,7 +809,11 @@ impl PolicyService {
             e.details = Box::new(json!({"engines":unavailable}));
             return Err(e);
         }
-        Ok(ValidatedScope { proposal, preview })
+        Ok(ValidatedScope {
+            proposal,
+            preview,
+            advice,
+        })
     }
     /// Revalidate a delayed proposal using current grants, catalog, health and
     /// routing. Any changed scope requires fresh caller admission/budgeting.
@@ -793,7 +824,7 @@ impl PolicyService {
         old: &ValidatedScope,
         commit: impl FnOnce(&ValidatedCommand<'_>) -> T,
     ) -> Result<T, PolicyError> {
-        let current = self.authorize(old.proposal.clone())?;
+        let current = self.authorize_with_advice(old.proposal.clone(), old.advice.clone())?;
         if current.preview != old.preview {
             return Err(PolicyError::new(
                 "invalid_scope",
