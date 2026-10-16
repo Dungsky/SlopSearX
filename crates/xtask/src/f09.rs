@@ -3,6 +3,7 @@ use crate::{Result, command};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::{fs, path::Path};
+const INACTIVE: &str = "52df4c8ae01abb2ef2f3cf3623dfae0ee0bd77a3884b0d4a4168b776d7b4d737";
 const AUTHORITY: &str = "f6a9af265307b79741b13942852c725dddd70253479fc9a7131a216cd3b6a250";
 const ORACLE: &str = "ad877c851232716b104af6bd71d11d689fb20ab7efcdb0767310a4a2f17b5a24";
 const SOURCE_PINS: &str = "93bc13f946fb64d609b83b03d2ace7d2cceac85bb5f32fa10e6a2c61ef86c91d";
@@ -67,6 +68,11 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
             .map_err(|e| e.to_string())?,
         AUTHORITY,
     )?;
+    identity(
+        &fs::read(root.join("crates/xtask/fixtures/f09/inactive.json"))
+            .map_err(|e| e.to_string())?,
+        INACTIVE,
+    )?;
     let profiles =
         fs::read(root.join("docs/rust-rewrite/f09/profiles.json")).map_err(|e| e.to_string())?;
     identity(&profiles, PROFILES)?;
@@ -118,6 +124,7 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
         }
     }
     let app = [
+        "explicit_inactive_members_reject_atomically_without_changing_http_or_preview_availability",
         "source_scope_replay",
         "source_filter_policy_date_replay",
         "denied_paths_never_dispatch_and_preview_has_no_authority",
@@ -166,7 +173,7 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
         true,
         records,
     )?;
-    records.push(json!({"kind":"f09_policy_scope","oracle_sha256":ORACLE,"profiles_sha256":PROFILES,"source_observations":99,"provider_calls":0,"runtime":"native Rust"}));
+    records.push(json!({"kind":"f09_policy_scope","oracle_sha256":ORACLE,"profiles_sha256":PROFILES,"source_observations":100,"provider_calls":0,"runtime":"native Rust"}));
     Ok(())
 }
 #[cfg(test)]

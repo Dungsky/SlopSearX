@@ -493,3 +493,76 @@ fn legacy_false_flag_cannot_confer_an_intent_grant() {
     }
     assert_eq!(calls, 0);
 }
+
+#[test]
+fn explicit_inactive_members_reject_atomically_without_changing_http_or_preview_availability() {
+    let capture: Value =
+        ssx_json::from_str(include_str!("../../xtask/fixtures/f09/inactive.json")).unwrap();
+    assert!(capture["source"]["validation"].is_null());
+    assert_eq!(strings(&capture["source"]["selected_engines"]), ["alpha"]);
+    for available in [true, false] {
+        let mut s = service();
+        s.policy
+            .grants
+            .extend(["research", "science"].map(str::to_owned));
+        let token = s.authorize(proposal(&["alpha", "beta"])).unwrap();
+        let mut engines = s.catalog.engines().to_vec();
+        let beta = engines.iter_mut().find(|e| e.name == "beta").unwrap();
+        beta.active = false;
+        beta.available = available;
+        s.catalog = CatalogSnapshot::new(engines).unwrap();
+        let mut calls = 0;
+        assert!(s.with_revalidated(&token, |_| calls += 1).is_err());
+        let mixed = proposal(&["alpha", "beta"]);
+        let error = s.preview(&mixed).unwrap_err();
+        assert_eq!(error.code, "invalid_scope");
+        assert!(!strings(&error.details["valid_alternatives"]).contains(&"beta".into()));
+        let admission = s.authorize(mixed.clone());
+        assert!(admission.is_err());
+        if let Ok(t) = admission {
+            s.with_revalidated(&t, |_| calls += 1).unwrap();
+        }
+        let mut http = mixed;
+        http.surface = SearchSurface::Http;
+        assert_eq!(s.preview(&http).unwrap().scope.selected_engines, ["alpha"]);
+        let q = ssx_domain::research::ResearchQuery {
+            query: "query".into(),
+            intent: "science".into(),
+            engines: vec!["alpha".into()],
+            planning_method: Some("evidence_followup".into()),
+            evidence_result_ids: vec!["result-id".into()],
+            evidence_engines: vec!["beta".into()],
+            evidence_intent: Some("science".into()),
+            parent_attempt_id: Some("attempt".into()),
+            rationale: Some("follow up".into()),
+            ..Default::default()
+        };
+        let evidence_error = s
+            .authorize(ScopeProposal::from_research_query(&q))
+            .unwrap_err();
+        assert_eq!(evidence_error.code, "invalid_scope");
+        assert_eq!(evidence_error.field, "engines");
+        assert_eq!(
+            evidence_error.message,
+            "unknown or inactive engines: beta (inactive)"
+        );
+        assert_eq!(calls, 0);
+    }
+    let mut s = service();
+    let mut engines = s.catalog.engines().to_vec();
+    engines
+        .iter_mut()
+        .find(|e| e.name == "beta")
+        .unwrap()
+        .available = false;
+    s.catalog = CatalogSnapshot::new(engines).unwrap();
+    assert!(s.preview(&proposal(&["alpha", "beta"])).is_ok());
+    let unavailable = s.authorize(proposal(&["alpha", "beta"])).unwrap_err();
+    assert_eq!(unavailable.code, "invalid_scope");
+    assert_eq!(unavailable.field, "engines");
+    assert_eq!(
+        unavailable.message,
+        "selected native engine implementation is unavailable"
+    );
+    assert_eq!(strings(&unavailable.details["engines"]), ["beta"]);
+}

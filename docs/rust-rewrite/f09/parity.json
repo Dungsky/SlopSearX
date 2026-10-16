@@ -3,6 +3,7 @@
   "plan_id": "F09",
   "baseline": "1f3f5bc85083f4fd24bd9a2b07f161626e6bfef5",
   "source_captures": {
+    "explicit_inactive_member": {"observations": 1, "sha256": "52df4c8ae01abb2ef2f3cf3623dfae0ee0bd77a3884b0d4a4168b776d7b4d737"},
     "scope_filter_policy_dates": {"observations": 79, "sha256": "ad877c851232716b104af6bd71d11d689fb20ab7efcdb0767310a4a2f17b5a24"},
     "named_topic_config_order": {"observations": 5, "sha256": "9cdded1fb6e6bc31970c3b887cf2e3f74621864b169a49cf44a286fc7811fe8e"},
     "public_and_worker_authority": {"observations": 15, "sha256": "f6a9af265307b79741b13942852c725dddd70253479fc9a7131a216cd3b6a250"}
@@ -17,6 +18,7 @@
     "named YAML topic insertion order after aliases/merge/duplicate resolution"
   ],
   "intentional_differences": [
+    {"boundary": "explicit_inactive_member", "source": "MCP catalog-enabled member absent from active adapters validates then silently drops during resolution", "native": "MCP explicit lists and research evidence reject inactive members atomically before resolution; HTTP dropping and metadata preview of active unported factories remain unchanged"},
     {"boundary": "tier1_fallback", "source": "Python set iteration is process dependent", "native": "sort selected tier1 names deterministically", "oracle_comparator": "only tier1 fallback selected order is normalized"},
     {"boundary": "research_legacy_grant_flag", "source": "recovered requires_intent_grant=false may bypass specialist grant", "native": "every research DTO requires current specialist grant; false cannot confer exemption", "migration": "current grants or operator reauthorization required before legacy work dispatch"},
     {"boundary": "pagination_report", "source": "public core envelopes omit pagination although shared resolver supports it", "native": "include an audited pagination entry for typed page on all search surfaces; never infer enforcement from snapshot slicing"},

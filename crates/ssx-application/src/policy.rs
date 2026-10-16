@@ -222,7 +222,7 @@ impl PolicyService {
             .collect();
         let inactive: Vec<_> = names
             .iter()
-            .filter(|n| self.catalog.get(n).is_some_and(|e| !e.enabled))
+            .filter(|n| self.catalog.get(n).is_some_and(|e| !e.enabled || !e.active))
             .collect();
         if !unknown.is_empty() || !inactive.is_empty() {
             let problems = unknown
@@ -239,7 +239,7 @@ impl PolicyService {
                 .catalog
                 .engines()
                 .iter()
-                .filter(|e| e.enabled)
+                .filter(|e| e.enabled && e.active)
                 .map(|e| &e.name)
                 .collect();
             e.details = Box::new(json!({"valid_alternatives":valid}));

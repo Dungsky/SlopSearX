@@ -93,3 +93,11 @@ Captured evidence scope and intent are rechecked under the current policy. F09
 validates planning metadata but does not establish tenant ownership or prove
 that references were admitted: the authoritative research store/worker remains
 responsible for those checks and budget/lease/cancellation commit authority.
+
+`inactive.json` preserves the observed Python hazard: an enabled catalog member
+missing from active adapters passes MCP validation and silently drops from an
+explicit mixed scope. Native MCP validation now rejects that scope atomically,
+including recovered research evidence and fresh revalidation. Alternatives include
+only active enabled members. This is intentional hardening, not source parity.
+HTTP retains dropping behavior; active unported factories remain previewable and
+fail only dispatch authorization through the existing availability error.
