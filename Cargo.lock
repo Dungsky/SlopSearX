@@ -2392,6 +2392,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "ssx-config"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde-saphyr",
+ "serde_json",
+ "ssx-domain",
+ "ssx-registry",
+]
+
+[[package]]
 name = "ssx-domain"
 version = "0.1.0"
 dependencies = [
@@ -2484,6 +2495,14 @@ name = "ssx-publication"
 version = "0.1.0"
 dependencies = [
  "ssx-json",
+]
+
+[[package]]
+name = "ssx-registry"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -3325,6 +3344,7 @@ dependencies = [
  "ssx-http",
  "ssx-json",
  "ssx-mcp",
+ "ssx-registry",
  "ssx-wire",
 ]
 

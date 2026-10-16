@@ -1,5 +1,6 @@
 //! Fail-closed native evidence runner. Owned check implementations are deliberately finite.
 mod f05;
+mod f06;
 mod f07;
 mod f08;
 mod f10;
@@ -436,6 +437,7 @@ fn execute(root: &Path, id: &str, records: &mut Vec<Value>) -> Result<()> {
         "F04" => replay::check(root, records),
         "T01" => t01::check(root, records),
         "F05" => f05::check(root, records),
+        "F06" => f06::check(root, records),
         "F07" => f07::check(root, records),
         "W01" => w01::check(root, records),
         "F08" => f08::check(root, records),
@@ -770,7 +772,7 @@ mod tests {
     fn unknown_and_unimplemented_fail() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
         assert!(
-            execute(&root, "F06", &mut vec![])
+            execute(&root, "F09", &mut vec![])
                 .unwrap_err()
                 .contains("unimplemented")
         );

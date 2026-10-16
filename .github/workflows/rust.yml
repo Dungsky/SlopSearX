@@ -135,6 +135,9 @@ jobs:
       - name: Typed records and stable serialization evidence
         run: cargo xtask check F05 --output target/rust-evidence/F05.json
 
+      - name: Layered configuration and engine registry evidence
+        run: cargo xtask check F06 --output target/rust-evidence/F06.json
+
       - name: Deterministic ranking, scholarly grouping and retrieval evidence
         run: cargo xtask check F11 --output target/rust-evidence/F11.json
 
@@ -166,6 +169,7 @@ jobs:
             target/rust-evidence/F04.json
             target/rust-evidence/T01.json
             target/rust-evidence/F05.json
+            target/rust-evidence/F06.json
             target/rust-evidence/F07.json
             target/rust-evidence/W01.json
             target/rust-evidence/O03.json
