@@ -172,6 +172,8 @@ jobs:
         run: cargo xtask check W01 --output target/rust-evidence/W01.json
       - name: Durable research execution and recovery evidence
         run: cargo xtask check W02 --output target/rust-evidence/W02.json
+      - name: Saved execution observation and atomic publication evidence
+        run: cargo xtask check W04 --output target/rust-evidence/W04.json
 
       - name: Staged admission ownership and recovery evidence
         run: cargo xtask check W11 --output target/rust-evidence/W11.json
@@ -221,6 +223,7 @@ jobs:
             target/rust-evidence/W00.json
             target/rust-evidence/W01.json
             target/rust-evidence/W02.json
+            target/rust-evidence/W04.json
             target/rust-evidence/W11.json
             target/rust-evidence/O03.json
             target/rust-evidence/F08.json
