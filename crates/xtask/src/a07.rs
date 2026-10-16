@@ -242,6 +242,20 @@ fn exact_test_present(
         &format!("A07 missing exact native identity {package}/{target}/{name}"),
     )
 }
+fn verify_executed(output: &str, expected: &BTreeSet<String>) -> Result<()> {
+    let passed: BTreeSet<String> = output
+        .lines()
+        .filter_map(|line| {
+            line.strip_prefix("test ")?
+                .strip_suffix(" ... ok")
+                .map(str::to_owned)
+        })
+        .collect();
+    require(
+        passed == *expected,
+        "A07 listed native tests were missing, ignored, or did not pass",
+    )
+}
 pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
     verify(root, ARTIFACTS)?;
     let ids = primary_ids(root)?;
@@ -364,43 +378,41 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
         &["test", "--offline", "-p", "xtask", "a07::tests"],
         records,
     )?;
-    command(
-        root,
-        "cargo",
-        &[
-            "test",
-            "--offline",
-            "-p",
-            "ssx-infra",
-            "--lib",
-            "--test",
-            "a07_biomedical",
-            "--test",
-            "a07_context",
-            "--test",
-            "a07_factories",
-        ],
-        records,
-    )?;
-    command(
-        root,
-        "cargo",
-        &[
-            "test",
-            "--offline",
-            "-p",
-            "ssx-mcp",
-            "--test",
-            "a07_consumers",
-        ],
-        records,
-    )?;
+    for ((package, target), expected) in &available {
+        let mut args = vec!["test", "--offline", "-p", package.as_str()];
+        if target == "lib" {
+            args.push("--lib");
+        } else {
+            args.extend([
+                "--test",
+                target
+                    .strip_prefix("test:")
+                    .ok_or("A07 invalid binary binding")?,
+            ]);
+        }
+        args.extend(["--", "--format", "pretty"]);
+        let output = command(root, "cargo", &args, records)?;
+        verify_executed(&output, expected)?;
+    }
     records.push(json!({"A07":{"primary_source_controls":ids.len(),"factory_availability":"actual Registry attachment, separate from historical F06 declaration","temporary_python":"not executed or required","remaining_boundaries":"G02 retained-response/global input accounting and full MCP/HTML transport remain separate"}}));
     Ok(())
 }
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn ignored_missing_and_wrong_identity_execution_fail_closed() {
+        let expected = BTreeSet::from(["module::required".to_owned()]);
+        verify_executed("test module::required ... ok\n", &expected).unwrap();
+        for output in [
+            "test module::required ... ignored\n",
+            "test result: ok. 0 passed; 0 failed; 1 ignored\n",
+            "test other::required ... ok\n",
+            "",
+        ] {
+            assert!(verify_executed(output, &expected).is_err());
+        }
+    }
     #[test]
     fn same_suffix_in_wrong_module_binary_or_package_is_rejected() {
         let available = BTreeMap::from([(
