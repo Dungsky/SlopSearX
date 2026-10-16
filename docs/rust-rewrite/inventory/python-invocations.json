@@ -14,7 +14,7 @@
       "100644": 729
     },
     "configured_precommit_hook_rows": 15,
-    "developer_oracle_invocation_rows": 7
+    "developer_oracle_invocation_rows": 9
   },
   "interpreter_invocations": [
     {
@@ -8344,6 +8344,15 @@
         "T04",
         "G08"
       ]
+    },
+    {
+      "path": "docs/rust-rewrite/t05/README.md",
+      "example_path": "docs/rust-rewrite/t05/capture.py",
+      "evidence": "PYTHONHASHSEED=0 PYTHONPATH=. /private/tmp/slopsearx-rust-oracle-py314/bin/python docs/rust-rewrite/t05/capture.py --output /private/tmp/t05-source.json",
+      "classification": "temporary backend-coupled developer oracle; never a mandatory native gate or runtime dependency",
+      "migration_owner": "T05",
+      "retirement_owner": "G08",
+      "disposition": "retain source-captured portable JSON; retire executable Python before backend removal"
     }
   ]
 }

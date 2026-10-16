@@ -488,6 +488,9 @@ impl OAuthStore {
     }
 }
 impl ssx_application::oauth::OAuthState for OAuthStore {
+    fn now_ms(&self) -> ssx_application::PortFuture<'_, Result<u64, OAuthError>> {
+        Box::pin(self.now())
+    }
     fn register_client(
         &self,
         v: ClientRegistration,

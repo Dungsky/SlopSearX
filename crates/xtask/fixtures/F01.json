@@ -20,7 +20,7 @@
     },
     {
       "path": "docs/rust-rewrite/inventory/DRIFT.md",
-      "git_blob": "fb187744218735c3818ec76336641322333d1557"
+      "git_blob": "44d3de67e0488a008bf509ce5eda0a7b34c581fb"
     },
     {
       "path": "docs/rust-rewrite/inventory/README.md",
@@ -35,20 +35,20 @@
       "git_blob": "01a249f1fb259620b2f67c17713222a0f7af6bc3"
     },
     {
-      "path": "docs/rust-rewrite/inventory/python-boundary.md",
-      "git_blob": "ceb41e527385cfef044db2c4cfb28fcd569ab0ae"
-    },
-    {
       "path": "docs/rust-rewrite/inventory/o03-active-tooling.json",
       "git_blob": "92416a57a087d5f2e1b13f04c94dfd8cbd5b49e7"
     },
     {
+      "path": "docs/rust-rewrite/inventory/python-boundary.md",
+      "git_blob": "ceb41e527385cfef044db2c4cfb28fcd569ab0ae"
+    },
+    {
       "path": "docs/rust-rewrite/inventory/python-disposition.json",
-      "git_blob": "19788498555e5111d6466cfc152c66b22a0625e2"
+      "git_blob": "de4aa37bfc1e723cb8440e68b2592aa884fcd756"
     },
     {
       "path": "docs/rust-rewrite/inventory/python-invocations.json",
-      "git_blob": "339aa6b9e1d9987f865ad9d2e00cabddc91677e4"
+      "git_blob": "acb126e0ed91f798ec63c497ba18e43c1c426af7"
     },
     {
       "path": "docs/rust-rewrite/inventory/surface-contracts.md",
@@ -69,6 +69,14 @@
     {
       "path": "docs/rust-rewrite/replay/oracle/export_mcp.py",
       "git_blob": "3c3104a3bc8a275454c4a8eca48e4b427c2a45ca"
+    },
+    {
+      "path": "docs/rust-rewrite/t04/capture.py",
+      "git_blob": "a9ebd31d5ce256fbb7f4c7c4ce54982d63f9ac98"
+    },
+    {
+      "path": "docs/rust-rewrite/t05/capture.py",
+      "git_blob": "a05f67a97254a6094a8f7ac2ac0fa11d1b05c5a9"
     },
     {
       "path": "docs/rust-rewrite/w01/oracle/export.py",
@@ -1525,10 +1533,6 @@
     {
       "path": "tests/test_workflow_recent_indexes.py",
       "git_blob": "0cd352d9c80cd52ca6aa41d929654dea714b4221"
-    },
-    {
-      "path": "docs/rust-rewrite/t04/capture.py",
-      "git_blob": "a9ebd31d5ce256fbb7f4c7c4ce54982d63f9ac98"
     }
   ]
 }

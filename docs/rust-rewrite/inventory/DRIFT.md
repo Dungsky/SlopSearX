@@ -199,3 +199,16 @@ no HTTP endpoint or provider is called. G08 removes it before backend retirement
 The exact Python source union has 371 paths: 122 backend/runtime, 248
 backend-coupled tooling/test and one client-only. Existing runtime/oracle bytes
 and all historical baseline identities remain unchanged.
+
+## T05 OAuth wire migration oracle
+
+T05 adds exactly one temporary backend-coupled source exporter and one developer
+invocation entry. It captures actual pinned SDK loopback HTTP requests with a
+synthetic authority, never provider calls. Native runtime/gates consume the JSON
+fixture only. G08 owns exporter retirement. Existing runtime/source inventory pins
+remain unchanged; F01 adds this exporter and refreshes only reviewed inventory
+bookkeeping documents. T05's native all-network auth, resource binding and bounded
+form refusal differences are explicit in [the parity ledger](../t05/PARITY.md).
+
+The developer-invocation summary repairs a stale count7: eight existing rows are
+unchanged and the single T05 addition produces nine actual rows.

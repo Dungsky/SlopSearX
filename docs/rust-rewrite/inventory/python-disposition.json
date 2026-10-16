@@ -3,7 +3,7 @@
   "baseline_sha": "20109f9083babd014971951e8c02565ae51c2326",
   "source": "Pinned F01 baseline inventory plus reviewed post-baseline additions recorded in DRIFT.md; source-set validation refreshed at acceptance.",
   "summary": {
-    "tracked_python_source_count": 371,
+    "tracked_python_source_count": 372,
     "extensionless_python_entrypoints": 1,
     "executable_config_python_invocation_lines": 63,
     "interpreter_configuration_lines": 106,
@@ -11,7 +11,7 @@
     "documented_example_invocation_references": 49,
     "source_classifications": {
       "backend/runtime": 122,
-      "backend-coupled tooling/test": 248,
+      "backend-coupled tooling/test": 249,
       "client-only": 1
     },
     "documentation_file_modes": {
@@ -19,8 +19,8 @@
     },
     "source_path_set_validation": {
       "method": "sorted exact-set comparison between git ls-files paths ending .py/.pyw/.pyi plus ssx and files[].path",
-      "tracked_expected_count": 371,
-      "manifest_count": 371,
+      "tracked_expected_count": 372,
+      "manifest_count": 372,
       "exact_match": true,
       "extensionless_python_paths": [
         "ssx"
@@ -132,6 +132,19 @@
       "evidence": "T04 isolated offline Python3.14.7 exact-source OAuth client model_dump and state-provider observations; native gates consume JSON only, no endpoints/providers.",
       "reason": "Temporary migration reference only; G08 removes executable Python before backend removal.",
       "introduced_after_baseline": "1f3f5bc85083f4fd24bd9a2b07f161626e6bfef5"
+    },
+    {
+      "path": "docs/rust-rewrite/t05/capture.py",
+      "classification": "backend-coupled tooling/test",
+      "migration_owner": "T05",
+      "migration_owners": [
+        "T05",
+        "G08"
+      ],
+      "disposition": "temporary_developer_oracle_retire_before_backend_removal",
+      "evidence": "Pinned Python3.14.7/MCP2.3.0/FastMCP4.0.11 actual loopback OAuth wire observations; synthetic authority, no providers; native gate consumes JSON only.",
+      "reason": "Temporary migration oracle, not runtime/client exception; G08 retires executable Python.",
+      "introduced_after_baseline": "403dfd3720e969fa829f426136bf0f05b0360c56"
     },
     {
       "path": "docs/rust-rewrite/w01/oracle/export.py",
