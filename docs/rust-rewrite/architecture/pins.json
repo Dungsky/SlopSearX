@@ -120,6 +120,16 @@
       "source": "https://docs.rs/indexmap/2.14.2/indexmap/",
       "retrieval_source": "https://docs.rs/indexmap/2.14.2/indexmap/",
       "retrieved_identity": "Pinned version already resolved in accepted Cargo.lock; official docs verified insertion-order/serde API 2026-10-15"
+    },
+    "aws-lc-rs": {
+      "version": "=1.18.2",
+      "source": "https://docs.rs/aws-lc-rs/1.18.2/aws_lc_rs/",
+      "retrieved_identity": "T09 reuses accepted locked AWS-LC TLS backend; package metadata inspected locally; MSRV1.71; ISC AND (Apache-2.0 OR ISC)"
+    },
+    "base64": {
+      "version": "=0.23.1",
+      "source": "https://docs.rs/base64/0.23.1/base64/",
+      "retrieved_identity": "T09 promotes existing locked encoding package to exact direct edge; MSRV1.71; MIT OR Apache-2.0"
     }
   },
   "lock_gate": "F03 resolves Cargo.lock and compiles mandatory targets with --locked; T01 qualifies rmcp and SSE against real clients",

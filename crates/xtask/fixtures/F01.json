@@ -11,10 +11,6 @@
       "git_blob": "650a47a473f3f6e19118773dfc32fc54b0c5f586"
     },
     {
-      "path": "docs/rust-rewrite/f09/oracle/export.py",
-      "git_blob": "cca9dc3d5ccbe57e5b6f9bbe0ed2a53016aef7af"
-    },
-    {
       "path": "docs/rust-rewrite/f10/oracle/export.py",
       "git_blob": "5bdc1cc2189f036ce77999bd1a9387ccf7cc4902"
     },
@@ -24,7 +20,7 @@
     },
     {
       "path": "docs/rust-rewrite/inventory/DRIFT.md",
-      "git_blob": "4fe8b01fc220b45121d8613abc0531eb815a74a5"
+      "git_blob": "f9352f3caf52ac0455e1a1de68ed98d53a2f8bf9"
     },
     {
       "path": "docs/rust-rewrite/inventory/README.md",
@@ -48,11 +44,11 @@
     },
     {
       "path": "docs/rust-rewrite/inventory/python-disposition.json",
-      "git_blob": "ead1b279919591ec75c9455e2decb8fffdc0abcd"
+      "git_blob": "132e1d28480bffbfdd9a47e28e27875c3d8143c4"
     },
     {
       "path": "docs/rust-rewrite/inventory/python-invocations.json",
-      "git_blob": "9d1e8bab2cda5f7e2bf14367f79df218a3330133"
+      "git_blob": "fabf3b257b06e45fdde601eb3cd586a3e42ba12a"
     },
     {
       "path": "docs/rust-rewrite/inventory/surface-contracts.md",
@@ -73,6 +69,10 @@
     {
       "path": "docs/rust-rewrite/replay/oracle/export_mcp.py",
       "git_blob": "3c3104a3bc8a275454c4a8eca48e4b427c2a45ca"
+    },
+    {
+      "path": "docs/rust-rewrite/t09/capture.py",
+      "git_blob": "154bc57a340ab8973a83a983579adb19bb0745dd"
     },
     {
       "path": "docs/rust-rewrite/w01/oracle/export.py",
@@ -1533,6 +1533,10 @@
     {
       "path": "docs/rust-rewrite/t04/capture.py",
       "git_blob": "a9ebd31d5ce256fbb7f4c7c4ce54982d63f9ac98"
+    },
+    {
+      "path": "docs/rust-rewrite/f09/oracle/export.py",
+      "git_blob": "cca9dc3d5ccbe57e5b6f9bbe0ed2a53016aef7af"
     }
   ]
 }
