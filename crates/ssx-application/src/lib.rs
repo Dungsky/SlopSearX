@@ -5,8 +5,26 @@ pub type PortFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 /// Application-owned search port implemented by concrete engine adapters.
 /// This executable port is distinct from `Engine`, which is only a foundation
 /// readiness probe and does not represent provider search behavior.
+/// Caller-owned absolute execution limit; adapters must not reconstruct it from
+/// an original relative request timeout after queueing or formatting.
+#[derive(Clone, Copy, Debug)]
+pub struct SearchContext {
+    pub deadline: std::time::Instant,
+}
 pub trait SearchEngine: Send + Sync {
     fn search<'a>(&'a self, request: &'a SearchRequest) -> PortFuture<'a, AdapterResponse>;
+
+    /// Legacy implementations retain their existing behavior. Context-aware
+    /// adapters can intersect this limit with their own configured timer.
+    /// Returning or dropping this future does not itself prove OS-child reap;
+    /// independently supervised helpers retain cleanup ownership until verified.
+    fn search_with_context<'a>(
+        &'a self,
+        request: &'a SearchRequest,
+        _context: SearchContext,
+    ) -> PortFuture<'a, AdapterResponse> {
+        self.search(request)
+    }
 }
 /// Application-owned pre-dispatch admission result, kept independent of Valkey.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -105,6 +123,8 @@ mod urls;
 pub use urls::normalise_url;
 
 mod text;
+/// Python str.isdigit character semantics, using the accepted Unicode16 properties.
+pub use text::digit as python_is_digit;
 
 mod calendar;
 pub use calendar::iso_timestamp;

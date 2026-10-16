@@ -20,6 +20,18 @@ impl FiniteF64 {
         };
         Ok(Self(number))
     }
+    /// Construct an already typed finite float with Python token spelling.
+    /// Unlike `new`, this avoids serialization/reparse scratch. Callers with a
+    /// backing ledger reserve25 before invocation and retain it through drop.
+    /// Existing constructors and serde behavior remain unchanged.
+    pub fn from_python_float(value: f64) -> Result<Self, DomainError> {
+        if !value.is_finite() {
+            return Err(DomainError("number must be finite"));
+        }
+        ssx_json::Number::from_f64(value)
+            .map(Self)
+            .map_err(|_| DomainError("invalid number"))
+    }
     pub fn from_number(number: ssx_json::Number) -> Result<Self, DomainError> {
         if number.as_f64().is_none() {
             return Err(DomainError("number must be finite"));
@@ -281,5 +293,57 @@ mod finite_number_tests {
         assert_ne!(first, second);
         assert_eq!(first.get(), second.get());
         assert_eq!(ssx_json::to_string(&second).unwrap(), "9007199254740993");
+    }
+}
+
+#[cfg(test)]
+mod typed_float_tests {
+    use super::*;
+    #[test]
+    fn typed_python_float_preserves_finite_bits_and_explicit_token_profile() {
+        for value in [
+            0.0,
+            -0.0,
+            1e-5,
+            1e-4,
+            1e15,
+            1e16,
+            f64::from_bits(1),
+            f64::MAX,
+            f64::MIN,
+            f64::MIN_POSITIVE,
+        ] {
+            let old = FiniteF64::new(value).unwrap();
+            let new = FiniteF64::from_python_float(value).unwrap();
+            assert_eq!(old.get().to_bits(), new.get().to_bits());
+            assert_eq!(new.get().to_bits(), value.to_bits());
+        }
+        assert_eq!(
+            FiniteF64::from_python_float(-0.0)
+                .unwrap()
+                .as_number()
+                .as_str(),
+            "-0.0"
+        );
+        assert_eq!(
+            FiniteF64::from_python_float(1e-5)
+                .unwrap()
+                .as_number()
+                .as_str(),
+            "1e-05"
+        );
+        assert_eq!(
+            FiniteF64::from_python_float(1e16)
+                .unwrap()
+                .as_number()
+                .as_str(),
+            "1e+16"
+        );
+        for value in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+            assert_eq!(
+                FiniteF64::from_python_float(value).unwrap_err(),
+                FiniteF64::new(value).unwrap_err()
+            );
+        }
     }
 }

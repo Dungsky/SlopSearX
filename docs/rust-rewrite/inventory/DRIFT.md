@@ -559,6 +559,20 @@ The F15 source-bound gate adds exactly two temporary developer-only Python expor
 
 The additive union preserves both original inventories and all historical source pins:387 Python source paths,264 backend-coupled tooling/test paths and28 developer oracle invocations. Both W11 and F15 native gates and retained artifacts remain enabled. This records integration preparation; merged-head validation remains required.
 
+
+## A07 temporary source evidence inventory
+
+A07 biomedical candidate adds12 exact-hash temporary offline source producers,396 projected Python source paths and37 developer-oracle invocation rows against this baseline. All existing records/historical captures unchanged; native A07 gate consumes nonexecutable JSON only and never requires or executes producers. G08 owns executable retirement before backend removal. This is additive inventory, not native runtime Python permission. Projected counts describe this candidate only; recompute after normal accepted-main integration before final acceptance. No complete existing record was replaced.
+
+
+## A07 normal accepted-main integration
+
+The DCO A07 checkpoint is normally merged with accepted main1bad48b (F15/W11/W02). All complete parent and A07 inventory records are retained:399 tracked Python source paths and40 temporary developer-oracle invocation rows. Existing source observations and source Git pins remain immutable. Historical native/CI baseline blobs are checked separately from current native implementations. Final integrated gates and exact-head CI remain required.
+
 ## W04 saved-runner source oracle inventory correction
 
 W04 adds the temporary offline synthetic `docs/rust-rewrite/w04/capture_source.py` producer. Its existing local oracle inventory did not update the global F01 source set; this correction adds its exact source binding, backend-coupled tooling/test classification, W04/G08 ownership and reproduction guidance. The guidance is not an execution receipt. Existing source/invocation records remain unchanged: the additive union is388 Python source paths,265 backend-coupled tooling/test paths and29 developer-oracle invocation rows. Native runtime and mandatory gates never execute the exporter; the W04 gate hash-reads it as a temporary source artifact. G08 retires executable Python before backend removal and retains immutable JSON observations/provenance.
+
+## W04 integration with accepted A07
+
+Normal integration of accepted A07 main `2f78b9d02cfe62c9829fcfb38b85cd632a889de0` preserves every complete parent record, yielding400 tracked Python source paths,277 backend-coupled tooling/test paths and41 developer-oracle invocation rows. Both A07 and W04 native gates and artifact uploads remain enabled. Historical observations and source pins are unchanged. This records integration; final combined-source validation and review remain required.

@@ -39,62 +39,129 @@ fn string(value: &str, ascii: bool, out: &mut String) {
     out.push('"');
 }
 /// CPython JSON uses shortest-roundtrip digits with its own fixed/scientific cutoffs.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FloatFormatError {
+    Nonfinite,
+    Allocation,
+    UnexpectedCapacity,
+    Invariant,
+}
 pub fn python_float(value: f64) -> Result<String, Error> {
+    try_python_float(value).map_err(|error| {
+        codec_error(match error {
+            FloatFormatError::Nonfinite => "nonfinite durable JSON number",
+            FloatFormatError::Allocation => "float formatting allocation failed",
+            FloatFormatError::UnexpectedCapacity => "float formatting capacity mismatch",
+            FloatFormatError::Invariant => "float formatting invariant failed",
+        })
+    })
+}
+pub fn try_python_float(value: f64) -> Result<String, FloatFormatError> {
     if !value.is_finite() {
-        return Err(codec_error("nonfinite durable JSON number"));
+        return Err(FloatFormatError::Nonfinite);
+    }
+    // Ryu's f64 spelling fits 24 bytes. Python's transformed spelling fits
+    // 25 (sign +17 digits +dot +e/sign/three exponent digits); stack capacity
+    // 32 also covers fixed notation at the existing -4/16 cutoffs.
+    struct Output {
+        bytes: [u8; 32],
+        len: usize,
+    }
+    impl Output {
+        fn byte(&mut self, byte: u8) {
+            self.bytes[self.len] = byte;
+            self.len += 1;
+        }
+        fn bytes(&mut self, bytes: &[u8]) {
+            for &byte in bytes {
+                self.byte(byte);
+            }
+        }
+        fn zeros(&mut self, n: usize) {
+            for _ in 0..n {
+                self.byte(b'0');
+            }
+        }
+    }
+    let mut output = Output {
+        bytes: [0; 32],
+        len: 0,
+    };
+    if value.is_sign_negative() {
+        output.byte(b'-');
     }
     if value == 0.0 {
-        return Ok(if value.is_sign_negative() {
-            "-0.0"
-        } else {
-            "0.0"
-        }
-        .into());
-    }
-    let mut buffer = ryu::Buffer::new();
-    let raw = buffer.format_finite(value.abs());
-    let (mantissa, exponent) = raw
-        .split_once('e')
-        .map_or((raw, 0), |(m, e)| (m, e.parse::<i32>().unwrap()));
-    let dot = mantissa.find('.').unwrap_or(mantissa.len()) as i32;
-    let all = mantissa.replace('.', "");
-    let leading = all.chars().take_while(|c| *c == '0').count();
-    let mut digits = all[leading..].trim_end_matches('0').to_owned();
-    let power = exponent + dot - leading as i32 - 1;
-    if digits.is_empty() {
-        digits.push('0');
-    }
-    let sign = if value.is_sign_negative() { "-" } else { "" };
-    let text = if !(-4..16).contains(&power) {
-        let mantissa = if digits.len() == 1 {
-            digits.clone()
-        } else {
-            format!("{}.{}", &digits[..1], &digits[1..])
-        };
-        format!(
-            "{mantissa}e{}{:02}",
-            if power >= 0 { "+" } else { "-" },
-            power.abs()
-        )
+        output.bytes(b"0.0");
     } else {
-        let decimal = power + 1;
-        if decimal <= 0 {
-            format!("0.{}{}", "0".repeat((-decimal) as usize), digits)
-        } else if decimal as usize >= digits.len() {
-            format!(
-                "{}{}.0",
-                digits,
-                "0".repeat(decimal as usize - digits.len())
-            )
-        } else {
-            format!(
-                "{}.{}",
-                &digits[..decimal as usize],
-                &digits[decimal as usize..]
-            )
+        let mut buffer = ryu::Buffer::new();
+        let raw = buffer.format_finite(value.abs());
+        let (mantissa, exponent) = raw.split_once('e').map_or((raw, 0), |(m, e)| {
+            (m, e.parse::<i32>().expect("Ryu exponent"))
+        });
+        let dot = mantissa.find('.').unwrap_or(mantissa.len()) as i32;
+        let mut all = [0u8; 24];
+        let mut end = 0usize;
+        for byte in mantissa.bytes() {
+            if byte != b'.' {
+                all[end] = byte;
+                end += 1;
+            }
         }
-    };
-    Ok(format!("{sign}{text}"))
+        let mut leading = 0usize;
+        while leading < end && all[leading] == b'0' {
+            leading += 1;
+        }
+        while end > leading && all[end - 1] == b'0' {
+            end -= 1;
+        }
+        let digits = &all[leading..end];
+        // Nonzero finite values always have a significant digit.
+        debug_assert!(!digits.is_empty());
+        let power = exponent + dot - leading as i32 - 1;
+        if !(-4..16).contains(&power) {
+            output.byte(digits[0]);
+            if digits.len() > 1 {
+                output.byte(b'.');
+                output.bytes(&digits[1..]);
+            }
+            output.byte(b'e');
+            output.byte(if power >= 0 { b'+' } else { b'-' });
+            let magnitude = power.unsigned_abs();
+            if magnitude >= 100 {
+                output.byte(b'0' + (magnitude / 100) as u8);
+            }
+            output.byte(b'0' + ((magnitude / 10) % 10) as u8);
+            output.byte(b'0' + (magnitude % 10) as u8);
+        } else {
+            let decimal = power + 1;
+            if decimal <= 0 {
+                output.bytes(b"0.");
+                output.zeros((-decimal) as usize);
+                output.bytes(digits);
+            } else if decimal as usize >= digits.len() {
+                output.bytes(digits);
+                output.zeros(decimal as usize - digits.len());
+                output.bytes(b".0");
+            } else {
+                let at = decimal as usize;
+                output.bytes(&digits[..at]);
+                output.byte(b'.');
+                output.bytes(&digits[at..]);
+            }
+        }
+    }
+    if output.len > 25 {
+        return Err(FloatFormatError::Invariant);
+    }
+    let mut text = String::new();
+    text.try_reserve_exact(output.len)
+        .map_err(|_| FloatFormatError::Allocation)?;
+    if text.capacity() != output.len {
+        return Err(FloatFormatError::UnexpectedCapacity);
+    }
+    // All generated bytes are ASCII digits/punctuation; no decoding allocation.
+    text.push_str(std::str::from_utf8(&output.bytes[..output.len]).expect("ASCII float"));
+    Ok(text)
 }
 pub fn canonical_json(value: &Value, profile: JsonProfile) -> Result<Vec<u8>, Error> {
     canonical_json_text(
