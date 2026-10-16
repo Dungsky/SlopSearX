@@ -19,3 +19,11 @@ tokio-rustls.workspace = true
 redis.workspace = true
 scraper.workspace = true
 quick-xml.workspace = true
+flate2.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+ssx-json.workspace = true
+
+[dev-dependencies]
+rcgen = { version = "=0.14.10", default-features = false, features = ["aws_lc_rs", "pem"] }
+time = "=0.3.55"

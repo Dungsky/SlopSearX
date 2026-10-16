@@ -120,7 +120,24 @@
       "source": "https://docs.rs/indexmap/2.14.2/indexmap/",
       "retrieval_source": "https://docs.rs/indexmap/2.14.2/indexmap/",
       "retrieved_identity": "Pinned version already resolved in accepted Cargo.lock; official docs verified insertion-order/serde API 2026-10-15"
+    },
+    "flate2": {
+      "version": "=1.1.9",
+      "source": "https://docs.rs/flate2/1.1.9/flate2/",
+      "retrieved_identity": "F08 exact Cargo.lock resolution and inspected bounded Read decoder API; native gzip and raw/zlib deflate regression qualification"
     }
   },
-  "lock_gate": "F03 resolves Cargo.lock and compiles mandatory targets with --locked; T01 qualifies rmcp and SSE against real clients"
+  "lock_gate": "F03 resolves Cargo.lock and compiles mandatory targets with --locked; T01 qualifies rmcp and SSE against real clients",
+  "test_dependencies": {
+    "rcgen": {
+      "version": "=0.14.10",
+      "source": "https://docs.rs/rcgen/0.14.10/rcgen/",
+      "purpose": "F08 in-memory CA/leaf generation, no static expiry; aws_lc_rs and pem features only"
+    },
+    "time": {
+      "version": "=0.3.55",
+      "source": "https://docs.rs/time/0.3.55/time/",
+      "purpose": "F08 runtime test certificate validity; already resolved transitively"
+    }
+  }
 }
