@@ -4,8 +4,8 @@ use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::{collections::BTreeSet, fs, path::Path};
 const BASELINE: &str = "1f3f5bc85083f4fd24bd9a2b07f161626e6bfef5";
-const CORPUS: &str = "d9c4453669499ebe8b6da05d3e93037d3b96dfd7ad591f4470d2642fd933e5b9";
-const EXPORTER: &str = "a3fb2aff279a184b91ee341b5ab3f77153be56d6d3b88eba85cbd5d0bcf4510e";
+const CORPUS: &str = "cd4d4794b34272b2004d17b50a44f8c3ae4f15866e37c6a4b9369b4e312dce30";
+const EXPORTER: &str = "fbebf885dcda9fef308b9102480593fa3e3f7c5e02d6af03083f0b7b78b76395";
 fn digest(bytes: &[u8]) -> String {
     Sha256::digest(bytes)
         .iter()
@@ -34,6 +34,7 @@ fn validate(corpus: &[u8], exporter: &[u8]) -> Result<Value> {
         ("directories", 6),
         ("settings", 6),
         ("mutation_digests", 5),
+        ("previous_key_drain", 15),
     ] {
         if v[key].as_array().map(Vec::len) != Some(count) {
             return Err(format!("T09 incomplete {key}"));
@@ -117,6 +118,7 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
             "signed_invalid_claims_and_replayed_callback_never_create_session",
             "revoked_membership_and_valkey_failure_deny_protected_but_not_public",
             "two_independent_authorities_refresh_rotate_logout_without_session_revival",
+            "refresh_between_rotation_read_and_cas_conflicts_without_issuing_handle",
             "stale_exact_record_refresh_and_rotation_never_restore_deleted_state",
             "revision_revocation_is_durable_and_operator_grants_only_intersect",
             "previous_key_drain_is_verification_only_and_expiry_cannot_extend_absolute_lifetime",
@@ -158,6 +160,7 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
         &["--lib", "browser_identity::"],
         &[
             "browser_identity::tests::operator_settings_disabled_secrets_origin_proxy_and_previous_key_bounds",
+            "browser_identity::tests::previous_key_drain_matches_source_integer_grammar",
             "browser_identity::tests::directory_retains_defaults_and_rejects_duplicate_unstable_or_coercible_authority",
             "browser_identity::tests::exact_source_directory_corpus_with_named_unknown_grant_rejection",
         ],

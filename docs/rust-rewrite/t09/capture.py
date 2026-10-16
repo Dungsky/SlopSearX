@@ -8,11 +8,13 @@ import ast
 import asyncio
 import hashlib
 import json
+import os
 import platform
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
+from unittest.mock import patch
 
 BASELINE = "1f3f5bc85083f4fd24bd9a2b07f161626e6bfef5"
 SOURCES = [
@@ -42,7 +44,7 @@ def main() -> None:
         safe_return_to,
     )
     from slopsearx.portal_oidc import OIDCSettings, _validate_claims, _verify_rs256
-    from slopsearx.workflow_portal import _load_directory
+    from slopsearx.workflow_portal import _load_directory, _previous_secret
 
     if platform.python_version() != "3.14.7":
         raise RuntimeError("pinned Python3.14.7 required")
@@ -258,6 +260,33 @@ def main() -> None:
             "strategy": "triangulate",
         } | values
         mutation_digests.append({"id": name, "input": fields, "source": eval(expression, {"hashlib": hashlib}, fields)})
+    previous_key_drain = []
+    for raw in [
+        "60",
+        " 60 ",
+        "+60",
+        "6_0",
+        "٦٠",
+        "６０",
+        "\u00a060\u00a0",
+        "\u001c60\u001c",
+        "60.0",
+        "6e1",
+        "6__0",
+        "_60",
+        "59",
+        "601",
+        "NaN",
+    ]:
+        with patch.dict(
+            os.environ,
+            {"SLOPSEARX_PORTAL_PREVIOUS_SESSION_KEY": "p" * 32, "SLOPSEARX_PORTAL_PREVIOUS_KEY_DRAIN_SECONDS": raw},
+        ):
+            try:
+                result = _previous_secret()[1]
+            except ValueError:
+                result = None
+        previous_key_drain.append({"raw": raw, "source": result})
     output = {
         "schema_version": 1,
         "baseline": BASELINE,
@@ -272,6 +301,7 @@ def main() -> None:
         "directories": directories,
         "settings": settings_cases,
         "mutation_digests": mutation_digests,
+        "previous_key_drain": previous_key_drain,
     }
     Path(sys.argv[2]).write_text(json.dumps(output, ensure_ascii=False, indent=2, allow_nan=False) + "\n")
 

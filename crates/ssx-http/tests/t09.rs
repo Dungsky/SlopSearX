@@ -777,7 +777,16 @@ async fn two_independent_authorities_refresh_rotate_logout_without_session_reviv
     assert!(x.is_ok() && y.is_ok());
     let s = x.unwrap();
     let (rotate, stale) = tokio::join!(a.rotate(&h, &s, "b"), b.resolve(&h, &allowed));
-    let rotated = rotate.unwrap();
+    let rotated = match rotate {
+        Ok(rotated) => rotated,
+        Err(BrowserError::Conflict) => {
+            let current = a.resolve(&h, &allowed).await.unwrap();
+            assert_eq!(current.active_tenant, s.active_tenant);
+            assert_eq!(current.generation, s.generation);
+            a.rotate(&h, &current, "b").await.unwrap()
+        }
+        Err(error) => panic!("unexpected rotation error: {error:?}"),
+    };
     assert!(matches!(
         stale,
         Ok(_) | Err(BrowserError::Missing) | Err(BrowserError::Conflict)
@@ -1713,4 +1722,92 @@ async fn directory_port_cannot_substitute_another_principal_or_verified_subject(
         BrowserError::Denied
     );
     assert!(f.session_records().is_empty());
+}
+
+/// Holds the rotating authority after its raw read, before its exact-record CAS.
+struct PausedDirectory {
+    inner: Directory,
+    reached: tokio::sync::Notify,
+    resume: tokio::sync::Notify,
+}
+impl BrowserDirectory for PausedDirectory {
+    fn subject<'a>(
+        &'a self,
+        issuer: &'a str,
+        subject: &'a str,
+    ) -> PortFuture<'a, Result<Option<BrowserPrincipal>, BrowserError>> {
+        self.inner.subject(issuer, subject)
+    }
+    fn principal<'a>(
+        &'a self,
+        id: &'a str,
+    ) -> PortFuture<'a, Result<Option<BrowserPrincipal>, BrowserError>> {
+        Box::pin(async move {
+            self.reached.notify_one();
+            self.resume.notified().await;
+            self.inner.principal(id).await
+        })
+    }
+}
+#[tokio::test]
+async fn refresh_between_rotation_read_and_cas_conflicts_without_issuing_handle() {
+    let f = Fixture::new(true).await;
+    let h = handle(&f.login().await);
+    let pending = f.authority.resolve(&h, &actions()).await.unwrap();
+    let selected = f.authority.rotate(&h, &pending, "a").await.unwrap();
+    let h = selected.handle;
+    let directory = Arc::new(PausedDirectory {
+        inner: f.directory.clone(),
+        reached: tokio::sync::Notify::new(),
+        resume: tokio::sync::Notify::new(),
+    });
+    let rotating = BrowserAuthority::new(
+        BrowserStore::new(Arc::new(f.valkey.store())),
+        directory.clone(),
+        BrowserAuthorityConfig {
+            settings: f.settings.clone(),
+            keys: BrowserKeys::new(secret(&"s".repeat(32)), None).unwrap(),
+            audit_key: secret(&"a".repeat(32)),
+            roots: vec![f.root.clone()],
+            idle_seconds: 60,
+            absolute_seconds: 120,
+        },
+    )
+    .await
+    .unwrap();
+    let expected = selected.session;
+    let attempt = rotating.rotate(&h, &expected, "b");
+    let interleave = async {
+        directory.reached.notified().await;
+        let current = f.authority.resolve(&h, &actions()).await.unwrap();
+        assert_eq!(current.active_tenant.as_deref(), Some("a"));
+        let preserved = f.session_records();
+        assert_eq!(preserved.len(), 1);
+        directory.resume.notify_one();
+        preserved
+    };
+    let (result, preserved) = tokio::time::timeout(Duration::from_secs(5), async {
+        tokio::join!(attempt, interleave)
+    })
+    .await
+    .unwrap();
+    assert_eq!(result.unwrap_err(), BrowserError::Conflict);
+    assert_eq!(f.session_records(), preserved);
+    let fresh = f.authority.resolve(&h, &actions()).await.unwrap();
+    assert_eq!(fresh.active_tenant.as_deref(), Some("a"));
+    assert_eq!(fresh.generation, expected.generation);
+    let successor = f.authority.rotate(&h, &fresh, "b").await.unwrap();
+    assert_eq!(
+        f.authority.resolve(&h, &actions()).await.unwrap_err(),
+        BrowserError::Missing
+    );
+    assert_eq!(
+        f.authority
+            .resolve(&successor.handle, &actions())
+            .await
+            .unwrap()
+            .active_tenant
+            .as_deref(),
+        Some("b")
+    );
 }

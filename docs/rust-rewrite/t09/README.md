@@ -79,6 +79,8 @@ mismatch revokes via exact observed-value deletion, so stale refresh cannot
 revive or delete a newer record. Tenant switching rotates the random handle and
 CSRF secret atomically; stale handles and stale rotation/finish operations deny.
 Previous HMAC keys verify only during a configured 60–600 second server-time drain;
+the drain environment value follows Python integer whitespace, Unicode decimal
+digits and valid underscore syntax, without decimal or exponent coercion.
 new handles issue under the current key. No raw OIDC token is stored in sessions.
 
 The cookie is `__Host-slopsearx_session; Secure; HttpOnly; SameSite=Lax; Path=/`
@@ -117,12 +119,14 @@ and an actual committed EVAL with lost reply proving `CompletionUnknown`/one dis
 Compile-fail evidence prevents generic secret serialization.
 
 Temporary `capture.py` uses pinned Python 3.14.7, asserts 11 source file identities
-against the accepted baseline and records 61 offline observations. It is never
+against the accepted baseline and records 76 offline observations. It is never
 invoked by native gates/runtime. Native tests consume every source observation
 with exact named intentional-difference branches; G08 retires the exporter.
-Independent recapture matched corpus SHA
-`d9c4453669499ebe8b6da05d3e93037d3b96dfd7ad591f4470d2642fd933e5b9`;
-parent proof is `/private/tmp/t09-parent-recapture-attempt1/parent-verification.json`.
+The extended drain corpus has SHA
+`cd4d4794b34272b2004d17b50a44f8c3ae4f15866e37c6a4b9369b4e312dce30`;
+the original 61 observations remain unchanged, with 15 additional exact integer
+drain-setting cases. Independent recapture matched byte for byte; proof is
+`/private/tmp/t09-parent-drain-recapture-final/verification.json`.
 Capture presence or counts alone are not runtime parity evidence.
 
 ## Cutover and downstream handoff
@@ -141,3 +145,8 @@ writer, automatic migration or successful G04/G07 rehearsal is claimed.
 G02 owns adversarial release qualification, W10 the real workflow/UI integration,
 O01 audit operational integration and G08 temporary Python retirement. See
 [PARITY.md](PARITY.md) for exact source behavior and reviewed corrections.
+
+The competing refresh/rotation regression permits only an issued rotation or an
+explicit stale-record conflict. A deterministic directory barrier forces refresh
+between the rotation read and CAS, proving conflict preserves the exact current
+record, issues no handle, and allows an explicit fresh rotation.

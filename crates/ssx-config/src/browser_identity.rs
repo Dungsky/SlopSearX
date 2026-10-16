@@ -69,7 +69,11 @@ impl BrowserConfig {
             let raw = env
                 .get("SLOPSEARX_PORTAL_PREVIOUS_KEY_DRAIN_SECONDS")
                 .map_or("600", String::as_str);
-            let n = raw.parse::<u64>().map_err(|_| BrowserError::InvalidInput)?;
+            let normalized = ssx_domain::storage::normalize_python_number_text(raw)
+                .map_err(|_| BrowserError::InvalidInput)?;
+            let n = normalized
+                .parse::<u64>()
+                .map_err(|_| BrowserError::InvalidInput)?;
             if !(60..=600).contains(&n) {
                 return Err(BrowserError::InvalidInput);
             }
@@ -245,6 +249,28 @@ mod tests {
             "601".into(),
         );
         assert!(BrowserConfig::load(&e).is_err());
+    }
+    #[test]
+    fn previous_key_drain_matches_source_integer_grammar() {
+        let corpus: serde_json::Value =
+            serde_json::from_str(include_str!("../../xtask/fixtures/t09/source.json")).unwrap();
+        let cases = corpus["previous_key_drain"].as_array().unwrap();
+        assert_eq!(cases.len(), 15);
+        for case in cases {
+            let raw = case["raw"].as_str().unwrap();
+            let expected = case["source"].as_u64();
+            let mut e = env();
+            e.insert(
+                "SLOPSEARX_PORTAL_PREVIOUS_SESSION_KEY".into(),
+                "p".repeat(32),
+            );
+            e.insert(
+                "SLOPSEARX_PORTAL_PREVIOUS_KEY_DRAIN_SECONDS".into(),
+                raw.into(),
+            );
+            let actual = BrowserConfig::load(&e).map(|v| v.unwrap().previous_key_drain_seconds);
+            assert_eq!(actual.ok(), expected, "{raw:?}");
+        }
     }
     #[test]
     fn directory_retains_defaults_and_rejects_duplicate_unstable_or_coercible_authority() {

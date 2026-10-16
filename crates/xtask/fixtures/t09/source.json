@@ -3,7 +3,7 @@
   "baseline": "1f3f5bc85083f4fd24bd9a2b07f161626e6bfef5",
   "python": "3.14.7",
   "provider_calls": 0,
-  "exporter_sha256": "a3fb2aff279a184b91ee341b5ab3f77153be56d6d3b88eba85cbd5d0bcf4510e",
+  "exporter_sha256": "fbebf885dcda9fef308b9102480593fa3e3f7c5e02d6af03083f0b7b78b76395",
   "sources": [
     {
       "path": "slopsearx/portal_oidc.py",
@@ -905,6 +905,68 @@
         "strategy": "triangulate"
       },
       "source": "e08c80330b5c62920ffba9c9ee7c4e021fb350cd7b5d66e8e58b41dca41d8e7b"
+    }
+  ],
+  "previous_key_drain": [
+    {
+      "raw": "60",
+      "source": 60
+    },
+    {
+      "raw": " 60 ",
+      "source": 60
+    },
+    {
+      "raw": "+60",
+      "source": 60
+    },
+    {
+      "raw": "6_0",
+      "source": 60
+    },
+    {
+      "raw": "٦٠",
+      "source": 60
+    },
+    {
+      "raw": "６０",
+      "source": 60
+    },
+    {
+      "raw": " 60 ",
+      "source": 60
+    },
+    {
+      "raw": "\u001c60\u001c",
+      "source": null
+    },
+    {
+      "raw": "60.0",
+      "source": null
+    },
+    {
+      "raw": "6e1",
+      "source": null
+    },
+    {
+      "raw": "6__0",
+      "source": null
+    },
+    {
+      "raw": "_60",
+      "source": null
+    },
+    {
+      "raw": "59",
+      "source": null
+    },
+    {
+      "raw": "601",
+      "source": null
+    },
+    {
+      "raw": "NaN",
+      "source": null
     }
   ]
 }
