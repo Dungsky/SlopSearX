@@ -40,6 +40,7 @@ fn validate(raw: &[u8], exporter: &[u8]) -> Result<Value> {
     Ok(v)
 }
 const TESTS: &[&str] = &[
+    "corrupt_code_only_fields_are_rejected_without_consumption",
     "stored_grant_defaults_and_corruption_have_structured_nonconsuming_responses",
     "request_shape_errors_preserve_existing_code_before_valid_redemption",
     "pinned_source_wire_corpus_replays_with_only_named_security_corrections",

@@ -55,3 +55,5 @@ rather than the source model-validation500, an intentional corruption refusal.
 Actual-Valkey regression covers nine stored variants, structured responses,
 unchanged code/record after rejection, and successful redemption after exact
 record restoration. The prior80 source observations and exporter remain unchanged.
+
+Stored authorization-code integrity: native read and redemption repeat the creation-time text bounds for redirect URI and PKCE challenge. Corrupt empty, control-bearing or oversized values return a generic unavailable response without consuming the code or issuing tokens. The real endpoint/private-Valkey regression includes an implicit redirect whose corrupt stored URI previously bypassed the request redirect comparison; restoring the original record permits redemption. This is deliberate fail-closed durable-state hardening.

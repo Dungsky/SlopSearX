@@ -136,6 +136,13 @@ fn validate_grant(v: &TokenGrant) -> Result<(), OAuthError> {
         Ok(())
     }
 }
+fn validate_code(v: &CodeGrant) -> Result<(), OAuthError> {
+    validate_grant(&TokenGrant::from(v))?;
+    if !valid_text(&v.code_challenge) || !valid_text(&v.redirect_uri) {
+        return Err(OAuthError::InvalidInput);
+    }
+    Ok(())
+}
 fn mint() -> Result<Secret, OAuthError> {
     let mut b = [0u8; 40];
     rustls::crypto::aws_lc_rs::default_provider()
@@ -284,10 +291,7 @@ impl OAuthStore {
         self.client(id).await?.record.data.public()
     }
     pub async fn create_code(&self, grant: CodeGrant) -> Result<IssuedCode, OAuthError> {
-        validate_grant(&TokenGrant::from(&grant))?;
-        if !valid_text(&grant.code_challenge) || !valid_text(&grant.redirect_uri) {
-            return Err(OAuthError::InvalidInput);
-        };
+        validate_code(&grant)?;
         let client = self.client(&grant.client_id).await?;
         if !client
             .record
@@ -326,7 +330,7 @@ impl OAuthStore {
         let v = self
             .read::<CodeGrant>(&self.key("code", &code.fingerprint()), "code")
             .await?;
-        validate_grant(&TokenGrant::from(&v.record.data)).map_err(|_| OAuthError::Malformed)?;
+        validate_code(&v.record.data).map_err(|_| OAuthError::Malformed)?;
         Ok(IssuedCode {
             code: code.clone(),
             grant: v.record.data,
@@ -377,6 +381,7 @@ impl OAuthStore {
     ) -> Result<TokenPair, OAuthError> {
         let key = self.key("code", &code.fingerprint());
         let current = self.read::<CodeGrant>(&key, "code").await?;
+        validate_code(&current.record.data).map_err(|_| OAuthError::Malformed)?;
         if &current.record.data != expected {
             return Err(OAuthError::Denied(Denial::Binding));
         };

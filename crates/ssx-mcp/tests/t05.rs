@@ -1560,3 +1560,121 @@ async fn stored_grant_defaults_and_corruption_have_structured_nonconsuming_respo
     }
     f.host.shutdown().await.unwrap();
 }
+
+#[tokio::test]
+async fn corrupt_code_only_fields_are_rejected_without_consumption() {
+    use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+    use sha2::{Digest as _, Sha256};
+    use ssx_domain::oauth::{CodeGrant, OAuthError};
+    let f = Fixture::new().await;
+    let registration = f
+        .client
+        .post(format!("{}/register", f.base()))
+        .json(&json!({"redirect_uris":["http://localhost/cb"]}))
+        .send()
+        .await
+        .unwrap()
+        .json::<Value>()
+        .await
+        .unwrap();
+    let client = registration["client_id"].as_str().unwrap();
+    let secret = registration["client_secret"].as_str().unwrap();
+    let verifier = "v".repeat(48);
+    let grant = CodeGrant {
+        client_id: client.into(),
+        scopes: vec![],
+        code_challenge: URL_SAFE_NO_PAD.encode(Sha256::digest(verifier.as_bytes())),
+        redirect_uri: "http://localhost/cb".into(),
+        redirect_uri_provided_explicitly: false,
+        resource: None,
+        subject: None,
+    };
+    let code = f.store.create_code(grant).await.unwrap();
+    let keys: Vec<String> = redis::cmd("KEYS")
+        .arg("*:code:*")
+        .query(&mut f.server.connection())
+        .unwrap();
+    assert_eq!(keys.len(), 1);
+    let key = &keys[0];
+    let original: String = redis::cmd("GET")
+        .arg(key)
+        .query(&mut f.server.connection())
+        .unwrap();
+    let body = url::form_urlencoded::Serializer::new(String::new())
+        .extend_pairs([
+            ("client_id", client),
+            ("client_secret", secret),
+            ("grant_type", "authorization_code"),
+            ("code", code.code.expose()),
+            ("code_verifier", verifier.as_str()),
+        ])
+        .finish();
+    for (field, value) in [
+        ("redirect_uri", "http://localhost/\ncb".to_owned()),
+        ("redirect_uri", String::new()),
+        ("redirect_uri", "r".repeat(4097)),
+        ("code_challenge", String::new()),
+        ("code_challenge", "bad\nchallenge".into()),
+        ("code_challenge", "c".repeat(4097)),
+    ] {
+        let mut record: Value = serde_json::from_str(&original).unwrap();
+        record["data"][field] = json!(value);
+        let corrupt = record.to_string();
+        redis::cmd("SET")
+            .arg(key)
+            .arg(&corrupt)
+            .arg("KEEPTTL")
+            .query::<()>(&mut f.server.connection())
+            .unwrap();
+        let response = f
+            .client
+            .post(format!("{}/token", f.base()))
+            .header("content-type", "application/x-www-form-urlencoded")
+            .body(body.clone())
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(
+            response.status().as_u16(),
+            503,
+            "corrupt {field} must fail closed"
+        );
+        assert!(matches!(
+            f.store.load_code(&code.code).await,
+            Err(OAuthError::Malformed)
+        ));
+        let changed: CodeGrant = serde_json::from_value(record["data"].clone()).unwrap();
+        assert!(matches!(
+            f.store.redeem_code(&code.code, &changed).await,
+            Err(OAuthError::Malformed)
+        ));
+        let retained: String = redis::cmd("GET")
+            .arg(key)
+            .query(&mut f.server.connection())
+            .unwrap();
+        assert_eq!(retained, corrupt);
+        for pattern in ["*:access:*", "*:refresh:*"] {
+            let tokens: Vec<String> = redis::cmd("KEYS")
+                .arg(pattern)
+                .query(&mut f.server.connection())
+                .unwrap();
+            assert!(tokens.is_empty());
+        }
+    }
+    redis::cmd("SET")
+        .arg(key)
+        .arg(original)
+        .arg("KEEPTTL")
+        .query::<()>(&mut f.server.connection())
+        .unwrap();
+    let response = f
+        .client
+        .post(format!("{}/token", f.base()))
+        .header("content-type", "application/x-www-form-urlencoded")
+        .body(body)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status().as_u16(), 200);
+    f.host.shutdown().await.unwrap();
+}
