@@ -64,7 +64,10 @@ fn normalized(response: &ssx_domain::AdapterResponse) -> ssx_json::Value {
 }
 
 fn assert_source_wire(wire: &str, source: &ssx_json::Value, case_id: &str, index: usize) {
-    let line = wire.lines().next().unwrap();
+    let line = wire
+        .lines()
+        .next()
+        .unwrap_or_else(|| panic!("{case_id}: empty recorded wire for request {index}"));
     let parts: Vec<_> = line.split_ascii_whitespace().collect();
     assert_eq!(
         parts.len(),
@@ -130,6 +133,158 @@ fn assert_source_wire(wire: &str, source: &ssx_json::Value, case_id: &str, index
     }
 }
 
+const REPLAY_HEADER_BOUND: usize = 64 * 1024;
+async fn read_replay_headers(
+    stream: &mut (impl tokio::io::AsyncRead + Unpin),
+) -> std::io::Result<Vec<u8>> {
+    let mut bytes = Vec::new();
+    let mut chunk = [0; 4096];
+    loop {
+        let n = stream.read(&mut chunk).await?;
+        if n == 0 {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::UnexpectedEof,
+                format!(
+                    "peer closed before complete HTTP headers ({} observed bytes)",
+                    bytes.len()
+                ),
+            ));
+        }
+        if n > REPLAY_HEADER_BOUND.saturating_sub(bytes.len()) {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "replay request exceeds bounded header capacity",
+            ));
+        }
+        bytes.extend_from_slice(&chunk[..n]);
+        if bytes.windows(4).any(|w| w == b"\r\n\r\n") {
+            return Ok(bytes);
+        }
+    }
+}
+
+struct FrozenReplayClock(Option<tokio::task::JoinHandle<()>>);
+impl FrozenReplayClock {
+    fn start() -> Self {
+        tokio::time::pause();
+        // A runnable cooperative task prevents Tokio's idle auto-advance while
+        // the real socket connects/writes. Merely pausing is insufficient.
+        Self(Some(tokio::spawn(async {
+            loop {
+                tokio::task::yield_now().await;
+            }
+        })))
+    }
+    async fn finish(mut self) {
+        let task = self.0.take().unwrap();
+        task.abort();
+        let _ = task.await;
+        tokio::time::resume();
+    }
+}
+impl Drop for FrozenReplayClock {
+    fn drop(&mut self) {
+        if let Some(task) = self.0.take() {
+            task.abort();
+            tokio::time::resume();
+        }
+    }
+}
+async fn captured_search(
+    engine: Box<dyn ssx_registry::Engine>,
+    request: &SearchRequest,
+    seen: &Arc<Mutex<Vec<String>>>,
+    timeout_case: Option<&str>,
+) -> ssx_domain::AdapterResponse {
+    let Some(case) = timeout_case else {
+        return engine.search(request).await;
+    };
+    let clock = FrozenReplayClock::start();
+    let virtual_start = tokio::time::Instant::now();
+    let real_start = std::time::Instant::now();
+    let search = engine.search(request);
+    tokio::pin!(search);
+    tokio::select! {
+        result = &mut search => panic!("{case}: completed before recording the request: {:?}", result.status),
+        _ = async {
+            while seen.lock().unwrap().is_empty() {
+                assert!(real_start.elapsed() < Duration::from_secs(5), "{case}: no complete real request within fixture budget");
+                tokio::task::yield_now().await;
+            }
+        } => {}
+    }
+    assert_eq!(
+        tokio::time::Instant::now(),
+        virtual_start,
+        "{case}: virtual deadline advanced before complete real headers"
+    );
+    assert!(
+        seen.lock().unwrap()[0].ends_with("\r\n\r\n"),
+        "{case}: incomplete request reached deadline coordinator"
+    );
+    // Adapter code and config retain 10ms. std::Instant→Tokio conversion can
+    // place its absolute start slightly after virtual_start, so poll successive
+    // 1ms ticks; never reach the unchanged 60ms delayed-response timer.
+    let response = loop {
+        let polled =
+            std::future::poll_fn(|cx| std::task::Poll::Ready(search.as_mut().poll(cx))).await;
+        if let std::task::Poll::Ready(response) = polled {
+            break response;
+        }
+        assert!(
+            tokio::time::Instant::now() - virtual_start < Duration::from_millis(59),
+            "{case}: native 10ms deadline did not fire before 60ms fixture response"
+        );
+        tokio::time::advance(Duration::from_millis(1)).await;
+        tokio::task::yield_now().await;
+    };
+    assert_eq!(
+        response.status,
+        EngineStatus::Timeout,
+        "{case}: complete request must precede native timeout"
+    );
+    eprintln!(
+        "{case}: complete real request observed before explicit native timeout at {:?}",
+        tokio::time::Instant::now() - virtual_start
+    );
+    clock.finish().await;
+    response
+}
+
+#[tokio::test]
+async fn replay_headers_accumulate_fragments_and_reject_early_eof_and_oversize() {
+    let (mut client, mut peer) = tokio::io::duplex(256);
+    let first = b"GET /fragmented HTTP/1.1\r\nHost: ";
+    let last = b"localhost\r\nX-Exact: MixedCase\r\n\r\n";
+    let writer = tokio::spawn(async move {
+        client.write_all(first).await.unwrap();
+        tokio::task::yield_now().await;
+        client.write_all(last).await.unwrap();
+    });
+    let captured = read_replay_headers(&mut peer).await.unwrap();
+    writer.await.unwrap();
+    assert_eq!(captured, [first.as_slice(), last.as_slice()].concat());
+    for partial in [b"".as_slice(), b"GET /early-eof HTTP/1.1\r\n".as_slice()] {
+        let (mut client, mut peer) = tokio::io::duplex(64);
+        client.write_all(partial).await.unwrap();
+        drop(client);
+        assert_eq!(
+            read_replay_headers(&mut peer).await.unwrap_err().kind(),
+            std::io::ErrorKind::UnexpectedEof
+        );
+    }
+    let (mut client, mut peer) = tokio::io::duplex(REPLAY_HEADER_BOUND + 1);
+    client
+        .write_all(&vec![b'x'; REPLAY_HEADER_BOUND + 1])
+        .await
+        .unwrap();
+    drop(client);
+    assert_eq!(
+        read_replay_headers(&mut peer).await.unwrap_err().kind(),
+        std::io::ErrorKind::InvalidData
+    );
+}
+
 async fn replay(
     responses: Vec<(u16, Vec<u8>)>,
     delay: Option<std::time::Duration>,
@@ -147,21 +302,32 @@ async fn replay_with_types(
     responses: Vec<(u16, Vec<u8>, String)>,
     delay: Option<std::time::Duration>,
 ) -> (String, Arc<Mutex<Vec<String>>>, tokio::task::JoinHandle<()>) {
+    replay_with_types_named(responses, delay, "A04 replay").await
+}
+async fn replay_with_types_named(
+    responses: Vec<(u16, Vec<u8>, String)>,
+    delay: Option<std::time::Duration>,
+    case: &str,
+) -> (String, Arc<Mutex<Vec<String>>>, tokio::task::JoinHandle<()>) {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let address = listener.local_addr().unwrap();
     let seen = Arc::new(Mutex::new(Vec::new()));
     let captured = seen.clone();
+    let case = case.to_owned();
     let task = tokio::spawn(async move {
-        for (status, body, content_type) in responses {
+        for (exchange, (status, body, content_type)) in responses.into_iter().enumerate() {
             let Ok((mut stream, _)) = listener.accept().await else {
                 return;
             };
-            let mut bytes = vec![0; 16 * 1024];
-            let n = stream.read(&mut bytes).await.unwrap_or(0);
+            let bytes = read_replay_headers(&mut stream)
+                .await
+                .unwrap_or_else(|error| {
+                    panic!("{case}: replay request {exchange} incomplete or invalid: {error}")
+                });
             captured
                 .lock()
                 .unwrap()
-                .push(String::from_utf8_lossy(&bytes[..n]).into_owned());
+                .push(String::from_utf8_lossy(&bytes).into_owned());
             if let Some(wait) = delay {
                 tokio::time::sleep(wait).await;
             }
@@ -243,13 +409,14 @@ async fn actual_source_edge_matrix_replays_full_output_and_ordered_requests() {
                 .as_array()
                 .is_some_and(|a| !a.is_empty())
             {
-                replay_with_types(
+                replay_with_types_named(
                     vec![(200, Vec::new(), "application/json".into())],
                     Some(std::time::Duration::from_millis(60)),
+                    id,
                 )
                 .await
             } else {
-                replay_with_types(replies, None).await
+                replay_with_types_named(replies, None, id).await
             };
             (format!("{base}{local_path}"), seen, Some(task))
         };
@@ -313,11 +480,14 @@ async fn actual_source_edge_matrix_replays_full_output_and_ordered_requests() {
             categories,
             ..SearchRequest::default()
         };
-        let actual = registry(config)
-            .instantiate(name)
-            .unwrap()
-            .search(&request)
-            .await;
+        let engine = registry(config).instantiate(name).unwrap();
+        let actual = captured_search(
+            engine,
+            &request,
+            &seen,
+            (id == "reddit.timeout").then_some(id),
+        )
+        .await;
         let mut expected = record["output"].clone();
         let got = normalized(&actual);
         if id == "brave.image.bool_dimensions" {
@@ -488,7 +658,15 @@ async fn every_complete_source_record_replays_full_normalized_output_and_wire_co
             let delay = id
                 .ends_with(".timeout")
                 .then_some(std::time::Duration::from_millis(60));
-            let (base, seen, task) = replay(response_plan, delay).await;
+            let (base, seen, task) = replay_with_types_named(
+                response_plan
+                    .into_iter()
+                    .map(|(status, body)| (status, body, "application/json".into()))
+                    .collect(),
+                delay,
+                id,
+            )
+            .await;
             (format!("{base}{path}"), seen, Some(task))
         };
         match engine_name {
@@ -536,11 +714,14 @@ async fn every_complete_source_record_replays_full_normalized_output_and_wire_co
             subreddit,
             ..SearchRequest::default()
         };
-        let response = registry(config)
-            .instantiate(engine_name)
-            .unwrap()
-            .search(&request)
-            .await;
+        let engine = registry(config).instantiate(engine_name).unwrap();
+        let response = captured_search(
+            engine,
+            &request,
+            &seen,
+            id.ends_with(".timeout").then_some(id),
+        )
+        .await;
         let mut expected = source_output;
         if id == "reddit.500" {
             assert_eq!(
@@ -1167,7 +1348,7 @@ async fn all_three_classify_http_errors_bad_json_and_timeout() {
             .await;
         assert_eq!(result.status, EngineStatus::Error, "{name} malformed");
         server.await.unwrap();
-        let (base, _, server) = replay(
+        let (base, seen, server) = replay(
             vec![(
                 200,
                 br#"{"web":{"results":[]},"data":{"children":[]}}"#.to_vec(),
@@ -1178,13 +1359,14 @@ async fn all_three_classify_http_errors_bad_json_and_timeout() {
         let mut config = config.clone();
         set_base(&mut config, name, &base);
         set_timeout(&mut config, name, 10);
-        let result = registry(config)
-            .instantiate(name)
-            .unwrap()
-            .search(&SearchRequest::default())
-            .await;
+        let engine = registry(config).instantiate(name).unwrap();
+        let request = SearchRequest::default();
+        let label = format!("{name}.classification_timeout");
+        let result = captured_search(engine, &request, &seen, Some(&label)).await;
         assert_eq!(result.status, EngineStatus::Timeout, "{name} timeout");
+        assert_eq!(seen.lock().unwrap().len(), 1);
         server.abort();
+        let _ = server.await;
     }
 }
 

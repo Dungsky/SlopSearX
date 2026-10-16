@@ -379,6 +379,7 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
         .collect();
     let expected: BTreeSet<_> = [
         "batch_registration_alone_controls_runtime_availability",
+        "replay_headers_accumulate_fragments_and_reject_early_eof_and_oversize",
         "subreddit_scopes_keep_shared_service_dispatch_cache_and_flights_separate",
         "brave_web_answers_and_images_are_parsed_from_loopback_http",
         "wikipedia_two_stages_preserve_request_order_corrections_and_infobox",
@@ -422,8 +423,8 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
     ensure(
         output
             .lines()
-            .any(|l| l.starts_with("test result:") && l.contains("21 passed; 0 failed; 0 ignored")),
-        "A04 replay must execute exactly twenty-one non-ignored passing tests",
+            .any(|l| l.starts_with("test result:") && l.contains("22 passed; 0 failed; 0 ignored")),
+        "A04 replay must execute exactly twenty-two non-ignored passing tests",
     )?;
 
     for path in [

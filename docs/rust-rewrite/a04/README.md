@@ -205,3 +205,21 @@ additive; the qualified A04 adapter/parser and shared-service cache/flight
 semantics remain byte-identical to checkpoint `ca7c6209`. The final inventory
 union is384 source records and25 developer invocations, preserving complete
 parent rows. Acceptance still requires independent integrated-source review.
+
+## Coordinated loopback timeout replay
+
+Arm64 CI exposed a fixture race in the original `brave.timeout` and
+`reddit.timeout` captures: a 10ms deadline could cancel an accepted TCP
+connection before request bytes were written, and the fixture recorded its one
+empty read as a complete request. The replay reader now accumulates complete
+headers under a 64KiB bound and reports case-labelled EOF/read failures. A
+mandatory regression covers fragmented headers, empty/partial EOF and overflow.
+No observed request is skipped or accepted as partial wire evidence.
+
+For timeout replays, the current-thread test clock is held while real request
+headers arrive. A cooperative runnable task prevents idle clock auto-advance;
+only then do explicit ticks exercise the unchanged native 10ms timeout before
+the unchanged 60ms delayed response. Keeper cleanup joins and resumes time.
+Full byte/request/count/output assertions and immutable source captures remain
+unchanged. A04 now executes 22 integration tests plus four decoder unit tests;
+this is a fixture scheduling correction, not an adapter behavior change.
