@@ -18,6 +18,10 @@ This is a contract inventory. Rust implementation and parity remain pending.
   per-file migration ownership, [interpreter/config invocations](python-invocations.json), client-only
   classification and historical source consumers. A filename suffix does not
   prove that code is inactive.
+- [O03 active tooling graph](o03-active-tooling.json) and
+  [native evidence contract](../O03-tooling-and-evidence.md): source-blob-pinned
+  script/module entrypoints, static import and consumer edges, O07/O08 ownership,
+  prospective receipt schemas, and the offline `cargo xtask check O03` gate.
 - [Drift and intentional-difference ledger](DRIFT.md): required procedure for
   reconciling upstream changes while the rewrite is underway.
 
