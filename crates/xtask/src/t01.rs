@@ -124,6 +124,7 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
         "selected_raw_gateway_close_retries_failed_and_timed_out_delete",
         "opaque::close_tests::stale_close_cannot_clear_replaced_session_generation",
         "harness::sse_frame_tests::fragmented_frames_scan_each_byte_once_and_preserve_mixed_boundaries",
+        "harness::sse_frame_tests::coalesced_near_limit_frames_obey_individual_event_limit",
         "harness::sse_frame_tests::incomplete_frames_and_limit_remain_explicit",
         "opaque::close_tests::late_post_session_header_does_not_resurrect_closed_identity",
         "selected_raw_gateway_request_cancellation_reaches_remote_handler",

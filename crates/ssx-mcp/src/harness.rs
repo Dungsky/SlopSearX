@@ -30,6 +30,14 @@ impl SseFrames {
         self.bytes.extend(chunk);
         Ok(())
     }
+    fn push_pending(&mut self, pending: &mut axum::body::Bytes) -> std::io::Result<()> {
+        let room = (4 * 1024 * 1024usize).saturating_sub(self.bytes.len());
+        if room == 0 {
+            return Err(std::io::Error::other("MCP SSE frame exceeds 4 MiB"));
+        }
+        let take = room.min(pending.len());
+        self.push(&pending.split_to(take))
+    }
     fn next_frame(&mut self) -> Option<Vec<u8>> {
         while self.scanned < self.bytes.len() {
             self.scanned += 1;
@@ -532,11 +540,12 @@ async fn opaque_catalog(
             (
                 body.into_data_stream(),
                 SseFrames::default(),
+                axum::body::Bytes::new(),
                 overlay,
                 wire,
                 lease,
             ),
-            |(mut stream, mut buffer, mut overlay, wire, lease)| async move {
+            |(mut stream, mut buffer, mut pending, mut overlay, wire, lease)| async move {
                 loop {
                     if let Some(frame) = buffer.next_frame() {
                         let text = String::from_utf8(frame).map_err(std::io::Error::other)?;
@@ -547,8 +556,15 @@ async fn opaque_catalog(
                                 .map_err(|e| std::io::Error::other(e.to_string()))?;
                         return Ok::<_, std::io::Error>(Some((
                             axum::body::Bytes::from(rewritten),
-                            (stream, buffer, overlay, wire, lease),
+                            (stream, buffer, pending, overlay, wire, lease),
                         )));
+                    }
+                    // Transport chunks can coalesce several standalone events.
+                    // Keep the remaining Bytes without copying and extract frames
+                    // before copying more than one frame's capacity.
+                    if !pending.is_empty() {
+                        buffer.push_pending(&mut pending)?;
+                        continue;
                     }
                     let Some(chunk) = stream.next().await else {
                         if buffer.is_empty() {
@@ -557,7 +573,7 @@ async fn opaque_catalog(
                         return Err(std::io::Error::other("incomplete MCP SSE frame"));
                     };
                     let chunk = chunk.map_err(std::io::Error::other)?;
-                    buffer.push(&chunk)?;
+                    pending = chunk;
                 }
             },
         );
@@ -716,6 +732,30 @@ mod sse_frame_tests {
         for _ in 0..1000 {
             frames.push(b"data: small\n\n").unwrap();
             assert_eq!(frames.next_frame().unwrap(), b"data: small\n\n");
+        }
+    }
+    #[test]
+    fn coalesced_near_limit_frames_obey_individual_event_limit() {
+        let limit = 4 * 1024 * 1024;
+        for delimiter in [b"\n\n".as_slice(), b"\r\n\r\n"] {
+            let mut first = vec![b'x'; limit - delimiter.len()];
+            first.extend_from_slice(delimiter);
+            let mut frames = SseFrames::default();
+            frames.push(&first[..limit - 1]).unwrap();
+            assert!(frames.next_frame().is_none());
+            let mut tail = first[limit - 1..].to_vec();
+            tail.extend_from_slice(b"data: next\n\n");
+            let mut pending = axum::body::Bytes::from(tail);
+            frames.push_pending(&mut pending).unwrap();
+            assert_eq!(frames.next_frame().unwrap(), first);
+            frames.push_pending(&mut pending).unwrap();
+            assert_eq!(frames.next_frame().unwrap(), b"data: next\n\n");
+            assert!(pending.is_empty());
+            assert_eq!(frames.inspected, limit + b"data: next\n\n".len());
+            let mut oversized = axum::body::Bytes::from(vec![b'x'; limit + 1]);
+            frames.push_pending(&mut oversized).unwrap();
+            assert!(frames.next_frame().is_none());
+            assert!(frames.push_pending(&mut oversized).is_err());
         }
     }
     #[test]
