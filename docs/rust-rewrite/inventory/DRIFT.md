@@ -280,3 +280,33 @@ only T05: 374 sources (122 backend/runtime, 251 backend-coupled tooling/test, on
 client-only). All ten accepted-main developer invocation rows remain unchanged,
 including both distinct W01 commands; T05 adds the eleventh. Historical counts
 above describe their isolated checkpoints, not this combined source tree.
+
+
+## F12 optional routing reference
+
+F12 adds `docs/rust-rewrite/f12/oracle/export.py`, a temporary offline source
+oracle pinned to Python 3.14.7, MCP 2.3.0 and FastMCP 4.0.11. Synthetic local
+transports capture exact Jev payloads, decisions, keyless/enhanced scopes and
+cache identities. Native gates read immutable JSON; they never invoke Python.
+F12/G08 own retirement before backend removal. The exact inventory now contains
+373 Python sources: 122 backend/runtime, 250 backend-coupled tooling/test and one
+client-only source, with ten developer-oracle invocation rows. Existing baseline
+source hashes and historical evidence are unchanged.
+
+## F12 integration with accepted T09
+
+The combined inventory retains all accepted-main Python source rows and adds
+exactly the F12 reference exporter: 374 source paths (122 backend/runtime,
+251 backend-coupled tooling/test, one client-only) and eleven developer-oracle
+invocations. All prior source records and oracle bytes remain unchanged.
+T09 is accepted at `35d97ccf8c9b2d8246373b2024cc8d7a457705a3`; F12 remains
+in review. Earlier counts and statuses above describe historical checkpoints.
+
+## T05 integration with accepted F12
+
+The combined inventory retains all 374 accepted-main source rows and adds only
+T05: 375 sources (122 backend/runtime, 252 backend-coupled tooling/test, one
+client-only), and twelve complete developer-oracle invocation rows. Both distinct
+W01 commands remain unchanged. F12 is accepted at
+`d8bcf5ede0cfa0b359f8bd25cdca89c23366b7e2`; earlier counts and statuses describe
+historical checkpoints. Runtime and reference-oracle bytes remain unchanged.
