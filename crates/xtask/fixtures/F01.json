@@ -32,11 +32,11 @@
     },
     {
       "path": "docs/rust-rewrite/f12/oracle/export.py",
-      "git_blob": "905f48ae80aba2fc5d6d667231c117a0248d1513"
+      "git_blob": "de0879e3b7aaa9c55d0ec7ec255d8a63c086898e"
     },
     {
       "path": "docs/rust-rewrite/inventory/DRIFT.md",
-      "git_blob": "16c62de5afc11044e319da65bb7d2bc9d69ac13b"
+      "git_blob": "02a70d76ce1e044020905788537ee832b309a53c"
     },
     {
       "path": "docs/rust-rewrite/inventory/README.md",

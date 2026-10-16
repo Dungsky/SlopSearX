@@ -201,6 +201,9 @@ async def capture():
 
 
 async def capture_overflow():
+    valkey_server = os.environ.get("SLOPSEARX_TEST_VALKEY_SERVER")
+    if not valkey_server:
+        raise RuntimeError("Set SLOPSEARX_TEST_VALKEY_SERVER to the pinned disposable Valkey executable")
     cache_blob = subprocess.check_output(["git", "hash-object", "--", "slopsearx/cache.py"], text=True).strip()
     if cache_blob != "354dbc179c4ca6ebc4ac9f85dd66a40d07ba3c09":
         raise RuntimeError("F12 overflow cache source drift")
@@ -225,7 +228,7 @@ async def capture_overflow():
         sock = Path(d) / "s.sock"
         p = subprocess.Popen(
             [
-                "/private/tmp/ssx-f07-valkey-pinned/bin/valkey-server",
+                valkey_server,
                 "--port",
                 "0",
                 "--save",
