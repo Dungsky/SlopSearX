@@ -44,3 +44,23 @@ workflow rollback or production cutover is claimed by the T09 implementation.
 Membership directory remains validated operator process configuration. Browser
 admission expiry never proves a prior workflow operation did not happen; W10
 retains durable command idempotency beyond the 600-second browser guard horizon.
+
+
+## F13 cache and snapshot compatibility evidence
+
+F13 retains legacy snapshot keys and JSON shape, with source-to-native reads and
+actual native-created bytes reverse-read by the pinned Python reader. Creation
+now requires atomic SET EX NX success; unknown completion does not publish a
+cursor or retry with another ID. This is an authority correction, not proof of
+a completed G04/G07 rollout. Opaque legacy handles remain readable, subject to
+accepted F05 invariants and independently checked tenant/handle equality.
+Logical expiry remains wall epoch with strict now>expiry and physical TTL+300.
+
+The full composed cache uses search:native:v1 and is recomputable derived state.
+Source search:v2 base-key distinctions and query-only answer:v2 remain explicit.
+Snapshot issuance generates independent random IDs; result IDs derive only from
+snapshot ID/index. No durable identifier depends on a cache fingerprint. Thus
+the composed namespace causes a cold cache on native rollout and legacy rollback,
+without retagging evidence or requiring flushdb. Existing byte/depth/payload
+bounds apply only at persistence; fresh canonical evidence stays complete.
+G04/G07 must still rehearse mixed-version admission, rollback and retention.

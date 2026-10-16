@@ -251,3 +251,16 @@ G08 retains executable retirement ownership. Historical isolated/earlier union
 counts above remain historical. All original runtime and source oracle bytes
 are unchanged. F09 is accepted at `6ae5e34fed19e8e9da7c19b95eeea894512f0e6d`;
 T09 remains in review and requires qualification against the combined source.
+
+
+## F13 temporary source-capture inventory
+
+F13 adds one optional backend-coupled exporter,
+`docs/rust-rewrite/f13/capture.py`, with two documented invocations (forward
+source capture and reverse-read of actual native-created snapshot bytes). Native
+F13 gates invoke no Python. G08 retires this executable after the rollback window;
+immutable source observations remain. All original disposition/invocation rows
+are unchanged. This branch now inventories 374 Python sources: 122 runtime,
+251 backend-coupled tooling/test and one client-only source, plus 12 temporary
+developer-oracle invocation rows. The later normal accepted-F12 integration must
+retain its independent exporter and invocation additions as an exact union.

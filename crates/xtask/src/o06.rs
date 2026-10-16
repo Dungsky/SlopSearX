@@ -363,9 +363,18 @@ fn checkout_with(
     )
 }
 fn hygiene_text(path: &str, raw: &str) -> Result<()> {
+    use sha2::{Digest as _, Sha256};
+    // Exact durable output intentionally has no text newline. Keep JSON and
+    // all other hygiene validation; no other path/bytes receive this exception.
+    let durable_fixture = path == "crates/xtask/fixtures/f13/native-record.json"
+        && Sha256::digest(raw.as_bytes())
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>()
+            == "fbf5c2b453e4c4e4fdd54b5c372be642d036e5cf2db788de0df963e24e0ba203";
     ensure(!raw.contains('\r'), "mixed/CR line endings")?;
     ensure(
-        raw.is_empty() || (raw.ends_with('\n') && !raw.ends_with("\n\n")),
+        durable_fixture || raw.is_empty() || (raw.ends_with('\n') && !raw.ends_with("\n\n")),
         "missing or repeated final newline",
     )?;
     for line in raw.lines() {
@@ -571,6 +580,12 @@ mod tests {
             assert!(hygiene_text("source.rs", bad).is_err());
         }
         hygiene_text("source.rs", "fn main() {}\n").unwrap();
+        let fixture = include_str!("../fixtures/f13/native-record.json");
+        let path = "crates/xtask/fixtures/f13/native-record.json";
+        hygiene_text(path, fixture).unwrap();
+        assert!(hygiene_text("other.json", fixture).is_err());
+        assert!(hygiene_text(path, &fixture.replace("Title0", "changed")).is_err());
+        assert!(hygiene_text(path, "{").is_err());
         assert!(hygiene_text("source.json", "{\n").is_err());
     }
     #[test]
