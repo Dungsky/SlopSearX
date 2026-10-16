@@ -89,6 +89,26 @@ The three adapter and two surface observations prove replay infrastructure
 coverage only; native implementation parity remains assigned to successor
 issues. No live provider capture or experiment is authorized by this addition.
 
+## T01 developer oracle and runtime transport correction
+
+T01 adds `docs/rust-rewrite/replay/oracle/export_mcp.py`, importing the
+accepted F04 isolation helpers and observing the clean pinned Python source
+at `7b2d876307189d7a62000d1f289b3ef4b65eaff6`. The reference runtime is
+Python 3.14.7, FastMCP 4.0.11 and MCP 2.3.0. Injected fixture state and
+loopback-only transport observations require no providers or shared store.
+This is temporary backend-coupled developer tooling owned by T01, with G08
+responsible for executable retirement. Native gates consume captured JSON.
+T01 and F05 together add two paths to the accepted 364-path inventory
+(366 total; 243 backend-coupled tooling/test). Both developer oracles retain
+their separate migration ownership and G08 retirement classification.
+
+The earlier F01 SSE description inspected the Starlette Mount, which has
+no method list, and incorrectly inferred that its handler had no explicit
+method guard. T01 actual runtime captures show HTTP 405 for non-POST
+message requests and request-body size enforcement. The surface inventory
+now reflects the handler behavior. This is an evidence correction, not an
+intentional compatibility change; original baseline evidence remains in Git.
+
 ## F05 temporary pure-function oracle addition
 
 F05 adds `docs/rust-rewrite/f05/oracle/export.py` against accepted F04
@@ -99,8 +119,8 @@ qualify for the client-only exception. F05 owns capture provenance and G08
 owns executable retirement. Native F05 checks consume portable JSON without
 launching Python. No provider calls or deployment are authorized.
 
-This branch adds one path to the accepted 364-path manifest: 365 total,
-including 242 backend-coupled tooling/test paths. Historical F01 baseline
+The integrated T01 and F05 additions bring the accepted 364-path manifest
+to 366 total, including 243 backend-coupled tooling/test paths. Historical F01 baseline
 reports remain unchanged. The reference environment uses Python 3.14.7 and
 Unicode 16.0.0 to match the production image's Python version; the Unicode
 identity cases include mappings absent from Python 3.12's Unicode 15 tables.
@@ -150,3 +170,15 @@ backend-coupled tooling/test paths. Historical F01 baseline identities and
 validation reports remain unchanged. F01 source fixture updates cover this
 new temporary file and these reviewed inventory documents only; existing
 Python runtime source pins are preserved.
+
+
+## Accepted F11 integration into T01
+
+The merged F04, F05, F11 and T01 developer-oracle inventory contains four
+invocation rows. F11 adds one Python path to the integrated T01/F05 inventory:
+367 total paths, including 244 backend-coupled tooling/test paths. Both the
+F11 pure-algorithm exporter and T01 MCP exporter remain temporary developer
+oracles with native JSON-only acceptance gates and G08 retirement ownership.
+The integration refreshes only the three merged inventory-document hashes in
+F01 and adds the already accepted F11 exporter pin; Python runtime pins and
+historical F01 baseline evidence remain unchanged.
