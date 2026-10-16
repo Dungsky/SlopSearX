@@ -356,6 +356,19 @@ invocation rows. Earlier counts and statuses describe historical checkpoints.
 Only the three merged inventory-document F01 anchors require documentary
 refresh; accepted runtime, oracle and source capture identities remain unchanged.
 
+## F13 temporary source-capture inventory
+
+F13 adds one optional backend-coupled exporter,
+`docs/rust-rewrite/f13/capture.py`, with two documented invocations (forward
+source capture and reverse-read of actual native-created snapshot bytes). Native
+F13 gates invoke no Python. G08 retires this executable after the rollback window;
+immutable source observations remain. All original disposition/invocation rows
+are unchanged. This branch now inventories 378 Python sources: 122 runtime,
+255 backend-coupled tooling/test and one client-only source, plus 16 temporary
+developer-oracle invocation rows. The normal integration of accepted F12/T05/A02 main retains all complete records
+from both parents, including both existing W01 invocation rows. No runtime
+Python or source-oracle identity is refreshed by this documentary union.
+
 ## A03 community adapters
 
 A03 adds exactly one temporary developer-only exporter,
@@ -395,3 +408,7 @@ pending.
 ## A03 integration after A02 acceptance
 
 The combined source manifest retains all complete A02 and A03 oracle records: 378 Python source paths (122 runtime, 255 backend-coupled tooling/test, one client) and 15 developer oracle invocation records. Earlier counts above describe their historical checkpoints. No executable Python is granted a new runtime exception.
+
+## F13 integration after A03 acceptance
+
+All complete parent records are preserved: 379 source paths and 17 developer-oracle invocations. A03 was accepted in PR #975 at `5c1b48b9e625501ab61828299168101ac00301b3`. Earlier counts describe historical checkpoints. The F13 raw snapshot EOF exception remains narrowly bound in the native hygiene ledger.
