@@ -61,3 +61,15 @@ identity across languages. Both produce dispatch_failed incomparable reports.
 - G04/G08 own mixed-version namespace/data rehearsal and removal of the isolated
   temporary source exporter. Unknown accepted provider/write outcomes remain
   unknown; recovery never promises exactly-once external dispatch.
+
+## Cancellation negative control
+
+Restoring a direct `store.now().await` only at the post-acquisition observation
+TIME read causes the real CLIENT PAUSE regression to return
+`Store(Store(Unavailable))` instead of `Shutdown`. Pinned redis1.7.1 has a 500ms
+inner default response timeout beneath the configured 2s Valkey outer budget;
+cleanup is separately bounded at 250ms. This is causal cancellation-classification
+evidence. The mutant did not violate the 800ms post-signal join bound, so this
+experiment does **not** establish a join-latency improvement. Exact source is
+restored after the isolated negative control. Corpus/source drift and ignored/
+missing required-contract mutations also return nonzero before acceptance.

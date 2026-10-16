@@ -33,8 +33,8 @@ const APPLICATION: &[&str] = &[
     "report_size_uses_ascii_spaced_bytes_and_retains_prior_baseline_without_panicking",
 ];
 const INFRA: &[&str] = &[
-    "shutdown_interrupts_post_acquisition_time_read_before_store_timeout",
-    "shutdown_interrupts_stalled_renewal_io_before_store_timeout",
+    "shutdown_classified_during_post_acquisition_time_read",
+    "shutdown_classified_during_stalled_renewal_io",
     "scheduled_due_batch_preserves_missed_slots_and_unsliced_observation",
     "retained_old_scope_is_revalidated_after_definition_changes",
     "publication_is_atomic_fenced_and_tenant_bound",

@@ -1114,7 +1114,7 @@ async fn scheduled_due_batch_preserves_missed_slots_and_unsliced_observation() {
     backend.close().await;
 }
 #[tokio::test]
-async fn shutdown_interrupts_stalled_renewal_io_before_store_timeout() {
+async fn shutdown_classified_during_stalled_renewal_io() {
     let server = Server::start();
     let backend = Arc::new(server.store());
     let store = SavedStore::new(backend.clone(), TenantId::new("tenant").unwrap());
@@ -1166,14 +1166,14 @@ async fn shutdown_interrupts_stalled_renewal_io_before_store_timeout() {
         .await
         .unwrap()
         .unwrap();
-    assert!(matches!(result, Err(RunnerError::Shutdown)));
+    assert!(matches!(result, Err(RunnerError::Shutdown)), "{result:?}");
     assert!(started.elapsed() < Duration::from_millis(800));
     assert_eq!(engine.drops.load(Ordering::SeqCst), 1);
     search.shutdown().await;
     backend.close().await;
 }
 #[tokio::test]
-async fn shutdown_interrupts_post_acquisition_time_read_before_store_timeout() {
+async fn shutdown_classified_during_post_acquisition_time_read() {
     let server = Server::start();
     let backend = Arc::new(server.store());
     let store = SavedStore::new(backend.clone(), TenantId::new("tenant").unwrap());
@@ -1230,7 +1230,7 @@ async fn shutdown_interrupts_post_acquisition_time_read_before_store_timeout() {
         .await
         .unwrap()
         .unwrap();
-    assert!(matches!(result, Err(RunnerError::Shutdown)));
+    assert!(matches!(result, Err(RunnerError::Shutdown)), "{result:?}");
     search.shutdown().await;
     backend.close().await;
 }
