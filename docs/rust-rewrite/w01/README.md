@@ -38,7 +38,7 @@ identifiers are explicit inputs. Source legacy recovery synthesizes interrupted
 attempts before accounting; the oracle preserves that exact reconstruction rule.
 
 `ssx_infra::valkey::research::ResearchStore` uses F07 connections, literal tenant
-keys, typed leases and source-exact idempotency/ready/recent assets. Its authority
+job/lease/cancel keys, typed leases and source-exact ready/recent assets. The F07 legacy idempotency asset remains unchanged; W01 adds a disjoint admission namespace. Its authority
 is Valkey alone. `create` is admission-only; `claim` recovers queued/orphaned work;
 `claim_prepared` reapplies retry/extension/metadata mutations to an authoritative
 record under a fresh lease. `mutate` reloads current state, merges cancellation,
@@ -65,10 +65,16 @@ keepalive supervision, service dispatch, or F15 integration.
 
 Cancellation uses a separate durable key. Live owners observe it on reads and
 mutations; callbacks cannot erase an already observed side-key cancellation.
-Validation uses the merged observation while CAS independently compares original
-raw bytes. Unowned cancellation reloads under a fresh lease before finalizing.
-A cancellation arriving after the read can still race a commit/dispatch; W02 must
-observe cancellation again at its dispatch boundary. This package does not claim
+Validation uses the merged observation while CAS atomically compares the lease,
+original job bytes and exact cancellation-side-key bytes or absence. A signal
+change between observation and commit returns conflict without writing; callbacks
+are never retried automatically. This covers mutate, claim, prepared claim and
+request_cancel's own prewritten signal. New charged attempts are rejected when
+observed or proposed cancellation is true, while existing settlement and
+conservative legacy recovery remain allowed. Unowned cancellation reloads under a
+fresh lease before finalizing. Commit is the reservation linearization point;
+cancellation arriving after that commit remains W02's pre-dispatch revalidation
+and cooperative cancellation responsibility. This package does not claim
 an atomic exclusion guarantee across external dispatch.
 Absolute deadline equality expires at claim/admission, and terminal expired jobs
 do not resurrect when a supplied wall clock moves backward. Record retention is
@@ -160,3 +166,34 @@ F11 input-shard hashes. It makes no provider or store calls. Independent source
 recapture/review and exact-head CI remain acceptance gates; replay alone does not
 establish oracle provenance. G08 retires this executable oracle before backend
 removal. Portal remains unchanged because active runtime wiring is deferred.
+
+## Idempotency cutover
+
+Legacy F07 key constructors and Lua bytes are unchanged. Native admission writes
+only `mcp:idem-v2:<UTF-8 tenant byte length>:<literal tenant>:<literal idempotency>`.
+The disjoint prefix cannot overlap a legacy `mcp:idem:` key, and length framing
+separates colon-containing tenants and keys without rewriting job IDs or records.
+
+When v2 is absent, legacy aliases are eligible only when the referenced job's
+exact tenant, original idempotency key and job ID match the requested scope.
+Atomic creation adopts such an alias using the smaller positive remaining TTL of
+legacy mapping and job; it does not extend either legacy TTL or rewrite job bytes.
+Expired, immortal, malformed, missing-target or foreign legacy aliases have no
+native lookup or admission authority. Both legacy alias and record must have
+positive remaining TTL; invalid legacy TTL is never repaired or extended. A malformed v2 alias or mismatched/missing v2 target fails
+closed and never falls back. Existing source records and historical aliases stay
+readable and unchanged. Empty idempotency keys still mean ordinary admission.
+
+Cutover requires quiescing legacy writers before enabling native writers. The two
+namespaces do not coordinate mixed old/new writers, and this package claims no
+online mixed-writer migration guarantee. Ongoing cancellation after a committed
+reservation remains a W02 dispatch-boundary responsibility. Real-Valkey tests
+cover both the verified migration and malformed/expired/colliding aliases.
+
+Scoped ready discovery now takes Valkey TIME and ZRANGEBYSCORE in one atomic W01
+helper at the same microsecond precision as the accepted F07 ready scripts.
+The prior millisecond truncation could omit a newly due job during the current
+millisecond. The helper keeps the 16-item bound and never rounds future scores
+into eligibility; actual lease acquisition remains authoritative. A deterministic
+real-Valkey test substitutes only the Lua clock value to demonstrate the former
+miss, exact due inclusion, future exclusion and the unchanged selection bound.

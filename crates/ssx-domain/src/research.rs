@@ -819,6 +819,11 @@ impl ResearchJob {
                 added_results = checked_add(added_results, admissions as u64)?;
             }
         }
+        if added_attempts > 0 && (self.cancel_requested || next.cancel_requested) {
+            return Err(DomainError(
+                "cancelled research cannot reserve new attempts",
+            ));
+        }
         let seen_suffix = &next.seen_lead_ids[self.seen_lead_ids.len()..];
         let suffix: std::collections::BTreeSet<&str> =
             seen_suffix.iter().map(String::as_str).collect();

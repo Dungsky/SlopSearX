@@ -11,8 +11,46 @@ use std::{num::NonZeroU64, sync::Arc};
 const RETENTION: NonZeroU64 = NonZeroU64::new(86_400).unwrap();
 /// Unlike a token-only write, CAS prevents two callers sharing one token from
 /// validating against one history and overwriting each other's evidence.
-const OWNED_CAS: &str = "if redis.call('GET',KEYS[1]) ~= ARGV[1] then return 0 end\nif redis.call('GET',KEYS[2]) ~= ARGV[2] then return -1 end\nredis.call('SETEX',KEYS[2],ARGV[3],ARGV[4])\nreturn 1";
+const OWNED_CAS: &str = "if redis.call('GET',KEYS[1]) ~= ARGV[1] then return 0 end\nif redis.call('GET',KEYS[2]) ~= ARGV[2] then return -1 end\nlocal cancel = redis.call('GET',KEYS[3])\nif (ARGV[5] == '0' and cancel) or (ARGV[5] == '1' and cancel ~= ARGV[6]) then return -1 end\nredis.call('SETEX',KEYS[2],ARGV[3],ARGV[4])\nreturn 1";
 const CREATE: &str = "if redis.call('EXISTS',KEYS[1]) ~= 0 then return 0 end\nredis.call('SETEX',KEYS[1],ARGV[1],ARGV[2])\nreturn 1";
+
+const READY_SCOPED: &str = include_str!("research_scripts/ready_scoped.lua");
+const LEGACY_IDEMPOTENCY_LOOKUP: &str =
+    include_str!("research_scripts/legacy_idempotency_lookup.lua");
+// F07 legacy script/key bytes remain untouched. Native writes use this disjoint
+// namespace; legacy aliases are adopted only through their exact source record.
+const IDEMPOTENT_CREATE_V2: &str = r#"
+local function verified_id(raw)
+    local ok, mapping = pcall(cjson.decode, raw)
+    if not ok or type(mapping) ~= 'table' or type(mapping.job_id) ~= 'string' or mapping.job_id == '' or string.find(mapping.job_id, ':', 1, true) then return nil end
+    local record = redis.pcall('GET', ARGV[5] .. mapping.job_id)
+    if type(record) ~= 'string' then return nil end
+    local good, job = pcall(cjson.decode, record)
+    if good and type(job) == 'table' and job.job_id == mapping.job_id and job.tenant == ARGV[6] and job.idempotency_key == ARGV[7] then return mapping.job_id end
+    return nil
+end
+local existing = redis.call('GET', KEYS[1])
+if existing then
+    local id = verified_id(existing)
+    if not id then return {-1, ''} end
+    return {0, id}
+end
+local legacy = redis.pcall('GET', KEYS[3])
+if type(legacy) == 'string' then
+    local id = verified_id(legacy)
+    if id then
+        local remaining = math.min(redis.call('PTTL', KEYS[3]), redis.call('PTTL', ARGV[5] .. id))
+        if remaining > 0 then
+            redis.call('PSETEX', KEYS[1], remaining, cjson.encode({job_id=id}))
+            return {0, id}
+        end
+    end
+end
+if redis.call('EXISTS', KEYS[2]) ~= 0 then return {-2, ''} end
+redis.call('SETEX', KEYS[2], ARGV[1], ARGV[2])
+redis.call('SETEX', KEYS[1], ARGV[1], ARGV[3])
+return {1, ARGV[4]}
+"#;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Error {
@@ -109,27 +147,28 @@ impl ResearchStore {
         }
         Ok((raw, job))
     }
-    async fn merge_cancel(&self, job: &mut ResearchJob) -> Result<(), Error> {
-        match self
-            .store
-            .get_object(&self.key("cancel", &job.job_id))
-            .await
-        {
-            Read::Missing => (),
-            Read::Found(v) if v["cancel_requested"].as_bool() == Some(true) => {
-                job.cancel_requested = true
+    async fn merge_cancel(&self, job: &mut ResearchJob) -> Result<Option<Vec<u8>>, Error> {
+        match self.store.get(&self.key("cancel", &job.job_id)).await {
+            Read::Missing => Ok(None),
+            Read::Found(raw) => {
+                let value: ssx_json::Value =
+                    ssx_json::from_slice(&raw).map_err(|_| Failure::Malformed)?;
+                match value["cancel_requested"].as_bool() {
+                    Some(true) => job.cancel_requested = true,
+                    Some(false) => (),
+                    None => return Err(Failure::Malformed.into()),
+                }
+                Ok(Some(raw))
             }
-            Read::Found(v) if v["cancel_requested"].as_bool() == Some(false) => (),
-            Read::Found(_) | Read::Malformed => return Err(Failure::Malformed.into()),
-            Read::Unavailable => return Err(Failure::Unavailable.into()),
-            Read::Closed => return Err(Failure::Closed.into()),
+            Read::Malformed => Err(Failure::Malformed.into()),
+            Read::Unavailable => Err(Failure::Unavailable.into()),
+            Read::Closed => Err(Failure::Closed.into()),
         }
-        Ok(())
     }
     pub async fn load(&self, id: &JobId) -> JobRead {
         match self.raw(id).await {
             Ok((_, mut job)) => match self.merge_cancel(&mut job).await {
-                Ok(()) => JobRead::Found(Box::new(job)),
+                Ok(_) => JobRead::Found(Box::new(job)),
                 Err(e) => read_error(e),
             },
             Err(e) => read_error(e),
@@ -144,86 +183,127 @@ impl ResearchStore {
             )));
         }
         let body = ssx_json::to_string(&job.to_payload()?).map_err(|_| Failure::InvalidInput)?;
-        let (id, created) = if let Some(idem) =
-            job.idempotency_key.as_ref().filter(|s| !s.is_empty())
-        {
-            let source = format!(
-                "if not redis.call('GET',KEYS[1]) and redis.call('EXISTS',KEYS[2]) ~= 0 then return {{-2,''}} end\n{}",
-                Script::ResearchIdempotentCreate.source()
-            );
-            let mut cmd = redis::cmd("EVAL");
-            cmd.arg(source)
-                .arg(2)
-                .arg(self.key("idem", idem))
-                .arg(self.key("job", &job.job_id))
-                .arg(RETENTION.get())
-                .arg(body)
-                .arg(
-                    ssx_json::to_string(&ssx_json::json!({"job_id":job.job_id}))
-                        .map_err(|_| Failure::InvalidInput)?,
-                )
-                .arg(&job.job_id);
-            let raw = self.store.execute(cmd, true).await?;
-            if raw
-                == redis::Value::Array(vec![
-                    redis::Value::Int(-2),
-                    redis::Value::BulkString(vec![]),
-                ])
-            {
-                return Err(Error::Conflict);
-            }
-            match Script::ResearchIdempotentCreate.decode(raw)? {
-                Reply::ResearchCreated { created, job_id } => (job_id, created),
-                _ => return Err(Failure::Malformed.into()),
-            }
-        } else {
-            let mut cmd = redis::cmd("EVAL");
-            cmd.arg(CREATE)
-                .arg(1)
-                .arg(self.key("job", &job.job_id))
-                .arg(RETENTION.get())
-                .arg(body);
-            let created = match self.store.execute(cmd, true).await? {
-                redis::Value::Int(1) => true,
-                redis::Value::Int(0) => false,
-                _ => return Err(Failure::Malformed.into()),
+        let (id, created) =
+            if let Some(idem) = job.idempotency_key.as_ref().filter(|s| !s.is_empty()) {
+                let mut cmd = redis::cmd("EVAL");
+                cmd.arg(IDEMPOTENT_CREATE_V2)
+                    .arg(3)
+                    .arg(keys::research_idempotency_v2(&self.tenant, idem))
+                    .arg(self.key("job", &job.job_id))
+                    .arg(self.key("idem", idem))
+                    .arg(RETENTION.get())
+                    .arg(body)
+                    .arg(
+                        ssx_json::to_string(&ssx_json::json!({"job_id":job.job_id}))
+                            .map_err(|_| Failure::InvalidInput)?,
+                    )
+                    .arg(&job.job_id)
+                    .arg(self.key("job", ""))
+                    .arg(self.tenant.as_str())
+                    .arg(idem);
+                let raw = self.store.execute(cmd, true).await?;
+                if raw
+                    == redis::Value::Array(vec![
+                        redis::Value::Int(-2),
+                        redis::Value::BulkString(vec![]),
+                    ])
+                {
+                    return Err(Error::Conflict);
+                }
+                match Script::ResearchIdempotentCreate.decode(raw)? {
+                    Reply::ResearchCreated { created, job_id } => (job_id, created),
+                    _ => return Err(Failure::Malformed.into()),
+                }
+            } else {
+                let mut cmd = redis::cmd("EVAL");
+                cmd.arg(CREATE)
+                    .arg(1)
+                    .arg(self.key("job", &job.job_id))
+                    .arg(RETENTION.get())
+                    .arg(body);
+                let created = match self.store.execute(cmd, true).await? {
+                    redis::Value::Int(1) => true,
+                    redis::Value::Int(0) => false,
+                    _ => return Err(Failure::Malformed.into()),
+                };
+                (job.job_id.clone(), created)
             };
-            (job.job_id.clone(), created)
-        };
         let (_, job) = self.raw(&JobId::new(id)?).await?;
         self.refresh_indexes(&job).await;
         Ok((job, created))
     }
     pub async fn find_by_idempotency(&self, idempotency: &str) -> JobRead {
-        let id = match self.store.get_object(&self.key("idem", idempotency)).await {
-            Read::Found(v) => match v["job_id"].as_str().and_then(|s| JobId::new(s).ok()) {
-                Some(v) => v,
-                None => return JobRead::Malformed,
-            },
-            Read::Missing => return JobRead::Missing,
+        if idempotency.is_empty() {
+            return JobRead::Missing;
+        }
+        let key = keys::research_idempotency_v2(&self.tenant, idempotency);
+        let (mapping, legacy) = match self.store.get_object(&key).await {
+            Read::Found(value) => (value, false),
+            Read::Missing => {
+                let mut cmd = redis::cmd("EVAL");
+                cmd.arg(LEGACY_IDEMPOTENCY_LOOKUP)
+                    .arg(1)
+                    .arg(self.key("idem", idempotency))
+                    .arg(self.key("job", ""))
+                    .arg(self.tenant.as_str())
+                    .arg(idempotency);
+                match self.store.execute(cmd, false).await {
+                    Ok(redis::Value::Nil) => return JobRead::Missing,
+                    Ok(redis::Value::BulkString(id)) => {
+                        let Ok(id) = String::from_utf8(id) else {
+                            return JobRead::Malformed;
+                        };
+                        (ssx_json::json!({"job_id": id}), true)
+                    }
+                    Ok(_) => return JobRead::Malformed,
+                    Err(error) => return read_error(error.into()),
+                }
+            }
             Read::Malformed => return JobRead::Malformed,
             Read::Unavailable => return JobRead::Unavailable,
             Read::Closed => return JobRead::Closed,
         };
-        self.load(&id).await
+        let invalid = if legacy {
+            JobRead::Missing
+        } else {
+            JobRead::Malformed
+        };
+        let Some(id) = mapping["job_id"]
+            .as_str()
+            .filter(|id| !id.contains(':'))
+            .and_then(|id| JobId::new(id).ok())
+        else {
+            return invalid;
+        };
+        match self.load(&id).await {
+            JobRead::Found(job) if job.idempotency_key.as_deref() == Some(idempotency) => {
+                JobRead::Found(job)
+            }
+            JobRead::Found(_) | JobRead::Malformed | JobRead::Missing => invalid,
+            other => other,
+        }
     }
     async fn cas(
         &self,
         id: &JobId,
         token: &LeaseToken<JobId>,
         before: &[u8],
+        cancel_snapshot: Option<&[u8]>,
         next: &ResearchJob,
     ) -> Result<(), Error> {
         self.validate(next)?;
         let mut cmd = redis::cmd("EVAL");
         cmd.arg(OWNED_CAS)
-            .arg(2)
+            .arg(3)
             .arg(self.key("lease", id.as_str()))
             .arg(self.key("job", id.as_str()))
+            .arg(self.key("cancel", id.as_str()))
             .arg(token.as_str())
             .arg(before)
             .arg(RETENTION.get())
-            .arg(ssx_json::to_string(&next.to_payload()?).map_err(|_| Failure::InvalidInput)?);
+            .arg(ssx_json::to_string(&next.to_payload()?).map_err(|_| Failure::InvalidInput)?)
+            .arg(if cancel_snapshot.is_some() { "1" } else { "0" })
+            .arg(cancel_snapshot.unwrap_or_default());
         match self.store.execute(cmd, true).await? {
             redis::Value::Int(1) => {
                 self.refresh_indexes(next).await;
@@ -247,7 +327,7 @@ impl ResearchStore {
             return Err(Error::OwnershipLost);
         }
         let mut observed = old.clone();
-        self.merge_cancel(&mut observed).await?;
+        let cancel_snapshot = self.merge_cancel(&mut observed).await?;
         let mut next = observed.clone();
         mutate(&mut next)?;
         if !(next.lease_token == old.lease_token && next.owner_id == old.owner_id
@@ -258,7 +338,8 @@ impl ResearchStore {
             return Err(Error::OwnershipLost);
         }
         observed.validate_transition(&next)?;
-        self.cas(id, token, &raw, &next).await?;
+        self.cas(id, token, &raw, cancel_snapshot.as_deref(), &next)
+            .await?;
         Ok(next)
     }
     /// Acquire and recover a queued/orphaned job. Absolute deadline equality expires.
@@ -289,7 +370,7 @@ impl ResearchStore {
                 return Ok(None);
             }
             let mut next = old.clone();
-            self.merge_cancel(&mut next).await?;
+            let cancel_snapshot = self.merge_cancel(&mut next).await?;
             next.normalize_legacy_evidence();
             next.recover_orphan_attempts(now, &mut attempt_id)?;
             next.owner_id = Some(owner.into());
@@ -308,7 +389,8 @@ impl ResearchStore {
                 }
             }
             old.validate_transition(&next)?;
-            self.cas(id, &token, &raw, &next).await?;
+            self.cas(id, &token, &raw, cancel_snapshot.as_deref(), &next)
+                .await?;
             if ["expired", "cancelled"].contains(&next.state.as_str()) {
                 return Ok(None);
             }
@@ -357,7 +439,7 @@ impl ResearchStore {
         let outcome = async {
             let (raw, old) = self.raw(id).await?;
             let mut observed = old.clone();
-            self.merge_cancel(&mut observed).await?;
+            let cancel_snapshot = self.merge_cancel(&mut observed).await?;
             let mut next = observed.clone();
             next.normalize_legacy_evidence();
             next.recover_orphan_attempts(now, &mut attempt_id)?;
@@ -405,7 +487,8 @@ impl ResearchStore {
                 return Err(Error::OwnershipLost);
             }
             observed.validate_transition(&next)?;
-            self.cas(id, &token, &raw, &next).await?;
+            self.cas(id, &token, &raw, cancel_snapshot.as_deref(), &next)
+                .await?;
             Ok(next)
         }
         .await;
@@ -492,6 +575,7 @@ impl ResearchStore {
         let result = async {
             let (raw, old) = self.raw(id).await?;
             let mut next = old.clone();
+            let cancel_snapshot = self.merge_cancel(&mut next).await?;
             next.normalize_legacy_evidence();
             next.recover_orphan_attempts(now, &mut attempt_id)?;
             if ["queued", "running"].contains(&next.state.as_str()) {
@@ -506,7 +590,8 @@ impl ResearchStore {
             next.lease_token = None;
             next.lease_expires_at = FiniteF64::default();
             old.validate_transition(&next)?;
-            self.cas(id, &token, &raw, &next).await?;
+            self.cas(id, &token, &raw, cancel_snapshot.as_deref(), &next)
+                .await?;
             Ok(next.state)
         }
         .await;
@@ -617,14 +702,10 @@ impl ResearchStore {
         mut attempt_id: impl FnMut() -> AttemptId,
     ) -> Result<Option<Claim>, Error> {
         self.reconcile().await?;
-        let due = self.store.quota_time().await?.milliseconds() as f64 / 1000.0;
-        let mut cmd = redis::cmd("ZRANGEBYSCORE");
-        cmd.arg(keys::research_ready(&self.tenant))
-            .arg("-inf")
-            .arg(due)
-            .arg("LIMIT")
-            .arg(0)
-            .arg(16);
+        let mut cmd = redis::cmd("EVAL");
+        cmd.arg(READY_SCOPED)
+            .arg(1)
+            .arg(keys::research_ready(&self.tenant));
         let ids: Vec<String> = redis::from_redis_value(self.store.execute(cmd, false).await?)
             .map_err(|_| Failure::Malformed)?;
         for id in ids {

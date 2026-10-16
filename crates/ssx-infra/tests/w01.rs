@@ -1257,3 +1257,444 @@ async fn actual_url_settlement_is_fenced_charged_and_retained_across_retry() {
     assert_eq!(done.stop_reason.as_deref(), Some("result_budget_exhausted"));
     assert_eq!(found(&store).await, done);
 }
+
+fn request_cancel_between_reads_and_commit(server: &Server, tenant: &str, job_id: &JobId) {
+    let url = server.url.clone();
+    let tenant = tenant.to_owned();
+    let job_id = job_id.clone();
+    std::thread::spawn(move || {
+        tokio::runtime::Runtime::new()
+            .unwrap()
+            .block_on(async move {
+                let store = ResearchStore::new(
+                    Arc::new(Valkey::new(&url, Duration::from_millis(300)).unwrap()),
+                    TenantId::new(tenant).unwrap(),
+                );
+                assert_eq!(
+                    store
+                        .request_cancel(&job_id, now(11.0), &mut Tokens("race-cancel"), aid)
+                        .await
+                        .unwrap(),
+                    "running"
+                );
+            });
+    })
+    .join()
+    .unwrap();
+}
+
+#[tokio::test]
+async fn cancel_signal_between_observation_and_owned_commit_rejects_reservation() {
+    let server = Server::start();
+    let store = scoped(&server);
+    store.create(&job()).await.unwrap();
+    let owner = claim(&store, "race-owner", 30).await;
+    let result = store
+        .mutate(&id(), &owner.token, |job| {
+            initialize(job)?;
+            job.reserve_attempt(0, AttemptId::new("cancel-race-attempt")?, now(11.0))?;
+            request_cancel_between_reads_and_commit(&server, "org:team", &id());
+            Ok(())
+        })
+        .await;
+    assert!(
+        matches!(result, Err(Error::Conflict)),
+        "cancellation race accepted: {result:?}"
+    );
+    assert!(found(&store).await.queries[0].attempts.is_empty());
+}
+
+#[tokio::test]
+async fn colon_containing_tenants_and_idempotency_components_are_independent() {
+    let server = Server::start();
+    let a = scoped(&server);
+    let b = a.for_tenant(TenantId::new("org:team:x").unwrap());
+    let mut first = job();
+    first.job_id = "job-first".into();
+    first.idempotency_key = Some("x:y".into());
+    let mut second = first.clone();
+    second.job_id = "job-second".into();
+    second.tenant = "org:team:x".into();
+    second.idempotency_key = Some("y".into());
+    assert!(a.create(&first).await.unwrap().1);
+    assert!(b.create(&second).await.unwrap().1);
+    assert!(
+        matches!(a.find_by_idempotency("x:y").await, JobRead::Found(j) if j.job_id == "job-first")
+    );
+    assert!(
+        matches!(b.find_by_idempotency("y").await, JobRead::Found(j) if j.job_id == "job-second")
+    );
+}
+
+#[tokio::test]
+async fn cancellation_snapshot_fences_claim_and_prepared_claim() {
+    for prepared in [false, true] {
+        let server = Server::start();
+        let store = scoped(&server);
+        let mut initial = job();
+        if !prepared {
+            initial.state = "running".into();
+            initial.queries[0].state = "running".into();
+        }
+        store.create(&initial).await.unwrap();
+        let result = if prepared {
+            store
+                .claim_prepared(
+                    &id(),
+                    "race-owner",
+                    ttl(30),
+                    &mut Tokens("prepared-race"),
+                    now(10.0),
+                    aid,
+                    false,
+                    |_| {
+                        request_cancel_between_reads_and_commit(&server, "org:team", &id());
+                        Ok(())
+                    },
+                )
+                .await
+        } else {
+            store
+                .claim(
+                    &id(),
+                    "race-owner",
+                    ttl(30),
+                    &mut Tokens("claim-race"),
+                    now(10.0),
+                    || {
+                        request_cancel_between_reads_and_commit(&server, "org:team", &id());
+                        aid()
+                    },
+                )
+                .await
+        };
+        assert!(
+            matches!(result, Err(Error::Conflict)),
+            "claim cancellation race accepted: {result:?}"
+        );
+        let persisted = found(&store).await;
+        assert!(persisted.cancel_requested);
+        assert!(persisted.queries[0].attempts.is_empty());
+        let exists: bool = redis::cmd("EXISTS")
+            .arg("mcp:joblease:org:team:job-test")
+            .query(&mut server.connection())
+            .unwrap();
+        assert!(!exists);
+        assert!(
+            store
+                .claim(
+                    &id(),
+                    "retry-owner",
+                    ttl(30),
+                    &mut Tokens("after-cancel"),
+                    now(12.0),
+                    aid
+                )
+                .await
+                .unwrap()
+                .is_none()
+        );
+        assert_eq!(found(&store).await.state, "cancelled");
+    }
+}
+
+#[tokio::test]
+async fn changed_true_cancellation_bytes_conflict_even_when_next_flag_is_true() {
+    let server = Server::start();
+    let store = scoped(&server);
+    store.create(&job()).await.unwrap();
+    let owner = claim(&store, "true-owner", 30).await;
+    request_cancel_between_reads_and_commit(&server, "org:team", &id());
+    let result = store
+        .mutate(&id(), &owner.token, |_| {
+            write(
+                &server,
+                "mcp:jobcancel:org:team:job-test",
+                "{\"cancel_requested\":true,\"requested_at\":12}",
+            );
+            Ok(())
+        })
+        .await;
+    assert!(matches!(result, Err(Error::Conflict)));
+    assert!(found(&store).await.cancel_requested);
+}
+
+#[tokio::test]
+async fn verified_legacy_idempotency_adoption_preserves_record_and_remaining_ttl() {
+    let server = Server::start();
+    let store = scoped(&server);
+    let old = job();
+    let record = ssx_json::to_string(&old.to_payload().unwrap()).unwrap();
+    let legacy_key = "mcp:idem:org:team:request-1";
+    redis::cmd("SETEX")
+        .arg("mcp:job:org:team:job-test")
+        .arg(60)
+        .arg(&record)
+        .query::<()>(&mut server.connection())
+        .unwrap();
+    redis::cmd("PSETEX")
+        .arg(legacy_key)
+        .arg(5000)
+        .arg("{\"job_id\":\"job-test\"}")
+        .query::<()>(&mut server.connection())
+        .unwrap();
+    assert!(
+        matches!(store.find_by_idempotency("request-1").await, JobRead::Found(j) if j.job_id == "job-test")
+    );
+    let mut candidate = old.clone();
+    candidate.job_id = "replacement".into();
+    let (reused, created) = store.create(&candidate).await.unwrap();
+    assert!(!created);
+    assert_eq!(reused.job_id, "job-test");
+    let new_key = ssx_infra::valkey::keys::research_idempotency_v2(store.tenant(), "request-1");
+    let remaining: i64 = redis::cmd("PTTL")
+        .arg(&new_key)
+        .query(&mut server.connection())
+        .unwrap();
+    assert!((1..=5000).contains(&remaining));
+    let unchanged: String = redis::cmd("GET")
+        .arg("mcp:job:org:team:job-test")
+        .query(&mut server.connection())
+        .unwrap();
+    assert_eq!(unchanged, record);
+    let absent: bool = redis::cmd("EXISTS")
+        .arg("mcp:job:org:team:replacement")
+        .query(&mut server.connection())
+        .unwrap();
+    assert!(!absent);
+}
+
+#[tokio::test]
+async fn malformed_v2_never_falls_back_and_legacy_aliases_require_verified_binding() {
+    for legacy_value in [
+        "not-json",
+        "{\"job_id\":\"absent\"}",
+        "{\"job_id\":\"foreign\"}",
+    ] {
+        let server = Server::start();
+        let store = scoped(&server);
+        write(&server, "mcp:idem:org:team:request-1", legacy_value);
+        let mut foreign = job();
+        foreign.job_id = "foreign".into();
+        foreign.idempotency_key = Some("different".into());
+        write(
+            &server,
+            "mcp:job:org:team:foreign",
+            &ssx_json::to_string(&foreign.to_payload().unwrap()).unwrap(),
+        );
+        assert!(matches!(
+            store.find_by_idempotency("request-1").await,
+            JobRead::Missing
+        ));
+        assert!(store.create(&job()).await.unwrap().1);
+    }
+    let server = Server::start();
+    let store = scoped(&server);
+    let record = ssx_json::to_string(&job().to_payload().unwrap()).unwrap();
+    write(&server, "mcp:job:org:team:job-test", &record);
+    write(
+        &server,
+        "mcp:idem:org:team:request-1",
+        "{\"job_id\":\"job-test\"}",
+    );
+    let key = ssx_infra::valkey::keys::research_idempotency_v2(store.tenant(), "request-1");
+    for value in ["not-json", "{}", "{\"job_id\":\"absent\"}"] {
+        write(&server, &key, value);
+        assert!(matches!(
+            store.find_by_idempotency("request-1").await,
+            JobRead::Malformed
+        ));
+        let mut candidate = job();
+        candidate.job_id = "must-not-create".into();
+        assert!(store.create(&candidate).await.is_err());
+        let exists: bool = redis::cmd("EXISTS")
+            .arg("mcp:job:org:team:must-not-create")
+            .query(&mut server.connection())
+            .unwrap();
+        assert!(!exists);
+    }
+}
+
+#[tokio::test]
+async fn expired_legacy_idempotency_is_not_refreshed_or_adopted() {
+    let server = Server::start();
+    let store = scoped(&server);
+    write(
+        &server,
+        "mcp:job:org:team:old-job",
+        &ssx_json::to_string(&{
+            let mut j = job();
+            j.job_id = "old-job".into();
+            j.to_payload().unwrap()
+        })
+        .unwrap(),
+    );
+    let old_key = "mcp:idem:org:team:request-1";
+    redis::cmd("PSETEX")
+        .arg(old_key)
+        .arg(1)
+        .arg("{\"job_id\":\"old-job\"}")
+        .query::<()>(&mut server.connection())
+        .unwrap();
+    tokio::time::sleep(Duration::from_millis(10)).await;
+    assert!(matches!(
+        store.find_by_idempotency("request-1").await,
+        JobRead::Missing
+    ));
+    assert!(store.create(&job()).await.unwrap().1);
+    let exists: bool = redis::cmd("EXISTS")
+        .arg(old_key)
+        .query(&mut server.connection())
+        .unwrap();
+    assert!(!exists);
+}
+
+#[tokio::test]
+async fn cancellation_intent_rejects_new_reservations_but_retains_existing_settlement() {
+    for observed in [false, true] {
+        let server = Server::start();
+        let store = scoped(&server);
+        store.create(&job()).await.unwrap();
+        let owner = claim(&store, "cancel-guard-owner", 30).await;
+        store
+            .mutate(&id(), &owner.token, |job| {
+                initialize(job)?;
+                Ok(())
+            })
+            .await
+            .unwrap();
+        if observed {
+            request_cancel_between_reads_and_commit(&server, "org:team", &id());
+        }
+        let result = store
+            .mutate(&id(), &owner.token, |job| {
+                job.reserve_attempt(0, AttemptId::new("must-not-reserve")?, now(12.0))?;
+                job.cancel_requested = true;
+                Ok(())
+            })
+            .await;
+        assert!(matches!(result, Err(Error::Invalid(_))));
+        assert_eq!(found(&store).await.budget_used["attempts"], 0);
+    }
+    let server = Server::start();
+    let store = scoped(&server);
+    store.create(&job()).await.unwrap();
+    let owner = claim(&store, "settlement-owner", 30).await;
+    store
+        .mutate(&id(), &owner.token, |job| {
+            initialize(job)?;
+            job.reserve_attempt(0, AttemptId::new("already-reserved")?, now(11.0))?;
+            Ok(())
+        })
+        .await
+        .unwrap();
+    request_cancel_between_reads_and_commit(&server, "org:team", &id());
+    let settled = store
+        .mutate(&id(), &owner.token, |job| {
+            job.queries[0].state = "done".into();
+            job.finish_attempt(0, None, now(12.0))
+        })
+        .await
+        .unwrap();
+    assert!(settled.cancel_requested);
+    assert_eq!(settled.budget_used["attempts"], 1);
+    assert_eq!(settled.queries[0].attempts[0].state, "done");
+}
+
+#[tokio::test]
+async fn immortal_legacy_alias_or_record_is_not_lookup_or_admission_authority() {
+    for immortal_mapping in [false, true] {
+        let server = Server::start();
+        let store = scoped(&server);
+        let mut old = job();
+        old.job_id = "legacy-old".into();
+        let record = ssx_json::to_string(&old.to_payload().unwrap()).unwrap();
+        redis::cmd("SETEX")
+            .arg("mcp:job:org:team:legacy-old")
+            .arg(60)
+            .arg(&record)
+            .query::<()>(&mut server.connection())
+            .unwrap();
+        redis::cmd("SETEX")
+            .arg("mcp:idem:org:team:request-1")
+            .arg(60)
+            .arg("{\"job_id\":\"legacy-old\"}")
+            .query::<()>(&mut server.connection())
+            .unwrap();
+        let immortal = if immortal_mapping {
+            "mcp:idem:org:team:request-1"
+        } else {
+            "mcp:job:org:team:legacy-old"
+        };
+        redis::cmd("PERSIST")
+            .arg(immortal)
+            .query::<i64>(&mut server.connection())
+            .unwrap();
+        assert!(matches!(
+            store.find_by_idempotency("request-1").await,
+            JobRead::Missing
+        ));
+        assert!(store.create(&job()).await.unwrap().1);
+        let ttl: i64 = redis::cmd("PTTL")
+            .arg(immortal)
+            .query(&mut server.connection())
+            .unwrap();
+        assert_eq!(ttl, -1);
+    }
+}
+
+#[tokio::test]
+async fn scoped_ready_selection_preserves_microseconds_and_excludes_future_scores() {
+    let server = Server::start();
+    let mut connection = server.connection();
+    let source = include_str!("../src/valkey/research_scripts/ready_scoped.lua");
+    assert_eq!(source.matches("redis.call('TIME')").count(), 1);
+    // Inject only the clock at the exact production Lua boundary; real Valkey
+    // still performs numeric conversion, score comparison, ordering and limit.
+    let fixed = source.replace("redis.call('TIME')", "{'100','123456'}");
+    let key = "test:ready:precision";
+    redis::cmd("ZADD")
+        .arg(key)
+        .arg("100.123456")
+        .arg("due-now")
+        .arg("100.123457")
+        .arg("future")
+        .query::<i64>(&mut connection)
+        .unwrap();
+    let old: Vec<String> = redis::cmd("ZRANGEBYSCORE")
+        .arg(key)
+        .arg("-inf")
+        .arg(100123f64 / 1000.0)
+        .arg("LIMIT")
+        .arg(0)
+        .arg(16)
+        .query(&mut connection)
+        .unwrap();
+    assert!(
+        old.is_empty(),
+        "old millisecond cutoff loses currently due entry"
+    );
+    let exact: Vec<String> = redis::cmd("EVAL")
+        .arg(&fixed)
+        .arg(1)
+        .arg(key)
+        .query(&mut connection)
+        .unwrap();
+    assert_eq!(exact, ["due-now"]);
+    for index in 0..30 {
+        redis::cmd("ZADD")
+            .arg(key)
+            .arg("100.1")
+            .arg(format!("due-{index:02}"))
+            .query::<i64>(&mut connection)
+            .unwrap();
+    }
+    let bounded: Vec<String> = redis::cmd("EVAL")
+        .arg(&fixed)
+        .arg(1)
+        .arg(key)
+        .query(&mut connection)
+        .unwrap();
+    assert_eq!(bounded.len(), 16);
+    assert!(!bounded.iter().any(|id| id == "future"));
+}
