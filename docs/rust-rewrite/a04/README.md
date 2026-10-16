@@ -198,3 +198,10 @@ composition; no new wire parameter is introduced here.
 Current-main qualification and independent integration review precede parent
 acceptance and publication; the historical source review alone does not accept
 this combined tree.
+
+The final current-main preparation also integrates accepted W00 main
+`950071404c61eabc1201730362baccd01b3f2295`. Saved modules and gate wiring are
+additive; the qualified A04 adapter/parser and shared-service cache/flight
+semantics remain byte-identical to checkpoint `ca7c6209`. The final inventory
+union is384 source records and25 developer invocations, preserving complete
+parent rows. Acceptance still requires independent integrated-source review.

@@ -419,6 +419,64 @@ F14 adds exactly two temporary developer-only source capture programs and two in
 
 The historical 730c corpus preserves all initial 46 objects and 24 source bindings, adding only two availability observations. A separate independently recaptured d207 corpus contains 14 date admission and eight cache mutation observations across 11 source bindings. PR874 changes eight current Python anchors (formatter, MCP tools, HTTP server, service, and their four regression modules); historical captures retain original baseline identities. The native checker admits only the exact reviewed old/new Git blobs and new source SHA bindings. This source-freshness bridge does not assert unchanged behavior: bounded requests now require explicit audited OpenAlex and exact date evidence, with the corrupt self-consistent cache-scope case explicitly hardened against current authority. F09's 15 named native expectations remain unchanged. T02/T06/portal successors own proof envelope/availability mapping and surface contract qualification.
 
+## W00 temporary saved-definition oracle
+
+W00 adds one offline developer exporter at
+`docs/rust-rewrite/w00/capture_source.py`, owned by W00/G08, against accepted
+main `66b29c3f8437af45a4f0d28f7c54a0f0727f7fa5`. It captures actual saved records,
+strict validation, configured-auth fingerprints, control revisions, source claim
+precision and arithmetic boundaries with private Valkey and no provider calls.
+The native W00 acceptance gate executes Rust tests only and consumes immutable
+reviewed JSON; G08 retires this Python exporter before backend removal.
+
+The existing 375 source rows and 12 developer invocation rows remain unchanged; the
+new counts are 376 and 13. Both distinct W01 invocation rows are preserved. No
+existing runtime, baseline source or legacy exporter identity is refreshed.
+Source claim identity uses actual source rehydration after cjson: a retained early
+failed capture hashed raw integer 1000 instead of the runner's float 1000.0. The
+corrected observation is independently reproducible and the old failure remains
+evidence, rather than a changed native hash rule. The [superseded capture and
+boundary failures](../w00/evidence/README.md) are committed historical evidence;
+current acceptance consumes only `w00/source.json`.
+
+## W00 integration with accepted A02/A03/F13 and bounded-date main
+
+The normal merge into accepted main `544c830724a322d05521dac7f902dbe93142c4a1`
+preserves all complete parent source and developer-invocation records: 380 Python
+sources (122 runtime, 257 backend-coupled tooling/test, one client-only) and 18
+developer-oracle invocations. Both W01 invocation rows remain distinct. Earlier
+counts/statuses describe historical checkpoints. Reviewed W00 runtime and oracle
+bytes are preserved during conflict resolution; changes to current-source oracle
+provenance require the explicit audit and review below rather than a blind pin
+refresh. Accepted upstream runtime/exporter anchors retain their exact values.
+
+PR #874 changes MCP tools only in ordinary search date-filter metadata and the
+science tool's explicit OpenAlex requirement for absolute dates. No saved helper,
+validation, policy fingerprint or saved control function changes. The accompanying
+service/server/formatter changes add bounded-date validation, canonical response
+proof and HTTP/portal rendering; these are outside W00 definition/claim behavior.
+W00's whole-file MCP pin therefore needs a reviewed source-provenance mapping,
+backed by offline recapture of all 55 saved observations with no provider calls.
+
+The historical W00 MCP blob remains
+`061593ce45d3e2440e818703af6b50d6e6d99cf1`; the accepted current blob is
+`d06ecd475b9b523addf79781d2762eddd92f4911`. The separate
+[55-observation integration recapture](../w00/integration-source.json) has reviewed
+SHA256 `c500069182b9975539910e29683531759e0df375e049e8daea5b8664aa10aad3`.
+Every field equals the historical corpus except exactly the named MCP source-hash
+field. The gate checks both pinned source generations and that exact equivalence;
+it does not refresh historical outcomes or ignore a general metadata group.
+
+## W00 dependent F14 integration preparation
+
+The reviewed F14 commit `2427bf38e2241d1ba23637e233f97e7d0ee6d5ea`
+is integrated while PR #978 awaits acceptance. This is dependent preparation,
+not a claim that F14 or W00 has been accepted. The complete source-record union
+contains 382 paths and 20 developer-oracle invocations. Historical source
+observations and their original provenance remain unchanged. Both W01 rows,
+W00's source integration mapping and F14's exact PR874 bridge are retained.
+Final publication requires accepted upstream integration and qualification.
+
 ## A04 temporary source-capture oracles
 
 A04 adds two temporary, offline-only Python 3.14.7 exporters under
@@ -481,3 +539,7 @@ anchor review; it does not authorize refreshing runtime source pins.
 ## A04 accepted-main integration preparation
 
 The reviewed A04 checkpoint is integrated with accepted F14 main `576d43b03c0378ffe113a1386b1ec88eaa4323df`. All complete parent inventory records remain unchanged: the additive union has 383 Python source paths and 24 developer-oracle invocation rows, including both W01 commands. Historical A04 captures and source pins are immutable. Its shared filter-semantics observation now uses the accepted exact PR874 source-freshness bridge and separately bound 22-case date evidence; this does not change adapter runtime semantics. Parent integration review, exact-head CI and acceptance remain pending.
+
+## A04 accepted W00 main integration
+
+The fully qualified A04/F14 checkpoint `ca7c6209b4b5e67f5916297e632afbd93f09d758` is normally integrated with accepted W00 main `950071404c61eabc1201730362baccd01b3f2295`. The complete-record union is384 Python source paths and25 developer-oracle invocations. Both parent records and all raw captures remain exact. W00 adds saved modules, gate and evidence metadata; A04 runtime and its exact optional-subreddit cache/flight correction remain unchanged. This entry changes only combined documentary bindings; independent integration review and acceptance remain pending.
