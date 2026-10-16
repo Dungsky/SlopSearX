@@ -3,14 +3,14 @@
   "baseline_sha": "20109f9083babd014971951e8c02565ae51c2326",
   "source": "Pinned F01 baseline inventory plus reviewed post-baseline additions recorded in DRIFT.md; source-set validation refreshed at acceptance.",
   "summary": {
-    "tracked_python_source_count": 384,
+    "tracked_python_source_count": 386,
     "extensionless_python_entrypoints": 1,
     "executable_config_python_invocation_lines": 63,
     "interpreter_configuration_lines": 106,
     "documentation_shebang_script_count": 8,
     "documented_example_invocation_references": 49,
     "source_classifications": {
-      "backend-coupled tooling/test": 261,
+      "backend-coupled tooling/test": 263,
       "backend/runtime": 122,
       "client-only": 1
     },
@@ -19,8 +19,8 @@
     },
     "source_path_set_validation": {
       "method": "sorted exact-set comparison between git ls-files paths ending .py/.pyw/.pyi plus ssx and files[].path",
-      "tracked_expected_count": 384,
-      "manifest_count": 384,
+      "tracked_expected_count": 386,
+      "manifest_count": 386,
       "exact_match": true,
       "extensionless_python_paths": [
         "ssx"
@@ -4530,6 +4530,32 @@
       "migration_owners": [
         "O05"
       ]
+    },
+    {
+      "path": "docs/rust-rewrite/f15/capture.py",
+      "classification": "backend-coupled tooling/test",
+      "migration_owner": "F15",
+      "migration_owners": [
+        "F15",
+        "G08"
+      ],
+      "disposition": "temporary_developer_oracle_retire_before_backend_removal",
+      "evidence": "Developer-only pinned CPython3.14.7 actual source observations using synthetic candidate data and HTTPX mock transport. Mandatory F15 gate consumes immutable JSON only; no provider calls.",
+      "reason": "G08 retires executable Python before backend removal, retaining source observations.",
+      "introduced_after_baseline": "4dfc0f5691b6a5a1c039a2837372b1977422ec27"
+    },
+    {
+      "path": "docs/rust-rewrite/f15/capture_headers.py",
+      "classification": "backend-coupled tooling/test",
+      "migration_owner": "F15",
+      "migration_owners": [
+        "F15",
+        "G08"
+      ],
+      "disposition": "temporary_developer_oracle_retire_before_backend_removal",
+      "evidence": "Developer-only pinned CPython3.14.7 actual source observations using synthetic candidate data and HTTPX mock transport. Mandatory F15 gate consumes immutable JSON only; no provider calls.",
+      "reason": "G08 retires executable Python before backend removal, retaining source observations.",
+      "introduced_after_baseline": "4dfc0f5691b6a5a1c039a2837372b1977422ec27"
     }
   ],
   "documentation_examples": []

@@ -332,6 +332,9 @@ async fn parse_with_progress(
         }
     }
     p.space().await?;
+    if tokio::time::Instant::now() >= p.budget.deadline {
+        return None;
+    }
     (p.at == p.chars.len()).then_some(Document { nodes, root: root? })
 }
 enum Frame {
@@ -368,85 +371,15 @@ impl Budget {
         Some(())
     }
 }
-/// Preserve the exact decimal value while avoiding std's early exponent
-/// saturation for long zero-prefixed finite mantissas. No significant digit is
-/// discarded: final IEEE rounding remains with the standard conversion.
 async fn finite_float(raw: &str, budget: &mut Budget) -> Option<f64> {
-    let negative = raw.starts_with('-');
-    let unsigned = raw.strip_prefix('-').unwrap_or(raw);
-    let (mantissa, exponent) = unsigned.find(['e', 'E']).map_or((unsigned, None), |i| {
-        (&unsigned[..i], Some(&unsigned[i + 1..]))
-    });
-    let fractional = mantissa.find('.').map_or(0, |i| mantissa.len() - i - 1);
-    let mut power = 0i64;
-    if let Some(exponent) = exponent {
-        let minus = exponent.starts_with('-');
-        for byte in exponent.trim_start_matches(['+', '-']).bytes() {
-            if budget.count() {
-                budget.checkpoint().await?;
-            }
-            power = power
-                .saturating_mul(10)
-                .saturating_add(i64::from(byte - b'0'));
-        }
-        if minus {
-            power = power.saturating_neg();
-        }
+    let mut normalizer = ssx_json::FloatNormalizer::new(raw).ok()?;
+    while !normalizer.advance(1024).ok()? {
+        budget.checkpoint().await?;
     }
-    let mut digits = Vec::with_capacity(mantissa.len());
-    for byte in mantissa.bytes() {
-        if budget.count() {
-            budget.checkpoint().await?;
-        }
-        if byte != b'.' {
-            digits.push(byte);
-        }
-    }
-    let mut first = 0;
-    while first < digits.len() && digits[first] == b'0' {
-        if budget.count() {
-            budget.checkpoint().await?;
-        }
-        first += 1;
-    }
-    if first == digits.len() {
-        return Some(if negative { -0.0 } else { 0.0 });
-    }
-    power = power
-        .saturating_add(i64::try_from(digits.len() - first).ok()?)
-        .saturating_sub(i64::try_from(fractional).ok()?)
-        .saturating_sub(1);
-    if power > 308 {
-        return None;
-    }
-    if power < -324 {
-        return Some(if negative { -0.0 } else { 0.0 });
-    }
-    let mut end = digits.len();
-    while end > first + 1 && digits[end - 1] == b'0' {
-        if budget.count() {
-            budget.checkpoint().await?;
-        }
-        end -= 1;
-    }
-    let mut normalized = String::with_capacity(end - first + 32);
-    if negative {
-        normalized.push('-');
-    }
-    normalized.push(char::from(digits[first]));
-    normalized.push('.');
-    for &byte in &digits[first + 1..end] {
-        if budget.count() {
-            budget.checkpoint().await?;
-        }
-        normalized.push(char::from(byte));
-    }
-    normalized.push('e');
-    normalized.push_str(&power.to_string());
     if tokio::time::Instant::now() >= budget.deadline {
         return None;
     }
-    let value = normalized.parse::<f64>().ok().filter(|v| v.is_finite());
+    let value = normalizer.finish().ok().filter(|v| v.is_finite());
     if tokio::time::Instant::now() >= budget.deadline {
         return None;
     }
@@ -872,7 +805,7 @@ mod tests {
         };
         assert_eq!(finite_float(&number, &mut budget).await.unwrap(), 0.1);
         eprintln!(
-            "long finite float elapsed_ms={} heartbeat_ticks={progress} std_conversion_ms={}",
+            "long finite float elapsed_ms={} heartbeat_ticks={progress} normalized_conversion_ms={}",
             started.elapsed().as_millis(),
             conversion.elapsed().as_millis()
         );
@@ -883,6 +816,47 @@ mod tests {
             "long finite float 5ms deadline returned_ms={}",
             started.elapsed().as_millis()
         );
+        task.abort();
+        let _ = task.await;
+    }
+    #[tokio::test]
+    async fn long_significand_conversion_checks_deadline_without_reparsing_scores() {
+        use std::sync::{
+            Arc,
+            atomic::{AtomicUsize, Ordering},
+        };
+        let number = format!("0.{}", "1234567890".repeat(199_000));
+        let mut normalizer = ssx_json::FloatNormalizer::new(&number).unwrap();
+        while !normalizer.advance(1024).unwrap() {
+            tokio::task::yield_now().await;
+        }
+        let conversion = std::time::Instant::now();
+        let converted = normalizer.finish().unwrap();
+        eprintln!(
+            "near2MiB significant digits final_std_conversion_ms={}",
+            conversion.elapsed().as_millis()
+        );
+        assert_eq!(converted, 0.12345678901234568);
+        let heartbeat = Arc::new(AtomicUsize::new(0));
+        let observed = heartbeat.clone();
+        let task = tokio::spawn(async move {
+            loop {
+                tokio::task::yield_now().await;
+                observed.fetch_add(1, Ordering::SeqCst);
+            }
+        });
+        let raw = format!("{{\"score\":{number}}}");
+        let before = heartbeat.load(Ordering::SeqCst);
+        let doc = super::parse(
+            raw.as_bytes(),
+            tokio::time::Instant::now() + std::time::Duration::from_secs(10),
+        )
+        .await
+        .unwrap();
+        assert_eq!(doc.root().get("score").unwrap().score(), Some(converted));
+        assert!(heartbeat.load(Ordering::SeqCst) > before + 1);
+        let deadline = tokio::time::Instant::now() + std::time::Duration::from_millis(5);
+        assert!(super::parse(raw.as_bytes(), deadline).await.is_none());
         task.abort();
         let _ = task.await;
     }

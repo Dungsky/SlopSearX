@@ -186,6 +186,7 @@ impl JevReranker {
             headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
             let options = Options {
                 trust_env: false,
+                identity_announced_bytes: Some(MAX_RESPONSE_BYTES),
                 follow_redirects: false,
                 bounds: Bounds {
                     requests: 1,
@@ -213,22 +214,7 @@ impl JevReranker {
             if !(200..300).contains(&response.status) {
                 return None;
             }
-            let encoding = response
-                .headers
-                .get("content-encoding")
-                .and_then(|v| v.to_str().ok())
-                .unwrap_or("")
-                .trim()
-                .to_ascii_lowercase();
-            if matches!(encoding.as_str(), "" | "identity")
-                && response
-                    .headers
-                    .get("content-length")
-                    .and_then(|v| v.to_str().ok())
-                    .and_then(|s| ssx_domain::storage::normalize_python_number_text(s).ok())
-                    .and_then(|s| s.parse::<u64>().ok())
-                    .is_some_and(|n| n > MAX_RESPONSE_BYTES as u64)
-            {
+            if crate::http::identity_announced_oversize(&response.headers, MAX_RESPONSE_BYTES) {
                 return None;
             }
             let decision = self
@@ -334,5 +320,66 @@ impl RerankStage for HostReranker {
                 },
             })
         })
+    }
+}
+
+#[cfg(test)]
+mod f15_provider_tests {
+    use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    struct Reply(AtomicUsize);
+    impl crate::http::Transport for Reply {
+        fn exchange(&self, request: Request) -> crate::http::ExchangeFuture<'_> {
+            Box::pin(async move {
+                self.0.fetch_add(1, Ordering::SeqCst);
+                Ok(crate::http::Response {status:200,url:request.url,headers:HeaderMap::new(),body:br#"{"model":"jev-1.13.0","answers":{"c0":{"type":"score","score":1},"c1":{"type":"score","score":9}}}"#.to_vec()})
+            })
+        }
+    }
+    struct NoUsage;
+    impl UsageSink for NoUsage {
+        fn observed(&self, _: Usage) {}
+    }
+    #[tokio::test]
+    async fn native_queue_wait_expires_without_dispatch_and_releases_admission() {
+        let reply = Arc::new(Reply(AtomicUsize::new(0)));
+        let http = AdapterHttp::default();
+        http.set_transport(reply.clone()).unwrap();
+        let provider = JevReranker::with_transport(
+            JevConfig {
+                key: "synthetic".into(),
+            },
+            http,
+            "http://127.0.0.1:1".into(),
+            Arc::new(NoUsage),
+        );
+        let candidates = (0..2)
+            .map(|i| Candidate {
+                id: format!("c{i}"),
+                title: "title".into(),
+                url: "https://example.test".into(),
+                snippet: "snippet".into(),
+            })
+            .collect::<Vec<_>>();
+        let permits = provider.semaphore.acquire_many(2).await.unwrap();
+        let started = Instant::now();
+        assert!(provider.execute("queued", &candidates).await.is_none());
+        assert!(started.elapsed() >= Duration::from_secs(1));
+        assert_eq!(
+            reply.0.load(Ordering::SeqCst),
+            0,
+            "a queue-expired request must never dispatch"
+        );
+        drop(permits);
+        assert_eq!(
+            provider
+                .execute("next", &candidates)
+                .await
+                .unwrap()
+                .ordered_ids,
+            ["c1", "c0"]
+        );
+        assert_eq!(reply.0.load(Ordering::SeqCst), 1);
+        provider.shutdown().await;
     }
 }

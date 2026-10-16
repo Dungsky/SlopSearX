@@ -1034,6 +1034,17 @@ fn synthetic(status: EngineStatus, message: &str) -> AdapterResponse {
     }
 }
 struct Finished(usize, AdapterResponse);
+fn rerank_scope_and_results_public(
+    names: &[String],
+    results: &[ssx_domain::SearchResult],
+    sensitive: &std::collections::BTreeSet<String>,
+) -> bool {
+    !names.iter().any(|n| sensitive.contains(n))
+        && !results.iter().any(|r| {
+            sensitive.contains(&r.engine) || r.engines.iter().any(|n| sensitive.contains(n))
+        })
+}
+
 async fn execute(
     inner: &Arc<Inner>,
     mut request: SearchRequest,
@@ -1344,10 +1355,7 @@ async fn execute(
     let sensitive = &inner.deps.policy.policy.sensitive_engines;
     if let Some(reranker) = &inner.deps.reranker {
         if response.results.len() > 1
-            && !names.iter().any(|n| sensitive.contains(n))
-            && !response.results.iter().any(|r| {
-                sensitive.contains(&r.engine) || r.engines.iter().any(|n| sensitive.contains(n))
-            })
+            && rerank_scope_and_results_public(&names, &response.results, sensitive)
         {
             let rerank_deadline = if interactive {
                 deadline.min(Instant::now() + Duration::from_secs(1))
@@ -1599,5 +1607,44 @@ mod tests {
         assert!(response.response().deadline_exceeded);
         assert_eq!(admission, CacheAdmission::DeadlineTruncated);
         service.shutdown().await;
+    }
+}
+
+#[cfg(test)]
+mod f15_sensitive_tests {
+    use super::*;
+    #[test]
+    fn sensitive_post_rank_engine_and_provenance_are_excluded() {
+        let sensitive =
+            std::collections::BTreeSet::from(["hibp".to_owned(), "dehashed".to_owned()]);
+        let selected = vec!["brave".to_owned()];
+        let public = ssx_domain::SearchResult {
+            engine: "brave".into(),
+            ..Default::default()
+        };
+        assert!(rerank_scope_and_results_public(
+            &selected,
+            std::slice::from_ref(&public),
+            &sensitive
+        ));
+        assert!(!rerank_scope_and_results_public(
+            &["hibp".into()],
+            std::slice::from_ref(&public),
+            &sensitive
+        ));
+        let mut row = public.clone();
+        row.engine = "hibp".into();
+        assert!(!rerank_scope_and_results_public(
+            &selected,
+            &[row],
+            &sensitive
+        ));
+        let mut row = public;
+        row.engines.insert("dehashed".into());
+        assert!(!rerank_scope_and_results_public(
+            &selected,
+            &[row],
+            &sensitive
+        ));
     }
 }

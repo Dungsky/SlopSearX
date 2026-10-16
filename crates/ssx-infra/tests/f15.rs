@@ -296,6 +296,15 @@ async fn read_capture_preserves_full_canonical_per_caller_views_and_snapshot_sem
         panic!("snapshot missing")
     };
     assert_eq!(snapshot.total(), 6);
+    for key in server.keys("*").await {
+        let ssx_infra::valkey::Read::Found(raw) = store.get_object(&key).await else {
+            panic!("stored object missing")
+        };
+        assert!(
+            !ssx_json::to_string(&raw).unwrap().contains("advisories"),
+            "read-boundary notes must not enter canonical or snapshot storage"
+        );
+    }
     assert_eq!(quota.0.load(Ordering::SeqCst), 5);
     assert_eq!(engine.calls.load(Ordering::SeqCst), 1);
     assert_eq!(ids.len(), 5);
@@ -528,6 +537,18 @@ fn source_response(case: &Value) -> Vec<u8> {
     let recipe = &case["response"];
     let base = recipe["base_text"].as_str().unwrap();
     match recipe["kind"].as_str().unwrap() {
+        "long_float" => base
+            .replacen(
+                "\"score\": 1",
+                &format!(
+                    "\"score\": 0.{}1e+{}",
+                    "0".repeat(recipe["zeros"].as_u64().unwrap() as usize),
+                    recipe["zeros"].as_u64().unwrap()
+                ),
+                1,
+            )
+            .replacen("\"score\": 9", "\"score\": 0.05", 1)
+            .into_bytes(),
         "padded" => {
             let mut raw = base.as_bytes().to_vec();
             raw.resize(recipe["size"].as_u64().unwrap() as usize, b' ');
@@ -671,7 +692,7 @@ async fn actual_source_provider_cases_replay_exact_wire_identity_usage_and_decis
         provider.shutdown().await;
         replayed += 1;
     }
-    assert_eq!(replayed, 83);
+    assert_eq!(replayed, 92);
 }
 #[test]
 fn actual_source_projection_and_advisory_cases_replay_full_objects() {
@@ -760,7 +781,7 @@ fn actual_source_projection_and_advisory_cases_replay_full_objects() {
             _ => (),
         }
     }
-    assert_eq!(replayed, 35);
+    assert_eq!(replayed, 37);
 }
 
 struct CapturedAdvice {
@@ -843,10 +864,13 @@ async fn actual_source_host_cases_preserve_whole_results_tier_crossing_and_fixed
             format!("{:?}", decision.state).to_lowercase(),
             case["output"]["state"].as_str().unwrap()
         );
-        assert_eq!(&decision.results[40..], &rows[40..]);
+        assert_eq!(
+            &decision.results[40.min(rows.len())..],
+            &rows[40.min(rows.len())..]
+        );
         replayed += 1;
     }
-    assert_eq!(replayed, 6);
+    assert_eq!(replayed, 7);
 }
 
 struct SocketServer {
@@ -1056,4 +1080,580 @@ async fn expired_host_deadline_never_polls_or_dispatches_provider() {
     assert!(provider.calls.lock().unwrap().is_empty());
     assert_eq!(decision.state, RerankState::Fallback);
     assert_eq!(decision.results, rows);
+}
+
+fn composed_service(
+    server: &SocketServer,
+    store: Arc<Valkey>,
+    engine: Arc<Engine>,
+) -> SearchService {
+    let mut deps = dependencies(vec![(engine.name, engine)]);
+    deps.cache = Some(Arc::new(CanonicalCache::new(
+        Arc::new(ValkeyCache::new(store.clone())),
+        CacheTtls::default(),
+    )));
+    deps.reranker = Some(Arc::new(ssx_infra::rerank::HostReranker::new(
+        socket_provider(server),
+    )));
+    deps.owned_stores.push(store);
+    SearchService::new(SearchConfig::default(), deps).unwrap()
+}
+
+#[tokio::test]
+async fn composed_native_provider_cache_admission_and_sensitive_no_send() {
+    for (body, applied) in [(two_answers(), true), (b"malformed".to_vec(), false)] {
+        let valkey = PrivateValkey::start().await;
+        let store = Arc::new(Valkey::new(&valkey.url, Duration::from_millis(250)).unwrap());
+        let server = SocketServer::start(body, vec![], false).await;
+        let engine = Arc::new(Engine {
+            name: "brave",
+            count: 2,
+            calls: AtomicUsize::new(0),
+        });
+        let service = composed_service(&server, store, engine.clone());
+        let first = service.search(proposal("native composed")).await.unwrap();
+        let second = service.search(proposal("native composed")).await.unwrap();
+        assert!(!first.cached);
+        assert_eq!(second.cached, applied);
+        assert_eq!(
+            first.results[0].title,
+            if applied { "row1" } else { "row0" }
+        );
+        assert_eq!(
+            server.seen.lock().unwrap().len(),
+            if applied { 1 } else { 2 }
+        );
+        assert_eq!(
+            engine.calls.load(Ordering::SeqCst),
+            if applied { 1 } else { 2 }
+        );
+        assert_eq!(valkey.keys("*").await.len(), usize::from(applied));
+        service.shutdown().await;
+        server.shutdown().await;
+    }
+    let valkey = PrivateValkey::start().await;
+    let store = Arc::new(Valkey::new(&valkey.url, Duration::from_millis(250)).unwrap());
+    let server = SocketServer::start(two_answers(), vec![], false).await;
+    let engine = Arc::new(Engine {
+        name: "hibp",
+        count: 2,
+        calls: AtomicUsize::new(0),
+    });
+    let mut deps = dependencies(vec![("hibp", engine.clone())]);
+    deps.policy.policy.sensitive_allowed = true;
+    deps.reranker = Some(Arc::new(ssx_infra::rerank::HostReranker::new(
+        socket_provider(&server),
+    )));
+    deps.owned_stores.push(store);
+    let service = SearchService::new(SearchConfig::default(), deps).unwrap();
+    let mut p = proposal("sensitive");
+    p.request.engines = Some(vec!["hibp".into()]);
+    p.surface = SearchSurface::Targeted;
+    let result = service.search(p).await.unwrap();
+    assert_eq!(result.results.len(), 2);
+    assert_eq!(engine.calls.load(Ordering::SeqCst), 1);
+    assert!(server.seen.lock().unwrap().is_empty());
+    service.shutdown().await;
+    server.shutdown().await;
+}
+
+#[tokio::test]
+async fn composed_native_cancellation_and_concurrent_shutdown_join_transport() {
+    let valkey = PrivateValkey::start().await;
+    let store = Arc::new(Valkey::new(&valkey.url, Duration::from_millis(250)).unwrap());
+    let server = SocketServer::start(two_answers(), vec![], true).await;
+    let engine = Arc::new(Engine {
+        name: "brave",
+        count: 2,
+        calls: AtomicUsize::new(0),
+    });
+    let service = Arc::new(composed_service(&server, store, engine.clone()));
+    let cancellation = SearchCancellation::default();
+    let task = tokio::spawn({
+        let service = service.clone();
+        let c = cancellation.clone();
+        async move {
+            service
+                .search_with_cancellation(proposal("cancel native"), c)
+                .await
+        }
+    });
+    server.wait_requests(1).await;
+    cancellation.cancel();
+    assert!(task.await.unwrap().is_err());
+    server.wait_disconnects(1).await;
+    assert!(valkey.keys("*").await.is_empty());
+    let task = tokio::spawn({
+        let service = service.clone();
+        async move { service.search(proposal("shutdown native")).await }
+    });
+    server.wait_requests(2).await;
+    tokio::join!(service.shutdown(), service.shutdown());
+    assert!(task.await.unwrap().is_err());
+    server.wait_disconnects(2).await;
+    assert_eq!(engine.calls.load(Ordering::SeqCst), 2);
+    assert!(valkey.keys("*").await.is_empty());
+    server.shutdown().await;
+}
+
+// Notification occurs after the real Valkey read returns. On this test's
+// current-thread runtime the outer search polls through the synchronous flight
+// join before yielding, so observing the count requires no scheduling sleep.
+struct ObservedCache {
+    inner: ValkeyCache,
+    reads: Arc<AtomicUsize>,
+    changed: Arc<tokio::sync::Notify>,
+}
+impl CacheRepository for ObservedCache {
+    fn read<'a>(
+        &'a self,
+        key: &'a str,
+    ) -> PortFuture<'a, std::result::Result<Option<CacheEntry>, CacheFailure>> {
+        Box::pin(async move {
+            let result = self.inner.read(key).await;
+            self.reads.fetch_add(1, Ordering::SeqCst);
+            self.changed.notify_one();
+            result
+        })
+    }
+    fn write<'a>(
+        &'a self,
+        key: &'a str,
+        value: &'a CacheEntry,
+        ttl: std::num::NonZeroU64,
+    ) -> PortFuture<'a, std::result::Result<(), CacheFailure>> {
+        self.inner.write(key, value, ttl)
+    }
+}
+
+struct IdentifiedNative {
+    inner: Arc<JevReranker>,
+    revision: &'static str,
+}
+impl Provider for IdentifiedNative {
+    fn rerank<'a>(
+        &'a self,
+        query: &'a str,
+        candidates: &'a [Candidate],
+    ) -> PortFuture<'a, Option<ssx_application::rerank::Decision>> {
+        self.inner.rerank(query, candidates)
+    }
+    fn cache_identity(&self) -> String {
+        format!("{}:{}", self.inner.cache_identity(), self.revision)
+    }
+    fn shutdown(&self) -> PortFuture<'_, ()> {
+        Provider::shutdown(self.inner.as_ref())
+    }
+}
+
+#[tokio::test]
+async fn composed_native_identity_overrides_manual_identity_and_waiters_share_execution() {
+    let valkey = PrivateValkey::start().await;
+    let server = SocketServer::start(two_answers(), vec![], true).await;
+    let native = ssx_infra::rerank::HostReranker::new(socket_provider(&server));
+    let identity = native.identity();
+    assert_eq!(identity.1, ssx_application::rerank::HOST_POLICY_IDENTITY);
+    let mut routing = dependencies(vec![]).routing_identity;
+    routing.rerank_identity = Some(identity);
+    let input = CacheKeyInput {
+        query: "identity".into(),
+        engines: vec!["brave".into()],
+        ..Default::default()
+    };
+    let prior = composed_key(&input, &routing, None, false);
+    routing
+        .rerank_identity
+        .as_mut()
+        .unwrap()
+        .1
+        .push_str(":future-host-ordering-policy");
+    assert_ne!(
+        prior,
+        composed_key(&input, &routing, None, false),
+        "the native host-ordering component must change canonical/flight cache identity"
+    );
+    RerankStage::shutdown(&native).await;
+
+    let engine = Arc::new(Engine {
+        name: "brave",
+        count: 2,
+        calls: AtomicUsize::new(0),
+    });
+    let reads = Arc::new(AtomicUsize::new(0));
+    let changed = Arc::new(tokio::sync::Notify::new());
+    let make = |revision| {
+        let store = Arc::new(Valkey::new(&valkey.url, Duration::from_millis(250)).unwrap());
+        let mut deps = dependencies(vec![("brave", engine.clone())]);
+        deps.cache = Some(Arc::new(CanonicalCache::new(
+            Arc::new(ObservedCache {
+                inner: ValkeyCache::new(store.clone()),
+                reads: reads.clone(),
+                changed: changed.clone(),
+            }),
+            CacheTtls::default(),
+        )));
+        deps.routing_identity.rerank_identity = Some((
+            "same-manual-value-cannot-mask-provider".into(),
+            "same-manual-policy".into(),
+        ));
+        deps.reranker = Some(Arc::new(ssx_infra::rerank::HostReranker::new(Arc::new(
+            IdentifiedNative {
+                inner: socket_provider(&server),
+                revision,
+            },
+        ))));
+        deps.owned_stores.push(store);
+        Arc::new(SearchService::new(SearchConfig::default(), deps).unwrap())
+    };
+    let first = make("revision-one");
+    let second = make("revision-two");
+    let cancel = SearchCancellation::default();
+    let a = tokio::spawn({
+        let service = first.clone();
+        let c = cancel.clone();
+        async move {
+            service
+                .search_with_cancellation(proposal("identity"), c)
+                .await
+        }
+    });
+    server.wait_requests(1).await;
+    let b = tokio::spawn({
+        let service = first.clone();
+        async move { service.search(proposal("identity")).await }
+    });
+    // A second service with a changed concrete provider identity must miss the
+    // shared cache even though both callers supply the same manual identity.
+    let c = tokio::spawn({
+        let service = second.clone();
+        async move { service.search(proposal("identity")).await }
+    });
+    server.wait_requests(2).await;
+    tokio::time::timeout(Duration::from_secs(3), async {
+        while reads.load(Ordering::SeqCst) < 3 {
+            changed.notified().await;
+        }
+    })
+    .await
+    .unwrap();
+    cancel.cancel();
+    assert!(a.await.unwrap().is_err());
+    assert_eq!(
+        server.disconnected.load(Ordering::SeqCst),
+        0,
+        "one waiter cannot cancel another caller's provider work"
+    );
+    server.release.send_replace(true);
+    let b = b.await.unwrap().unwrap();
+    let c = c.await.unwrap().unwrap();
+    assert!(!b.cached);
+    assert!(!c.cached);
+    assert_ne!(b.query_id, c.query_id);
+    assert_eq!(b.results[0].title, "row1");
+    assert_eq!(c.results[0].title, "row1");
+    assert_eq!(engine.calls.load(Ordering::SeqCst), 2);
+    assert_eq!(server.seen.lock().unwrap().len(), 2);
+    assert_eq!(valkey.keys("*").await.len(), 2);
+    assert!(first.search(proposal("identity")).await.unwrap().cached);
+    assert!(second.search(proposal("identity")).await.unwrap().cached);
+    assert_eq!(server.seen.lock().unwrap().len(), 2);
+    tokio::join!(first.shutdown(), second.shutdown());
+    server.shutdown().await;
+}
+
+#[tokio::test]
+async fn real_native_oversized_identity_header_rejects_before_held_body_and_closes_socket() {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let endpoint = format!("http://{}", listener.local_addr().unwrap());
+    let (headers_sent, sent) = tokio::sync::oneshot::channel();
+    let (closed, closed_rx) = tokio::sync::oneshot::channel();
+    let task = tokio::spawn(async move {
+        let (mut socket, _) = listener.accept().await.unwrap();
+        let mut raw = Vec::new();
+        let mut chunk = [0; 4096];
+        loop {
+            let n = socket.read(&mut chunk).await.unwrap();
+            assert_ne!(n, 0);
+            raw.extend_from_slice(&chunk[..n]);
+            assert!(raw.len() <= 144384);
+            if let Some(end) = raw.windows(4).position(|b| b == b"\r\n\r\n").map(|i| i + 4) {
+                let length = String::from_utf8_lossy(&raw[..end])
+                    .lines()
+                    .find_map(|l| {
+                        l.split_once(':')
+                            .filter(|(k, _)| k.eq_ignore_ascii_case("content-length"))
+                            .map(|(_, v)| v.trim().parse::<usize>().unwrap())
+                    })
+                    .unwrap();
+                if raw.len() >= end + length {
+                    break;
+                }
+            }
+        }
+        socket
+            .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 2000001\r\nConnection: close\r\n\r\n")
+            .await
+            .unwrap();
+        headers_sent.send(()).unwrap();
+        // No response body is ever sent. Completion can only follow the header
+        // guard, and the actual peer must close its outstanding response socket.
+        let n = tokio::time::timeout(Duration::from_secs(2), socket.read(&mut chunk))
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(n, 0);
+        closed.send(()).unwrap();
+    });
+    let provider = JevReranker::with_transport(
+        JevConfig::from_environment(&BTreeMap::from([(
+            "TYPESAFE_API_KEY".into(),
+            "synthetic-offline-key".into(),
+        )]))
+        .unwrap(),
+        AdapterHttp::default(),
+        endpoint,
+        Arc::new(UsageRecorder::default()),
+    );
+    let candidates = vec![
+        Candidate {
+            id: "c0".into(),
+            title: "a".into(),
+            url: "https://example.test/a".into(),
+            snippet: "a".into(),
+        },
+        Candidate {
+            id: "c1".into(),
+            title: "b".into(),
+            url: "https://example.test/b".into(),
+            snippet: "b".into(),
+        },
+    ];
+    let result = tokio::spawn(async move {
+        let decision = provider.rerank("header", &candidates).await;
+        provider.shutdown().await;
+        decision
+    });
+    sent.await.unwrap();
+    assert!(
+        tokio::time::timeout(Duration::from_millis(500), result)
+            .await
+            .expect("header bound must finish before the provider's one-second deadline")
+            .unwrap()
+            .is_none()
+    );
+    closed_rx.await.unwrap();
+    task.await.unwrap();
+}
+
+struct RowsEngine(Vec<SearchResult>);
+impl SearchEngine for RowsEngine {
+    fn search<'a>(&'a self, _: &'a SearchRequest) -> PortFuture<'a, AdapterResponse> {
+        Box::pin(async {
+            AdapterResponse {
+                results: self.0.clone(),
+                ..Default::default()
+            }
+        })
+    }
+}
+fn fixture_row(engine: &str, suffix: &str, tier: i64) -> SearchResult {
+    SearchResult {
+        engine: engine.into(),
+        url: format!("https://example.test/{suffix}"),
+        title: suffix.into(),
+        tier,
+        ..Default::default()
+    }
+}
+#[tokio::test]
+async fn keyless_ranking_and_credential_config_factory_execute() {
+    assert!(JevConfig::from_environment(&BTreeMap::new()).is_none());
+    assert!(
+        JevConfig::from_environment(&BTreeMap::from([("TYPESAFE_API_KEY".into(), " \t".into())]))
+            .is_none()
+    );
+    let configured = JevConfig::from_environment(&BTreeMap::from([(
+        "TYPESAFE_API_KEY".into(),
+        " synthetic ".into(),
+    )]))
+    .map(|c| JevReranker::new(c, Arc::new(UsageRecorder::default())));
+    configured.unwrap().shutdown().await;
+    for strategy in ["presence", "reciprocal_rank_fusion"] {
+        // Presence keeps the first feed's tied insertion order [b,a]; RRF
+        // combines reciprocal ranks and resolves their exact tie by URL [a,b].
+        let broad = Arc::new(RowsEngine(vec![
+            fixture_row("brave", "b", 1),
+            fixture_row("brave", "a", 1),
+        ]));
+        let wiki = Arc::new(RowsEngine(vec![
+            fixture_row("wikipedia", "a", 1),
+            fixture_row("wikipedia", "b", 1),
+        ]));
+        let mut deps = dependencies(vec![("brave", broad), ("wikipedia", wiki)]);
+        deps.routing_identity.ranking_strategy = strategy.into();
+        let config = SearchConfig {
+            ranking_strategy: strategy.into(),
+            ..Default::default()
+        };
+        let service = SearchService::new(config, deps).unwrap();
+        let response = service.search(proposal("keyless")).await.unwrap();
+        assert_eq!(
+            response
+                .results
+                .iter()
+                .map(|r| r.title.as_str())
+                .collect::<Vec<_>>(),
+            if strategy == "presence" {
+                vec!["b", "a"]
+            } else {
+                vec!["a", "b"]
+            }
+        );
+        assert_eq!(
+            response.ranking_explanation,
+            if strategy == "presence" {
+                "tier_then_cross_engine_presence"
+            } else {
+                "tier_then_reciprocal_rank_fusion_k60"
+            }
+        );
+        for row in &response.results {
+            assert_eq!(
+                row.score.get(),
+                if strategy == "presence" {
+                    2.0
+                } else {
+                    1.0 / 61.0 + 1.0 / 62.0
+                }
+            );
+        }
+        service.shutdown().await;
+    }
+}
+
+#[tokio::test]
+async fn configured_native_stage_suppresses_specialist_promotion_for_every_outcome() {
+    for mode in [
+        "success", "error", "timeout", "invalid", "skipped", "keyless",
+    ] {
+        let routing = SocketServer::start(
+            br#"{"model":"jev-1.13.0","answers":{"pubmed":{"noul":0.9}}}"#.to_vec(),
+            vec![],
+            false,
+        )
+        .await;
+        let body=match mode {
+            "success"=>br#"{"model":"jev-1.13.0","answers":{"c0":{"type":"score","score":9},"c1":{"type":"score","score":8},"c2":{"type":"score","score":1}}}"#.to_vec(),
+            "invalid"=>br#"{"model":"jev-1.13.0","answers":{"unknown":{"type":"score","score":9}}}"#.to_vec(),
+            _=>b"invalid".to_vec(),
+        };
+        let provider = SocketServer::start(body, vec![], mode == "timeout").await;
+        let broad = Arc::new(RowsEngine(vec![
+            fixture_row("brave", "a", 1),
+            fixture_row("brave", "b", 1),
+        ]));
+        let specialist = Arc::new(RowsEngine(vec![fixture_row("pubmed", "s", 2)]));
+        let mut deps = dependencies(vec![("brave", broad), ("pubmed", specialist)]);
+        deps.policy.policy.max_query_length = 5000;
+        deps.policy.resolver.topics = Some(vec![]);
+        deps.jev = Some(Arc::new(ssx_infra::jev::JevRouter::with_endpoint(
+            ssx_infra::jev::JevConfig::from_environment(&BTreeMap::from([(
+                "TYPESAFE_API_KEY".into(),
+                "synthetic".into(),
+            )]))
+            .unwrap(),
+            ssx_registry::Registry::builtins().unwrap(),
+            routing.endpoint.clone(),
+        )));
+        if mode != "keyless" {
+            deps.reranker = Some(Arc::new(ssx_infra::rerank::HostReranker::new(
+                socket_provider(&provider),
+            )));
+        }
+        let service = SearchService::new(SearchConfig::default(), deps).unwrap();
+        let query = if mode == "skipped" {
+            "q".repeat(4097)
+        } else {
+            "public".into()
+        };
+        let request = proposal(&query);
+        let scope = service.prepare_scope(&request).await.unwrap();
+        assert_eq!(
+            scope.preview().scope.jev_added_engines,
+            ["pubmed"],
+            "{mode}"
+        );
+        let result = service
+            .search_prepared(scope, SearchCancellation::default())
+            .await
+            .unwrap();
+        let titles = result
+            .results
+            .iter()
+            .map(|r| r.title.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            titles,
+            if mode == "keyless" {
+                vec!["s", "a", "b"]
+            } else {
+                vec!["a", "b", "s"]
+            },
+            "{mode}"
+        );
+        assert_eq!(
+            result.ranking_explanation,
+            if mode == "success" {
+                "semantic_shortlist_rerank"
+            } else {
+                "tier_then_cross_engine_presence"
+            },
+            "{mode}"
+        );
+        assert_eq!(
+            provider.seen.lock().unwrap().len(),
+            usize::from(!matches!(mode, "skipped" | "keyless")),
+            "{mode}"
+        );
+        service.shutdown().await;
+        provider.shutdown().await;
+        routing.shutdown().await;
+    }
+}
+
+#[tokio::test]
+async fn actual_native_service_remaining_interactive_budget_cancels_provider_socket() {
+    let valkey = PrivateValkey::start().await;
+    let store = Arc::new(Valkey::new(&valkey.url, Duration::from_millis(250)).unwrap());
+    let server = SocketServer::start(two_answers(), vec![], true).await;
+    let engine = Arc::new(Engine {
+        name: "brave",
+        count: 2,
+        calls: AtomicUsize::new(0),
+    });
+    let service = Arc::new(composed_service(&server, store, engine));
+    let mut request = proposal("interactive provider");
+    request.request.interactive_timeout_ms = Some(100);
+    let started = tokio::time::Instant::now();
+    let task = tokio::spawn({
+        let service = service.clone();
+        async move { service.search(request).await }
+    });
+    server.wait_requests(1).await;
+    let response = tokio::time::timeout(Duration::from_millis(600), task)
+        .await
+        .unwrap()
+        .unwrap()
+        .unwrap();
+    assert!(
+        started.elapsed() < Duration::from_millis(600),
+        "remaining interactive budget must bound the one-second provider operation"
+    );
+    assert_ne!(response.ranking_explanation, "semantic_shortlist_rerank");
+    assert_eq!(response.results.len(), 2);
+    server.wait_disconnects(1).await;
+    assert!(valkey.keys("*").await.is_empty());
+    service.shutdown().await;
+    server.shutdown().await;
 }

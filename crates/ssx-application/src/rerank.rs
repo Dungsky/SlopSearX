@@ -84,7 +84,7 @@ pub fn url(value: &str) -> String {
     }
     let port = match p.port.as_deref() {
         None | Some("") => String::new(),
-        Some(raw) if raw.bytes().all(|c| c.is_ascii_digit()) => {
+        Some(raw) if raw.len() <= 4300 && raw.bytes().all(|c| c.is_ascii_digit()) => {
             let Ok(number) = raw.parse::<u16>() else {
                 return String::new();
             };
