@@ -41,4 +41,6 @@ pub mod rate;
 pub mod research;
 
 pub mod browser_identity;
+mod date_proof;
 pub mod oauth;
+pub use date_proof::PublicationDateProof;
