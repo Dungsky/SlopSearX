@@ -14,7 +14,7 @@
       "100644": 729
     },
     "configured_precommit_hook_rows": 15,
-    "developer_oracle_invocation_rows": 3
+    "developer_oracle_invocation_rows": 4
   },
   "interpreter_invocations": [
     {
@@ -8294,6 +8294,15 @@
       "classification": "temporary backend-coupled developer oracle; never a mandatory native gate or runtime dependency",
       "disposition": "temporary_developer_oracle_retire_before_backend_removal",
       "migration_owner": "F11",
+      "retirement_owner": "G08"
+    },
+    {
+      "path": "docs/rust-rewrite/f10/README.md",
+      "example_path": "docs/rust-rewrite/f10/oracle/export.py",
+      "evidence": "/private/tmp/slopsearx-rust-oracle-py314/bin/python -B docs/rust-rewrite/f10/oracle/export.py --source-root /clean/pinned/source --output crates/xtask/fixtures/f10/corpus.json",
+      "classification": "temporary backend-coupled developer oracle; never a mandatory native gate or runtime dependency",
+      "disposition": "temporary_developer_oracle_retire_before_backend_removal",
+      "migration_owner": "F10",
       "retirement_owner": "G08"
     }
   ]

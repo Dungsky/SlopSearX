@@ -150,3 +150,20 @@ backend-coupled tooling/test paths. Historical F01 baseline identities and
 validation reports remain unchanged. F01 source fixture updates cover this
 new temporary file and these reviewed inventory documents only; existing
 Python runtime source pins are preserved.
+
+
+## F10 temporary rate/health source oracle
+
+F10 adds `docs/rust-rewrite/f10/oracle/export.py` against accepted F08 main
+`9ab1c7a22de933762c42469145c1f50365220de2`. It captures synthetic pinned-source
+rate, provider cooldown, circuit, configuration and actual SearchService health
+observations, with no store or provider calls. Native mandatory gates read JSON
+and run native private-Valkey/loopback tests; they never execute the exporter.
+F10 owns migration observations; G08 retires this executable oracle before backend
+removal. This is backend-coupled developer evidence, not a client exception.
+
+The reviewed manifest now has 367 Python source paths, 244 backend-coupled
+tooling/test paths and four developer oracle invocation rows. Existing mandatory
+runtime/CI interpreter commands, runtime Python source and F05/F11 oracle bytes
+remain unchanged. F01 must first reject the newly staged unpinned source and
+stale inventory document identities; refresh requires narrow reviewed mappings.
