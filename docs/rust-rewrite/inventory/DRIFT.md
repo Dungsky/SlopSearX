@@ -263,3 +263,36 @@ mandatory native gates consume committed JSON without invoking Python. All
 The combined counts are 374 Python sources (122 backend/runtime, 251
 backend-coupled tooling/test, one client-only) and eleven developer-oracle
 invocations. No runtime source or accepted oracle pins are refreshed.
+
+
+## F12 optional routing reference
+
+F12 adds `docs/rust-rewrite/f12/oracle/export.py`, a temporary offline source
+oracle pinned to Python 3.14.7, MCP 2.3.0 and FastMCP 4.0.11. Synthetic local
+transports capture exact Jev payloads, decisions, keyless/enhanced scopes and
+cache identities. Native gates read immutable JSON; they never invoke Python.
+F12/G08 own retirement before backend removal. The exact inventory now contains
+373 Python sources: 122 backend/runtime, 250 backend-coupled tooling/test and one
+client-only source, with ten developer-oracle invocation rows. Existing baseline
+source hashes and historical evidence are unchanged.
+
+## F12 integration with accepted T09
+
+The combined inventory retains all accepted-main Python source rows and adds
+exactly the F12 reference exporter: 374 source paths (122 backend/runtime,
+251 backend-coupled tooling/test, one client-only) and eleven developer-oracle
+invocations. All prior source records and oracle bytes remain unchanged.
+T09 is accepted at `35d97ccf8c9b2d8246373b2024cc8d7a457705a3`; F12 remains
+in review. Earlier counts and statuses above describe historical checkpoints.
+
+
+## A03 integration with accepted F12
+
+This combined checkpoint retains every complete source/invocation record from
+A03 and accepted F12: 375 Python sources (122 backend/runtime, 252
+backend-coupled tooling/test, one client-only) and twelve developer-oracle
+invocations. Both W01 invocation rows remain distinct and unchanged. Source
+exporter/runtime bytes remain unchanged. F12 is accepted at
+`d8bcf5ede0cfa0b359f8bd25cdca89c23366b7e2`; T09 is accepted at
+`35d97ccf8c9b2d8246373b2024cc8d7a457705a3`. Earlier counts/statuses describe
+historical checkpoints; A03 acceptance remains pending.

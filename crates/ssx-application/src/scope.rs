@@ -124,6 +124,105 @@ fn health(e: &EngineCapability) -> u8 {
     }
 }
 impl ScopeResolver {
+    /// Raw scope presence suppresses optional advice, even whitespace-only lists.
+    pub fn allowed(request: &SearchRequest) -> bool {
+        !request.engines.as_ref().is_some_and(|v| !v.is_empty())
+            && !request.categories.as_ref().is_some_and(|v| !v.is_empty())
+            && request.media_type.is_none()
+    }
+    /// Advice uses automatic eligibility, never explicit-scope bypasses. Descriptor
+    /// availability is intentionally deferred to dispatch authorization by F09.
+    pub fn advice_eligible(
+        &self,
+        request: &SearchRequest,
+        catalog: &CatalogSnapshot,
+        name: &str,
+    ) -> bool {
+        if !Self::allowed(request)
+            || self.sensitive.contains(name)
+            || catalog.get(name).is_none_or(|e| !e.enabled || !e.active)
+        {
+            return false;
+        }
+        let mut gate = self.clone();
+        gate.catalog_routing = true;
+        if let Some(b) = &mut gate.budget {
+            b.max_engines = 0;
+            b.coverage_target = 0;
+        }
+        !gate
+            .route(&mut ScopeDecision::default(), vec![name.into()], catalog)
+            .is_empty()
+    }
+    /// Recompute the deterministic scope under current state, then admit optional
+    /// advice into remaining automatic budget slots. Never evict baseline engines.
+    pub fn with_specialist_advice(
+        &self,
+        request: &SearchRequest,
+        catalog: &CatalogSnapshot,
+        advice: &[(String, ssx_domain::FiniteF64)],
+    ) -> ScopeDecision {
+        let mut d = self.resolve(request, catalog);
+        if !Self::allowed(request) || advice.is_empty() {
+            return d;
+        }
+        let mut proposed = Vec::new();
+        let mut proposed_scores = BTreeMap::new();
+        for (n, score) in advice {
+            if d.selected_engines.contains(n) || proposed.contains(n) {
+                continue;
+            }
+            if !(0.0..=1.0).contains(&score.get()) || !self.advice_eligible(request, catalog, n) {
+                exclusion(
+                    &mut d,
+                    n,
+                    "advice",
+                    "specialist advice rejected by current automatic eligibility",
+                );
+                continue;
+            }
+            proposed_scores.insert(n.clone(), score.clone());
+            proposed.push(n.clone());
+        }
+        let remaining = self
+            .budget
+            .as_ref()
+            .filter(|b| b.max_engines > 0)
+            .map(|b| b.max_engines.saturating_sub(d.selected_engines.len()));
+        let mut gate = self.clone();
+        gate.catalog_routing = true;
+        if let Some(b) = &mut gate.budget {
+            b.max_engines = 0;
+            b.coverage_target = 0;
+        }
+        let proposed = gate.route(&mut d, proposed, catalog);
+        for n in proposed {
+            if remaining.is_some_and(|limit| d.jev_added_engines.len() >= limit) {
+                exclusion(
+                    &mut d,
+                    &n,
+                    "budget",
+                    "specialist advice exceeds remaining automatic engine budget",
+                );
+                d.routing_budget_applied = true;
+                continue;
+            }
+            // Previously excluded engines cannot carry a contradictory admission.
+            d.excluded_engines.retain(|e| e.engine != n);
+            d.jev_scores.insert(n.clone(), proposed_scores[&n].clone());
+            d.jev_added_engines.push(n.clone());
+            d.selected_engines.push(n);
+        }
+        if !d.jev_added_engines.is_empty() {
+            d.routing_rule.push_str("+jev specialists");
+        }
+        // Explain the final union, not the earlier baseline or intermediate advice.
+        d.routing_tradeoffs.clear();
+        d.warnings.retain(|w| !w.starts_with("routing trade-off: "));
+        let selected_count = d.selected_engines.len();
+        self.explain(&mut d, selected_count);
+        d
+    }
     pub fn resolve(&self, request: &SearchRequest, catalog: &CatalogSnapshot) -> ScopeDecision {
         let active: Vec<_> = catalog
             .engines
@@ -365,6 +464,11 @@ impl ScopeResolver {
                 d.routing_budget_applied = true;
             }
         }
+        self.explain(d, selected.len());
+        selected
+    }
+    /// Final explanation only: never changes engine selection or advice metadata.
+    fn explain(&self, d: &mut ScopeDecision, selected_count: usize) {
         if d.excluded_engines.iter().any(|e| e.stage == "budget") {
             d.routing_tradeoffs.push(RoutingTradeoff{kind:"cost".into(),detail:"coverage is bounded by the configured routing budget; engines were excluded for cost or count".into()});
         }
@@ -377,14 +481,13 @@ impl ScopeResolver {
         }
         if let Some(b) = &self.budget
             && b.coverage_target > 0
-            && selected.len() < b.coverage_target
+            && selected_count < b.coverage_target
         {
             d.routing_tradeoffs.push(RoutingTradeoff {
                 kind: "coverage".into(),
                 detail: format!(
                     "selected {} engines below the coverage target of {}",
-                    selected.len(),
-                    b.coverage_target
+                    selected_count, b.coverage_target
                 ),
             });
         }
@@ -398,6 +501,5 @@ impl ScopeResolver {
                     .join("; ")
             ));
         }
-        selected
     }
 }
