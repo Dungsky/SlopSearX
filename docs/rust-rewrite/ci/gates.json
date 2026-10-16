@@ -1739,6 +1739,10 @@
               "run": "cargo xtask check F10 --output target/rust-evidence/F10.json"
             },
             {
+              "name": "Native npm and crates registry pilot adapters",
+              "run": "cargo xtask check A01 --output target/rust-evidence/A01.json"
+            },
+            {
               "env": {
                 "SSX_SERVER_BIN": "target/${{ matrix.target }}/debug/ssx-server"
               },
@@ -1752,7 +1756,7 @@
               "with": {
                 "if-no-files-found": "warn",
                 "name": "rust-foundation-${{ matrix.target }}-${{ github.sha }}",
-                "path": "target/rust-evidence/F03.json\ntarget/rust-evidence/F04.json\ntarget/rust-evidence/T01.json\ntarget/rust-evidence/T04.json\ntarget/rust-evidence/F05.json\ntarget/rust-evidence/F06.json\ntarget/rust-evidence/F09.json\ntarget/rust-evidence/F07.json\ntarget/rust-evidence/W01.json\ntarget/rust-evidence/O03.json\ntarget/rust-evidence/F08.json\ntarget/rust-evidence/F10.json\ntarget/rust-evidence/F11.json\ntarget/rust-feature-graph.txt\n"
+                "path": "target/rust-evidence/F03.json\ntarget/rust-evidence/F04.json\ntarget/rust-evidence/T01.json\ntarget/rust-evidence/T04.json\ntarget/rust-evidence/F05.json\ntarget/rust-evidence/F06.json\ntarget/rust-evidence/F09.json\ntarget/rust-evidence/F07.json\ntarget/rust-evidence/W01.json\ntarget/rust-evidence/O03.json\ntarget/rust-evidence/F08.json\ntarget/rust-evidence/F10.json\ntarget/rust-evidence/F11.json\ntarget/rust-evidence/A01.json\ntarget/rust-feature-graph.txt\n"
               }
             }
           ],
@@ -1794,7 +1798,7 @@
       },
       "owner": "F03",
       "state": "additive",
-      "successor": "cargo fmt --all --check; cargo clippy --locked --workspace --all-targets -- -D warnings; cargo test/build --locked --workspace; cargo deny --locked --workspace check all; F03 smoke"
+      "successor": "cargo fmt --all --check; cargo clippy --locked --workspace --all-targets -- -D warnings; cargo test/build --locked --workspace; cargo deny --locked --workspace check all; F03 smoke; A01 #917 source-bound npm/crates pilot gate and both-architecture artifact."
     },
     "rust.yml:supply-chain": {
       "source": {

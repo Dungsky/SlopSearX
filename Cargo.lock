@@ -2456,9 +2456,11 @@ dependencies = [
  "ssx-application",
  "ssx-domain",
  "ssx-json",
+ "ssx-registry",
  "time",
  "tokio",
  "tokio-rustls",
+ "url",
 ]
 
 [[package]]
@@ -2505,6 +2507,8 @@ version = "0.1.0"
 dependencies = [
  "serde",
  "serde_json",
+ "ssx-application",
+ "ssx-domain",
 ]
 
 [[package]]

@@ -10,5 +10,9 @@ publish.workspace = true
 workspace = true
 
 [dependencies]
+ssx-application.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+
+[dev-dependencies]
+ssx-domain.workspace = true

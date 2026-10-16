@@ -19,7 +19,7 @@ Use one Cargo workspace and one deployable application, with narrowly separated 
 | `ssx-json` | Bounded lossless JSON values and pure number/object codecs shared by backend records and public DTOs | `serde`, `serde_json` with `raw_value` only, `ryu` float formatting, `indexmap` insertion-ordered JSON objects | Backend/domain policy, HTTP/MCP, Valkey, provider clients, configuration |
 | `ssx-domain` | Internal value types, typed IDs, result/provenance, search request/outcome, explicit missing/expired/unavailable/error distinctions | Standard library, `ssx-json`, pure serialization traits | HTTP, MCP, Valkey, provider clients, operator config |
 | `ssx-wire` | Versioned public HTTP/MCP DTOs, explicit codecs and golden contract schemas shared with native clients | `ssx-json` and pure serialization crates only | Domain/application policy, Valkey, backend configuration |
-| `ssx-registry` | Engine-local descriptors and registered factories | Standard library and pure serialization traits | Config loading, provider calls or orchestration |
+| `ssx-registry` | Engine-local descriptors and registered factories | `ssx-application` search port, standard library and pure serialization traits | Config loading, provider calls or orchestration |
 | `ssx-config` | Layered operator configuration and redacted credentials | `ssx-registry`, pure `ssx-domain` codecs, serialization and YAML parsing | Domain-to-config dependencies, provider calls or policy grants |
 | `ssx-application` | `SearchService`, scope, shared fail-closed MCP policy with surface-specific inputs, budgets, jobs/workflow commands, canonical response and per-request views | `ssx-domain`, abstract ports | Route parsing, socket/Valkey implementations, provider-specific wire DTOs |
 | `ssx-infra` | Valkey stores, leases/scripts, clocks, HTTP client pools, parsers and 51 engine implementations | Domain/application ports | Public route status mapping or changing policy grants |
@@ -30,6 +30,18 @@ Use one Cargo workspace and one deployable application, with narrowly separated 
 | `ssx-server`, `ssx-worker` | Executable composition roots, config validation, startup/shutdown/readiness | All required libraries | Business decisions in `main` |
 
 `ssx-domain` and `ssx-application` never depend on HTTP/MCP or infrastructure. `ssx-wire` contains only public representations and codecs and has no dependency on backend crates; server surfaces translate from domain outcomes into it. Client binaries import it without importing backend domain or application code. The gateway depends on `ssx-wire` and rmcp client APIs, not on the backend MCP server registry. Cross-crate ports are small traits owned by the application consumer: engine search, engine catalog, canonical cache, durable job/saved/receipt stores, snapshot store, quota/lease primitives, clock, token source, and provider advice. Async trait object use is allowed only at these runtime seams; pure ranking/normalization remains ordinary functions. Constructors receive explicit dependencies and validated configuration. A production composition root wires them once; tests inject fake engines, a deterministic clock/token source, and a faithful in-memory store. Preserve the `state_factory`-equivalent seam so the **real** HTTP/MCP transport, auth, schema, and lifecycle can be tested without live providers or Valkey.
+
+## A01 amendment: executable registry search port
+
+The application owns `SearchEngine`, the async search contract over domain
+`SearchRequest` and classified `AdapterResponse`. The registry re-exports this
+port as its factory object type and may depend on application; application
+remains independent of registry/config/infra, so the crate graph stays acyclic.
+The existing application `Engine::probe` is a foundation readiness seam only;
+it is not the search adapter contract. Concrete provider implementations remain
+in infrastructure and receive the shared F08 transport through their factories.
+The registry's domain dependency is test-only for its fixture implementation;
+its runtime dependency remains the application-owned search contract.
 
 Register built-in adapters through one engine-local descriptor per module, composed into a generated compile-time registry by the catalog owner. Adding an engine changes its engine module/descriptor and generated aggregate, never the search orchestrator. The integration owner checks names against F01's machine inventory at build/test time. Each descriptor supplies constructor, categories, audited enforcement layers, Jev metadata, auth/config keys, and routing class. An adapter batch edits only its own descriptor; one catalog owner owns registry generation and shared aggregates. Startup rejects duplicate names, missing descriptors, or invalid metadata. Operator config can deactivate or recategorize a registered engine but cannot dynamically load executable plugins. An engine returns classified `AdapterResponse` values; the service turns panic or task failure into a classified adapter error at the containment boundary. Neither becomes an unhandled request crash.
 
