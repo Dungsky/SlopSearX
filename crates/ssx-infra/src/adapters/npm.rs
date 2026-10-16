@@ -163,10 +163,13 @@ impl NpmAdapter {
             };
             let publisher = match package.get("publisher") {
                 None => Ok(String::new()),
-                Some(value) => value
-                    .as_object()
-                    .ok_or(())
-                    .map(|publisher| python_string(publisher.get("username"))),
+                Some(value) => value.as_object().ok_or(()).map(|publisher| {
+                    publisher
+                        .get("username")
+                        .filter(|username| truthy(username))
+                        .map(|username| python_string(Some(username)))
+                        .unwrap_or_default()
+                }),
             };
             let publisher = match publisher {
                 Ok(v) => v,
@@ -232,11 +235,8 @@ fn elapsed(start: Instant) -> FiniteF64 {
 }
 fn source_text(value: Option<&serde_json::Value>) -> Result<String, ()> {
     match value {
-        None | Some(serde_json::Value::Null) | Some(serde_json::Value::Bool(false)) => {
-            Ok(String::new())
-        }
-        Some(serde_json::Value::Number(n)) if n.as_f64() == Some(0.0) => Ok(String::new()),
-        Some(serde_json::Value::String(s)) if s.is_empty() => Ok(String::new()),
+        None => Ok(String::new()),
+        Some(value) if !truthy(value) => Ok(String::new()),
         Some(serde_json::Value::String(s)) => Ok(s.clone()),
         _ => Err(()),
     }
@@ -262,16 +262,21 @@ fn popularity(object: &serde_json::Map<String, serde_json::Value>) -> Result<f64
     let Some(value) = detail.get("popularity") else {
         return Ok(0.0);
     };
-    if value.is_null() || value == false || value == 0 || value == "" {
+    if !truthy(value) {
         return Ok(0.0);
     }
     let number = match value {
         serde_json::Value::Bool(v) => f64::from(u8::from(*v)),
         serde_json::Value::Number(v) => v.as_f64().ok_or(())?,
-        serde_json::Value::String(v) => v.parse::<f64>().map_err(|_| ())?,
+        serde_json::Value::String(v) => parse_python_float(v).ok_or(())?,
         _ => return Err(()),
     };
     number.is_finite().then_some(number).ok_or(())
+}
+fn parse_python_float(input: &str) -> Option<f64> {
+    let normalized = ssx_domain::storage::normalize_python_number_text(input).ok()?;
+    let value = normalized.parse::<f64>().ok()?;
+    value.is_finite().then_some(value)
 }
 fn npm_payload(
     package: &serde_json::Map<String, serde_json::Value>,

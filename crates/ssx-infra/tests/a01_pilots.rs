@@ -330,8 +330,11 @@ async fn crates_download_rendering_matches_offline_python_observations() {
     let fixture: serde_json::Value = serde_json::from_str(A01_CASES).unwrap();
     for observation in fixture["source_observations"].as_array().unwrap() {
         let case = observation["case"].as_str().unwrap();
+        if !case.starts_with("crates_") {
+            continue;
+        }
         let mut row = serde_json::json!({"name":"probe","max_version":"1"});
-        for field in ["downloads", "recent_downloads"] {
+        for field in ["downloads", "recent_downloads", "description"] {
             if let Some(value) = observation["input"].get(field) {
                 row[field] = value.clone();
             }
@@ -357,6 +360,68 @@ async fn crates_download_rendering_matches_offline_python_observations() {
             );
         } else {
             assert!(response.results.is_empty(), "{case}");
+        }
+    }
+}
+
+#[tokio::test]
+async fn npm_truthiness_matches_captured_python_observations() {
+    let fixture: serde_json::Value = serde_json::from_str(A01_CASES).unwrap();
+    for observation in fixture["source_observations"].as_array().unwrap() {
+        let case = observation["case"].as_str().unwrap();
+        if !(case.starts_with("npm_publisher_") || case.starts_with("npm_empty_")) {
+            continue;
+        }
+        let input = &observation["input"];
+        let mut package = serde_json::Map::new();
+        for field in ["description", "publisher"] {
+            if let Some(value) = input.get(field) {
+                package.insert(field.into(), value.clone());
+            }
+        }
+        let mut object = serde_json::json!({"package":package});
+        if let Some(value) = input.get("score") {
+            object["score"] = value.clone();
+        }
+        let body = serde_json::to_vec(&serde_json::json!({"objects":[object]})).unwrap();
+        let response = exercise_http_case("npm", 200, &body, 2_000, false).await;
+        assert_eq!(response.status, EngineStatus::Ok, "{case}");
+        if let Some(content) = observation["output"]["content"].as_str() {
+            assert_eq!(response.results[0].content, content, "{case}");
+        }
+        if let Some(score) = observation["output"]["score"].as_f64() {
+            assert_eq!(response.results[0].score.get(), score, "{case}");
+        }
+    }
+}
+
+#[tokio::test]
+async fn npm_popularity_strings_match_captured_python_float_observations() {
+    let fixture: serde_json::Value = serde_json::from_str(A01_CASES).unwrap();
+    for observation in fixture["source_observations"].as_array().unwrap() {
+        let case = observation["case"].as_str().unwrap();
+        if !case.starts_with("npm_popularity_") {
+            continue;
+        }
+        let body = serde_json::to_vec(&serde_json::json!({
+            "objects":[{"package":{},"score":observation["input"]["score"]}]
+        }))
+        .unwrap();
+        let response = exercise_http_case("npm", 200, &body, 2_000, false).await;
+        match observation["output"]["status"].as_str().unwrap() {
+            "ok" => {
+                assert_eq!(response.status, EngineStatus::Ok, "{case}");
+                assert_eq!(
+                    response.results[0].score.get(),
+                    observation["output"]["score"].as_f64().unwrap(),
+                    "{case}"
+                );
+            }
+            "error" => {
+                assert_eq!(response.status, EngineStatus::Error, "{case}");
+                assert!(response.results.is_empty(), "{case}");
+            }
+            other => panic!("unsupported source status {other}"),
         }
     }
 }

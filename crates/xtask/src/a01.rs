@@ -106,7 +106,7 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
     let observations = cases["source_observations"]
         .as_array()
         .ok_or("missing offline Python source observations")?;
-    if observations.len() != 15
+    if observations.len() != 39
         || observations.iter().any(|row| {
             !matches!(
                 row["captured_by"].as_str(),
@@ -114,6 +114,7 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
                     | Some(
                         "engines/crates.py via offline httpx.MockTransport; CratesAdapter.search"
                     )
+                    | Some("engines/npm.py via offline httpx.MockTransport; NpmAdapter.search")
             ) || row["case"].as_str().is_none_or(str::is_empty)
                 || !matches!(row["output"]["status"].as_str(), Some("ok" | "error"))
         })
@@ -191,6 +192,14 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
         "crates_false_boolean_score",
         "crates_recent_numeric_string_score",
         "crates_recent_null_download_fallback",
+        "npm_publisher_falsey_username_omitted",
+        "npm_empty_container_descriptions",
+        "npm_empty_container_popularity_zero",
+        "npm_popularity_python_float_string_grammar",
+        "npm_popularity_invalid_digit_separators_rejected",
+        "crates_empty_container_descriptions",
+        "crates_recent_float_whitespace_underscores_and_unicode",
+        "crates_recent_float_invalid_digit_separators",
         "crates_float_scientific_large_1e16",
         "crates_float_scientific_large_1e20",
         "crates_float_scientific_small_1e5",

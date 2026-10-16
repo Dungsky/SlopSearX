@@ -262,11 +262,8 @@ fn python_string(value: Option<&serde_json::Value>) -> String {
 }
 fn source_text(value: Option<&serde_json::Value>) -> Result<String, ()> {
     match value {
-        None | Some(serde_json::Value::Null) | Some(serde_json::Value::Bool(false)) => {
-            Ok(String::new())
-        }
-        Some(serde_json::Value::Number(n)) if n.as_f64() == Some(0.0) => Ok(String::new()),
-        Some(serde_json::Value::String(s)) if s.is_empty() => Ok(String::new()),
+        None => Ok(String::new()),
+        Some(value) if !truthy(value) => Ok(String::new()),
         Some(serde_json::Value::String(s)) => Ok(s.clone()),
         _ => Err(()),
     }
@@ -275,10 +272,15 @@ fn python_float(value: &serde_json::Value) -> Result<f64, ()> {
     let value = match value {
         serde_json::Value::Bool(value) => f64::from(u8::from(*value)),
         serde_json::Value::Number(value) => value.as_f64().ok_or(())?,
-        serde_json::Value::String(value) => value.parse::<f64>().map_err(|_| ())?,
+        serde_json::Value::String(value) => parse_python_float(value).ok_or(())?,
         _ => return Err(()),
     };
     value.is_finite().then_some(value).ok_or(())
+}
+fn parse_python_float(input: &str) -> Option<f64> {
+    let normalized = ssx_domain::storage::normalize_python_number_text(input).ok()?;
+    let value = normalized.parse::<f64>().ok()?;
+    value.is_finite().then_some(value)
 }
 fn truthy(value: &serde_json::Value) -> bool {
     match value {
