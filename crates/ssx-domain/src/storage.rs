@@ -201,6 +201,67 @@ fn valid_urllib_netloc(netloc: &str) -> bool {
             .is_ok()
     })
 }
+/// CPython 3.14 URL netloc diagnostic using the qualified Unicode16 delimiter
+/// table and validator. Existing media validation remains unchanged and does not
+/// allocate diagnostics. Callers must first apply urllib's URL parsing view.
+pub fn python_url_netloc_error(netloc: &str) -> Option<String> {
+    if valid_urllib_netloc(netloc) {
+        return None;
+    }
+    let invalid_ipv6 = || Some("Invalid IPv6 URL".to_owned());
+    if netloc.contains('[') != netloc.contains(']') {
+        return invalid_ipv6();
+    }
+    if netloc.contains('[') {
+        let host_port = netloc.rsplit_once('@').map_or(netloc, |(_, host)| host);
+        let host = if let Some((before, bracketed)) = host_port.split_once('[') {
+            if !before.is_empty() {
+                return invalid_ipv6();
+            }
+            let Some((host, port)) = bracketed.split_once(']') else {
+                return invalid_ipv6();
+            };
+            if !port.is_empty() && !port.starts_with(':') {
+                return invalid_ipv6();
+            }
+            host
+        } else {
+            host_port
+                .split_once(':')
+                .map_or(host_port, |(host, _)| host)
+        };
+        if host.starts_with(['v', 'V']) {
+            if !host[1..].split_once('.').is_some_and(|(version, address)| {
+                !version.is_empty()
+                    && version.bytes().all(|b| b.is_ascii_hexdigit())
+                    && !address.is_empty()
+            }) {
+                return Some("IPvFuture address is invalid".into());
+            }
+        } else {
+            if host.parse::<std::net::Ipv4Addr>().is_ok() {
+                return Some("An IPv4 address cannot be in brackets".into());
+            }
+            let address = match host.split_once('%') {
+                Some((address, scope)) if !scope.is_empty() && !scope.contains('%') => address,
+                Some(_) => "",
+                None => host,
+            };
+            if address.parse::<std::net::Ipv6Addr>().is_err() {
+                return Some(format!(
+                    "{} does not appear to be an IPv4 or IPv6 address",
+                    python_string_repr(host)
+                ));
+            }
+        }
+    }
+    // urllib._checknetloc concatenates the original netloc verbatim here;
+    // its ipaddress diagnostic above instead uses Python repr escaping.
+    Some(format!(
+        "netloc '{netloc}' contains invalid characters under NFKC normalization"
+    ))
+}
+
 fn reconstruct_media_url(parts: MediaUrlParts<'_>, query: &str) -> String {
     const USES_NETLOC: &[&str] = &[
         "",
@@ -1507,6 +1568,43 @@ mod reviewed_legacy_tests {
 #[cfg(test)]
 mod urllib_contract_tests {
     use super::sanitize_media_url;
+    #[test]
+    fn additive_netloc_diagnostics_preserve_boolean_and_source_precedence() {
+        for (netloc, error) in [
+            ("www.oyez.org:port", None),
+            ("www.oyez.org:[x]", Some("Invalid IPv6 URL")),
+            ("www.oyez.org:]", Some("Invalid IPv6 URL")),
+            ("[127.0.0.1]", Some("An IPv4 address cannot be in brackets")),
+            ("[vX.address]", Some("IPvFuture address is invalid")),
+            ("[v1.address]", None),
+            ("[V1.address]", None),
+            ("[::1]", None),
+            ("[::1]suffix", Some("Invalid IPv6 URL")),
+            ("[fe80::1%zone]", None),
+            (
+                "[fe80::1%]",
+                Some("'fe80::1%' does not appear to be an IPv4 or IPv6 address"),
+            ),
+            (
+                "[has'quote]",
+                Some("\"has'quote\" does not appear to be an IPv4 or IPv6 address"),
+            ),
+        ] {
+            let actual = super::python_url_netloc_error(netloc);
+            assert_eq!(actual.as_deref(), error, "{netloc}");
+            assert_eq!(super::valid_urllib_netloc(netloc), actual.is_none());
+        }
+        for code in &super::python_text_tables().nfkc_url_delimiters {
+            let netloc = format!("www.oyez.org:{}", char::from_u32(*code).unwrap());
+            assert_eq!(
+                super::python_url_netloc_error(&netloc),
+                Some(format!(
+                    "netloc '{netloc}' contains invalid characters under NFKC normalization"
+                ))
+            );
+            assert!(!super::valid_urllib_netloc(&netloc));
+        }
+    }
     #[test]
     fn scheme_recognition_and_reconstruction_match_urllib() {
         for (input, expected) in [
