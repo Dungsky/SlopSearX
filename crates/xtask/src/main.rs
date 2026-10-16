@@ -1,6 +1,9 @@
 //! Fail-closed native evidence runner. Owned check implementations are deliberately finite.
 mod a01;
+mod a02;
+mod a03;
 mod a04;
+mod date_amendment;
 mod f05;
 mod f06;
 mod f07;
@@ -9,6 +12,8 @@ mod f09;
 mod f10;
 mod f11;
 mod f12;
+mod f13;
+mod f14;
 mod o03;
 mod o06;
 mod replay;
@@ -440,6 +445,8 @@ fn execute(root: &Path, id: &str, records: &mut Vec<Value>) -> Result<()> {
     match id {
         "A01" => a01::check(root, records),
         "A04" => a04::check(root, records),
+        "A03" => a03::check(root, records),
+        "A02" => a02::check(root, records),
         "O03" => o03::check(root, records),
         "O06" => o06::check(root, records),
         "F01" | "F02" => source_check(root, id, records),
@@ -457,6 +464,8 @@ fn execute(root: &Path, id: &str, records: &mut Vec<Value>) -> Result<()> {
         "F10" => f10::check(root, records),
         "F11" => f11::check(root, records),
         "F12" => f12::check(root, records),
+        "F13" => f13::check(root, records),
+        "F14" => f14::check(root, records),
         "F03" => {
             source_check(root, "F01", records)?;
             source_check(root, "F02", records)?;
@@ -570,7 +579,11 @@ fn main() {
             }
         }
     }
-    let scope = if id == "A01" {
+    let scope = if id == "A03" {
+        "source-mapped GitHub, Hugging Face, Stack Exchange and Hacker News adapters through caller-owned F08/F10; offline loopback/private Valkey only, no provider or deployment claim"
+    } else if id == "A02" {
+        "source-bound pypi/rubygems/dockerhub adapters through registry and caller-owned F08 pool; no live providers, deployment or full server parity claim"
+    } else if id == "A01" {
         "source-mapped npm/crates registry adapters through F06 factories and F08 loopback sessions; no live provider calls, deployment, performance or full adapter parity claim"
     } else if id == "O03" {
         "active tooling inventory and prospective evidence contracts only; no experiment, provider call, receipt issuance or historical evidence mutation"
@@ -792,7 +805,7 @@ mod tests {
     fn unknown_and_unimplemented_fail() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
         assert!(
-            execute(&root, "F13", &mut vec![])
+            execute(&root, "F15", &mut vec![])
                 .unwrap_err()
                 .contains("unimplemented")
         );

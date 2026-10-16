@@ -59,14 +59,15 @@ as an intentional input-boundary difference, not coerced to the missing case.
 Brave media dimensions map Python booleans to the native `i64` fields
 (`true/false` becomes `1/0`), while null result title/URL fields map to empty
 native strings. Raw captures retain their source JSON types.
-F14/G01 must propagate a provided subreddit through execution and include it in
-any cache identity when requests can differ by subreddit. This batch does not
-add an HTTP, portal, or MCP parameter.
+Accepted-main integration propagates the typed subreddit through validated
+shared execution and includes exact Some values, including empty, in canonical
+cache and singleflight identity. None retains every legacy key byte. This batch
+does not add an HTTP, portal, or MCP parameter.
 
 The native adapter entry point is `register_broad_api`; final registry
 composition remains an integration responsibility. The adapters keep caller
-ownership of the HTTP client and rate admission. No shared service or portal
-contract is changed by these adapters.
+ownership of the HTTP client and rate admission. The typed shared-service integration is qualified separately below; public
+HTTP/portal/MCP transport composition remains downstream.
 
 Third-review numeric compatibility reuses the accepted domain Unicode16 helpers
 for Python decimal digit/underscore normalization and str/repr formatting. JSON
@@ -168,3 +169,32 @@ Representation and resource restrictions, precise diagnostics, source error
 priority, and the narrow Brave malformed-byte/syntax diagnostic contract are
 listed in [`PARITY.md`](PARITY.md). Native tests exercise every corpus record;
 the gate compares its exact ID mapping and reviewed digest.
+
+## Accepted-main integration
+
+The approved A04 checkpoint is normally merged with accepted F14 main
+`576d43b03c0378ffe113a1386b1ec88eaa4323df`. Adapter/parser implementations and all
+37/context/333/126/6/239 source observations remain immutable. Both A03 community
+and A04 broad registration APIs coexist; F06 activation remains a composition
+successor. The shared filter-semantics source observation retains its historical
+blob, with only the accepted exact PR874 old/new bridge admitting current bytes.
+The bridge independently binds the existing 22-case date corpus and rejects any
+unrelated drift; F09/F13/F14 supply current native date admission/cache evidence.
+No adapter output or malformed JSON rule changes in this integration.
+
+The additive typed `SearchRequest.subreddit` defaults to None. Policy retains the
+exact request through direct and prepared authorization, and shared execution
+forwards it unchanged. Canonical keys use a separate `search:v2:subreddit:` base
+namespace for Some(exact string), which the composed cache and flight identity
+inherit. None uses every historical source-key byte unchanged; empty stays
+separate from omission. A real registered Reddit adapter, held loopback HTTP and
+private Valkey regression runs eight simultaneous callers across four scopes,
+proves one flight per scope, distinct results/query IDs and four subsequent
+exact-scope cache hits. The mandatory A04 inventory now executes21 integration
+tests plus the four existing decoder unit tests. All historical capture records
+remain unchanged. T02/T06 and portal successors still own public request/output
+composition; no new wire parameter is introduced here.
+
+Current-main qualification and independent integration review precede parent
+acceptance and publication; the historical source review alone does not accept
+this combined tree.

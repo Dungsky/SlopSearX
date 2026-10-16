@@ -182,3 +182,18 @@ checkpoints yield cooperatively, inherit each request's existing deadline, and
 leave no worker running after cancellation. The gate also runs four decoder
 unit tests, including depth100/101 without stack overflow and dropped-future
 cancellation on a maximum-size input.
+
+## Accepted-main shared-service integration
+
+The pre-integration adapter parser and every historical source observation remain
+unchanged. A04's typed optional subreddit now reaches the accepted F14 shared
+service through both direct and prepared policy authority. Some(exact string)
+adds a versioned, separately framed base-cache identity; None preserves every
+historical key byte. Existing composed-cache and singleflight identities bind
+that base key. Omitted input therefore still dispatches `/r/all/search.json`,
+while explicit empty dispatches `/r//search.json`; neither aliases ordinary
+subreddit strings. This closes a demonstrated pre-fix shared-flight collision,
+with real held loopback dispatch, eight concurrent callers and four private
+Valkey cache entries/hits. It changes no JSON parser behavior and introduces no
+HTTP/MCP/portal input. Source null/numeric subreddit values remain outside the
+typed API; no coercion or new source-corpus normalization is added.

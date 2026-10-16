@@ -251,12 +251,12 @@ fn failed(status: EngineStatus, message: &str, started: Instant) -> AdapterRespo
 fn elapsed(start: Instant) -> FiniteF64 {
     FiniteF64::new(start.elapsed().as_secs_f64() * 1000.0).unwrap_or_default()
 }
-fn python_string(value: Option<&ssx_json::Value>) -> String {
+pub(super) fn python_string(value: Option<&ssx_json::Value>) -> String {
     value
         .map(ssx_domain::storage::python_value_string)
         .unwrap_or_default()
 }
-fn source_text(value: Option<&ssx_json::Value>) -> Result<String, ()> {
+pub(super) fn source_text(value: Option<&ssx_json::Value>) -> Result<String, ()> {
     match value {
         None => Ok(String::new()),
         Some(value) if !truthy(value) => Ok(String::new()),
@@ -264,7 +264,7 @@ fn source_text(value: Option<&ssx_json::Value>) -> Result<String, ()> {
         _ => Err(()),
     }
 }
-fn python_float(value: &ssx_json::Value) -> Result<f64, ()> {
+pub(super) fn python_float(value: &ssx_json::Value) -> Result<f64, ()> {
     let value = match value {
         ssx_json::Value::Bool(value) => f64::from(u8::from(*value)),
         ssx_json::Value::Number(value) => value.as_f64().ok_or(())?,
@@ -278,7 +278,7 @@ fn parse_python_float(input: &str) -> Option<f64> {
     let value = normalized.parse::<f64>().ok()?;
     value.is_finite().then_some(value)
 }
-fn truthy(value: &ssx_json::Value) -> bool {
+pub(super) fn truthy(value: &ssx_json::Value) -> bool {
     match value {
         ssx_json::Value::Null => false,
         ssx_json::Value::Bool(value) => *value,
@@ -291,7 +291,7 @@ fn truthy(value: &ssx_json::Value) -> bool {
         ssx_json::Value::Object(value) => !value.is_empty(),
     }
 }
-fn python_grouped(value: &ssx_json::Value) -> Result<String, ()> {
+pub(super) fn python_grouped(value: &ssx_json::Value) -> Result<String, ()> {
     match value {
         ssx_json::Value::Bool(value) => Ok(if *value { "1" } else { "0" }.into()),
         ssx_json::Value::Number(number) if !number.is_f64() => Ok(grouped_decimal(number.as_str())),

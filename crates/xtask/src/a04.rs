@@ -99,8 +99,16 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
             row["path"].as_str() == Some(path) && row["git_blob"].as_str() == Some(pin),
             "A04 source inventory differs from reviewed baseline",
         )?;
-        let actual = command(root, "git", &["hash-object", "--", path], records)?;
-        ensure(actual.trim() == pin, &format!("A04 source drift: {path}"))?;
+        // Historical adapter observations remain pinned; only the accepted
+        // PR874 shared filter-contract amendment may replace current bytes.
+        crate::date_amendment::source(
+            root,
+            path,
+            "66b29c3f8437af45a4f0d28f7c54a0f0727f7fa5",
+            pin,
+            None,
+            records,
+        )?;
     }
     let cases =
         fs::read(root.join("docs/rust-rewrite/a04/cases.json")).map_err(|e| e.to_string())?;
@@ -371,6 +379,7 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
         .collect();
     let expected: BTreeSet<_> = [
         "batch_registration_alone_controls_runtime_availability",
+        "subreddit_scopes_keep_shared_service_dispatch_cache_and_flights_separate",
         "brave_web_answers_and_images_are_parsed_from_loopback_http",
         "wikipedia_two_stages_preserve_request_order_corrections_and_infobox",
         "wikipedia_no_titles_and_missing_page_ids_match_captured_source",
@@ -413,8 +422,8 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
     ensure(
         output
             .lines()
-            .any(|l| l.starts_with("test result:") && l.contains("20 passed; 0 failed; 0 ignored")),
-        "A04 replay must execute exactly twenty non-ignored passing tests",
+            .any(|l| l.starts_with("test result:") && l.contains("21 passed; 0 failed; 0 ignored")),
+        "A04 replay must execute exactly twenty-one non-ignored passing tests",
     )?;
 
     for path in [

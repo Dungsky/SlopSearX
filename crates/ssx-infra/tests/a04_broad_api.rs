@@ -1672,3 +1672,286 @@ async fn source_json_byte_numeric_and_unicode_contracts_replay_every_record() {
         .collect();
     assert_eq!(executed, expected, "every source JSON record executes");
 }
+
+use ssx_application::{NoopSink, SearchEngine, cache::*, policy::*, scope::*};
+use ssx_infra::{
+    search::*,
+    valkey::{Valkey, cache::ValkeyCache},
+};
+use std::{collections::BTreeMap, time::Duration};
+fn a04_capability(name: &str) -> EngineCapability {
+    EngineCapability {
+        name: name.into(),
+        enabled: true,
+        active: true,
+        available: true,
+        categories: vec!["general".into(), "reddit:subreddit".into()],
+        media_types: vec![],
+        auth_ready: true,
+        circuit_open: false,
+        cost_class: "free".into(),
+        health_status: "unknown".into(),
+        health_stale: true,
+        enforced_filters: BTreeMap::new(),
+    }
+}
+
+fn a04_search_dependencies(engines: Vec<(&str, Arc<dyn SearchEngine>)>) -> SearchDependencies {
+    SearchDependencies {
+        policy: PolicyService {
+            policy: SearchPolicy::default(),
+            catalog: CatalogSnapshot::new(engines.iter().map(|(n, _)| a04_capability(n)).collect())
+                .unwrap(),
+            resolver: ScopeResolver {
+                catalog_routing: false,
+                ..Default::default()
+            },
+        },
+        engines: engines
+            .into_iter()
+            .map(|(n, engine)| {
+                (
+                    n.into(),
+                    EngineBinding {
+                        engine,
+                        generation: "fixture-v1".into(),
+                        timeout: Duration::from_secs(3),
+                        scrape: false,
+                    },
+                )
+            })
+            .collect(),
+        routing_identity: RoutingIdentity {
+            catalog: None,
+            sensitive: ["hibp", "dehashed"]
+                .into_iter()
+                .map(str::to_owned)
+                .collect(),
+            tier1: ScopeResolver::default().tier1,
+            budget: None,
+            ranking_strategy: "presence".into(),
+            work_group_version: "scholarly-work-v3".into(),
+            rerank_identity: None,
+            routing_extension: None,
+        },
+        cache: None,
+        client_admission: None,
+        suggestions: None,
+        jev: None,
+        routing_cache: None,
+        metrics: Arc::new(NoopSink),
+        supervisor: Arc::new(NoopSink),
+        audit: Arc::new(NoopSink),
+        cooldowns: None,
+        owned_http: vec![],
+        owned_stores: vec![],
+        clock: Arc::new(SystemSearchClock),
+        reranker: None,
+    }
+}
+struct A04PrivateValkey {
+    child: std::process::Child,
+    dir: std::path::PathBuf,
+    url: String,
+}
+impl A04PrivateValkey {
+    async fn start() -> Self {
+        let mut random = [0; 8];
+        aws_lc_rs::rand::fill(&mut random).unwrap();
+        let suffix: String = random.iter().map(|b| format!("{b:02x}")).collect();
+        let dir = std::env::temp_dir().join(format!("ssx-a04-{suffix}"));
+        std::fs::create_dir(&dir).unwrap();
+        let child = std::process::Command::new(
+            std::env::var("SLOPSEARX_TEST_VALKEY_SERVER")
+                .unwrap_or_else(|_| "valkey-server".into()),
+        )
+        .args([
+            "--port",
+            "0",
+            "--save",
+            "",
+            "--appendonly",
+            "no",
+            "--unixsocketperm",
+            "700",
+            "--dir",
+        ])
+        .arg(&dir)
+        .arg("--unixsocket")
+        .arg(dir.join("s.sock"))
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .unwrap();
+        let server = Self {
+            child,
+            url: format!("unix://{}", dir.join("s.sock").display()),
+            dir,
+        };
+        let store = Valkey::new(&server.url, Duration::from_millis(100)).unwrap();
+        tokio::time::timeout(Duration::from_secs(3), async {
+            while store.ping().await.is_err() {
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .unwrap();
+        store.close().await;
+        server
+    }
+}
+impl Drop for A04PrivateValkey {
+    fn drop(&mut self) {
+        let _ = self.child.kill();
+        let _ = self.child.wait();
+        let _ = std::fs::remove_dir_all(&self.dir);
+    }
+}
+
+#[tokio::test]
+async fn subreddit_scopes_keep_shared_service_dispatch_cache_and_flights_separate() {
+    let private = A04PrivateValkey::start().await;
+    let store = Arc::new(Valkey::new(&private.url, Duration::from_millis(250)).unwrap());
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let base = format!("http://{}", listener.local_addr().unwrap());
+    let paths = Arc::new(Mutex::new(Vec::<String>::new()));
+    let seen = paths.clone();
+    let (release, _) = tokio::sync::watch::channel(false);
+    let released = release.clone();
+    let peer = tokio::spawn(async move {
+        let mut tasks = tokio::task::JoinSet::new();
+        for _ in 0..4 {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let seen = seen.clone();
+            let mut ready = released.subscribe();
+            tasks.spawn(async move {
+                let mut request = Vec::new();
+                loop {
+                    let mut buf = [0; 1024];
+                    let n = socket.read(&mut buf).await.unwrap();
+                    assert!(n > 0);
+                    request.extend_from_slice(&buf[..n]);
+                    if request.windows(4).any(|s| s == b"\r\n\r\n") { break; }
+                }
+                let request = String::from_utf8(request).unwrap();
+                let target = request.lines().next().unwrap().split_whitespace().nth(1).unwrap();
+                let path = target.split('?').next().unwrap().to_owned();
+                seen.lock().unwrap().push(path.clone());
+                while !*ready.borrow_and_update() { ready.changed().await.unwrap(); }
+                let body = ssx_json::to_string(&ssx_json::json!({"data":{"children":[{"data":{
+                    "title":path,"selftext":"scoped result","permalink":path,
+                    "over_18":false,"score":1,"created_utc":1700000000
+                }}]}})).unwrap();
+                socket.write_all(format!("HTTP/1.1 200 OK\r\nContent-Length: {}\r\nContent-Type: application/json\r\nConnection: close\r\n\r\n{}",body.len(),body).as_bytes()).await.unwrap();
+            });
+        }
+        while let Some(result) = tasks.join_next().await {
+            result.unwrap();
+        }
+    });
+    let http = Arc::new(AdapterHttp::default());
+    let mut registry = Registry::builtins().unwrap();
+    register_broad_api(
+        &mut registry,
+        http.clone(),
+        Arc::new(AllowAllAdmission),
+        with_reddit(RedditConfig {
+            base_url: base,
+            ..Default::default()
+        }),
+    )
+    .unwrap();
+    let mut deps = a04_search_dependencies(vec![(
+        "reddit",
+        Arc::from(registry.instantiate("reddit").unwrap()),
+    )]);
+    deps.cache = Some(Arc::new(CanonicalCache::new(
+        Arc::new(ValkeyCache::new(store.clone())),
+        CacheTtls::default(),
+    )));
+    deps.owned_stores.push(store);
+    deps.owned_http.push(http);
+    let service = SearchService::new(SearchConfig::default(), deps).unwrap();
+    let cases = [
+        (None, "/r/all/search.json"),
+        (Some(""), "/r//search.json"),
+        (Some("rust"), "/r/rust/search.json"),
+        (Some("python"), "/r/python/search.json"),
+    ];
+    let proposal = |subreddit: Option<&str>| {
+        ScopeProposal::generic(SearchRequest {
+            query: "same query".into(),
+            categories: Some(vec!["reddit:subreddit".into()]),
+            engines: Some(vec!["reddit".into()]),
+            subreddit: subreddit.map(str::to_owned),
+            generate_suggestions: false,
+            ..Default::default()
+        })
+    };
+    let mut pending = Vec::new();
+    for (index, (scope, expected)) in cases.iter().enumerate() {
+        // Each scope has two simultaneous waiters. Real transport is held until
+        // every distinct request arrives, so collision cannot hide as caching.
+        for _ in 0..2 {
+            let s = service.clone();
+            let p = proposal(*scope);
+            let expected = expected.to_string();
+            pending.push(tokio::spawn(async move {
+                let response = if index % 2 == 0 {
+                    s.search(p).await
+                } else {
+                    let prepared = s.prepare_scope(&p).await.unwrap();
+                    s.search_prepared(prepared, SearchCancellation::default())
+                        .await
+                }
+                .unwrap();
+                assert!(!response.cached);
+                assert_eq!(response.results.len(), 1);
+                assert_eq!(response.results[0].title, expected);
+                response.query_id
+            }));
+        }
+    }
+    tokio::time::timeout(Duration::from_secs(2), async {
+        while paths.lock().unwrap().len() != 4 {
+            tokio::time::sleep(Duration::from_millis(5)).await;
+        }
+    })
+    .await
+    .expect("all four distinct subreddit flights must reach real Reddit transport");
+    release.send_replace(true);
+    let mut ids = std::collections::BTreeSet::new();
+    for task in pending {
+        assert!(ids.insert(task.await.unwrap()));
+    }
+    peer.await.unwrap();
+    for (scope, expected) in cases {
+        let response = service.search(proposal(scope)).await.unwrap();
+        assert!(
+            response.cached,
+            "each exact scope must have its own real Valkey hit"
+        );
+        assert_eq!(response.results[0].title, expected);
+        assert!(ids.insert(response.query_id));
+    }
+    let mut actual = paths.lock().unwrap().clone();
+    actual.sort();
+    let mut expected = cases.map(|(_, p)| p.to_owned()).to_vec();
+    expected.sort();
+    assert_eq!(
+        actual, expected,
+        "two waiters per scope coalesce only within that scope"
+    );
+    let mut connection = redis::Client::open(private.url.as_str())
+        .unwrap()
+        .get_multiplexed_async_connection()
+        .await
+        .unwrap();
+    let keys: Vec<String> = redis::cmd("KEYS")
+        .arg("search:*")
+        .query_async(&mut connection)
+        .await
+        .unwrap();
+    assert_eq!(keys.len(), 4, "exactly four canonical cache entries");
+    service.shutdown().await;
+}

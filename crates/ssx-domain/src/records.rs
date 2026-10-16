@@ -187,6 +187,7 @@ pub struct SearchResponse {
     pub cached_error: bool,
     pub ranking_explanation: String,
     pub dispatched_engine_count: i64,
+    pub date_filter: Option<crate::PublicationDateProof>,
 }
 impl Default for SearchResponse {
     fn default() -> Self {
@@ -209,6 +210,7 @@ impl Default for SearchResponse {
             cached_error: false,
             ranking_explanation: "tier_then_cross_engine_presence".into(),
             dispatched_engine_count: 0,
+            date_filter: None,
         }
     }
 }

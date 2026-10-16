@@ -3,15 +3,15 @@
   "baseline_sha": "20109f9083babd014971951e8c02565ae51c2326",
   "source": "Pinned F01 baseline inventory plus reviewed post-baseline additions recorded in DRIFT.md; source-set validation refreshed at acceptance.",
   "summary": {
-    "tracked_python_source_count": 377,
+    "tracked_python_source_count": 383,
     "extensionless_python_entrypoints": 1,
     "executable_config_python_invocation_lines": 63,
     "interpreter_configuration_lines": 106,
     "documentation_shebang_script_count": 8,
     "documented_example_invocation_references": 49,
     "source_classifications": {
+      "backend-coupled tooling/test": 260,
       "backend/runtime": 122,
-      "backend-coupled tooling/test": 254,
       "client-only": 1
     },
     "documentation_file_modes": {
@@ -19,8 +19,8 @@
     },
     "source_path_set_validation": {
       "method": "sorted exact-set comparison between git ls-files paths ending .py/.pyw/.pyi plus ssx and files[].path",
-      "tracked_expected_count": 377,
-      "manifest_count": 377,
+      "tracked_expected_count": 383,
+      "manifest_count": 383,
       "exact_match": true,
       "extensionless_python_paths": [
         "ssx"
@@ -54,6 +54,45 @@
       "migration_owners": [
         "O02"
       ]
+    },
+    {
+      "path": "docs/rust-rewrite/a02/oracle/export.py",
+      "classification": "backend-coupled tooling/test",
+      "migration_owner": "A02",
+      "migration_owners": [
+        "A02",
+        "G08"
+      ],
+      "disposition": "temporary_developer_oracle_retire_before_backend_removal",
+      "evidence": "A02 source-bound offline CPython3.14.7/httpx0.28.1/lxml6.1.1 package-registry response/request observations; mandatory native gates consume immutable JSON only.",
+      "reason": "No provider calls or runtime/client exception; G08 removes executable Python before backend removal.",
+      "introduced_after_baseline": "025ab2f2d50febcb573ba62579eecf7e2d07ef3a"
+    },
+    {
+      "path": "docs/rust-rewrite/a02/oracle/export_extra.py",
+      "classification": "backend-coupled tooling/test",
+      "migration_owner": "A02",
+      "migration_owners": [
+        "A02",
+        "G08"
+      ],
+      "disposition": "temporary_developer_oracle_retire_before_backend_removal",
+      "evidence": "A02 source-bound offline CPython3.14.7/httpx0.28.1/lxml6.1.1 package-registry response/request observations; mandatory native gates consume immutable JSON only.",
+      "reason": "No provider calls or runtime/client exception; G08 removes executable Python before backend removal.",
+      "introduced_after_baseline": "025ab2f2d50febcb573ba62579eecf7e2d07ef3a"
+    },
+    {
+      "path": "docs/rust-rewrite/a03/capture.py",
+      "classification": "backend-coupled tooling/test",
+      "migration_owner": "A03",
+      "migration_owners": [
+        "A03",
+        "G08"
+      ],
+      "disposition": "temporary_developer_oracle_retire_before_backend_removal",
+      "evidence": "Developer-only pinned Python3.14.7/HTTPX0.28.1 unmodified GitHub/HuggingFace/StackExchange/HackerNews observations with injected offline transport; mandatory A03 gate consumes JSON only.",
+      "reason": "No provider calls; not a runtime/client exception. G08 removes executable Python before backend removal.",
+      "introduced_after_baseline": "35d97ccf8c9b2d8246373b2024cc8d7a457705a3"
     },
     {
       "path": "docs/rust-rewrite/a04/oracle/export_cases.py",
@@ -145,6 +184,45 @@
       "evidence": "Pinned Python3.14.7/MCP2.3.0/FastMCP4.0.11 offline source choices, request bytes, config and cache identities; native gates consume immutable JSON only.",
       "reason": "No provider calls; not a runtime/client exception. G08 removes executable Python before backend removal.",
       "introduced_after_baseline": "6ae5e34fed19e8e9da7c19b95eeea894512f0e6d"
+    },
+    {
+      "path": "docs/rust-rewrite/f13/capture.py",
+      "classification": "backend-coupled tooling/test",
+      "migration_owner": "F13",
+      "migration_owners": [
+        "F13",
+        "G08"
+      ],
+      "disposition": "temporary_developer_oracle_retire_before_backend_removal",
+      "evidence": "F13 isolated Python 3.14.7 captures actual accepted-source cache keys/TTL/views and snapshot legacy/read/write/reverse compatibility. No providers; native gates replay JSON only.",
+      "reason": "Temporary source oracle; G08 retires executable Python after the rollback window, retaining immutable source observations.",
+      "introduced_after_baseline": "35d97ccf8c9b2d8246373b2024cc8d7a457705a3"
+    },
+    {
+      "path": "docs/rust-rewrite/f14/capture.py",
+      "classification": "backend-coupled tooling/test",
+      "migration_owner": "F14",
+      "migration_owners": [
+        "F14",
+        "G08"
+      ],
+      "disposition": "temporary_developer_oracle_retire_before_backend_removal",
+      "evidence": "Developer-only actual Python3.14.7 source observations at 730c37a5f48b9830088594582cefb4c2f10a35e8 with local synthetic adapters and memory ports; mandatory F14 gate consumes immutable JSON only.",
+      "reason": "No provider calls or runtime exception. G08 retires executable source capture before backend removal.",
+      "introduced_after_baseline": "730c37a5f48b9830088594582cefb4c2f10a35e8"
+    },
+    {
+      "path": "docs/rust-rewrite/f14/capture_dates.py",
+      "classification": "backend-coupled tooling/test",
+      "migration_owner": "F14",
+      "migration_owners": [
+        "F14",
+        "G08"
+      ],
+      "disposition": "temporary_developer_oracle_retire_before_backend_removal",
+      "evidence": "Developer-only actual Python3.14.7 source observations at d207d4496129d496fe8a74b040ebe1a71151b6f9 with local synthetic adapters and memory ports; mandatory F14 gate consumes immutable JSON only.",
+      "reason": "No provider calls or runtime exception. G08 retires executable source capture before backend removal.",
+      "introduced_after_baseline": "730c37a5f48b9830088594582cefb4c2f10a35e8"
     },
     {
       "path": "docs/rust-rewrite/replay/oracle/export.py",

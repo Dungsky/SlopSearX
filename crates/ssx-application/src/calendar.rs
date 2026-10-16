@@ -39,7 +39,7 @@ fn civil_from_days(days: i64) -> (i64, i64, i64) {
     y += i64::from(m <= 2);
     (y, m, d)
 }
-pub(crate) fn iso_timestamp(seconds: f64) -> Result<String, DomainError> {
+pub fn iso_timestamp(seconds: f64) -> Result<String, DomainError> {
     if !seconds.is_finite() || !(-62_135_596_800.0..253_402_300_800.0).contains(&seconds) {
         return Err(DomainError(
             "health timestamp outside source datetime range",

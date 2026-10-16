@@ -5,8 +5,9 @@ repos:
       # Keep historical raw captures byte-exact; validation hooks still inspect them.
       - id: trailing-whitespace
         exclude: ^docs/experiments/evidence/(.*\.(json|txt)|EXP-003/reproduce\.md)$
+      # F13 raw fixture proves exact durable bytes; check-json remains enabled.
       - id: end-of-file-fixer
-        exclude: ^docs/experiments/evidence/(.*\.(json|txt)|EXP-003/reproduce\.md)$
+        exclude: ^(docs/experiments/evidence/(.*\.(json|txt)|EXP-003/reproduce\.md)|crates/xtask/fixtures/f13/native-record\.json)$
       - id: check-yaml
       - id: check-toml
       - id: check-json

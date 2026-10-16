@@ -2479,6 +2479,8 @@ version = "0.1.0"
 dependencies = [
  "aws-lc-rs",
  "base64",
+ "chrono",
+ "encoding_rs",
  "flate2",
  "quick-xml",
  "rcgen",
