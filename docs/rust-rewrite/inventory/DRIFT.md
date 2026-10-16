@@ -558,3 +558,7 @@ The F15 source-bound gate adds exactly two temporary developer-only Python expor
 ## W11 integration with accepted F15
 
 The additive union preserves both original inventories and all historical source pins:387 Python source paths,264 backend-coupled tooling/test paths and28 developer oracle invocations. Both W11 and F15 native gates and retained artifacts remain enabled. This records integration preparation; merged-head validation remains required.
+
+## W04 saved-runner source oracle inventory correction
+
+W04 adds the temporary offline synthetic `docs/rust-rewrite/w04/capture_source.py` producer. Its existing local oracle inventory did not update the global F01 source set; this correction adds its exact source binding, backend-coupled tooling/test classification, W04/G08 ownership and reproduction guidance. The guidance is not an execution receipt. Existing source/invocation records remain unchanged: the additive union is388 Python source paths,265 backend-coupled tooling/test paths and29 developer-oracle invocation rows. Native runtime and mandatory gates never execute the exporter; the W04 gate hash-reads it as a temporary source artifact. G08 retires executable Python before backend removal and retains immutable JSON observations/provenance.

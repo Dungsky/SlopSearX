@@ -3,14 +3,14 @@
   "baseline_sha": "20109f9083babd014971951e8c02565ae51c2326",
   "source": "Pinned F01 baseline inventory plus reviewed post-baseline additions recorded in DRIFT.md; source-set validation refreshed at acceptance.",
   "summary": {
-    "tracked_python_source_count": 387,
+    "tracked_python_source_count": 388,
     "extensionless_python_entrypoints": 1,
     "executable_config_python_invocation_lines": 63,
     "interpreter_configuration_lines": 106,
     "documentation_shebang_script_count": 8,
     "documented_example_invocation_references": 49,
     "source_classifications": {
-      "backend-coupled tooling/test": 264,
+      "backend-coupled tooling/test": 265,
       "backend/runtime": 122,
       "client-only": 1
     },
@@ -19,8 +19,8 @@
     },
     "source_path_set_validation": {
       "method": "sorted exact-set comparison between git ls-files paths ending .py/.pyw/.pyi plus ssx and files[].path",
-      "tracked_expected_count": 387,
-      "manifest_count": 387,
+      "tracked_expected_count": 388,
+      "manifest_count": 388,
       "exact_match": true,
       "extensionless_python_paths": [
         "ssx"
@@ -353,6 +353,19 @@
       "evidence": "W01 isolated developer-only source finish_attempt identity capture; accepted F11 public/synthetic URL inputs, no network/store; native gates read captured JSON only.",
       "reason": "Temporary backend-coupled reference oracle, not a runtime or client exception. G08 removes executable Python after native successor evidence is accepted.",
       "introduced_after_baseline": "cfd7a0af61a22cfd040a7fcd41ad950f82005959"
+    },
+    {
+      "path": "docs/rust-rewrite/w04/capture_source.py",
+      "classification": "backend-coupled tooling/test",
+      "migration_owner": "W04",
+      "migration_owners": [
+        "W04",
+        "G08"
+      ],
+      "disposition": "temporary_developer_oracle_retire_before_backend_removal",
+      "evidence": "Isolated CPython3.14.7 offline synthetic saved observation/comparison corpus producer; SHA256 718d4591e0d87ccad5f29023ccd3c2e4b568c73c291bdd4f80bf23b8fc99528d. Native runtime and mandatory gates never execute it; W04 gate hash-reads this source artifact.",
+      "reason": "Temporary developer oracle; G08 removes executable Python before backend removal while retaining immutable JSON observations.",
+      "introduced_after_baseline": "a97a7384"
     },
     {
       "path": "docs/rust-rewrite/w11/oracle/export.py",
