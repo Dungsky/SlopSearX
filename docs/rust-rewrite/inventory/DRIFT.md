@@ -207,3 +207,23 @@ and browser namespace drain/relogin consequences are recorded in
 [the T09 parity ledger](../t09/PARITY.md). No G04/G07 cutover is authorized or
 claimed by this module; legacy audit retention and durable workflow idempotency
 remain required handoff obligations.
+
+## T04 isolated OAuth reference
+
+T04 adds `docs/rust-rewrite/t04/capture.py` as a temporary, offline, exact-source
+migration oracle (T04/G08), not a runtime dependency or gate subprocess. It
+captures pinned SDK registration normalization and source provider state locally;
+no HTTP endpoint or provider is called. G08 removes it before backend retirement.
+The exact Python source union has 371 paths: 122 backend/runtime, 248
+backend-coupled tooling/test and one client-only. Existing runtime/oracle bytes
+and all historical baseline identities remain unchanged.
+
+## T04 and T09 accepted-main integration
+
+The union retains both independent temporary oracles exactly once: 372 Python
+source paths (122 backend/runtime, 249 backend-coupled tooling/test, one client-only)
+and nine developer-oracle invocations. T09 now has 76 source observations: the
+original 61 plus fifteen integer drain-setting cases. Historical section counts
+above describe their original isolated additions; existing runtime/source and
+prior oracle bytes remain unchanged. T04 is accepted at `403dfd3720e969fa829f426136bf0f05b0360c56`;
+T09 acceptance and combined-source qualification remain separate.

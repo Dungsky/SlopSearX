@@ -95,3 +95,4 @@ pub mod research;
 pub mod retry_after;
 
 pub mod browser_identity;
+pub mod oauth;
