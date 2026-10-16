@@ -6,7 +6,7 @@ use std::{collections::BTreeSet, path::Path};
 const CORPUS: &str = "4a83fb3db44894679213ba96941915dc12ad0bf00ad5cbfc691fb0410a86fc2e";
 const REVIEW: &str = "63bb5265fbc7e2228b121d44823a476b544a1968bbfd823791f50cdad515e81e";
 const REVIEW_2: &str = "fa247104d9829f24ec5d3ddd62c1c47cfb640e9dedd5e7edd8823fc4900302d2";
-const COVERAGE: &str = "4e37c9ffaf8b99fb3f81ad70dedb1bc3c8dcf2b93816a215188888e34118e70e";
+const COVERAGE: &str = "212cbe90ce1f7ebb4b96bacacccceca45ffdedd7866be825bd0704d32d37316a";
 const UNICODE_BOUNDARY: &str = "69e4594300a116e547a3eeca1b98a47a3f57dd3eade381bf083c1c7c57e97b4c";
 fn digest(bytes: &[u8]) -> String {
     Sha256::digest(bytes)
@@ -24,6 +24,45 @@ fn pinned(root: &Path, path: &str, pin: &str) -> Result<Value> {
 pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
     let corpus = pinned(root, "docs/rust-rewrite/a05/corpus.json", CORPUS)?;
     let coverage = pinned(root, "docs/rust-rewrite/a05/coverage.json", COVERAGE)?;
+    let maintenance = pinned(
+        root,
+        "docs/rust-rewrite/a05/producer-identity-amendments.json",
+        coverage["producer_maintenance_sha256"]
+            .as_str()
+            .ok_or("missing producer maintenance pin")?,
+    )?;
+    let producers = maintenance["producers"]
+        .as_array()
+        .ok_or("missing producer identities")?;
+    let mut producer_paths = BTreeSet::new();
+    if producers.len() != 53 {
+        return Err("A05 producer identity inventory incomplete".into());
+    }
+    for row in producers {
+        let path = row["path"].as_str().ok_or("missing producer path")?;
+        let bytes = std::fs::read(root.join(path)).map_err(|e| e.to_string())?;
+        if !producer_paths.insert(path)
+            || Some(digest(&bytes).as_str()) != row["after_sha256"].as_str()
+        {
+            return Err(format!("A05 maintained producer identity drift: {path}"));
+        }
+    }
+    let captures = maintenance["historical_json_captures"]
+        .as_array()
+        .ok_or("missing retained capture identities")?;
+    if captures.is_empty() {
+        return Err("A05 retained captures missing".into());
+    }
+    let mut capture_paths = BTreeSet::new();
+    for row in captures {
+        let path = row["path"]
+            .as_str()
+            .ok_or("missing retained capture path")?;
+        let bytes = std::fs::read(root.join(path)).map_err(|e| e.to_string())?;
+        if !capture_paths.insert(path) || Some(digest(&bytes).as_str()) != row["sha256"].as_str() {
+            return Err(format!("A05 historical capture drift: {path}"));
+        }
+    }
     let review = pinned(root, "docs/rust-rewrite/a05/corpus-review.json", REVIEW)?;
     if review["original_corpus_sha256"] != CORPUS
         || review["source_files"] != corpus["source_files"]
@@ -161,7 +200,7 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
         .iter()
         .filter_map(Value::as_str)
         .collect();
-    if expected_helpers.len() != 6 {
+    if expected_helpers.len() != 7 {
         return Err("A05 helper unit inventory incomplete".into());
     }
     let successors: BTreeSet<_> = expected.union(&expected_helpers).copied().collect();
@@ -296,7 +335,7 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
         .iter()
         .filter_map(Value::as_str)
         .collect();
-    if expected_helper_units.len() != 6 {
+    if expected_helper_units.len() != 7 {
         return Err("A05 unit inventory incomplete".into());
     }
     let helper_units_list = command(
@@ -341,7 +380,7 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
         .filter_map(|line| line.strip_prefix("test ")?.strip_suffix(" ... ok"))
         .collect();
     if passed_helper_units != expected_helper_units
-        || !helper_units_output.contains("6 passed; 0 failed; 0 ignored;")
+        || !helper_units_output.contains("7 passed; 0 failed; 0 ignored;")
     {
         return Err("A05 required units did not execute".into());
     }
@@ -409,9 +448,9 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
         .lines()
         .filter_map(|line| line.strip_prefix("test ")?.strip_suffix(" ... ok"))
         .collect();
-    if expected_wire.len() != 18
+    if expected_wire.len() != 26
         || passed_wire != expected_wire
-        || !wire_output.contains("18 passed; 0 failed; 0 ignored;")
+        || !wire_output.contains("26 passed; 0 failed; 0 ignored;")
     {
         return Err("A05 decoder wire tests did not all execute".into());
     }
@@ -504,7 +543,7 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
         .iter()
         .filter_map(Value::as_str)
         .collect();
-    if expected_codec_tests.len() != 16 {
+    if expected_codec_tests.len() != 71 {
         return Err("A05 codec test inventory incomplete".into());
     }
     let codec_list = command(
@@ -645,6 +684,34 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
     }) {
         return Err("A05 registry conformance cases did not all execute".into());
     }
+    for (key, package, selection, count) in [
+        (
+            "native_header_reader_tests",
+            "ssx-infra",
+            vec!["--lib", "adapters::http_headers::tests::"],
+            4,
+        ),
+        (
+            "native_process_unit_tests",
+            "ssx-infra",
+            vec!["--lib", "process_pool::cleanup_tests::"],
+            11,
+        ),
+        (
+            "native_process_integration_tests",
+            "ssx-infra",
+            vec!["--test", "a06_process_pool"],
+            6,
+        ),
+        (
+            "native_media_tests",
+            "ssx-domain",
+            vec!["--lib", "storage::media_url::tests::"],
+            5,
+        ),
+    ] {
+        qualify_exact_group(root, records, &coverage, key, package, &selection, count)?;
+    }
     records.push(json!({"contract":"A05","corpus_sha256":CORPUS,"coverage_sha256":COVERAGE,"review_corpus_sha256":REVIEW,"review_2_corpus_sha256":REVIEW_2,"executed_cases":completed,"native_tests":expected,"source_tests":source_tests,"scope":"offline HTML adapters through F06 factories/F08 sessions; explicit host-only cookie correction; no live provider or deployment claims","status":"passed"}));
     Ok(())
 }
@@ -702,6 +769,44 @@ fn qualify_helper_linkage(root: &Path, records: &mut Vec<Value>) -> Result<()> {
         }
     } else {
         return Err("A05 helper linkage target unqualified".into());
+    }
+    Ok(())
+}
+
+fn qualify_exact_group(
+    root: &Path,
+    records: &mut Vec<Value>,
+    coverage: &Value,
+    key: &str,
+    package: &str,
+    selection: &[&str],
+    count: usize,
+) -> Result<()> {
+    let rows = coverage[key].as_array().ok_or("missing native group")?;
+    let expected: BTreeSet<_> = rows.iter().filter_map(Value::as_str).collect();
+    if rows.len() != count || expected.len() != count {
+        return Err(format!("A05 invalid group: {key}"));
+    }
+    let mut args = vec!["test", "--locked", "-p", package];
+    args.extend_from_slice(selection);
+    let mut listing = args.clone();
+    listing.extend_from_slice(&["--", "--list"]);
+    let listed = command(root, "cargo", &listing, records)?;
+    let actual: BTreeSet<_> = listed
+        .lines()
+        .filter_map(|line| line.strip_suffix(": test"))
+        .collect();
+    if actual != expected {
+        return Err(format!("A05 missing/extra tests: {key}"));
+    }
+    args.extend_from_slice(&["--", "--nocapture"]);
+    let output = command(root, "cargo", &args, records)?;
+    let passed: BTreeSet<_> = output
+        .lines()
+        .filter_map(|line| line.strip_prefix("test ")?.strip_suffix(" ... ok"))
+        .collect();
+    if passed != expected || !output.contains(&format!("{count} passed; 0 failed; 0 ignored;")) {
+        return Err(format!("A05 group did not execute completely: {key}"));
     }
     Ok(())
 }

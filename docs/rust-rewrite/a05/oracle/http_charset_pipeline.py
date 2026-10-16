@@ -48,9 +48,16 @@ async def main(output):
     for engine in ["duckduckgo", "google"]:
         for name, headers, encoding in variants:
             body = (
-                '<div class="result"><a class="result__a" href="https://example.test/cafe">Café</a><span class="result__snippet">Résumé</span></div>'
+                (
+                    '<div class="result"><a class="result__a" href="https://example.t'
+                    'est/cafe">Café</a><span class="result__snippet">Résumé</span></d'
+                    "iv>"
+                )
                 if engine == "duckduckgo"
-                else '<div class="g"><a href="https://example.test/cafe"><h3>Café</h3></a><span class="aCOpRe">Résumé</span></div>'
+                else (
+                    '<div class="g"><a href="https://example.test/cafe"><h3>Café</h3>'
+                    '</a><span class="aCOpRe">Résumé</span></div>'
+                )
             )
             raw = b"" if encoding == "empty" else body.encode(encoding)
             exchanges = [] if engine == "google" else [oracle.ex(oracle.HOME)]

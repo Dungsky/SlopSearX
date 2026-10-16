@@ -624,3 +624,37 @@ captures remain unchanged; document pins are not refreshed to manufacture a
 passing gate. All main registrations, gates and artifacts remain present, with
 A05 added separately. Integrated runtime, platform and exact-head qualification
 remain pending.
+
+## A05 final Python producer reconciliation (review proposal)
+
+The exact current tracked set is456 Python source paths, including56 newly
+classified A05/adopted provenance paths. All400 prior complete records and all41
+actual developer-oracle invocation records remain unchanged. Four upstream
+licensed Python originals are historical evidence and must leave the runnable
+backend/helper tree at G08;52 tools are temporary manual source or derivation
+producers. A separate52-entry AST-derived invocation-guidance appendix describes
+actual arguments and output sites without claiming CI execution or recapture.
+The native A05 gate consumes retained JSON/binary observations only.
+
+Current documentary fixture bindings and the current A05 exporter binding are
+proposed separately from historical source identities; previous fixture blobs
+remain recorded in the immutable reconciliation receipt. No adapter-source or
+raw-capture pin changes. Full G08 removal and final package/platform qualification
+remain pending.
+
+## A05 authored producer maintenance and immutable hook policy
+
+The complete456 original classification records and41 historical developer
+invocations remain unchanged. Current AST-equivalent maintenance identities for
+53 authored producers (52 new tools plus the previously registered exporter)
+are separate in `a05/producer-identity-amendments.json`; original source Git
+blobs and full classification rows remain retained there. Historical capture
+and generation producer hashes describe the original executions and are not
+repinned to imply recapture. The only AST normalization splits multi-alias
+imports into consecutive singleton imports in identical execution order.
+
+Exact40 immutable source/provenance/fixture paths are excluded only from
+modifying text hooks; four licensed upstream Python originals additionally
+avoid Ruff modification. Existing validators remain enabled. Authored producers
+retain lint/format checks; intentional bootstrap/import/API names use reviewed
+line-local annotations. The unrelated baseline saved-method test is preserved.

@@ -8654,5 +8654,1717 @@
       ],
       "disposition": "retain source-captured JSON; retire executable Python before backend removal"
     }
+  ],
+  "developer_tool_invocation_guidance": [
+    {
+      "example_path": "docs/rust-rewrite/a05/oracle/algorithm_strict_source.py",
+      "classification": "temporary actual-source migration oracle; manual offline developer use only",
+      "migration_owner": "A05",
+      "retirement_owner": "G08",
+      "interpreter": "/private/tmp/slopsearx-rust-oracle-py314/bin/python",
+      "mandatory_native_gate": false,
+      "provider_calls_authorized": false,
+      "cli_arguments": [
+        {
+          "positional_literals": [
+            "--tests"
+          ],
+          "keywords": {
+            "type": "Path",
+            "required": "True"
+          }
+        },
+        {
+          "positional_literals": [
+            "--output"
+          ],
+          "keywords": {
+            "type": "Path",
+            "required": "True"
+          }
+        }
+      ],
+      "output_expressions": [
+        "a.output / 'manifest.json'",
+        "a.output / file"
+      ],
+      "legacy_positional_output": null,
+      "evidence": "AST-inspected CLI declarations and output write sites; this is invocation guidance, not a claim of an executable CI/config reference or a new qualified source capture.",
+      "disposition": "temporary_developer_oracle_or_generator_retire_before_backend_removal"
+    },
+    {
+      "example_path": "docs/rust-rewrite/a05/oracle/alias_only_generate.py",
+      "classification": "offline derivation or verifier tooling; manual offline developer use only",
+      "migration_owner": "A05",
+      "retirement_owner": "G08",
+      "interpreter": "/private/tmp/slopsearx-rust-oracle-py314/bin/python",
+      "mandatory_native_gate": false,
+      "provider_calls_authorized": false,
+      "cli_arguments": [
+        {
+          "positional_literals": [
+            "--aliases"
+          ],
+          "keywords": {
+            "type": "Path",
+            "required": "True"
+          }
+        },
+        {
+          "positional_literals": [
+            "--registry"
+          ],
+          "keywords": {
+            "type": "Path",
+            "required": "True"
+          }
+        },
+        {
+          "positional_literals": [
+            "--output"
+          ],
+          "keywords": {
+            "type": "Path",
+            "required": "True"
+          }
+        }
+      ],
+      "output_expressions": [
+        "a.output"
+      ],
+      "legacy_positional_output": null,
+      "evidence": "AST-inspected CLI declarations and output write sites; this is invocation guidance, not a claim of an executable CI/config reference or a new qualified source capture.",
+      "disposition": "temporary_developer_oracle_or_generator_retire_before_backend_removal"
+    },
+    {
+      "example_path": "docs/rust-rewrite/a05/oracle/bound_inventory.py",
+      "classification": "offline derivation or verifier tooling; manual offline developer use only",
+      "migration_owner": "A05",
+      "retirement_owner": "G08",
+      "interpreter": "/private/tmp/slopsearx-rust-oracle-py314/bin/python",
+      "mandatory_native_gate": false,
+      "provider_calls_authorized": false,
+      "cli_arguments": [
+        {
+          "positional_literals": [
+            "--output"
+          ],
+          "keywords": {
+            "type": "Path",
+            "required": "True"
+          }
+        }
+      ],
+      "output_expressions": [
+        "args.output"
+      ],
+      "legacy_positional_output": null,
+      "evidence": "AST-inspected CLI declarations and output write sites; this is invocation guidance, not a claim of an executable CI/config reference or a new qualified source capture.",
+      "disposition": "temporary_developer_oracle_or_generator_retire_before_backend_removal"
+    },
+    {
+      "example_path": "docs/rust-rewrite/a05/oracle/cjk_strict_error_records.py",
+      "classification": "offline derivation or verifier tooling; manual offline developer use only",
+      "migration_owner": "A05",
+      "retirement_owner": "G08",
+      "interpreter": "/private/tmp/slopsearx-rust-oracle-py314/bin/python",
+      "mandatory_native_gate": false,
+      "provider_calls_authorized": false,
+      "cli_arguments": [
+        {
+          "positional_literals": [
+            "--validity"
+          ],
+          "keywords": {
+            "type": "Path",
+            "required": "True"
+          }
+        },
+        {
+          "positional_literals": [
+            "--tables"
+          ],
+          "keywords": {
+            "type": "Path",
+            "required": "True"
+          }
+        },
+        {
+          "positional_literals": [
+            "--output"
+          ],
+          "keywords": {
+            "type": "Path",
+            "required": "True"
+          }
+        }
+      ],
+      "output_expressions": [
+        "a.output"
+      ],
+      "legacy_positional_output": null,
+      "evidence": "AST-inspected CLI declarations and output write sites; this is invocation guidance, not a claim of an executable CI/config reference or a new qualified source capture.",
+      "disposition": "temporary_developer_oracle_or_generator_retire_before_backend_removal"
+    },
+    {
+      "example_path": "docs/rust-rewrite/a05/oracle/cjk_strict_validity_source.py",
+      "classification": "temporary actual-source migration oracle; manual offline developer use only",
+      "migration_owner": "A05",
+      "retirement_owner": "G08",
+      "interpreter": "/private/tmp/slopsearx-rust-oracle-py314/bin/python",
+      "mandatory_native_gate": false,
+      "provider_calls_authorized": false,
+      "cli_arguments": [
+        {
+          "positional_literals": [
+            "--output"
+          ],
+          "keywords": {
+            "type": "Path",
+            "required": "True"
+          }
+        }
+      ],
+      "output_expressions": [
+        "a.output / 'manifest.json'",
+        "out"
+      ],
+      "legacy_positional_output": null,
+      "evidence": "AST-inspected CLI declarations and output write sites; this is invocation guidance, not a claim of an executable CI/config reference or a new qualified source capture.",
+      "disposition": "temporary_developer_oracle_or_generator_retire_before_backend_removal"
+    },
+    {
+      "example_path": "docs/rust-rewrite/a05/oracle/doublebyte.py",
+      "classification": "temporary actual-source migration oracle; manual offline developer use only",
+      "migration_owner": "A05",
+      "retirement_owner": "G08",
+      "interpreter": "/private/tmp/slopsearx-rust-oracle-py314/bin/python",
+      "mandatory_native_gate": false,
+      "provider_calls_authorized": false,
+      "cli_arguments": [
+        {
+          "positional_literals": [
+            "--output"
+          ],
+          "keywords": {
+            "type": "Path",
+            "required": "True"
+          }
+        }
+      ],
+      "output_expressions": [
+        "args.output / 'manifest.json'",
+        "args.output / (codec + '.source-pairs.bin')",
+        "args.output / (codec + '.source-streams.json')",
+        "args.output / (codec + '.triples.bin')",
+        "args.output / (codec + '.source-triples.bin')",
+        "args.output / (codec + '.single.bin')",
+        "args.output / (codec + '.pairs.bin')"
+      ],
+      "legacy_positional_output": null,
+      "evidence": "AST-inspected CLI declarations and output write sites; this is invocation guidance, not a claim of an executable CI/config reference or a new qualified source capture.",
+      "disposition": "temporary_developer_oracle_or_generator_retire_before_backend_removal"
+    },
+    {
+      "example_path": "docs/rust-rewrite/a05/oracle/euckr_vectors.py",
+      "classification": "temporary actual-source migration oracle; manual offline developer use only",
+      "migration_owner": "A05",
+      "retirement_owner": "G08",
+      "interpreter": "/private/tmp/slopsearx-rust-oracle-py314/bin/python",
+      "mandatory_native_gate": false,
+      "provider_calls_authorized": false,
+      "cli_arguments": [
+        {
+          "positional_literals": [
+            "--output"
+          ],
+          "keywords": {
+            "type": "Path",
+            "required": "True"
+          }
+        }
+      ],
+      "output_expressions": [
+        "args.output"
+      ],
+      "legacy_positional_output": null,
+      "evidence": "AST-inspected CLI declarations and output write sites; this is invocation guidance, not a claim of an executable CI/config reference or a new qualified source capture.",
+      "disposition": "temporary_developer_oracle_or_generator_retire_before_backend_removal"
+    },
+    {
+      "example_path": "docs/rust-rewrite/a05/oracle/gb18030_vectors.py",
+      "classification": "temporary actual-source migration oracle; manual offline developer use only",
+      "migration_owner": "A05",
+      "retirement_owner": "G08",
+      "interpreter": "/private/tmp/slopsearx-rust-oracle-py314/bin/python",
+      "mandatory_native_gate": false,
+      "provider_calls_authorized": false,
+      "cli_arguments": [
+        {
+          "positional_literals": [
+            "--output"
+          ],
+          "keywords": {
+            "type": "Path",
+            "required": "True"
+          }
+        }
+      ],
+      "output_expressions": [
+        "args.output"
+      ],
+      "legacy_positional_output": null,
+      "evidence": "AST-inspected CLI declarations and output write sites; this is invocation guidance, not a claim of an executable CI/config reference or a new qualified source capture.",
+      "disposition": "temporary_developer_oracle_or_generator_retire_before_backend_removal"
+    },
+    {
+      "example_path": "docs/rust-rewrite/a05/oracle/hkscs_independent.py",
+      "classification": "offline derivation or verifier tooling; manual offline developer use only",
+      "migration_owner": "A05",
+      "retirement_owner": "G08",
+      "interpreter": "/private/tmp/slopsearx-rust-oracle-py314/bin/python",
+      "mandatory_native_gate": false,
+      "provider_calls_authorized": false,
+      "cli_arguments": [
+        {
+          "positional_literals": [
+            "--index"
+          ],
+          "keywords": {
+            "type": "Path",
+            "required": "True"
+          }
+        },
+        {
+          "positional_literals": [
+            "--core"
+          ],
+          "keywords": {
+            "type": "Path",
+            "required": "True"
+          }
+        },
+        {
+          "positional_literals": [
+            "--validity"
+          ],
+          "keywords": {
+            "type": "Path",
+            "required": "True"
+          }
+        },
+        {
+          "positional_literals": [
+            "--output"
+          ],
+          "keywords": {
+            "type": "Path",
+            "required": "True"
+          }
+        },
+        {
+          "positional_literals": [
+            "--single-output"
+          ],
+          "keywords": {
+            "type": "Path",
+            "required": "True"
+          }
+        }
+      ],
+      "output_expressions": [
+        "args.output",
+        "args.single_output"
+      ],
+      "legacy_positional_output": null,
+      "evidence": "AST-inspected CLI declarations and output write sites; this is invocation guidance, not a claim of an executable CI/config reference or a new qualified source capture.",
+      "disposition": "temporary_developer_oracle_or_generator_retire_before_backend_removal"
+    },
+    {
+      "example_path": "docs/rust-rewrite/a05/oracle/hkscs_validity.py",
+      "classification": "temporary actual-source migration oracle; manual offline developer use only",
+      "migration_owner": "A05",
+      "retirement_owner": "G08",
+      "interpreter": "/private/tmp/slopsearx-rust-oracle-py314/bin/python",
+      "mandatory_native_gate": false,
+      "provider_calls_authorized": false,
+      "cli_arguments": [
+        {
+          "positional_literals": [
+            "--output"
+          ],
+          "keywords": {
+            "type": "Path",
+            "required": "True"
+          }
+        }
+      ],
+      "output_expressions": [
+        "args.output"
+      ],
+      "legacy_positional_output": null,
+      "evidence": "AST-inspected CLI declarations and output write sites; this is invocation guidance, not a claim of an executable CI/config reference or a new qualified source capture.",
+      "disposition": "temporary_developer_oracle_or_generator_retire_before_backend_removal"
+    },
+    {
+      "example_path": "docs/rust-rewrite/a05/oracle/hz_vectors.py",
+      "classification": "temporary actual-source migration oracle; manual offline developer use only",
+      "migration_owner": "A05",
+      "retirement_owner": "G08",
+      "interpreter": "/private/tmp/slopsearx-rust-oracle-py314/bin/python",
+      "mandatory_native_gate": false,
+      "provider_calls_authorized": false,
+      "cli_arguments": [
+        {
+          "positional_literals": [
+            "--output"
+          ],
+          "keywords": {
+            "type": "Path",
+            "required": "True"
+          }
+        }
+      ],
+      "output_expressions": [
+        "args.output"
+      ],
+      "legacy_positional_output": null,
+      "evidence": "AST-inspected CLI declarations and output write sites; this is invocation guidance, not a claim of an executable CI/config reference or a new qualified source capture.",
+      "disposition": "temporary_developer_oracle_or_generator_retire_before_backend_removal"
+    },
+    {
+      "example_path": "docs/rust-rewrite/a05/oracle/idna_all_points_source.py",
+      "classification": "temporary actual-source migration oracle; manual offline developer use only",
+      "migration_owner": "A05",
+      "retirement_owner": "G08",
+      "interpreter": "/private/tmp/slopsearx-rust-oracle-py314/bin/python",
+      "mandatory_native_gate": false,
+      "provider_calls_authorized": false,
+      "cli_arguments": [
+        {
+          "positional_literals": [
+            "--output"
+          ],
+          "keywords": {
+            "type": "Path",
+            "required": "True"
+          }
+        }
+      ],
+      "output_expressions": [
+        "a.output"
+      ],
+      "legacy_positional_output": null,
+      "evidence": "AST-inspected CLI declarations and output write sites; this is invocation guidance, not a claim of an executable CI/config reference or a new qualified source capture.",
+      "disposition": "temporary_developer_oracle_or_generator_retire_before_backend_removal"
+    },
+    {
+      "example_path": "docs/rust-rewrite/a05/oracle/idna_direct_source.py",
+      "classification": "temporary actual-source migration oracle; manual offline developer use only",
+      "migration_owner": "A05",
+      "retirement_owner": "G08",
+      "interpreter": "/private/tmp/slopsearx-rust-oracle-py314/bin/python",
+      "mandatory_native_gate": false,
+      "provider_calls_authorized": false,
+      "cli_arguments": [
+        {
+          "positional_literals": [
+            "--source"
+          ],
+          "keywords": {
+            "type": "Path",
+            "required": "True"
+          }
+        },
+        {
+          "positional_literals": [
+            "--output"
+          ],
+          "keywords": {
+            "type": "Path",
+            "required": "True"
+          }
+        }
+      ],
+      "output_expressions": [
+        "args.output"
+      ],
+      "legacy_positional_output": null,
+      "evidence": "AST-inspected CLI declarations and output write sites; this is invocation guidance, not a claim of an executable CI/config reference or a new qualified source capture.",
+      "disposition": "temporary_developer_oracle_or_generator_retire_before_backend_removal"
+    },
+    {
+      "example_path": "docs/rust-rewrite/a05/oracle/idna_profile_generate.py",
+      "classification": "offline derivation or verifier tooling; manual offline developer use only",
+      "migration_owner": "A05",
+      "retirement_owner": "G08",
+      "interpreter": "/private/tmp/slopsearx-rust-oracle-py314/bin/python",
+      "mandatory_native_gate": false,
+      "provider_calls_authorized": false,
+      "cli_arguments": [
+        {
+          "positional_literals": [
+            "--inputs"
+          ],
+          "keywords": {
+            "type": "Path",
+            "required": "True"
+          }
+        },
+        {
+          "positional_literals": [
+            "--output"
+          ],
+          "keywords": {
+            "type": "Path",
+            "required": "True"
+          }
+        }
+      ],
+      "output_expressions": [
+        "args.output"
+      ],
+      "legacy_positional_output": null,
+      "evidence": "AST-inspected CLI declarations and output write sites; this is invocation guidance, not a claim of an executable CI/config reference or a new qualified source capture.",
+      "disposition": "temporary_developer_oracle_or_generator_retire_before_backend_removal"
+    },
+    {
+      "example_path": "docs/rust-rewrite/a05/oracle/idna_profile_rust.py",
+      "classification": "offline derivation or verifier tooling; manual offline developer use only",
+      "migration_owner": "A05",
+      "retirement_owner": "G08",
+      "interpreter": "/private/tmp/slopsearx-rust-oracle-py314/bin/python",
+      "mandatory_native_gate": false,
+      "provider_calls_authorized": false,
+      "cli_arguments": [
+        {
+          "positional_literals": [
+            "--input"
+          ],
+          "keywords": {
+            "type": "Path",
+            "required": "True"
+          }
+        },
+        {
+          "positional_literals": [
+            "--output"
+          ],
+          "keywords": {
+            "type": "Path",
+            "required": "True"
+          }
+        }
+      ],
+      "output_expressions": [
+        "a.output"
+      ],
+      "legacy_positional_output": null,
+      "evidence": "AST-inspected CLI declarations and output write sites; this is invocation guidance, not a claim of an executable CI/config reference or a new qualified source capture.",
+      "disposition": "temporary_developer_oracle_or_generator_retire_before_backend_removal"
+    },
+    {
+      "example_path": "docs/rust-rewrite/a05/oracle/idna_selector.py",
+      "classification": "temporary actual-source migration oracle; manual offline developer use only",
+      "migration_owner": "A05",
+      "retirement_owner": "G08",
+      "interpreter": "/private/tmp/slopsearx-rust-oracle-py314/bin/python",
+      "mandatory_native_gate": false,
+      "provider_calls_authorized": false,
+      "cli_arguments": [
+        {
+          "positional_literals": [
+            "--policy"
+          ],
+          "keywords": {
+            "type": "Path",
+            "required": "True"
+          }
+        },
+        {
+          "positional_literals": [
+            "--output"
+          ],
+          "keywords": {
+            "type": "Path",
+            "required": "True"
+          }
+        }
+      ],
+      "output_expressions": [
+        "args.output"
+      ],
+      "legacy_positional_output": null,
+      "evidence": "AST-inspected CLI declarations and output write sites; this is invocation guidance, not a claim of an executable CI/config reference or a new qualified source capture.",
+      "disposition": "temporary_developer_oracle_or_generator_retire_before_backend_removal"
+    },
+    {
+      "example_path": "docs/rust-rewrite/a05/oracle/iso_maps.py",
+      "classification": "temporary actual-source migration oracle; manual offline developer use only",
+      "migration_owner": "A05",
+      "retirement_owner": "G08",
+      "interpreter": "/private/tmp/slopsearx-rust-oracle-py314/bin/python",
+      "mandatory_native_gate": false,
+      "provider_calls_authorized": false,
+      "cli_arguments": [
+        {
+          "positional_literals": [
+            "--output"
+          ],
+          "keywords": {
+            "type": "Path",
+            "required": "True"
+          }
+        }
+      ],
+      "output_expressions": [
+        "args.output / 'manifest.json'",
+        "args.output / (name + '.bin')"
+      ],
+      "legacy_positional_output": null,
+      "evidence": "AST-inspected CLI declarations and output write sites; this is invocation guidance, not a claim of an executable CI/config reference or a new qualified source capture.",
+      "disposition": "temporary_developer_oracle_or_generator_retire_before_backend_removal"
+    },
+    {
+      "example_path": "docs/rust-rewrite/a05/oracle/iso_vectors.py",
+      "classification": "temporary actual-source migration oracle; manual offline developer use only",
+      "migration_owner": "A05",
+      "retirement_owner": "G08",
+      "interpreter": "/private/tmp/slopsearx-rust-oracle-py314/bin/python",
+      "mandatory_native_gate": false,
+      "provider_calls_authorized": false,
+      "cli_arguments": [
+        {
+          "positional_literals": [
+            "--output"
+          ],
+          "keywords": {
+            "type": "Path",
+            "required": "True"
+          }
+        }
+      ],
+      "output_expressions": [
+        "args.output / 'manifest.json'",
+        "args.output / 'targeted.json'",
+        "args.output / (name + '.zlib')",
+        "args.output / (name + '.errors.json')"
+      ],
+      "legacy_positional_output": null,
+      "evidence": "AST-inspected CLI declarations and output write sites; this is invocation guidance, not a claim of an executable CI/config reference or a new qualified source capture.",
+      "disposition": "temporary_developer_oracle_or_generator_retire_before_backend_removal"
+    },
+    {
+      "example_path": "docs/rust-rewrite/a05/oracle/label_alias_source.py",
+      "classification": "temporary actual-source migration oracle; manual offline developer use only",
+      "migration_owner": "A05",
+      "retirement_owner": "G08",
+      "interpreter": "/private/tmp/slopsearx-rust-oracle-py314/bin/python",
+      "mandatory_native_gate": false,
+      "provider_calls_authorized": false,
+      "cli_arguments": [
+        {
+          "positional_literals": [
+            "--policy"
+          ],
+          "keywords": {
+            "type": "Path",
+            "required": "True"
+          }
+        },
+        {
+          "positional_literals": [
+            "--output"
+          ],
+          "keywords": {
+            "type": "Path",
+            "required": "True"
+          }
+        }
+      ],
+      "output_expressions": [
+        "a.output"
+      ],
+      "legacy_positional_output": null,
+      "evidence": "AST-inspected CLI declarations and output write sites; this is invocation guidance, not a claim of an executable CI/config reference or a new qualified source capture.",
+      "disposition": "temporary_developer_oracle_or_generator_retire_before_backend_removal"
+    },
+    {
+      "example_path": "docs/rust-rewrite/a05/oracle/label_alnum_generate.py",
+      "classification": "offline derivation or verifier tooling; manual offline developer use only",
+      "migration_owner": "A05",
+      "retirement_owner": "G08",
+      "interpreter": "/private/tmp/slopsearx-rust-oracle-py314/bin/python",
+      "mandatory_native_gate": false,
+      "provider_calls_authorized": false,
+      "cli_arguments": [
+        {
+          "positional_literals": [
+            "--unicode-data"
+          ],
+          "keywords": {
+            "type": "Path",
+            "required": "True"
+          }
+        },
+        {
+          "positional_literals": [
+            "--output"
+          ],
+          "keywords": {
+            "type": "Path",
+            "required": "True"
+          }
+        }
+      ],
+      "output_expressions": [
+        "a.output"
+      ],
+      "legacy_positional_output": null,
+      "evidence": "AST-inspected CLI declarations and output write sites; this is invocation guidance, not a claim of an executable CI/config reference or a new qualified source capture.",
+      "disposition": "temporary_developer_oracle_or_generator_retire_before_backend_removal"
+    },
+    {
+      "example_path": "docs/rust-rewrite/a05/oracle/label_alnum_rust.py",
+      "classification": "offline derivation or verifier tooling; manual offline developer use only",
+      "migration_owner": "A05",
+      "retirement_owner": "G08",
+      "interpreter": "/private/tmp/slopsearx-rust-oracle-py314/bin/python",
+      "mandatory_native_gate": false,
+      "provider_calls_authorized": false,
+      "cli_arguments": [
+        {
+          "positional_literals": [
+            "--ranges"
+          ],
+          "keywords": {
+            "type": "Path",
+            "required": "True"
+          }
+        },
+        {
+          "positional_literals": [
+            "--output"
+          ],
+          "keywords": {
+            "type": "Path",
+            "required": "True"
+          }
+        }
+      ],
+      "output_expressions": [
+        "args.output"
+      ],
+      "legacy_positional_output": null,
+      "evidence": "AST-inspected CLI declarations and output write sites; this is invocation guidance, not a claim of an executable CI/config reference or a new qualified source capture.",
+      "disposition": "temporary_developer_oracle_or_generator_retire_before_backend_removal"
+    },
+    {
+      "example_path": "docs/rust-rewrite/a05/oracle/label_alnum_source.py",
+      "classification": "temporary actual-source migration oracle; manual offline developer use only",
+      "migration_owner": "A05",
+      "retirement_owner": "G08",
+      "interpreter": "/private/tmp/slopsearx-rust-oracle-py314/bin/python",
+      "mandatory_native_gate": false,
+      "provider_calls_authorized": false,
+      "cli_arguments": [
+        {
+          "positional_literals": [
+            "--ranges"
+          ],
+          "keywords": {
+            "type": "Path",
+            "required": "True"
+          }
+        },
+        {
+          "positional_literals": [
+            "--output"
+          ],
+          "keywords": {
+            "type": "Path",
+            "required": "True"
+          }
+        }
+      ],
+      "output_expressions": [
+        "a.output"
+      ],
+      "legacy_positional_output": null,
+      "evidence": "AST-inspected CLI declarations and output write sites; this is invocation guidance, not a claim of an executable CI/config reference or a new qualified source capture.",
+      "disposition": "temporary_developer_oracle_or_generator_retire_before_backend_removal"
+    },
+    {
+      "example_path": "docs/rust-rewrite/a05/oracle/label_dotted_source.py",
+      "classification": "temporary actual-source migration oracle; manual offline developer use only",
+      "migration_owner": "A05",
+      "retirement_owner": "G08",
+      "interpreter": "/private/tmp/slopsearx-rust-oracle-py314/bin/python",
+      "mandatory_native_gate": false,
+      "provider_calls_authorized": false,
+      "cli_arguments": [
+        {
+          "positional_literals": [
+            "--policy"
+          ],
+          "keywords": {
+            "type": "Path",
+            "required": "True"
+          }
+        },
+        {
+          "positional_literals": [
+            "--output"
+          ],
+          "keywords": {
+            "type": "Path",
+            "required": "True"
+          }
+        }
+      ],
+      "output_expressions": [
+        "a.output"
+      ],
+      "legacy_positional_output": null,
+      "evidence": "AST-inspected CLI declarations and output write sites; this is invocation guidance, not a claim of an executable CI/config reference or a new qualified source capture.",
+      "disposition": "temporary_developer_oracle_or_generator_retire_before_backend_removal"
+    },
+    {
+      "example_path": "docs/rust-rewrite/a05/oracle/long_query.py",
+      "classification": "temporary actual-source migration oracle; manual offline developer use only",
+      "migration_owner": "A05",
+      "retirement_owner": "G08",
+      "interpreter": "/private/tmp/slopsearx-rust-oracle-py314/bin/python",
+      "mandatory_native_gate": false,
+      "provider_calls_authorized": false,
+      "cli_arguments": [
+        {
+          "positional_literals": [
+            "--output"
+          ],
+          "keywords": {
+            "type": "Path",
+            "required": "True"
+          }
+        }
+      ],
+      "output_expressions": [
+        "output"
+      ],
+      "legacy_positional_output": null,
+      "evidence": "AST-inspected CLI declarations and output write sites; this is invocation guidance, not a claim of an executable CI/config reference or a new qualified source capture.",
+      "disposition": "temporary_developer_oracle_or_generator_retire_before_backend_removal"
+    },
+    {
+      "example_path": "docs/rust-rewrite/a05/oracle/lower_ascii.py",
+      "classification": "temporary actual-source migration oracle; manual offline developer use only",
+      "migration_owner": "A05",
+      "retirement_owner": "G08",
+      "interpreter": "/private/tmp/slopsearx-rust-oracle-py314/bin/python",
+      "mandatory_native_gate": false,
+      "provider_calls_authorized": false,
+      "cli_arguments": [
+        {
+          "positional_literals": [
+            "--output"
+          ],
+          "keywords": {
+            "type": "Path",
+            "required": "True"
+          }
+        }
+      ],
+      "output_expressions": [
+        "args.output"
+      ],
+      "legacy_positional_output": null,
+      "evidence": "AST-inspected CLI declarations and output write sites; this is invocation guidance, not a claim of an executable CI/config reference or a new qualified source capture.",
+      "disposition": "temporary_developer_oracle_or_generator_retire_before_backend_removal"
+    },
+    {
+      "example_path": "docs/rust-rewrite/a05/oracle/nul_expanded.py",
+      "classification": "temporary actual-source migration oracle; manual offline developer use only",
+      "migration_owner": "A05",
+      "retirement_owner": "G08",
+      "interpreter": "/private/tmp/slopsearx-rust-oracle-py314/bin/python",
+      "mandatory_native_gate": false,
+      "provider_calls_authorized": false,
+      "cli_arguments": [
+        {
+          "positional_literals": [
+            "--native214"
+          ],
+          "keywords": {
+            "required": "True"
+          }
+        },
+        {
+          "positional_literals": [
+            "--native215"
+          ],
+          "keywords": {
+            "required": "True"
+          }
+        },
+        {
+          "positional_literals": [
+            "--output"
+          ],
+          "keywords": {
+            "type": "Path",
+            "required": "True"
+          }
+        }
+      ],
+      "output_expressions": [
+        "args.output"
+      ],
+      "legacy_positional_output": null,
+      "evidence": "AST-inspected CLI declarations and output write sites; this is invocation guidance, not a claim of an executable CI/config reference or a new qualified source capture.",
+      "disposition": "temporary_developer_oracle_or_generator_retire_before_backend_removal"
+    },
+    {
+      "example_path": "docs/rust-rewrite/a05/oracle/nul_versions.py",
+      "classification": "temporary actual-source migration oracle; manual offline developer use only",
+      "migration_owner": "A05",
+      "retirement_owner": "G08",
+      "interpreter": "/private/tmp/slopsearx-rust-oracle-py314/bin/python",
+      "mandatory_native_gate": false,
+      "provider_calls_authorized": false,
+      "cli_arguments": [
+        {
+          "positional_literals": [
+            "--native214"
+          ],
+          "keywords": {
+            "required": "True"
+          }
+        },
+        {
+          "positional_literals": [
+            "--native215"
+          ],
+          "keywords": {
+            "required": "True"
+          }
+        },
+        {
+          "positional_literals": [
+            "--output"
+          ],
+          "keywords": {
+            "type": "Path",
+            "required": "True"
+          }
+        }
+      ],
+      "output_expressions": [
+        "args.output"
+      ],
+      "legacy_positional_output": null,
+      "evidence": "AST-inspected CLI declarations and output write sites; this is invocation guidance, not a claim of an executable CI/config reference or a new qualified source capture.",
+      "disposition": "temporary_developer_oracle_or_generator_retire_before_backend_removal"
+    },
+    {
+      "example_path": "docs/rust-rewrite/a05/oracle/punycode_vectors.py",
+      "classification": "temporary actual-source migration oracle; manual offline developer use only",
+      "migration_owner": "A05",
+      "retirement_owner": "G08",
+      "interpreter": "/private/tmp/slopsearx-rust-oracle-py314/bin/python",
+      "mandatory_native_gate": false,
+      "provider_calls_authorized": false,
+      "cli_arguments": [],
+      "output_expressions": [
+        "Path(__import__('sys').argv[1])"
+      ],
+      "legacy_positional_output": "sys.argv[1] output path",
+      "evidence": "AST-inspected CLI declarations and output write sites; this is invocation guidance, not a claim of an executable CI/config reference or a new qualified source capture.",
+      "disposition": "temporary_developer_oracle_or_generator_retire_before_backend_removal"
+    },
+    {
+      "example_path": "docs/rust-rewrite/a05/oracle/rawescape_vectors.py",
+      "classification": "temporary actual-source migration oracle; manual offline developer use only",
+      "migration_owner": "A05",
+      "retirement_owner": "G08",
+      "interpreter": "/private/tmp/slopsearx-rust-oracle-py314/bin/python",
+      "mandatory_native_gate": false,
+      "provider_calls_authorized": false,
+      "cli_arguments": [],
+      "output_expressions": [
+        "Path(__import__('sys').argv[1])"
+      ],
+      "legacy_positional_output": "sys.argv[1] output path",
+      "evidence": "AST-inspected CLI declarations and output write sites; this is invocation guidance, not a claim of an executable CI/config reference or a new qualified source capture.",
+      "disposition": "temporary_developer_oracle_or_generator_retire_before_backend_removal"
+    },
+    {
+      "example_path": "docs/rust-rewrite/a05/oracle/singlebyte_icu_compare.py",
+      "classification": "offline derivation or verifier tooling; manual offline developer use only",
+      "migration_owner": "A05",
+      "retirement_owner": "G08",
+      "interpreter": "/private/tmp/slopsearx-rust-oracle-py314/bin/python",
+      "mandatory_native_gate": false,
+      "provider_calls_authorized": false,
+      "cli_arguments": [
+        {
+          "positional_literals": [
+            "--source"
+          ],
+          "keywords": {
+            "type": "Path",
+            "required": "True"
+          }
+        },
+        {
+          "positional_literals": [
+            "--native"
+          ],
+          "keywords": {
+            "type": "Path",
+            "required": "True"
+          }
+        },
+        {
+          "positional_literals": [
+            "--runtime-rust"
+          ],
+          "keywords": {
+            "type": "Path",
+            "required": "True"
+          }
+        },
+        {
+          "positional_literals": [
+            "--output"
+          ],
+          "keywords": {
+            "type": "Path",
+            "required": "True"
+          }
+        }
+      ],
+      "output_expressions": [
+        "args.output"
+      ],
+      "legacy_positional_output": null,
+      "evidence": "AST-inspected CLI declarations and output write sites; this is invocation guidance, not a claim of an executable CI/config reference or a new qualified source capture.",
+      "disposition": "temporary_developer_oracle_or_generator_retire_before_backend_removal"
+    },
+    {
+      "example_path": "docs/rust-rewrite/a05/oracle/singlebyte_icu_independent.py",
+      "classification": "offline derivation or verifier tooling; manual offline developer use only",
+      "migration_owner": "A05",
+      "retirement_owner": "G08",
+      "interpreter": "/private/tmp/slopsearx-rust-oracle-py314/bin/python",
+      "mandatory_native_gate": false,
+      "provider_calls_authorized": false,
+      "cli_arguments": [
+        {
+          "positional_literals": [
+            "--koi8-t"
+          ],
+          "keywords": {
+            "type": "Path",
+            "required": "True"
+          }
+        },
+        {
+          "positional_literals": [
+            "--hp-roman8"
+          ],
+          "keywords": {
+            "type": "Path",
+            "required": "True"
+          }
+        },
+        {
+          "positional_literals": [
+            "--output"
+          ],
+          "keywords": {
+            "type": "Path",
+            "required": "True"
+          }
+        }
+      ],
+      "output_expressions": [
+        "args.output / (name + '.single.bin')"
+      ],
+      "legacy_positional_output": null,
+      "evidence": "AST-inspected CLI declarations and output write sites; this is invocation guidance, not a claim of an executable CI/config reference or a new qualified source capture.",
+      "disposition": "temporary_developer_oracle_or_generator_retire_before_backend_removal"
+    },
+    {
+      "example_path": "docs/rust-rewrite/a05/oracle/singlebyte_icu_source.py",
+      "classification": "temporary actual-source migration oracle; manual offline developer use only",
+      "migration_owner": "A05",
+      "retirement_owner": "G08",
+      "interpreter": "/private/tmp/slopsearx-rust-oracle-py314/bin/python",
+      "mandatory_native_gate": false,
+      "provider_calls_authorized": false,
+      "cli_arguments": [
+        {
+          "positional_literals": [
+            "--output"
+          ],
+          "keywords": {
+            "type": "Path",
+            "required": "True"
+          }
+        }
+      ],
+      "output_expressions": [
+        "args.output"
+      ],
+      "legacy_positional_output": null,
+      "evidence": "AST-inspected CLI declarations and output write sites; this is invocation guidance, not a claim of an executable CI/config reference or a new qualified source capture.",
+      "disposition": "temporary_developer_oracle_or_generator_retire_before_backend_removal"
+    },
+    {
+      "example_path": "docs/rust-rewrite/a05/oracle/singlebyte_native_input.py",
+      "classification": "offline derivation or verifier tooling; manual offline developer use only",
+      "migration_owner": "A05",
+      "retirement_owner": "G08",
+      "interpreter": "/private/tmp/slopsearx-rust-oracle-py314/bin/python",
+      "mandatory_native_gate": false,
+      "provider_calls_authorized": false,
+      "cli_arguments": [
+        {
+          "positional_literals": [
+            "--policy"
+          ],
+          "keywords": {
+            "type": "Path",
+            "required": "True"
+          }
+        },
+        {
+          "positional_literals": [
+            "--output"
+          ],
+          "keywords": {
+            "type": "Path",
+            "required": "True"
+          }
+        }
+      ],
+      "output_expressions": [
+        "a.output"
+      ],
+      "legacy_positional_output": null,
+      "evidence": "AST-inspected CLI declarations and output write sites; this is invocation guidance, not a claim of an executable CI/config reference or a new qualified source capture.",
+      "disposition": "temporary_developer_oracle_or_generator_retire_before_backend_removal"
+    },
+    {
+      "example_path": "docs/rust-rewrite/a05/oracle/singlebyte_strict_validity.py",
+      "classification": "temporary actual-source migration oracle; manual offline developer use only",
+      "migration_owner": "A05",
+      "retirement_owner": "G08",
+      "interpreter": "/private/tmp/slopsearx-rust-oracle-py314/bin/python",
+      "mandatory_native_gate": false,
+      "provider_calls_authorized": false,
+      "cli_arguments": [
+        {
+          "positional_literals": [
+            "--policy"
+          ],
+          "keywords": {
+            "type": "Path",
+            "required": "True"
+          }
+        },
+        {
+          "positional_literals": [
+            "--output"
+          ],
+          "keywords": {
+            "type": "Path",
+            "required": "True"
+          }
+        }
+      ],
+      "output_expressions": [
+        "a.output"
+      ],
+      "legacy_positional_output": null,
+      "evidence": "AST-inspected CLI declarations and output write sites; this is invocation guidance, not a claim of an executable CI/config reference or a new qualified source capture.",
+      "disposition": "temporary_developer_oracle_or_generator_retire_before_backend_removal"
+    },
+    {
+      "example_path": "docs/rust-rewrite/a05/oracle/singlebyte_tables.py",
+      "classification": "offline derivation or verifier tooling; manual offline developer use only",
+      "migration_owner": "A05",
+      "retirement_owner": "G08",
+      "interpreter": "/private/tmp/slopsearx-rust-oracle-py314/bin/python",
+      "mandatory_native_gate": false,
+      "provider_calls_authorized": false,
+      "cli_arguments": [
+        {
+          "positional_literals": [
+            "--policy"
+          ],
+          "keywords": {
+            "type": "Path",
+            "required": "True"
+          }
+        },
+        {
+          "positional_literals": [
+            "--icu-tables"
+          ],
+          "keywords": {
+            "type": "Path",
+            "required": "True"
+          }
+        },
+        {
+          "positional_literals": [
+            "--output"
+          ],
+          "keywords": {
+            "type": "Path",
+            "required": "True"
+          }
+        }
+      ],
+      "output_expressions": [
+        "args.output / 'src/singlebyte.rs'",
+        "args.output / 'src/aliases.rs'"
+      ],
+      "legacy_positional_output": null,
+      "evidence": "AST-inspected CLI declarations and output write sites; this is invocation guidance, not a claim of an executable CI/config reference or a new qualified source capture.",
+      "disposition": "temporary_developer_oracle_or_generator_retire_before_backend_removal"
+    },
+    {
+      "example_path": "docs/rust-rewrite/a05/oracle/stateful_strict_source.py",
+      "classification": "temporary actual-source migration oracle; manual offline developer use only",
+      "migration_owner": "A05",
+      "retirement_owner": "G08",
+      "interpreter": "/private/tmp/slopsearx-rust-oracle-py314/bin/python",
+      "mandatory_native_gate": false,
+      "provider_calls_authorized": false,
+      "cli_arguments": [
+        {
+          "positional_literals": [
+            "--iso"
+          ],
+          "keywords": {
+            "type": "Path",
+            "required": "True"
+          }
+        },
+        {
+          "positional_literals": [
+            "--output"
+          ],
+          "keywords": {
+            "type": "Path",
+            "required": "True"
+          }
+        }
+      ],
+      "output_expressions": [
+        "a.output / 'iso-targeted.modes.zlib'",
+        "a.output / 'manifest.json'",
+        "a.output / file",
+        "a.output / file"
+      ],
+      "legacy_positional_output": null,
+      "evidence": "AST-inspected CLI declarations and output write sites; this is invocation guidance, not a claim of an executable CI/config reference or a new qualified source capture.",
+      "disposition": "temporary_developer_oracle_or_generator_retire_before_backend_removal"
+    },
+    {
+      "example_path": "docs/rust-rewrite/a05/oracle/storage_kind.py",
+      "classification": "temporary actual-source migration oracle; manual offline developer use only",
+      "migration_owner": "A05",
+      "retirement_owner": "G08",
+      "interpreter": "/private/tmp/slopsearx-rust-oracle-py314/bin/python",
+      "mandatory_native_gate": false,
+      "provider_calls_authorized": false,
+      "cli_arguments": [
+        {
+          "positional_literals": [
+            "--output"
+          ],
+          "keywords": {
+            "required": "True"
+          }
+        }
+      ],
+      "output_expressions": [
+        "Path(args.output)"
+      ],
+      "legacy_positional_output": null,
+      "evidence": "AST-inspected CLI declarations and output write sites; this is invocation guidance, not a claim of an executable CI/config reference or a new qualified source capture.",
+      "disposition": "temporary_developer_oracle_or_generator_retire_before_backend_removal"
+    },
+    {
+      "example_path": "docs/rust-rewrite/a05/oracle/strict_overflow_source.py",
+      "classification": "temporary actual-source migration oracle; manual offline developer use only",
+      "migration_owner": "A05",
+      "retirement_owner": "G08",
+      "interpreter": "/private/tmp/slopsearx-rust-oracle-py314/bin/python",
+      "mandatory_native_gate": false,
+      "provider_calls_authorized": false,
+      "cli_arguments": [
+        {
+          "positional_literals": [
+            "--punycode-source"
+          ],
+          "keywords": {
+            "type": "Path",
+            "required": "True"
+          }
+        },
+        {
+          "positional_literals": [
+            "--output"
+          ],
+          "keywords": {
+            "type": "Path",
+            "required": "True"
+          }
+        }
+      ],
+      "output_expressions": [
+        "a.output"
+      ],
+      "legacy_positional_output": null,
+      "evidence": "AST-inspected CLI declarations and output write sites; this is invocation guidance, not a claim of an executable CI/config reference or a new qualified source capture.",
+      "disposition": "temporary_developer_oracle_or_generator_retire_before_backend_removal"
+    },
+    {
+      "example_path": "docs/rust-rewrite/a05/oracle/strict_parameter_source.py",
+      "classification": "temporary actual-source migration oracle; manual offline developer use only",
+      "migration_owner": "A05",
+      "retirement_owner": "G08",
+      "interpreter": "/private/tmp/slopsearx-rust-oracle-py314/bin/python",
+      "mandatory_native_gate": false,
+      "provider_calls_authorized": false,
+      "cli_arguments": [
+        {
+          "positional_literals": [
+            "--policy"
+          ],
+          "keywords": {
+            "type": "Path",
+            "required": "True"
+          }
+        },
+        {
+          "positional_literals": [
+            "--output"
+          ],
+          "keywords": {
+            "type": "Path",
+            "required": "True"
+          }
+        }
+      ],
+      "output_expressions": [
+        "a.output"
+      ],
+      "legacy_positional_output": null,
+      "evidence": "AST-inspected CLI declarations and output write sites; this is invocation guidance, not a claim of an executable CI/config reference or a new qualified source capture.",
+      "disposition": "temporary_developer_oracle_or_generator_retire_before_backend_removal"
+    },
+    {
+      "example_path": "docs/rust-rewrite/a05/oracle/strict_validity_generate.py",
+      "classification": "offline derivation or verifier tooling; manual offline developer use only",
+      "migration_owner": "A05",
+      "retirement_owner": "G08",
+      "interpreter": "/private/tmp/slopsearx-rust-oracle-py314/bin/python",
+      "mandatory_native_gate": false,
+      "provider_calls_authorized": false,
+      "cli_arguments": [
+        {
+          "positional_literals": [
+            "--source-validity"
+          ],
+          "keywords": {
+            "type": "Path",
+            "required": "True"
+          }
+        },
+        {
+          "positional_literals": [
+            "--icu-inputs"
+          ],
+          "keywords": {
+            "type": "Path",
+            "required": "True"
+          }
+        },
+        {
+          "positional_literals": [
+            "--output"
+          ],
+          "keywords": {
+            "type": "Path",
+            "required": "True"
+          }
+        }
+      ],
+      "output_expressions": [
+        "a.output"
+      ],
+      "legacy_positional_output": null,
+      "evidence": "AST-inspected CLI declarations and output write sites; this is invocation guidance, not a claim of an executable CI/config reference or a new qualified source capture.",
+      "disposition": "temporary_developer_oracle_or_generator_retire_before_backend_removal"
+    },
+    {
+      "example_path": "docs/rust-rewrite/a05/oracle/surrogates.py",
+      "classification": "temporary actual-source migration oracle; manual offline developer use only",
+      "migration_owner": "A05",
+      "retirement_owner": "G08",
+      "interpreter": "/private/tmp/slopsearx-rust-oracle-py314/bin/python",
+      "mandatory_native_gate": false,
+      "provider_calls_authorized": false,
+      "cli_arguments": [
+        {
+          "positional_literals": [
+            "--output"
+          ],
+          "keywords": {
+            "required": "True"
+          }
+        }
+      ],
+      "output_expressions": [
+        "Path(OUTPUT)"
+      ],
+      "legacy_positional_output": null,
+      "evidence": "AST-inspected CLI declarations and output write sites; this is invocation guidance, not a claim of an executable CI/config reference or a new qualified source capture.",
+      "disposition": "temporary_developer_oracle_or_generator_retire_before_backend_removal"
+    },
+    {
+      "example_path": "docs/rust-rewrite/a05/oracle/unicode_name_all.py",
+      "classification": "temporary actual-source migration oracle; manual offline developer use only",
+      "migration_owner": "A05",
+      "retirement_owner": "G08",
+      "interpreter": "/private/tmp/slopsearx-rust-oracle-py314/bin/python",
+      "mandatory_native_gate": false,
+      "provider_calls_authorized": false,
+      "cli_arguments": [
+        {
+          "positional_literals": [
+            "--names"
+          ],
+          "keywords": {
+            "type": "Path",
+            "required": "True"
+          }
+        },
+        {
+          "positional_literals": [
+            "--ucd"
+          ],
+          "keywords": {
+            "type": "Path",
+            "required": "True"
+          }
+        },
+        {
+          "positional_literals": [
+            "--output"
+          ],
+          "keywords": {
+            "type": "Path",
+            "required": "True"
+          }
+        }
+      ],
+      "output_expressions": [
+        "args.output"
+      ],
+      "legacy_positional_output": null,
+      "evidence": "AST-inspected CLI declarations and output write sites; this is invocation guidance, not a claim of an executable CI/config reference or a new qualified source capture.",
+      "disposition": "temporary_developer_oracle_or_generator_retire_before_backend_removal"
+    },
+    {
+      "example_path": "docs/rust-rewrite/a05/oracle/unicode_name_probes.py",
+      "classification": "temporary actual-source migration oracle; manual offline developer use only",
+      "migration_owner": "A05",
+      "retirement_owner": "G08",
+      "interpreter": "/private/tmp/slopsearx-rust-oracle-py314/bin/python",
+      "mandatory_native_gate": false,
+      "provider_calls_authorized": false,
+      "cli_arguments": [],
+      "output_expressions": [
+        "Path(__import__('sys').argv[1])"
+      ],
+      "legacy_positional_output": "sys.argv[1] output path",
+      "evidence": "AST-inspected CLI declarations and output write sites; this is invocation guidance, not a claim of an executable CI/config reference or a new qualified source capture.",
+      "disposition": "temporary_developer_oracle_or_generator_retire_before_backend_removal"
+    },
+    {
+      "example_path": "docs/rust-rewrite/a05/oracle/unicode_names.py",
+      "classification": "offline derivation or verifier tooling; manual offline developer use only",
+      "migration_owner": "A05",
+      "retirement_owner": "G08",
+      "interpreter": "/private/tmp/slopsearx-rust-oracle-py314/bin/python",
+      "mandatory_native_gate": false,
+      "provider_calls_authorized": false,
+      "cli_arguments": [
+        {
+          "positional_literals": [
+            "--ucd"
+          ],
+          "keywords": {
+            "type": "Path",
+            "required": "True"
+          }
+        },
+        {
+          "positional_literals": [
+            "--cpython"
+          ],
+          "keywords": {
+            "type": "Path",
+            "required": "True"
+          }
+        },
+        {
+          "positional_literals": [
+            "--output"
+          ],
+          "keywords": {
+            "type": "Path",
+            "required": "True"
+          }
+        }
+      ],
+      "output_expressions": [
+        "args.output / 'unicode_names.rs'",
+        "args.output / 'unicode_name_ranges.rs'"
+      ],
+      "legacy_positional_output": null,
+      "evidence": "AST-inspected CLI declarations and output write sites; this is invocation guidance, not a claim of an executable CI/config reference or a new qualified source capture.",
+      "disposition": "temporary_developer_oracle_or_generator_retire_before_backend_removal"
+    },
+    {
+      "example_path": "docs/rust-rewrite/a05/oracle/unicode_vectors.py",
+      "classification": "temporary actual-source migration oracle; manual offline developer use only",
+      "migration_owner": "A05",
+      "retirement_owner": "G08",
+      "interpreter": "/private/tmp/slopsearx-rust-oracle-py314/bin/python",
+      "mandatory_native_gate": false,
+      "provider_calls_authorized": false,
+      "cli_arguments": [
+        {
+          "positional_literals": [
+            "--output"
+          ],
+          "keywords": {
+            "type": "Path",
+            "required": "True"
+          }
+        }
+      ],
+      "output_expressions": [
+        "args.output / 'manifest.json'",
+        "args.output / file"
+      ],
+      "legacy_positional_output": null,
+      "evidence": "AST-inspected CLI declarations and output write sites; this is invocation guidance, not a claim of an executable CI/config reference or a new qualified source capture.",
+      "disposition": "temporary_developer_oracle_or_generator_retire_before_backend_removal"
+    },
+    {
+      "example_path": "docs/rust-rewrite/a05/oracle/unicodeescape_vectors.py",
+      "classification": "temporary actual-source migration oracle; manual offline developer use only",
+      "migration_owner": "A05",
+      "retirement_owner": "G08",
+      "interpreter": "/private/tmp/slopsearx-rust-oracle-py314/bin/python",
+      "mandatory_native_gate": false,
+      "provider_calls_authorized": false,
+      "cli_arguments": [],
+      "output_expressions": [
+        "Path(__import__('sys').argv[1])"
+      ],
+      "legacy_positional_output": "sys.argv[1] output path",
+      "evidence": "AST-inspected CLI declarations and output write sites; this is invocation guidance, not a claim of an executable CI/config reference or a new qualified source capture.",
+      "disposition": "temporary_developer_oracle_or_generator_retire_before_backend_removal"
+    },
+    {
+      "example_path": "docs/rust-rewrite/a05/oracle/http_charset_pipeline.py",
+      "classification": "temporary actual-source migration oracle; manual offline developer use only",
+      "migration_owner": "A05",
+      "retirement_owner": "G08",
+      "interpreter": "/private/tmp/slopsearx-rust-oracle-py314/bin/python",
+      "mandatory_native_gate": false,
+      "provider_calls_authorized": false,
+      "cli_arguments": [
+        {
+          "positional_literals": [
+            "--output"
+          ],
+          "keywords": {
+            "type": "Path",
+            "required": "True"
+          }
+        }
+      ],
+      "output_expressions": [
+        "output"
+      ],
+      "evidence": "Actual AST-inspected arguments/write sites; guidance only, no claim command executed or exists in CI/config."
+    },
+    {
+      "example_path": "docs/rust-rewrite/a05/oracle/idna_allocation_bound.py",
+      "classification": "offline derivation generator; manual offline developer use only",
+      "migration_owner": "A05",
+      "retirement_owner": "G08",
+      "interpreter": "/private/tmp/slopsearx-rust-oracle-py314/bin/python",
+      "mandatory_native_gate": false,
+      "provider_calls_authorized": false,
+      "cli_arguments": [
+        {
+          "positional_literals": [
+            "--input"
+          ],
+          "keywords": {
+            "type": "Path",
+            "required": "True"
+          }
+        },
+        {
+          "positional_literals": [
+            "--output"
+          ],
+          "keywords": {
+            "type": "Path",
+            "required": "True"
+          }
+        }
+      ],
+      "output_expressions": [
+        "args.output"
+      ],
+      "evidence": "Actual AST-inspected arguments/write sites; guidance only, no claim command executed or exists in CI/config."
+    },
+    {
+      "example_path": "docs/rust-rewrite/a05/oracle/media_nfkc_membership.py",
+      "classification": "temporary actual-source migration oracle; manual offline developer use only",
+      "migration_owner": "A05",
+      "retirement_owner": "G08",
+      "interpreter": "/private/tmp/slopsearx-rust-oracle-py314/bin/python",
+      "mandatory_native_gate": false,
+      "provider_calls_authorized": false,
+      "cli_arguments": [
+        {
+          "positional_literals": [
+            "output"
+          ],
+          "keywords": {
+            "type": "Path"
+          }
+        }
+      ],
+      "output_expressions": [
+        "args.output"
+      ],
+      "evidence": "Actual AST-inspected arguments/write sites; guidance only, no claim command executed or exists in CI/config."
+    },
+    {
+      "example_path": "docs/rust-rewrite/a05/oracle/timeout_config_source.py",
+      "classification": "temporary actual-source migration oracle; manual offline developer use only",
+      "migration_owner": "A05",
+      "retirement_owner": "G08",
+      "interpreter": "/private/tmp/slopsearx-rust-oracle-py314/bin/python",
+      "mandatory_native_gate": false,
+      "provider_calls_authorized": false,
+      "cli_arguments": [
+        {
+          "positional_literals": [
+            "--output"
+          ],
+          "keywords": {
+            "type": "Path",
+            "required": "True"
+          }
+        },
+        {
+          "positional_literals": [
+            "--extended-only"
+          ],
+          "keywords": {
+            "action": "'store_true'"
+          }
+        }
+      ],
+      "output_expressions": [
+        "output",
+        "path"
+      ],
+      "evidence": "Actual AST-inspected arguments/write sites; guidance only, no claim command executed or exists in CI/config."
+    },
+    {
+      "example_path": "docs/rust-rewrite/a05/oracle/timeout_loopback_source.py",
+      "classification": "temporary actual-source migration oracle; manual offline developer use only",
+      "migration_owner": "A05",
+      "retirement_owner": "G08",
+      "interpreter": "/private/tmp/slopsearx-rust-oracle-py314/bin/python",
+      "mandatory_native_gate": false,
+      "provider_calls_authorized": false,
+      "cli_arguments": [
+        {
+          "positional_literals": [
+            "--output"
+          ],
+          "keywords": {
+            "type": "Path"
+          }
+        },
+        {
+          "positional_literals": [
+            "--child"
+          ],
+          "keywords": {}
+        },
+        {
+          "positional_literals": [
+            "--stall-only"
+          ],
+          "keywords": {
+            "action": "'store_true'"
+          }
+        }
+      ],
+      "output_expressions": [
+        "output"
+      ],
+      "evidence": "Actual AST-inspected arguments/write sites; guidance only, no claim command executed or exists in CI/config."
+    },
+    {
+      "example_path": "docs/rust-rewrite/a05/provenance/media_nfkc.py",
+      "classification": "offline derivation generator; manual offline developer use only",
+      "migration_owner": "A05",
+      "retirement_owner": "G08",
+      "interpreter": "/private/tmp/slopsearx-rust-oracle-py314/bin/python",
+      "mandatory_native_gate": false,
+      "provider_calls_authorized": false,
+      "cli_arguments": [
+        {
+          "positional_literals": [
+            "source"
+          ],
+          "keywords": {
+            "type": "Path"
+          }
+        },
+        {
+          "positional_literals": [
+            "output"
+          ],
+          "keywords": {
+            "type": "Path"
+          }
+        }
+      ],
+      "output_expressions": [
+        "args.output"
+      ],
+      "evidence": "Actual AST-inspected arguments/write sites; guidance only, no claim command executed or exists in CI/config."
+    }
   ]
 }
