@@ -2,6 +2,7 @@
 mod a01;
 mod a02;
 mod a03;
+mod date_amendment;
 mod f05;
 mod f06;
 mod f07;
@@ -11,6 +12,7 @@ mod f10;
 mod f11;
 mod f12;
 mod f13;
+mod f14;
 mod o03;
 mod o06;
 mod replay;
@@ -461,6 +463,7 @@ fn execute(root: &Path, id: &str, records: &mut Vec<Value>) -> Result<()> {
         "F11" => f11::check(root, records),
         "F12" => f12::check(root, records),
         "F13" => f13::check(root, records),
+        "F14" => f14::check(root, records),
         "F03" => {
             source_check(root, "F01", records)?;
             source_check(root, "F02", records)?;
@@ -800,7 +803,7 @@ mod tests {
     fn unknown_and_unimplemented_fail() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
         assert!(
-            execute(&root, "F14", &mut vec![])
+            execute(&root, "F15", &mut vec![])
                 .unwrap_err()
                 .contains("unimplemented")
         );
