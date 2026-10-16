@@ -3,6 +3,7 @@ mod f05;
 mod f07;
 mod o06;
 mod replay;
+mod w01;
 use serde::Deserialize;
 use serde_json::{Value, json};
 use std::{
@@ -429,6 +430,7 @@ fn execute(root: &Path, id: &str, records: &mut Vec<Value>) -> Result<()> {
         "F04" => replay::check(root, records),
         "F05" => f05::check(root, records),
         "F07" => f07::check(root, records),
+        "W01" => w01::check(root, records),
         "F03" => {
             source_check(root, "F01", records)?;
             source_check(root, "F02", records)?;

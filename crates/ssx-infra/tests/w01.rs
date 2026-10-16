@@ -1,0 +1,1169 @@
+//! W01 authoritative contracts run only against a private disposable Valkey process.
+use ssx_domain::{AttemptId, JobId, LeaseToken, TenantId, WallClockTimestamp, research::*};
+use ssx_infra::valkey::{research::*, *};
+use std::{
+    fs,
+    io::Read as _,
+    num::NonZeroU64,
+    path::PathBuf,
+    process::{Child, Command, Stdio},
+    sync::{Arc, Barrier},
+    time::{Duration, Instant},
+};
+struct Server {
+    child: Child,
+    dir: PathBuf,
+    url: String,
+}
+impl Server {
+    fn start() -> Self {
+        let mut bytes = [0; 16];
+        fs::File::open("/dev/urandom")
+            .unwrap()
+            .read_exact(&mut bytes)
+            .unwrap();
+        bytes[6] = (bytes[6] & 15) | 64;
+        bytes[8] = (bytes[8] & 63) | 128;
+        let id: String = bytes.iter().map(|b| format!("{b:02x}")).collect();
+        let dir = std::env::temp_dir().join(format!("ssx-w01-{id}"));
+        fs::create_dir(&dir).unwrap();
+        let url = format!("unix://{}", dir.join("s.sock").display());
+        let mut s = Self {
+            child: Self::spawn(&dir),
+            dir,
+            url,
+        };
+        s.wait_ready();
+        s
+    }
+    fn spawn(dir: &std::path::Path) -> Child {
+        Command::new(
+            std::env::var("SLOPSEARX_TEST_VALKEY_SERVER")
+                .unwrap_or_else(|_| "valkey-server".into()),
+        )
+        .args([
+            "--port",
+            "0",
+            "--bind",
+            "127.0.0.1",
+            "--save",
+            "",
+            "--appendonly",
+            "no",
+            "--daemonize",
+            "no",
+            "--unixsocketperm",
+            "700",
+            "--dir",
+        ])
+        .arg(dir)
+        .arg("--unixsocket")
+        .arg(dir.join("s.sock"))
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("disposable valkey-server required")
+    }
+    fn wait_ready(&mut self) {
+        let until = Instant::now() + Duration::from_secs(4);
+        loop {
+            assert!(
+                self.child.try_wait().unwrap().is_none(),
+                "Valkey startup failed"
+            );
+            if redis::Client::open(self.url.as_str())
+                .unwrap()
+                .get_connection()
+                .is_ok()
+            {
+                break;
+            }
+            assert!(Instant::now() < until, "Valkey startup deadline");
+            std::thread::sleep(Duration::from_millis(10));
+        }
+    }
+    fn connection(&self) -> redis::Connection {
+        redis::Client::open(self.url.as_str())
+            .unwrap()
+            .get_connection()
+            .unwrap()
+    }
+    fn store(&self) -> Valkey {
+        Valkey::new(&self.url, Duration::from_millis(300)).unwrap()
+    }
+    fn stop(&mut self) {
+        self.child.kill().unwrap();
+        self.child.wait().unwrap();
+    }
+    fn restart(&mut self) {
+        self.child = Self::spawn(&self.dir);
+        self.wait_ready();
+    }
+}
+impl Drop for Server {
+    fn drop(&mut self) {
+        let _ = self.child.kill();
+        let _ = self.child.wait();
+        let _ = fs::remove_dir_all(&self.dir);
+    }
+}
+fn ttl(n: u64) -> NonZeroU64 {
+    NonZeroU64::new(n).unwrap()
+}
+struct Tokens(&'static str);
+impl TokenSource<JobId> for Tokens {
+    fn next_token(&mut self) -> LeaseToken<JobId> {
+        LeaseToken::new(self.0).unwrap()
+    }
+}
+fn write(server: &Server, key: &str, value: &str) {
+    redis::cmd("SET")
+        .arg(key)
+        .arg(value)
+        .query::<()>(&mut server.connection())
+        .unwrap();
+}
+fn now(n: f64) -> WallClockTimestamp {
+    WallClockTimestamp::new(n).unwrap()
+}
+fn id() -> JobId {
+    JobId::new("job-test").unwrap()
+}
+fn aid() -> AttemptId {
+    AttemptId::new("recovered-attempt").unwrap()
+}
+fn job() -> ResearchJob {
+    ResearchJob::from_payload(ssx_json::json!({"job_id":"job-test","tenant":"org:team","question":"q","strategy":"broad","created_at":1,"deadline":1000,"idempotency_key":"request-1","queries":[{"index":0,"query":"q","intent":"general","engines":["fake"]}]})).unwrap()
+}
+fn scoped(server: &Server) -> ResearchStore {
+    ResearchStore::new(Arc::new(server.store()), TenantId::new("org:team").unwrap())
+}
+async fn found(s: &ResearchStore) -> ResearchJob {
+    match s.load(&id()).await {
+        JobRead::Found(v) => *v,
+        other => panic!("expected authoritative job: {other:?}"),
+    }
+}
+async fn claim(s: &ResearchStore, token: &'static str, seconds: u64) -> Claim {
+    s.claim(
+        &id(),
+        "worker",
+        ttl(seconds),
+        &mut Tokens(token),
+        now(10.0),
+        aid,
+    )
+    .await
+    .unwrap()
+    .unwrap()
+}
+fn initialize(j: &mut ResearchJob) -> Result<(), ssx_domain::DomainError> {
+    j.initialize_budget(ResearchCeilings {
+        queries: 2,
+        engines_per_query: 1,
+        results: 3,
+    })
+}
+#[tokio::test]
+async fn tenants_identity_idempotency_and_malformed_records() {
+    let server = Server::start();
+    let a = scoped(&server);
+    let b = a.for_tenant(TenantId::new("other").unwrap());
+    let (created, yes) = a.create(&job()).await.unwrap();
+    assert!(yes);
+    assert_eq!(created.tenant, "org:team");
+    let mut replay = job();
+    replay.job_id = "different".into();
+    assert!(!a.create(&replay).await.unwrap().1);
+    assert!(matches!(b.load(&id()).await, JobRead::Missing));
+    assert!(b.create(&job()).await.is_err());
+    let mut collision = job();
+    collision.idempotency_key = Some("request-2".into());
+    assert_eq!(a.create(&collision).await, Err(Error::Conflict));
+    let owner = claim(&a, "tenant-owner", 10).await;
+    let forged_scope = a.for_tenant(TenantId::new("org").unwrap());
+    let forged_id = JobId::new("team:job-test").unwrap();
+    assert!(
+        forged_scope
+            .renew(&forged_id, &owner.token, ttl(10))
+            .await
+            .is_err()
+    );
+    assert!(
+        forged_scope
+            .release(&forged_id, &owner.token)
+            .await
+            .is_err()
+    );
+    assert_eq!(
+        a.renew(&id(), &owner.token, ttl(10)).await.unwrap(),
+        Ownership::Applied
+    );
+    let mut malformed = job().to_payload().unwrap();
+    malformed["job_id"] = "wrong".into();
+    write(
+        &server,
+        "mcp:job:org:team:job-test",
+        &ssx_json::to_string(&malformed).unwrap(),
+    );
+    assert!(matches!(a.load(&id()).await, JobRead::Malformed));
+    malformed["job_id"] = "job-test".into();
+    malformed["tenant"] = "other".into();
+    write(
+        &server,
+        "mcp:job:org:team:job-test",
+        &ssx_json::to_string(&malformed).unwrap(),
+    );
+    assert!(matches!(a.load(&id()).await, JobRead::Malformed));
+    write(&server, "mcp:job:org:team:job-test", "[]");
+    assert!(matches!(a.load(&id()).await, JobRead::Malformed));
+    assert!(matches!(
+        a.load(&JobId::new("team:job-test").unwrap()).await,
+        JobRead::Malformed
+    ));
+}
+#[tokio::test]
+async fn reservation_crash_reclaim_and_completed_evidence() {
+    let server = Server::start();
+    let a = scoped(&server);
+    let b = scoped(&server);
+    a.create(&job()).await.unwrap();
+    let first = claim(&a, "first", 1).await;
+    a.mutate(&id(), &first.token, |j| {
+        initialize(j)?;
+        j.reserve_attempt(0, AttemptId::new("a")?, now(11.0))?;
+        Ok(())
+    })
+    .await
+    .unwrap();
+    // No dispatch/settlement occurs: the durable reservation must survive expiry.
+    tokio::time::sleep(Duration::from_millis(1100)).await;
+    let second = claim(&b, "second", 10).await;
+    assert_eq!(second.job.budget_used["attempts"], 1);
+    assert_eq!(second.job.queries[0].attempts[0].state, "interrupted");
+    assert!(matches!(
+        a.mutate(&id(), &first.token, |_| Ok(())).await,
+        Err(Error::OwnershipLost)
+    ));
+    assert_eq!(
+        a.renew(&id(), &first.token, ttl(5)).await.unwrap(),
+        Ownership::Lost
+    );
+    assert_eq!(
+        a.release(&id(), &first.token).await.unwrap(),
+        Ownership::Lost
+    );
+    let done = b
+        .mutate(&id(), &second.token, |j| {
+            assert!(j.reserve_attempt(0, AttemptId::new("b")?, now(12.0))?);
+            j.queries[0].state = "done".into();
+            j.queries[0].cursor = Some("snap".into());
+            j.queries[0].result_count = 2;
+            let lead = LeadId::new(format!("lead-v1-{}", "a".repeat(64)))?;
+            j.finish_attempt(0, Some(&[lead.clone(), lead]), now(13.0))?;
+            j.state = "partial".into();
+            Ok(())
+        })
+        .await
+        .unwrap();
+    assert_eq!(done.budget_used["results"], 2);
+    assert_eq!(done.seen_lead_ids.len(), 1);
+    assert!(
+        b.mutate(&id(), &second.token, |j| {
+            j.queries[0].attempts[1].cursor = Some("rewrite".into());
+            Ok(())
+        })
+        .await
+        .is_err()
+    );
+    assert!(
+        b.mutate(&id(), &second.token, |j| {
+            j.budget_used.insert("attempts".into(), 0);
+            Ok(())
+        })
+        .await
+        .is_err()
+    );
+    let retained = found(&b).await;
+    assert_eq!(retained, done);
+    let rejected = b
+        .mutate(&id(), &second.token, |j| {
+            assert!(!j.reserve_attempt(0, AttemptId::new("c")?, now(14.0))?);
+            Ok(())
+        })
+        .await
+        .unwrap();
+    assert_eq!(
+        rejected.stop_reason.as_deref(),
+        Some("attempt_budget_exhausted")
+    );
+    assert_eq!(rejected.queries[0].attempts, done.queries[0].attempts);
+}
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn same_token_concurrent_writers_cannot_lose_history() {
+    let server = Server::start();
+    let s = scoped(&server);
+    s.create(&job()).await.unwrap();
+    let owner = claim(&s, "same", 10).await;
+    s.mutate(&id(), &owner.token, initialize).await.unwrap();
+    let barrier = Arc::new(Barrier::new(2));
+    let mut tasks = vec![];
+    for name in ["left", "right"] {
+        let s = scoped(&server);
+        let token = owner.token.clone();
+        let barrier = barrier.clone();
+        let runtime = tokio::runtime::Handle::current();
+        tasks.push(tokio::task::spawn_blocking(move || {
+            runtime.block_on(async move {
+                s.mutate(&id(), &token, |j| {
+                    barrier.wait();
+                    j.reserve_attempt(0, AttemptId::new(name)?, now(11.0))?;
+                    Ok(())
+                })
+                .await
+            })
+        }));
+    }
+    let mut passed = 0;
+    let mut conflicts = 0;
+    for task in tasks {
+        match task.await.unwrap() {
+            Ok(_) => passed += 1,
+            Err(Error::Conflict) => conflicts += 1,
+            other => panic!("unexpected {other:?}"),
+        }
+    }
+    assert_eq!((passed, conflicts), (1, 1));
+    let j = found(&s).await;
+    assert_eq!(j.budget_used["attempts"], 1);
+    assert_eq!(j.queries[0].attempts.len(), 1);
+}
+#[tokio::test]
+async fn cancellation_and_absolute_expiry_survive_restart() {
+    let mut server = Server::start();
+    let s = scoped(&server);
+    s.create(&job()).await.unwrap();
+    let owner = claim(&s, "owner", 10).await;
+    s.mutate(&id(), &owner.token, |j| {
+        initialize(j)?;
+        j.reserve_attempt(0, AttemptId::new("a")?, now(11.0))?;
+        Ok(())
+    })
+    .await
+    .unwrap();
+    assert_eq!(
+        s.request_cancel(&id(), now(12.0), &mut Tokens("cancel-live"), aid)
+            .await
+            .unwrap(),
+        "running"
+    );
+    assert!(found(&s).await.cancel_requested);
+    s.release(&id(), &owner.token).await.unwrap();
+    assert_eq!(
+        s.request_cancel(&id(), now(13.0), &mut Tokens("cancel"), aid)
+            .await
+            .unwrap(),
+        "cancelled"
+    );
+    let cancelled = found(&s).await;
+    assert_eq!(cancelled.budget_used["attempts"], 1);
+    assert_eq!(cancelled.queries[0].attempts[0].state, "interrupted");
+    assert_eq!(
+        s.request_cancel(&id(), now(14.0), &mut Tokens("cancel-again"), aid)
+            .await
+            .unwrap(),
+        "cancelled"
+    );
+    let mut exp = job();
+    exp.job_id = "expires".into();
+    exp.idempotency_key = None;
+    exp.deadline = ssx_domain::FiniteF64::new(100.0).unwrap();
+    s.create(&exp).await.unwrap();
+    redis::cmd("SAVE")
+        .query::<()>(&mut server.connection())
+        .unwrap();
+    server.stop();
+    server.restart();
+    let s = scoped(&server);
+    let expires = JobId::new("expires").unwrap();
+    assert!(
+        s.claim(
+            &expires,
+            "worker",
+            ttl(10),
+            &mut Tokens("at-deadline"),
+            now(100.0),
+            aid
+        )
+        .await
+        .unwrap()
+        .is_none()
+    );
+    match s.load(&expires).await {
+        JobRead::Found(v) => assert_eq!(v.state, "expired"),
+        _ => panic!("missing expiry"),
+    }
+    assert!(
+        s.claim(
+            &expires,
+            "worker",
+            ttl(10),
+            &mut Tokens("clock-back"),
+            now(50.0),
+            aid
+        )
+        .await
+        .unwrap()
+        .is_none()
+    );
+    assert_eq!(
+        found(&s).await.queries[0].attempts,
+        cancelled.queries[0].attempts
+    );
+}
+#[tokio::test]
+async fn ready_recent_repair_and_tenant_scoping() {
+    let server = Server::start();
+    let a = scoped(&server);
+    a.create(&job()).await.unwrap();
+    let b = a.for_tenant(TenantId::new("other").unwrap());
+    let mut other = job();
+    other.tenant = "other".into();
+    other.job_id = "other-job".into();
+    b.create(&other).await.unwrap();
+    redis::cmd("DEL")
+        .arg("mcp:ready:v1:tenant:org:team")
+        .arg("mcp:recent:v1:org:team")
+        .query::<()>(&mut server.connection())
+        .unwrap();
+    a.reconcile().await.unwrap();
+    assert_eq!(a.list_recent(None, 20).await.unwrap().len(), 1);
+    let claim = a
+        .claim_next("scoped", ttl(10), &mut Tokens("scope"), now(10.0), aid)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(claim.job.tenant, "org:team");
+    let any = a
+        .claim_next_any_tenant("any", ttl(10), &mut Tokens("any"), now(10.0), aid)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(any.job.tenant, "other");
+    write(&server, "mcp:job:org:team:job-test", "{}");
+    assert!(a.list_recent(None, 20).await.is_err());
+}
+#[tokio::test]
+async fn unknown_mutation_completion_requires_authoritative_reconciliation() {
+    let server = Server::start();
+    let s = scoped(&server);
+    s.create(&job()).await.unwrap();
+    let owner = claim(&s, "owner", 10).await;
+    s.mutate(&id(), &owner.token, initialize).await.unwrap();
+    let short = ResearchStore::new(
+        Arc::new(Valkey::new(&server.url, Duration::from_millis(30)).unwrap()),
+        TenantId::new("org:team").unwrap(),
+    );
+    let mut paused = false;
+    let result = short
+        .mutate(&id(), &owner.token, |j| {
+            j.reserve_attempt(0, AttemptId::new("unknown-dispatch")?, now(11.0))?;
+            redis::cmd("CLIENT")
+                .arg("PAUSE")
+                .arg(150)
+                .arg("WRITE")
+                .query::<()>(&mut server.connection())
+                .unwrap();
+            paused = true;
+            Ok(())
+        })
+        .await;
+    assert!(paused);
+    assert_eq!(result, Err(Error::Store(Failure::CompletionUnknown)));
+    tokio::time::sleep(Duration::from_millis(250)).await;
+    let authoritative = found(&s).await;
+    assert_eq!(authoritative.budget_used["attempts"], 1);
+    assert_eq!(
+        authoritative.queries[0].attempts[0].attempt_id,
+        "unknown-dispatch"
+    );
+    // Reconciliation observes committed work; no automatic second reservation.
+    assert_eq!(authoritative.budget_used["engine_attempts"], 1);
+}
+#[tokio::test]
+async fn prepared_mutation_reloads_terminal_evidence_and_preserves_guards() {
+    let server = Server::start();
+    let s = scoped(&server);
+    s.create(&job()).await.unwrap();
+    let owner = claim(&s, "worker", 10).await;
+    assert!(
+        s.claim_prepared(
+            &id(),
+            "retry",
+            ttl(10),
+            &mut Tokens("denied"),
+            now(20.0),
+            aid,
+            false,
+            |_| panic!("live owner excludes mutation")
+        )
+        .await
+        .unwrap()
+        .is_none()
+    );
+    s.mutate(&id(), &owner.token, |j| {
+        initialize(j)?;
+        j.reserve_attempt(0, AttemptId::new("historical")?, now(11.0))?;
+        j.queries[0].state = "failed".into();
+        j.queries[0].cursor = Some("old-evidence".into());
+        j.finish_attempt(0, None, now(12.0))?;
+        j.state = "partial".into();
+        Ok(())
+    })
+    .await
+    .unwrap();
+    s.release(&id(), &owner.token).await.unwrap();
+    let direct = s
+        .claim_prepared(
+            &id(),
+            "retry",
+            ttl(10),
+            &mut Tokens("direct"),
+            now(20.0),
+            aid,
+            false,
+            |j| {
+                j.reset_retryable_queries();
+                Ok(())
+            },
+        )
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(direct.job.state, "running");
+    assert_eq!(
+        direct.job.queries[0].attempts[0].cursor.as_deref(),
+        Some("old-evidence")
+    );
+    s.mutate(&id(), &direct.token, |j| {
+        j.caller_completed = true;
+        j.state = "partial".into();
+        Ok(())
+    })
+    .await
+    .unwrap();
+    s.release(&id(), &direct.token).await.unwrap();
+    let complete = s
+        .claim_prepared(
+            &id(),
+            "metadata",
+            ttl(10),
+            &mut Tokens("metadata"),
+            now(2000.0),
+            aid,
+            true,
+            |j| {
+                j.completion_rationale = Some("complete".into());
+                Ok(())
+            },
+        )
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(complete.job.caller_completed);
+    assert_eq!(
+        complete.job.completion_rationale.as_deref(),
+        Some("complete")
+    );
+    s.clear_ownership(&id(), &complete.token).await.unwrap();
+    s.release(&id(), &complete.token).await.unwrap();
+    let preserved = s
+        .claim_prepared(
+            &id(),
+            "retry",
+            ttl(10),
+            &mut Tokens("no-resurrection"),
+            now(2000.0),
+            aid,
+            false,
+            |_| panic!("completed caller judgment retained"),
+        )
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(preserved.job.state, "partial");
+}
+#[tokio::test]
+async fn authoritative_mutations_cannot_bypass_conservation_helpers() {
+    let server = Server::start();
+    let s = scoped(&server);
+    s.create(&job()).await.unwrap();
+    let owner = claim(&s, "worker", 10).await;
+    assert!(
+        s.mutate(&id(), &owner.token, |j| {
+            j.queries[0].attempts.push(ResearchQueryAttempt {
+                attempt_id: "before-accounting".into(),
+                state: "running".into(),
+                ..Default::default()
+            });
+            Ok(())
+        })
+        .await
+        .is_err()
+    );
+    s.mutate(&id(), &owner.token, initialize).await.unwrap();
+    assert!(
+        s.mutate(&id(), &owner.token, |j| {
+            j.queries[0].attempts.push(ResearchQueryAttempt {
+                attempt_id: "uncharged".into(),
+                state: "running".into(),
+                ..Default::default()
+            });
+            Ok(())
+        })
+        .await
+        .is_err()
+    );
+    assert!(
+        s.mutate(&id(), &owner.token, |j| {
+            j.budget_used.insert("attempts".into(), 100);
+            Ok(())
+        })
+        .await
+        .is_err()
+    );
+    s.mutate(&id(), &owner.token, |j| {
+        j.reserve_attempt(0, AttemptId::new("reserved")?, now(11.0))?;
+        Ok(())
+    })
+    .await
+    .unwrap();
+    assert!(
+        s.mutate(&id(), &owner.token, |j| {
+            let a = &mut j.queries[0].attempts[0];
+            a.state = "done".into();
+            a.admitted_result_ids.push("snap:0".into());
+            Ok(())
+        })
+        .await
+        .is_err()
+    );
+    let before = found(&s).await;
+    let lowered = s
+        .mutate(&id(), &owner.token, |j| {
+            j.initialize_budget(ResearchCeilings {
+                queries: 0,
+                engines_per_query: 0,
+                results: 0,
+            })
+        })
+        .await
+        .unwrap();
+    assert_eq!(before.budget_used, lowered.budget_used);
+    assert!(
+        s.mutate(&id(), &owner.token, |j| {
+            j.queries[0].attempts.push(ResearchQueryAttempt {
+                attempt_id: "over-cap".into(),
+                state: "running".into(),
+                ..Default::default()
+            });
+            *j.budget_used.get_mut("attempts").unwrap() += 1;
+            *j.budget_used.get_mut("engine_attempts").unwrap() += 1;
+            Ok(())
+        })
+        .await
+        .is_err()
+    );
+}
+#[tokio::test]
+async fn initialization_and_work_cannot_evade_scope_or_legacy_charges() {
+    let server = Server::start();
+    let s = scoped(&server);
+    let mut initial = job();
+    initial.queries[0].engines = vec!["one".into(), "two".into()];
+    s.create(&initial).await.unwrap();
+    let owner = claim(&s, "worker", 10).await;
+    assert!(
+        s.mutate(&id(), &owner.token, |j| {
+            j.initialize_budget(ResearchCeilings {
+                queries: 4,
+                engines_per_query: 1,
+                results: 3,
+            })?;
+            j.queries[0].attempts.push(ResearchQueryAttempt {
+                attempt_id: "overscope".into(),
+                state: "running".into(),
+                ..Default::default()
+            });
+            j.budget_used.insert("attempts".into(), 1);
+            j.budget_used.insert("engine_attempts".into(), 2);
+            Ok(())
+        })
+        .await
+        .is_err()
+    );
+    assert!(found(&s).await.budget_limits.is_empty());
+    // A pre-ledger implicit completed attempt must not disappear into a newly
+    // appended explicit attempt when initialization and work share one write.
+    let mut old = job();
+    old.job_id = "legacy-done".into();
+    old.idempotency_key = None;
+    old.state = "partial".into();
+    old.queries[0].state = "done".into();
+    old.queries[0].result_count = 2;
+    s.create(&old).await.unwrap();
+    let legacy = JobId::new("legacy-done").unwrap();
+    let denied = s
+        .claim_prepared(
+            &legacy,
+            "direct",
+            ttl(10),
+            &mut Tokens("legacy-direct"),
+            now(20.0),
+            aid,
+            false,
+            |j| {
+                j.initialize_budget(ResearchCeilings {
+                    queries: 4,
+                    engines_per_query: 1,
+                    results: 5,
+                })?;
+                j.queries[0].attempts.push(ResearchQueryAttempt {
+                    attempt_id: "new".into(),
+                    state: "running".into(),
+                    ..Default::default()
+                });
+                j.budget_used.insert("attempts".into(), 1);
+                j.budget_used.insert("engine_attempts".into(), 1);
+                Ok(())
+            },
+        )
+        .await;
+    assert!(denied.is_err());
+}
+#[tokio::test]
+async fn legacy_retry_materializes_evidence_before_reset_and_accounting() {
+    let server = Server::start();
+    let s = scoped(&server);
+    let mut initial = job();
+    initial.state = "partial".into();
+    initial.queries[0].state = "done".into();
+    initial.queries[0].cursor = Some("legacy-snapshot".into());
+    initial.queries[0].query_id = Some("legacy-query".into());
+    initial.queries[0].result_count = 0;
+    s.create(&initial).await.unwrap();
+    let prepared = s
+        .claim_prepared(
+            &id(),
+            "retry",
+            ttl(10),
+            &mut Tokens("legacy"),
+            now(20.0),
+            aid,
+            false,
+            |j| {
+                j.reset_retryable_queries();
+                Ok(())
+            },
+        )
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(prepared.job.queries[0].state, "pending");
+    assert_eq!(prepared.job.queries[0].attempts.len(), 1);
+    assert_eq!(
+        prepared.job.queries[0].attempts[0].cursor.as_deref(),
+        Some("legacy-snapshot")
+    );
+    let reserved = s
+        .mutate(&id(), &prepared.token, |j| {
+            initialize(j)?;
+            assert!(j.reserve_attempt(0, AttemptId::new("retry-attempt")?, now(21.0))?);
+            Ok(())
+        })
+        .await
+        .unwrap();
+    assert_eq!(reserved.budget_used["attempts"], 2);
+    assert_eq!(reserved.budget_used["engine_attempts"], 2);
+    assert_eq!(
+        reserved.queries[0].attempts[0].query_id.as_deref(),
+        Some("legacy-query")
+    );
+    // A generic caller cannot clear an unmaterialized legacy attempt or seed
+    // smaller counters before the explicit normalization boundary.
+    let mut raw = initial;
+    raw.job_id = "raw-legacy".into();
+    raw.idempotency_key = None;
+    raw.owner_id = Some("owner".into());
+    raw.lease_token = Some("raw-token".into());
+    write(
+        &server,
+        "mcp:job:org:team:raw-legacy",
+        &ssx_json::to_string(&raw.to_payload().unwrap()).unwrap(),
+    );
+    write(&server, "mcp:joblease:org:team:raw-legacy", "raw-token");
+    let raw_id = JobId::new("raw-legacy").unwrap();
+    let token = LeaseToken::new("raw-token").unwrap();
+    assert!(
+        s.mutate(&raw_id, &token, |j| {
+            j.reset_retryable_queries();
+            Ok(())
+        })
+        .await
+        .is_err()
+    );
+    assert!(s.mutate(&raw_id, &token, initialize).await.is_err());
+    let migrated = s
+        .mutate(&raw_id, &token, |j| {
+            j.normalize_legacy_evidence();
+            initialize(j)?;
+            j.reset_retryable_queries();
+            Ok(())
+        })
+        .await
+        .unwrap();
+    assert_eq!(migrated.budget_used["attempts"], 1);
+    assert_eq!(
+        migrated.queries[0].attempts[0].cursor.as_deref(),
+        Some("legacy-snapshot")
+    );
+}
+#[tokio::test]
+async fn terminal_and_caller_intent_cannot_be_revoked_by_owned_mutation() {
+    let server = Server::start();
+    let s = scoped(&server);
+    s.create(&job()).await.unwrap();
+    let owner = claim(&s, "owner", 10).await;
+    s.mutate(&id(), &owner.token, |j| {
+        initialize(j)?;
+        j.cancel_requested = true;
+        j.state = "cancelled".into();
+        Ok(())
+    })
+    .await
+    .unwrap();
+    assert!(
+        s.mutate(&id(), &owner.token, |j| {
+            j.cancel_requested = false;
+            Ok(())
+        })
+        .await
+        .is_err()
+    );
+    assert!(
+        s.mutate(&id(), &owner.token, |j| {
+            j.state = "running".into();
+            Ok(())
+        })
+        .await
+        .is_err()
+    );
+    assert!(
+        s.mutate(&id(), &owner.token, |j| {
+            j.deadline = ssx_domain::FiniteF64::new(9000.0)?;
+            Ok(())
+        })
+        .await
+        .is_err()
+    );
+    let mut completed = job();
+    completed.job_id = "complete".into();
+    completed.idempotency_key = None;
+    completed.state = "partial".into();
+    completed.caller_completed = true;
+    s.create(&completed).await.unwrap();
+    let complete = JobId::new("complete").unwrap();
+    let owner = s
+        .claim_prepared(
+            &complete,
+            "metadata",
+            ttl(10),
+            &mut Tokens("complete"),
+            now(20.0),
+            aid,
+            true,
+            |_| Ok(()),
+        )
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(
+        s.mutate(&complete, &owner.token, |j| {
+            j.caller_completed = false;
+            Ok(())
+        })
+        .await
+        .is_err()
+    );
+}
+#[tokio::test]
+async fn observed_side_key_cancellation_cannot_be_erased_by_callback() {
+    let server = Server::start();
+    let s = scoped(&server);
+    s.create(&job()).await.unwrap();
+    let owner = claim(&s, "owner", 10).await;
+    assert_eq!(
+        s.request_cancel(&id(), now(20.0), &mut Tokens("external"), aid)
+            .await
+            .unwrap(),
+        "running"
+    );
+    assert!(
+        s.mutate(&id(), &owner.token, |j| {
+            assert!(j.cancel_requested);
+            j.cancel_requested = false;
+            Ok(())
+        })
+        .await
+        .is_err()
+    );
+    assert!(found(&s).await.cancel_requested);
+    let observed = s
+        .mutate(&id(), &owner.token, |j| {
+            assert!(j.cancel_requested);
+            j.caller_completed = true;
+            j.state = "partial".into();
+            Ok(())
+        })
+        .await
+        .unwrap();
+    assert!(observed.cancel_requested);
+    s.release(&id(), &owner.token).await.unwrap();
+    assert!(
+        s.claim_prepared(
+            &id(),
+            "metadata",
+            ttl(10),
+            &mut Tokens("metadata"),
+            now(21.0),
+            aid,
+            true,
+            |j| {
+                assert!(j.cancel_requested);
+                j.cancel_requested = false;
+                Ok(())
+            }
+        )
+        .await
+        .is_err()
+    );
+    assert!(found(&s).await.cancel_requested);
+    let mut metadata = job();
+    metadata.job_id = "metadata-side".into();
+    metadata.idempotency_key = None;
+    metadata.caller_completed = true;
+    s.create(&metadata).await.unwrap();
+    let metadata_id = JobId::new("metadata-side").unwrap();
+    let owner = s
+        .claim(
+            &metadata_id,
+            "worker",
+            ttl(10),
+            &mut Tokens("metadata-owner"),
+            now(10.0),
+            aid,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        s.request_cancel(
+            &metadata_id,
+            now(20.0),
+            &mut Tokens("metadata-external"),
+            aid
+        )
+        .await
+        .unwrap(),
+        "running"
+    );
+    s.release(&metadata_id, &owner.token).await.unwrap();
+    assert!(
+        s.claim_prepared(
+            &metadata_id,
+            "metadata",
+            ttl(10),
+            &mut Tokens("metadata-fresh"),
+            now(21.0),
+            aid,
+            true,
+            |j| {
+                assert!(j.cancel_requested);
+                j.cancel_requested = false;
+                Ok(())
+            }
+        )
+        .await
+        .is_err()
+    );
+}
+#[tokio::test]
+async fn fresh_identity_and_lead_history_require_authoritative_admissions() {
+    let server = Server::start();
+    let s = scoped(&server);
+    s.create(&job()).await.unwrap();
+    let owner = claim(&s, "review-fix", 30).await;
+    s.mutate(&id(), &owner.token, |j| {
+        j.initialize_budget(ResearchCeilings {
+            queries: 2,
+            engines_per_query: 1,
+            results: 1,
+        })
+    })
+    .await
+    .unwrap();
+    for attempt_id in ["", "bad\nidentity"] {
+        assert!(
+            s.mutate(&id(), &owner.token, |j| {
+                j.queries[0].state = "running".into();
+                j.queries[0].attempts.push(ResearchQueryAttempt {
+                    attempt_id: attempt_id.into(),
+                    state: "running".into(),
+                    ..Default::default()
+                });
+                j.budget_used.insert("attempts".into(), 1);
+                j.budget_used.insert("engine_attempts".into(), 1);
+                Ok(())
+            })
+            .await
+            .is_err()
+        );
+    }
+    s.mutate(&id(), &owner.token, |j| {
+        j.reserve_attempt(0, AttemptId::new("valid")?, now(11.0))?;
+        Ok(())
+    })
+    .await
+    .unwrap();
+    let leads = vec![
+        format!("lead-v1-{}", "a".repeat(64)),
+        format!("lead-v1-{}", "b".repeat(64)),
+    ];
+    assert!(
+        s.mutate(&id(), &owner.token, |j| {
+            j.queries[0].attempts[0].new_lead_ids = leads.clone();
+            j.seen_lead_ids = leads.clone();
+            Ok(())
+        })
+        .await
+        .is_err()
+    );
+    assert!(
+        s.mutate(&id(), &owner.token, |j| {
+            j.seen_lead_ids = vec![leads[0].clone()];
+            Ok(())
+        })
+        .await
+        .is_err()
+    );
+    assert!(
+        s.mutate(&id(), &owner.token, |j| {
+            let a = &mut j.queries[0].attempts[0];
+            a.state = "done".into();
+            a.cursor = Some("snap".into());
+            a.admitted_result_ids = vec!["snap:0".into()];
+            a.new_lead_ids = vec![leads[0].clone()];
+            j.budget_used.insert("results".into(), 1);
+            Ok(())
+        })
+        .await
+        .is_err()
+    );
+    assert!(
+        s.mutate(&id(), &owner.token, |j| {
+            let a = &mut j.queries[0].attempts[0];
+            a.state = "done".into();
+            a.cursor = Some("snap".into());
+            a.admitted_result_ids = vec!["snap:0".into()];
+            a.new_lead_ids = vec![leads[0].clone()];
+            j.seen_lead_ids = vec![leads[0].clone(), leads[0].clone()];
+            j.budget_used.insert("results".into(), 1);
+            Ok(())
+        })
+        .await
+        .is_err()
+    );
+    let settled = s
+        .mutate(&id(), &owner.token, |j| {
+            j.queries[0].state = "done".into();
+            j.queries[0].cursor = Some("snap".into());
+            j.queries[0].result_count = 2;
+            j.finish_attempt(
+                0,
+                Some(&[
+                    LeadId::new(leads[0].clone())?,
+                    LeadId::new(leads[1].clone())?,
+                ]),
+                now(12.0),
+            )
+        })
+        .await
+        .unwrap();
+    assert_eq!(settled.budget_used["results"], 1);
+    assert_eq!(settled.seen_lead_ids, vec![leads[0].clone()]);
+    assert!(
+        s.mutate(&id(), &owner.token, |j| {
+            j.queries[0].attempts.push(ResearchQueryAttempt {
+                attempt_id: "valid".into(),
+                state: "running".into(),
+                ..Default::default()
+            });
+            j.budget_used.insert("attempts".into(), 2);
+            j.budget_used.insert("engine_attempts".into(), 2);
+            Ok(())
+        })
+        .await
+        .is_err()
+    );
+}
+#[tokio::test]
+async fn existing_empty_legacy_identity_survives_only_faithful_materialization() {
+    let server = Server::start();
+    let s = scoped(&server);
+    let mut legacy = job();
+    legacy.state = "partial".into();
+    legacy.queries[0].state = "failed".into();
+    legacy.queries[0].cursor = Some("legacy-cursor".into());
+    legacy.queries[0].result_count = 1;
+    s.create(&legacy).await.unwrap();
+    let owner = s
+        .claim_prepared(
+            &id(),
+            "legacy-owner",
+            ttl(30),
+            &mut Tokens("legacy-owner"),
+            now(10.0),
+            aid,
+            false,
+            |j| {
+                j.initialize_budget(ResearchCeilings {
+                    queries: 3,
+                    engines_per_query: 1,
+                    results: 3,
+                })?;
+                j.reset_retryable_queries();
+                Ok(())
+            },
+        )
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(owner.job.queries[0].attempts[0].attempt_id.is_empty());
+    assert_eq!(
+        owner.job.queries[0].attempts[0].cursor.as_deref(),
+        Some("legacy-cursor")
+    );
+    let preserved = s
+        .mutate(&id(), &owner.token, |j| {
+            j.reserve_attempt(0, AttemptId::new("fresh-id")?, now(11.0))?;
+            Ok(())
+        })
+        .await
+        .unwrap();
+    assert_eq!(
+        preserved.queries[0].attempts[0],
+        owner.job.queries[0].attempts[0]
+    );
+    assert_eq!(preserved.budget_used["attempts"], 2);
+}

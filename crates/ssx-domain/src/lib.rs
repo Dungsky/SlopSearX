@@ -36,3 +36,5 @@ impl From<ssx_json::Error> for DomainError {
         Self("invalid bounded JSON")
     }
 }
+
+pub mod research;

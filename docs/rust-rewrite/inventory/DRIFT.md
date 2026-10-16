@@ -124,3 +124,26 @@ and each parser bound. Existing opaque identifiers remain unchanged; this
 change migrates no durable identity namespace. Public numeric values retain
 integer-versus-float representation; comparator tolerance must not conceal
 changes in payload values, timing fields, or canonical identity bytes.
+
+## W01 temporary record/accounting oracle addition
+
+W01 adds `docs/rust-rewrite/w01/oracle/export.py` against accepted main
+`cfd7a0af61a22cfd040a7fcd41ad950f82005959` after F05/F07 acceptance. Its
+Python3.14.7 source-bound capture uses synthetic research records, injected clock
+and ID factories, and pure coverage/accounting functions. It makes no provider
+or store requests. W01 owns these migration observations; G08 retires executable
+Python before final backend removal. Native mandatory gates read captured JSON
+and never execute the exporter. This is not a client-only exception.
+
+The reviewed source manifest grows from 365 to 366 Python paths and from 242 to
+243 backend-coupled tooling/test paths. The README capture command is classified
+separately under developer oracle invocations; existing mandatory runtime/CI
+commands and historical baseline reports are unchanged. The invocation summary
+now reports the actual three existing F04/F05/W01 developer rows. F01 fixture
+refresh is limited to the new oracle and these three edited inventory documents;
+all prior runtime Python and historical baseline hashes remain unchanged.
+
+The first W01 frozen F03 run correctly failed on the newly staged, unclassified
+exporter. Its failed source-bound evidence is retained; this explicit inventory
+addition closes that failure rather than weakening exact-set validation. W01's
+native hardening differences are recorded separately in `../w01/parity.json`.
