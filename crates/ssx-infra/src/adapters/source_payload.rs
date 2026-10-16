@@ -1,9 +1,12 @@
 //! Payload-only Python `_json_safe` projection for adapter source values.
 //!
 //! This leaves ordinary Value::project and result title/content handling intact.
-//! It is a semantic component, not a charged or cooperative operation boundary;
-//! runtime consumers must retain their supervised resource/deadline ownership.
+//! The legacy semantic wrapper remains synchronous. Additive charged visitors
+//! and the narrow batch assembler require caller-owned source/scratch budgets;
+//! their operation accounting ends explicitly at final adapter response handoff.
 use super::source_json::{ProjectionError, Text, Value};
+mod batch;
+pub use batch::{Outcome, ProducedBatch, Skeleton};
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum Error {
@@ -362,6 +365,12 @@ pub enum FieldRef<'a> {
     Value(&'a Value),
     Text(&'a Text),
     SelectedTexts(&'a [&'a Text]),
+    /// Arbitrary borrowed author values; source payload sanitation stays shared.
+    SelectedValues(&'a [&'a Value]),
+    /// Already scalar-only Expat fields; no temporary SourceText allocation.
+    Scalar(&'a str),
+    /// Borrowed scalar author views; descriptor storage is caller-owned/charged.
+    SelectedScalars(&'a [&'a str]),
 }
 #[derive(Clone, Copy)]
 pub struct Field<'a> {
@@ -471,9 +480,33 @@ pub async fn publication_budgeted(
             FieldRef::Value(Value::Null) => continue,
             FieldRef::Value(value) => visit(value, 1, &mut state)?.await?,
             FieldRef::Text(text) => Out::String(state.string(text).await?),
+            FieldRef::Scalar(text) => Out::String(state.scalar(text).await?),
+            FieldRef::SelectedValues(values) => {
+                let mut output = state.array(values.len())?;
+                for (index, value) in values.iter().enumerate() {
+                    if index % 128 == 0 {
+                        state.checkpoint().await?;
+                    }
+                    output.push(visit(value, 2, &mut state)?.await?);
+                }
+                Out::Array(output)
+            }
+            FieldRef::SelectedScalars(texts) => {
+                let mut output = state.array(texts.len())?;
+                for (index, text) in texts.iter().enumerate() {
+                    if index % 128 == 0 {
+                        state.checkpoint().await?;
+                    }
+                    output.push(Out::String(state.scalar(text).await?));
+                }
+                Out::Array(output)
+            }
             FieldRef::SelectedTexts(texts) => {
                 let mut output = state.array(texts.len())?;
-                for text in texts {
+                for (index, text) in texts.iter().enumerate() {
+                    if index % 128 == 0 {
+                        state.checkpoint().await?;
+                    }
                     output.push(Out::String(state.string(text).await?));
                 }
                 Out::Array(output)
@@ -659,6 +692,159 @@ mod tests {
             project_field_budgeted(&input, &budget, Instant::now()).await,
             Err(BudgetError::Deadline)
         ));
+        assert_eq!(budget.snapshot().unwrap().used, 0);
+    }
+    #[tokio::test]
+    async fn publication_envelope_matches_complete_actual_source_payloads() {
+        use ssx_owned_budget::Budget;
+        let fixture: ssx_json::Value = ssx_json::from_str(include_str!(
+            "../../../../docs/rust-rewrite/a06/source-publication-envelope.json"
+        ))
+        .unwrap();
+        let mut checked = Vec::new();
+        for record in fixture["cases"].as_array().unwrap().iter().take(2) {
+            let engine = record["engine"].as_str().unwrap();
+            let wire = record["wire_response_bodies"]
+                .as_array()
+                .unwrap()
+                .last()
+                .unwrap()
+                .as_str()
+                .unwrap();
+            let source = super::super::source_json::from_slice(wire.as_bytes(), None)
+                .await
+                .unwrap();
+            let budget = Budget::new(1024 * 1024).unwrap();
+            let output = if engine == "pubmed" {
+                let item = source.get("result").unwrap().get("123").unwrap();
+                let names: Vec<&Text> = item
+                    .get("authors")
+                    .unwrap()
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|v| v.get("name").unwrap().as_text().unwrap())
+                    .collect();
+                let id = Value::String(Text::from("123"));
+                let types = Value::Array(Vec::new());
+                publication_budgeted(
+                    engine,
+                    &[
+                        Field {
+                            name: "publication_id",
+                            value: FieldRef::Value(&id),
+                        },
+                        Field {
+                            name: "pmid",
+                            value: FieldRef::Value(&id),
+                        },
+                        Field {
+                            name: "publication_types",
+                            value: FieldRef::Value(&types),
+                        },
+                        Field {
+                            name: "journal",
+                            value: FieldRef::Value(item.get("source").unwrap()),
+                        },
+                        Field {
+                            name: "authors",
+                            value: FieldRef::SelectedTexts(&names),
+                        },
+                    ],
+                    &budget,
+                    None,
+                )
+                .await
+                .unwrap()
+            } else {
+                let item = &source
+                    .get("resultList")
+                    .unwrap()
+                    .get("result")
+                    .unwrap()
+                    .as_array()
+                    .unwrap()[0];
+                publication_budgeted(
+                    engine,
+                    &[
+                        Field {
+                            name: "publication_id",
+                            value: FieldRef::Value(item.get("id").unwrap()),
+                        },
+                        Field {
+                            name: "source",
+                            value: FieldRef::Value(item.get("source").unwrap()),
+                        },
+                        Field {
+                            name: "pmid",
+                            value: FieldRef::Value(item.get("id").unwrap()),
+                        },
+                        Field {
+                            name: "doi",
+                            value: FieldRef::Value(item.get("doi").unwrap()),
+                        },
+                    ],
+                    &budget,
+                    None,
+                )
+                .await
+                .unwrap()
+            };
+            assert_eq!(
+                output.value(),
+                &record["output"]["results"][0]["payload"],
+                "{}",
+                record["id"]
+            );
+            assert_eq!(
+                ssx_json::to_string(output.value()).unwrap(),
+                ssx_json::to_string(&record["output"]["results"][0]["payload"]).unwrap()
+            );
+            drop(output);
+            assert_eq!(budget.snapshot().unwrap().used, 0);
+            checked.push(record["id"].as_str().unwrap());
+        }
+        assert_eq!(
+            checked,
+            [
+                "pm-raw-author-after-display",
+                "ep-raw-payload-only-surrogate"
+            ]
+        );
+        let zero = Value::integer(0);
+        let null = Value::Null;
+        let no = Value::Bool(false);
+        let budget = Budget::new(1024 * 1024).unwrap();
+        let out = publication_budgeted(
+            "test",
+            &[
+                Field {
+                    name: "x",
+                    value: FieldRef::Value(&zero),
+                },
+                Field {
+                    name: "y",
+                    value: FieldRef::Value(&no),
+                },
+                Field {
+                    name: "x",
+                    value: FieldRef::Value(&null),
+                },
+            ],
+            &budget,
+            None,
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            ssx_json::to_string(&out.value()["data"]).unwrap(),
+            "{\"y\":false}"
+        );
+        assert_eq!(
+            ssx_json::to_string(&out.value()["provenance"]["adapter_fields"]).unwrap(),
+            "[\"y\"]"
+        );
+        drop(out);
         assert_eq!(budget.snapshot().unwrap().used, 0);
     }
     #[tokio::test]
@@ -870,5 +1056,287 @@ mod tests {
                 .as_f64(),
             Some(1.5)
         );
+    }
+}
+
+#[cfg(test)]
+mod scalar_borrow_tests {
+    use super::*;
+    use std::time::{Duration, Instant};
+    #[tokio::test]
+    async fn scalar_fields_match_source_text_without_intermediate_source_copies() {
+        let budget = ssx_owned_budget::Budget::new(1024 * 1024).unwrap();
+        let text = Text::from("A\n🦑");
+        let empty = Text::from("");
+        let author = Text::from("Ada");
+        let texts = [&text, &empty, &author];
+        let scalars = ["A\n🦑", "", "Ada"];
+        let old = [
+            Field {
+                name: "title",
+                value: FieldRef::Text(&text),
+            },
+            Field {
+                name: "authors",
+                value: FieldRef::SelectedTexts(&texts),
+            },
+            Field {
+                name: "empty",
+                value: FieldRef::Text(&empty),
+            },
+        ];
+        let new = [
+            Field {
+                name: "title",
+                value: FieldRef::Scalar("A\n🦑"),
+            },
+            Field {
+                name: "authors",
+                value: FieldRef::SelectedScalars(&scalars),
+            },
+            Field {
+                name: "empty",
+                value: FieldRef::Scalar(""),
+            },
+        ];
+        let a = publication_budgeted("arxiv", &old, &budget, None)
+            .await
+            .unwrap();
+        let b = publication_budgeted("arxiv", &new, &budget, None)
+            .await
+            .unwrap();
+        assert_eq!(a.value(), b.value());
+        assert_eq!(a.charged_bytes(), b.charged_bytes());
+        drop((a, b));
+        assert_eq!(budget.snapshot().unwrap().used, 0);
+        let scarce = ssx_owned_budget::Budget::new(1).unwrap();
+        assert!(matches!(
+            publication_budgeted("arxiv", &new, &scarce, None).await,
+            Err(BudgetError::Resource)
+        ));
+        assert_eq!(scarce.snapshot().unwrap().used, 0);
+    }
+    #[tokio::test(flavor = "current_thread")]
+    async fn scalar_copy_cancellation_releases_observed_live_reservation() {
+        let text = "x".repeat(4 * 1024 * 1024);
+        let budget = ssx_owned_budget::Budget::new(32 * 1024 * 1024).unwrap();
+        let fields = [Field {
+            name: "abstract",
+            value: FieldRef::Scalar(&text),
+        }];
+        {
+            let job = publication_budgeted(
+                "arxiv",
+                &fields,
+                &budget,
+                Some(Instant::now() + Duration::from_secs(30)),
+            );
+            tokio::pin!(job);
+            tokio::select! {
+                result=&mut job=>panic!("copy completed before observed allocation: {}",result.is_ok()),
+                _=async{loop{if budget.snapshot().unwrap().used>=text.len(){break}tokio::task::yield_now().await;}}=>{}
+            }
+        }
+        assert_eq!(budget.snapshot().unwrap().used, 0);
+        assert!(matches!(
+            publication_budgeted(
+                "arxiv",
+                &fields,
+                &budget,
+                Some(Instant::now() - Duration::from_secs(1))
+            )
+            .await,
+            Err(BudgetError::Deadline)
+        ));
+        assert_eq!(budget.snapshot().unwrap().used, 0);
+    }
+    #[tokio::test(flavor = "current_thread")]
+    async fn both_empty_author_paths_yield_after_array_charge_and_observe_deadline() {
+        let empty = Text::from("");
+        let scalar_authors = vec![""; 65536];
+        let text_authors = vec![&empty; 65536];
+        for value in [
+            FieldRef::SelectedScalars(&scalar_authors),
+            FieldRef::SelectedTexts(&text_authors),
+        ] {
+            for expire in [false, true] {
+                let budget = ssx_owned_budget::Budget::new(32 * 1024 * 1024).unwrap();
+                let fields = [Field {
+                    name: "authors",
+                    value,
+                }];
+                let array_bytes = 65536 * std::mem::size_of::<ssx_json::Value>();
+                let deadline = Instant::now() + Duration::from_secs(2);
+                {
+                    let job = publication_budgeted("arxiv", &fields, &budget, Some(deadline));
+                    tokio::pin!(job);
+                    tokio::select! {
+                        result=&mut job=>panic!("empty author copy completed before array charge observation: {}",result.is_ok()),
+                        _=async{loop{if budget.snapshot().unwrap().used>=array_bytes{break}tokio::task::yield_now().await;}}=>{}
+                    }
+                    // More Pending boundaries than all following envelope
+                    // metadata combined proves we remain inside the array-copy
+                    // phase rather than merely observing its retained charge.
+                    for poll in 0..256 {
+                        std::future::poll_fn(|cx| {
+                            assert!(
+                                matches!(
+                                    std::future::Future::poll(job.as_mut(), cx),
+                                    std::task::Poll::Pending
+                                ),
+                                "array copy completed at repeated poll {poll}"
+                            );
+                            assert!(budget.snapshot().unwrap().used >= array_bytes);
+                            std::task::Poll::Ready(())
+                        })
+                        .await;
+                    }
+                    if expire {
+                        // Freeze this single-thread test executor only after
+                        // observing real array reservation. std::Instant is the
+                        // production clock; no Tokio pause or sleep assumption.
+                        if let Some(wait) = deadline.checked_duration_since(Instant::now()) {
+                            std::thread::sleep(wait + Duration::from_millis(1));
+                        }
+                        assert!(matches!(job.await, Err(BudgetError::Deadline)));
+                    }
+                }
+                assert_eq!(budget.snapshot().unwrap().used, 0);
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod selected_values_controls {
+    use super::*;
+    use base64::Engine as _;
+    use ssx_owned_budget::{Budget, OwnedVec};
+    use std::{
+        future::Future,
+        task::{Context, Poll, Waker},
+        time::{Duration, Instant},
+    };
+    #[tokio::test]
+    async fn original_adapter_post_first3_arbitrary_author_values_preserve_payload() {
+        let corpus: ssx_json::Value = ssx_json::from_str(include_str!(
+            "../../../../docs/rust-rewrite/a06/source-selected-values.json"
+        ))
+        .unwrap();
+        let mut ids = std::collections::BTreeSet::new();
+        for row in corpus["records"].as_array().unwrap() {
+            assert!(ids.insert(row["id"].as_str().unwrap()));
+            let bytes = base64::engine::general_purpose::STANDARD
+                .decode(row["responses"][0]["body_b64"].as_str().unwrap())
+                .unwrap();
+            let budget = Budget::new(1024 * 1024).unwrap();
+            let input = budget.reserve(bytes.capacity()).unwrap();
+            let deadline = Instant::now() + Duration::from_secs(30);
+            let source =
+                super::super::source_json::from_slice_budgeted(&bytes, Some(deadline), &budget)
+                    .await
+                    .unwrap();
+            let authors = source.value().get("data").unwrap().as_array().unwrap()[0]
+                .get("authors")
+                .unwrap()
+                .as_array()
+                .unwrap();
+            let empty = Value::String(Text::from(""));
+            let mut names = OwnedVec::with_capacity(&budget, authors.len()).unwrap();
+            for author in authors {
+                if let Some(author) = author.as_object() {
+                    names
+                        .try_push(author.get("name").unwrap_or(&empty))
+                        .unwrap();
+                }
+            }
+            let fields = [Field {
+                name: "authors",
+                value: FieldRef::SelectedValues(names.as_slice()),
+            }];
+            let payload = publication_budgeted("semanticscholar", &fields, &budget, Some(deadline))
+                .await
+                .unwrap();
+            assert_eq!(
+                payload.value(),
+                &row["output"]["results"][0]["payload"],
+                "{}",
+                row["id"]
+            );
+            drop(payload);
+            drop(names);
+            drop(source);
+            drop(input);
+            assert_eq!(budget.snapshot().unwrap().used, 0);
+        }
+        assert_eq!(ids.len(), 10);
+    }
+    #[tokio::test]
+    async fn charged_empty_selected_values_yield_then_cancel_or_expire_and_release() {
+        let empty = Value::String(Text::from(""));
+        for expire in [false, true] {
+            let budget = Budget::new(32 * 1024 * 1024).unwrap();
+            let mut values = OwnedVec::with_capacity(&budget, 65536).unwrap();
+            for _ in 0..65536 {
+                values.try_push(&empty).unwrap();
+            }
+            let descriptors = values.charged_bytes();
+            let array = 65536 * std::mem::size_of::<ssx_json::Value>();
+            let fields = [Field {
+                name: "authors",
+                value: FieldRef::SelectedValues(values.as_slice()),
+            }];
+            let deadline = Instant::now() + Duration::from_secs(if expire { 2 } else { 30 });
+            let mut future = Box::pin(publication_budgeted(
+                "semanticscholar",
+                &fields,
+                &budget,
+                Some(deadline),
+            ));
+            let mut context = Context::from_waker(Waker::noop());
+            let mut observed = 0;
+            for _ in 0..100000 {
+                assert!(matches!(future.as_mut().poll(&mut context), Poll::Pending));
+                if budget.snapshot().unwrap().used >= descriptors + array {
+                    observed += 1;
+                    if observed == 256 {
+                        break;
+                    }
+                }
+            }
+            assert_eq!(observed, 256);
+            if expire {
+                tokio::time::sleep_until(deadline.into()).await;
+                assert!(matches!(future.await, Err(BudgetError::Deadline)));
+            } else {
+                drop(future);
+            }
+            assert_eq!(budget.snapshot().unwrap().used, descriptors);
+            drop(values);
+            assert_eq!(budget.snapshot().unwrap().used, 0);
+        }
+        let budget = Budget::new(1024 * 1024).unwrap();
+        let mut values = OwnedVec::with_capacity(&budget, 65536).unwrap();
+        for _ in 0..65536 {
+            values.try_push(&empty).unwrap();
+        }
+        let descriptors = values.charged_bytes();
+        let fields = [Field {
+            name: "authors",
+            value: FieldRef::SelectedValues(values.as_slice()),
+        }];
+        assert!(matches!(
+            publication_budgeted(
+                "semanticscholar",
+                &fields,
+                &budget,
+                Some(Instant::now() + Duration::from_secs(30))
+            )
+            .await,
+            Err(BudgetError::Resource)
+        ));
+        assert_eq!(budget.snapshot().unwrap().used, descriptors);
+        drop(values);
+        assert_eq!(budget.snapshot().unwrap().used, 0);
     }
 }

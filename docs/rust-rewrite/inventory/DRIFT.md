@@ -569,3 +569,13 @@ The F15 source-bound gate adds exactly two temporary developer-only Python expor
 ## A06 accepted F15 main union (candidate integration)
 
 Both complete parent row sets are preserved:394 inventory records and35 developer invocation records. Current checkpoint has449 Python source paths;55 new development-donor/oracle paths remain unregistered, explicitly exact_match=false. These are pending parent-owned integration proposals, not a passed F01 gate/current-source closure.
+
+## A06 guarded classification closure (candidate integration)
+
+Parent-reviewed proposal `15cc59e79df807053f718ec5ac1571c1284ef33b9e11904cbf82bc19240ab25f` appends all57 missing classifications while preserving the394 prior rows and every actual invocation row. After staging the two new A06 exporters, the exact tracked source set is451 paths:122 backend/runtime,324 backend-coupled tooling/test,one client-only andfour historical licensed source inputs. The53 manual developer-tool guidance entries are a separate appendix; they are not executed CI invocation evidence and do not change64 active invocation rows or35 existing developer-oracle invocation records. All captures remain immutable; no provider call or Python runtime/client exception is introduced.
+
+G08 removes all runnable Python tools before final backend removal. The four licensed IDNA Python originals must also leave the final backend tree and backend/helper packages: preserve immutable licensed bytes, notices and pins only as clearly non-executable historical evidence or Git history. Merely labelling these files inert does not authorize shipping executable Python backend source. F01 source bindings are refreshed against the staged exact set; parent aggregate acceptance and later A07/main additive union remain required.
+
+## A06 pinned hostname lowercase oracle addition
+
+Parent accepted narrow component1978676d and its guarded additive inventory proposal. The single new temporary manual exporter `a06/oracle/export_hostname_lower.py` captures Python3.14.7 Unicode16 lowercase/FinalSigma/hostname percent-zone controls offline. Its executable code retires at G08; native tables and immutable JSON retain source identities. No provider calls, runtime fallback, mandatory Python gate or fabricated CI invocation is introduced. All451 prior source rows and actual invocation arrays remain unchanged; the staged exact set becomes452 paths (325 backend-coupled tooling/test), with54 manual guidance rows and the unchanged35 developer invocation rows. Main/A05 additive reconciliation remains required; these counts do not incorporate A05's separately pending pipeline exporter.

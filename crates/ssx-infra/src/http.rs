@@ -30,6 +30,22 @@ pub enum Error {
     Network,
 }
 pub type Result<T> = std::result::Result<T, Error>;
+/// Reviewed native outbound adapter identity. Explicit request/session values
+/// override this static versioned default; no tenant/auth headers are copied.
+pub const DEFAULT_USER_AGENT: &str = concat!(
+    "SlopSearX/",
+    env!("CARGO_PKG_VERSION"),
+    " (meta search engine; agent-native)"
+);
+fn default_headers() -> HeaderMap {
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        header::USER_AGENT,
+        HeaderValue::from_static(DEFAULT_USER_AGENT),
+    );
+    headers
+}
+
 pub type ExchangeFuture<'a> = Pin<Box<dyn Future<Output = Result<Response>> + Send + 'a>>;
 /// Caller-owned transports are borrowed and never closed by this module.
 pub trait Transport: Send + Sync {
@@ -459,7 +475,7 @@ impl AdapterHttp {
             pool,
             injected: s.injected.clone(),
             jar: Jar::default(),
-            headers: HeaderMap::new(),
+            headers: default_headers(),
             options,
             deadline,
             cancel,

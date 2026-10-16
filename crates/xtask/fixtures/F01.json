@@ -3,6 +3,22 @@
   "plan_id": "F01",
   "sources": [
     {
+      "path": "crates/ssx-source-codecs/provenance/idna/idna.py",
+      "git_blob": "0c90b4c9fe18fad8e2fa6f0dbb7ae39edb0726a3"
+    },
+    {
+      "path": "crates/ssx-source-codecs/provenance/idna/inputs/aliases.py",
+      "git_blob": "8b175772c58e0d2ab2a11ee02cd9516963b87ed9"
+    },
+    {
+      "path": "crates/ssx-source-codecs/provenance/idna/inputs/stringprep.py",
+      "git_blob": "44ecdb266ce8b95a0e5c9142ded9e43ac2e0235a"
+    },
+    {
+      "path": "crates/ssx-source-codecs/provenance/idna/mkstringprep.py",
+      "git_blob": "427188389a3b87cf485837c203f35a430e41d464"
+    },
+    {
       "path": "docker/healthcheck.py",
       "git_blob": "39bcbc736bed7e441531ab00f3e6d540e4b3af65"
     },
@@ -27,8 +43,224 @@
       "git_blob": "f0c02454cd89b42b38387b1953572d6a96c1b182"
     },
     {
+      "path": "docs/rust-rewrite/a05/oracle/algorithm_strict_source.py",
+      "git_blob": "9888863134e8cfbcf3af7646e35858b6bf955dcf"
+    },
+    {
+      "path": "docs/rust-rewrite/a05/oracle/alias_only_generate.py",
+      "git_blob": "bb7322fa92a638914e9f0ef9909b301041ed0482"
+    },
+    {
+      "path": "docs/rust-rewrite/a05/oracle/bound_inventory.py",
+      "git_blob": "8aa4de5797cf26faeb296787d9c70071b6c77d62"
+    },
+    {
+      "path": "docs/rust-rewrite/a05/oracle/cjk_strict_error_records.py",
+      "git_blob": "868aa37dae843e810eccbbd08768b05bb09349e2"
+    },
+    {
+      "path": "docs/rust-rewrite/a05/oracle/cjk_strict_validity_source.py",
+      "git_blob": "f489e95816a0a31487ba20c37903c3cbf5aac151"
+    },
+    {
+      "path": "docs/rust-rewrite/a05/oracle/doublebyte.py",
+      "git_blob": "f8d02eca879f424d60e715e044b250f8a6486dc0"
+    },
+    {
+      "path": "docs/rust-rewrite/a05/oracle/euckr_vectors.py",
+      "git_blob": "1ccab8574c7e9ad8a827017d385083f6e98a9969"
+    },
+    {
+      "path": "docs/rust-rewrite/a05/oracle/export.py",
+      "git_blob": "06109e9e56a53086821596d42f2f960d9ee07037"
+    },
+    {
+      "path": "docs/rust-rewrite/a05/oracle/gb18030_vectors.py",
+      "git_blob": "fe160823f2fa6fd3b70565aa49ccd9bae1ea1cea"
+    },
+    {
+      "path": "docs/rust-rewrite/a05/oracle/hkscs_independent.py",
+      "git_blob": "dfb6656ea921c182e747c678b17ca6fe76e1de98"
+    },
+    {
+      "path": "docs/rust-rewrite/a05/oracle/hkscs_validity.py",
+      "git_blob": "dfe81de336dc8946fd881c2dbf380b7221aa597f"
+    },
+    {
+      "path": "docs/rust-rewrite/a05/oracle/hz_vectors.py",
+      "git_blob": "6808b300831c284be2a74407a6f9cba61187fab2"
+    },
+    {
+      "path": "docs/rust-rewrite/a05/oracle/idna_all_points_source.py",
+      "git_blob": "be8e75c82e5ab38d61274ef3e9b9d548cfe94af3"
+    },
+    {
+      "path": "docs/rust-rewrite/a05/oracle/idna_direct_source.py",
+      "git_blob": "592e8c4a1fbc07a28b231b17f41f095e688c2c01"
+    },
+    {
+      "path": "docs/rust-rewrite/a05/oracle/idna_profile_generate.py",
+      "git_blob": "5bebabd37d9c9e91254012dbccc334d4c958510d"
+    },
+    {
+      "path": "docs/rust-rewrite/a05/oracle/idna_profile_rust.py",
+      "git_blob": "52b57ff5cc65c116574b2d94fd51fd6ac8ff439f"
+    },
+    {
+      "path": "docs/rust-rewrite/a05/oracle/idna_selector.py",
+      "git_blob": "9b64c676135031c2c0467189abcea395c891c57d"
+    },
+    {
+      "path": "docs/rust-rewrite/a05/oracle/iso_maps.py",
+      "git_blob": "75605d3a2ac9c43873dea09e9029186ec7368fdf"
+    },
+    {
+      "path": "docs/rust-rewrite/a05/oracle/iso_vectors.py",
+      "git_blob": "fa3621126dff1a788659af6cc5b7871d3e65ce17"
+    },
+    {
+      "path": "docs/rust-rewrite/a05/oracle/label_alias_source.py",
+      "git_blob": "0154fbfe2501a200fce9bfba87542122dcb497a4"
+    },
+    {
+      "path": "docs/rust-rewrite/a05/oracle/label_alnum_generate.py",
+      "git_blob": "72cc17ed53f578146e1db298fb55604498a6e76d"
+    },
+    {
+      "path": "docs/rust-rewrite/a05/oracle/label_alnum_rust.py",
+      "git_blob": "6858c9bc17cda6104cd95f63863c78a5e774d2ca"
+    },
+    {
+      "path": "docs/rust-rewrite/a05/oracle/label_alnum_source.py",
+      "git_blob": "e42cad37e72d2b264bb23f534424f24832a24112"
+    },
+    {
+      "path": "docs/rust-rewrite/a05/oracle/label_dotted_source.py",
+      "git_blob": "7b8bfbc57f0135e1978753744489e924edd2b55b"
+    },
+    {
+      "path": "docs/rust-rewrite/a05/oracle/long_query.py",
+      "git_blob": "c5323e0edab42e3eb4b86d23f7d809f6b8d9cca1"
+    },
+    {
+      "path": "docs/rust-rewrite/a05/oracle/lower_ascii.py",
+      "git_blob": "dfe35fdfae7fdeb20011886409e5a5848fcd23b7"
+    },
+    {
+      "path": "docs/rust-rewrite/a05/oracle/nul_expanded.py",
+      "git_blob": "d32be00cffee6839c94431113f4088b3c7b88614"
+    },
+    {
+      "path": "docs/rust-rewrite/a05/oracle/nul_versions.py",
+      "git_blob": "e528ca19eb159cccf38f11d409bf88402028b568"
+    },
+    {
+      "path": "docs/rust-rewrite/a05/oracle/punycode_vectors.py",
+      "git_blob": "446e99cd04c72603d46299e982f750ec76f24858"
+    },
+    {
+      "path": "docs/rust-rewrite/a05/oracle/rawescape_vectors.py",
+      "git_blob": "21215c2868a1ab953496c49e71d5e4806ca13e13"
+    },
+    {
+      "path": "docs/rust-rewrite/a05/oracle/singlebyte_icu_compare.py",
+      "git_blob": "e5d0499e2006e704ebf20281eb8d6b64509c1de5"
+    },
+    {
+      "path": "docs/rust-rewrite/a05/oracle/singlebyte_icu_independent.py",
+      "git_blob": "6a5c200bafa4163835d31602640e85194a57113a"
+    },
+    {
+      "path": "docs/rust-rewrite/a05/oracle/singlebyte_icu_source.py",
+      "git_blob": "876fc137f1f8e1d4a6cb41cc85b2d5b4093bfdac"
+    },
+    {
+      "path": "docs/rust-rewrite/a05/oracle/singlebyte_native_input.py",
+      "git_blob": "ba95464eb1a883d993013e342a4631e9005550f8"
+    },
+    {
+      "path": "docs/rust-rewrite/a05/oracle/singlebyte_strict_validity.py",
+      "git_blob": "d67915b33ce5fb5d42d83e4efc72011be5000629"
+    },
+    {
+      "path": "docs/rust-rewrite/a05/oracle/singlebyte_tables.py",
+      "git_blob": "8fa3a874ed1305e894268cffbab8e1a0717a24cc"
+    },
+    {
+      "path": "docs/rust-rewrite/a05/oracle/stateful_strict_source.py",
+      "git_blob": "afcf2761e8c6a25823c60d175e6193c385590ef1"
+    },
+    {
+      "path": "docs/rust-rewrite/a05/oracle/storage_kind.py",
+      "git_blob": "b35a26e3d1b071d144649b4198ff6512136d9fbc"
+    },
+    {
+      "path": "docs/rust-rewrite/a05/oracle/strict_overflow_source.py",
+      "git_blob": "5822e8d33b613828263bd9264ce82b8f2358e859"
+    },
+    {
+      "path": "docs/rust-rewrite/a05/oracle/strict_parameter_source.py",
+      "git_blob": "cf80ccbe7e34375fcf1d47f1cf68fa961e51afbb"
+    },
+    {
+      "path": "docs/rust-rewrite/a05/oracle/strict_validity_generate.py",
+      "git_blob": "b4943c49a3b57bbd747872ae61a705ff76fff8bb"
+    },
+    {
+      "path": "docs/rust-rewrite/a05/oracle/surrogates.py",
+      "git_blob": "48bac0b3c3fa90b37c6445c72aeca5c5b7d3c61c"
+    },
+    {
+      "path": "docs/rust-rewrite/a05/oracle/unicode_name_all.py",
+      "git_blob": "1947a3193a3999c1b86ebb8dd4fd6d5b621f8d15"
+    },
+    {
+      "path": "docs/rust-rewrite/a05/oracle/unicode_name_probes.py",
+      "git_blob": "3193242723e6e2240e6c3a8cb6dab9751f17f525"
+    },
+    {
+      "path": "docs/rust-rewrite/a05/oracle/unicode_names.py",
+      "git_blob": "0d407bb79083b59570b7582d9baef3eb8b2842a8"
+    },
+    {
+      "path": "docs/rust-rewrite/a05/oracle/unicode_vectors.py",
+      "git_blob": "255838e9350ed7b37a48e7a62a2e7183999cabbc"
+    },
+    {
+      "path": "docs/rust-rewrite/a05/oracle/unicodeescape_vectors.py",
+      "git_blob": "e20017deb3995a5d67345c316f05aff660e5b70b"
+    },
+    {
+      "path": "docs/rust-rewrite/a06/oracle/export_atom_decode.py",
+      "git_blob": "7826ef4956e15e9fdfc0acd1cef2bd5060dabecb"
+    },
+    {
+      "path": "docs/rust-rewrite/a06/oracle/export_charset.py",
+      "git_blob": "c2bcf13265118ba8ce4d3ea2463ca5141c07d218"
+    },
+    {
+      "path": "docs/rust-rewrite/a06/oracle/export_charset_boundaries.py",
+      "git_blob": "aafd83234a62faa1a72be770186b598522f930ed"
+    },
+    {
+      "path": "docs/rust-rewrite/a06/oracle/export_config.py",
+      "git_blob": "31d76f1f94a194ef0caa5dc7fcdb8dba7f7f2e55"
+    },
+    {
+      "path": "docs/rust-rewrite/a06/oracle/export_float_lexical.py",
+      "git_blob": "a3b37afb9f5fccfa85db77613363b15b92f9d808"
+    },
+    {
+      "path": "docs/rust-rewrite/a06/oracle/export_hostname_lower.py",
+      "git_blob": "4850e70f561407d2ef8a2de2921f609ef0f90cf0"
+    },
+    {
       "path": "docs/rust-rewrite/a06/oracle/export_json_matrix.py",
       "git_blob": "226a975df274b69fa6410c511bf727097e0bbc94"
+    },
+    {
+      "path": "docs/rust-rewrite/a06/oracle/export_openalex_order.py",
+      "git_blob": "0647f23910096c434deec16c7f8e7f2318c083dd"
     },
     {
       "path": "docs/rust-rewrite/a06/oracle/export_shared.py",
@@ -96,7 +328,7 @@
     },
     {
       "path": "docs/rust-rewrite/inventory/DRIFT.md",
-      "git_blob": "379b5782ef05c66c92f07247453c59b06c19a5b9"
+      "git_blob": "6fb8306c2a40c129700a5718ab05ea70d077b056"
     },
     {
       "path": "docs/rust-rewrite/inventory/README.md",
@@ -120,11 +352,11 @@
     },
     {
       "path": "docs/rust-rewrite/inventory/python-disposition.json",
-      "git_blob": "724302f99528e186f458afcc3df5a92eb552d31a"
+      "git_blob": "d1d1c0323dc2699d5f138628f5619b147151a3d4"
     },
     {
       "path": "docs/rust-rewrite/inventory/python-invocations.json",
-      "git_blob": "1d7e9e0a1ec3666207649fc18538f51d88ac898a"
+      "git_blob": "cf9b8a9332d85acf16adb18ddc194fbe44daf281"
     },
     {
       "path": "docs/rust-rewrite/inventory/surface-contracts.md",

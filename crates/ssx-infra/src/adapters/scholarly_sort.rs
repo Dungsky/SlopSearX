@@ -666,7 +666,10 @@ fn minrun(mut n: usize) -> usize {
 /// It returns a permutation; it never asks Rust's total-order slice sorter to
 /// interpret NaNs. This compatibility wrapper retains its unbudgeted Vec API.
 pub async fn order(pairs: &[Pair<'_>], deadline: Instant) -> Result<Vec<usize>, Error> {
-    match order_inner(pairs, deadline, None).await? {
+    match order_inner(pairs, deadline, None)
+        .await
+        .map_err(super::scholarly_order::legacy_error)?
+    {
         Buffer::Plain(v) => Ok(v),
         Buffer::Charged(_) => unreachable!("unbudgeted sorter selects plain storage"),
     }
@@ -681,6 +684,7 @@ pub async fn order_budgeted(
     order_inner(pairs, deadline, Some(budget))
         .await
         .map(Permutation)
+        .map_err(super::scholarly_order::legacy_error)
 }
 async fn order_inner(
     pairs: &[Pair<'_>],
@@ -831,6 +835,26 @@ mod tests {
                 "sorter release {}",
                 row["id"]
             );
+
+            let owned =
+                order_owned(&pairs, Instant::now() + Duration::from_secs(10), &budget).await;
+            if let Some(error) = full["error"]["message"].as_str() {
+                let Err(BoundedError::Source(message)) = &owned else {
+                    panic!("owned source error {}", row["id"])
+                };
+                assert_eq!(message.as_str(), error, "owned {}", row["id"]);
+                assert!(budget.snapshot().unwrap().used >= message.capacity());
+            } else {
+                let actual = owned.as_ref().unwrap();
+                assert_eq!(
+                    actual.as_slice(),
+                    result.as_ref().unwrap().as_slice(),
+                    "owned {}",
+                    row["id"]
+                );
+            }
+            drop(owned);
+            assert_eq!(budget.snapshot().unwrap().used, 0);
 
             if let Some(error) = full["error"]["message"].as_str() {
                 assert_eq!(result, Err(Error::Source(error.into())), "{}", row["id"]);
@@ -983,5 +1007,154 @@ mod tests {
             sorter.gallop_left(1, &[0, 1], 0).await,
             Err(Error::Deadline)
         );
+    }
+}
+
+/// Actual adapters retain source diagnostic backing inside this owned error.
+/// Legacy order/order_budgeted wrappers preserve their historical String API.
+pub enum BoundedError {
+    Source(ssx_owned_budget::OwnedString),
+    Deadline,
+    Resource,
+    Invariant,
+}
+impl std::fmt::Debug for BoundedError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Source(v) => f.debug_tuple("Source").field(&v.as_str()).finish(),
+            Self::Deadline => f.write_str("Deadline"),
+            Self::Resource => f.write_str("Resource"),
+            Self::Invariant => f.write_str("Invariant"),
+        }
+    }
+}
+async fn owned_error(
+    error: Error,
+    budget: &ssx_owned_budget::Budget,
+    deadline: Instant,
+) -> BoundedError {
+    match error {
+        Error::Deadline => BoundedError::Deadline,
+        Error::Resource => BoundedError::Resource,
+        Error::Source(_) => BoundedError::Invariant,
+        Error::ComparisonType { left, right } => {
+            let result = async {
+                tick(deadline).await?;
+                let parts = [
+                    "'<' not supported between instances of '",
+                    left,
+                    "' and '",
+                    right,
+                    "'",
+                ];
+                let size = parts
+                    .iter()
+                    .try_fold(0usize, |n, s| n.checked_add(s.len()))
+                    .ok_or(Error::Resource)?;
+                let mut out =
+                    ssx_owned_budget::OwnedString::new(budget).map_err(|_| Error::Resource)?;
+                out.try_reserve_exact(size).map_err(|_| Error::Resource)?;
+                for part in parts {
+                    tick(deadline).await?;
+                    out.try_push_str(part).map_err(|_| Error::Resource)?;
+                }
+                Ok::<_, Error>(out)
+            }
+            .await;
+            match result {
+                Ok(v) => BoundedError::Source(v),
+                Err(Error::Deadline) => BoundedError::Deadline,
+                Err(_) => BoundedError::Resource,
+            }
+        }
+    }
+}
+/// Same-root sort/comparison/error path; no uncharged source String escape.
+pub async fn order_owned(
+    pairs: &[Pair<'_>],
+    deadline: Instant,
+    budget: &ssx_owned_budget::Budget,
+) -> Result<Permutation, BoundedError> {
+    match order_inner(pairs, deadline, Some(budget)).await {
+        Ok(v) => Ok(Permutation(v)),
+        Err(e) => Err(owned_error(e, budget, deadline).await),
+    }
+}
+
+#[cfg(test)]
+mod owned_error_controls {
+    use super::*;
+    use std::{
+        future::Future,
+        task::{Context, Poll, Waker},
+        time::Duration,
+    };
+    #[tokio::test]
+    async fn source_error_storage_stays_charged_through_result_drop_and_midcopy_cancel() {
+        let tiny = ssx_owned_budget::Budget::new(1).unwrap();
+        assert!(matches!(
+            owned_error(
+                Error::ComparisonType {
+                    left: "dict",
+                    right: "str"
+                },
+                &tiny,
+                Instant::now() + Duration::from_secs(5)
+            )
+            .await,
+            BoundedError::Resource
+        ));
+        assert_eq!(tiny.snapshot().unwrap().used, 0);
+        let budget = ssx_owned_budget::Budget::new(4096).unwrap();
+        let deadline = Instant::now() + Duration::from_secs(5);
+        let error = owned_error(
+            Error::ComparisonType {
+                left: "dict",
+                right: "str",
+            },
+            &budget,
+            deadline,
+        )
+        .await;
+        let BoundedError::Source(text) = &error else {
+            panic!()
+        };
+        assert_eq!(
+            text.as_str(),
+            "'<' not supported between instances of 'dict' and 'str'"
+        );
+        assert!(budget.snapshot().unwrap().used > 0);
+        drop(error);
+        assert_eq!(budget.snapshot().unwrap().used, 0);
+        for expire in [false, true] {
+            let deadline = Instant::now() + Duration::from_secs(if expire { 2 } else { 30 });
+            let mut future = Box::pin(owned_error(
+                Error::ComparisonType {
+                    left: "dict",
+                    right: "str",
+                },
+                &budget,
+                deadline,
+            ));
+            let mut cx = Context::from_waker(Waker::noop());
+            let mut observed = 0;
+            for _ in 0..20 {
+                assert!(matches!(future.as_mut().poll(&mut cx), Poll::Pending));
+                if budget.snapshot().unwrap().used > 0 {
+                    observed += 1;
+                    if observed == 2 {
+                        break;
+                    }
+                }
+            }
+            assert_eq!(observed, 2);
+            if expire {
+                tokio::time::sleep_until(deadline.into()).await;
+                assert!(matches!(future.await, BoundedError::Deadline));
+            } else {
+                drop(future);
+            }
+            assert_eq!(budget.snapshot().unwrap().used, 0);
+        }
     }
 }

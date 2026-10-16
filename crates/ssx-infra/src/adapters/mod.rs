@@ -463,3 +463,31 @@ pub mod scholarly_config;
 pub mod source_payload;
 
 pub mod scholarly_frame;
+
+/// Shared charged HTTPX/email charset selection inside supervised helpers.
+pub mod http_charset;
+
+mod scholarly_helper;
+pub mod scholarly_reply;
+
+mod arxiv_projection;
+
+pub mod arxiv_runtime;
+
+pub mod http_headers;
+
+pub mod hostname_lower;
+
+pub mod source_repr;
+
+pub mod scholarly_float;
+
+pub mod semantic_projection;
+
+pub mod semantic_retry_after;
+
+pub mod semantic_runtime;
+
+pub mod openalex_projection;
+
+pub mod openalex_runtime;

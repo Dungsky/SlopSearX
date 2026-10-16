@@ -8,6 +8,10 @@ use ssx_infra::adapters::{
 use ssx_json::{Value, json};
 use std::time::{Duration, Instant};
 fn normalized(response: &AdapterResponse) -> Value {
+    assert!(
+        response.results.iter().all(|result| result.media.is_none()),
+        "actual science result unexpectedly contains media"
+    );
     json!({"results":response.results.iter().map(|r|json!({"url":r.url,"title":r.title,"content":r.content,"engine":r.engine,"engines":r.engines.iter().collect::<Vec<_>>(),"score":r.score,"position":r.position,"category":r.category,"published_date":r.published_date,"thumbnail":r.thumbnail,"img_src":r.img_src,"tier":r.tier,"media":null,"payload":r.payload,"work_group":r.work_group})).collect::<Vec<_>>(),"status":response.status,"error_message":response.error_message,"answers":response.answers,"corrections":response.corrections,"infoboxes":response.infoboxes,"synthetic":response.synthetic})
 }
 #[tokio::test]

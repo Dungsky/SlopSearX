@@ -1044,6 +1044,92 @@ fn python_text_tables() -> &'static PythonTextTables {
         .expect("reviewed Python Unicode16 text tables")
     })
 }
+/// One accepted Unicode16 Python repr character, held entirely on the stack.
+/// Cold immutable Unicode-table initialization remains shared-process overhead.
+#[derive(Clone, Copy)]
+pub enum PythonReprQuote {
+    Single,
+    Double,
+}
+pub struct PythonReprCharacter {
+    bytes: [u8; 10],
+    length: usize,
+}
+impl PythonReprCharacter {
+    pub fn as_str(&self) -> &str {
+        std::str::from_utf8(&self.bytes[..self.length]).expect("repr character is UTF8/ASCII")
+    }
+}
+/// Escape one scalar under the caller's chosen single/double quote. This is the
+/// same scalar rule used by the legacy Python formatter; no new Unicode table.
+pub fn python_repr_character(ch: char, quote: PythonReprQuote) -> PythonReprCharacter {
+    let quote = match quote {
+        PythonReprQuote::Single => '\'',
+        PythonReprQuote::Double => '"',
+    };
+    let mut bytes = [0; 10];
+    let length;
+    match ch {
+        '\\' => {
+            bytes[..2].copy_from_slice(b"\\\\");
+            length = 2;
+        }
+        '\n' => {
+            bytes[..2].copy_from_slice(b"\\n");
+            length = 2;
+        }
+        '\r' => {
+            bytes[..2].copy_from_slice(b"\\r");
+            length = 2;
+        }
+        '\t' => {
+            bytes[..2].copy_from_slice(b"\\t");
+            length = 2;
+        }
+        ch if ch == quote => {
+            bytes[0] = b'\\';
+            bytes[1] = ch as u8;
+            length = 2;
+        }
+        ch => {
+            let code = ch as u32;
+            let nonprintable = python_text_tables()
+                .nonprintable_ranges
+                .binary_search_by(|&(start, end)| {
+                    if code < start {
+                        std::cmp::Ordering::Greater
+                    } else if code > end {
+                        std::cmp::Ordering::Less
+                    } else {
+                        std::cmp::Ordering::Equal
+                    }
+                })
+                .is_ok();
+            if nonprintable {
+                let (width, prefix) = if code <= 255 {
+                    (2, b'x')
+                } else if code <= 65535 {
+                    (4, b'u')
+                } else {
+                    (8, b'U')
+                };
+                bytes[0] = b'\\';
+                bytes[1] = prefix;
+                const HEX: &[u8; 16] = b"0123456789abcdef";
+                for i in 0..width {
+                    bytes[2 + i] = HEX[((code >> ((width - i - 1) * 4)) & 15) as usize];
+                }
+                length = width + 2;
+            } else {
+                let mut encoded = [0; 4];
+                let text = ch.encode_utf8(&mut encoded);
+                bytes[..text.len()].copy_from_slice(text.as_bytes());
+                length = text.len();
+            }
+        }
+    }
+    PythonReprCharacter { bytes, length }
+}
 fn write_python_string_repr(text: &str, out: &mut impl std::fmt::Write) -> std::fmt::Result {
     let quote = if text.contains('\'') && !text.contains('"') {
         '"'
@@ -1523,3 +1609,77 @@ mod urllib_contract_tests {
 
 /// F13 durable snapshot compatibility codec.
 pub mod snapshot;
+
+#[cfg(test)]
+mod a06_repr_scalar_compatibility {
+    use super::*;
+    #[test]
+    fn additive_scalar_primitive_matches_existing_writer_for_every_unicode_scalar() {
+        // A double quote in the input forces the existing writer's single-quote
+        // branch, including when the inspected scalar itself is an apostrophe.
+        for point in 0..=0x10ffff {
+            let Some(ch) = char::from_u32(point) else { continue };
+            let input = format!("\"{ch}");
+            let mut actual = String::new();
+            write_python_string_repr(&input, &mut actual).unwrap();
+            let expected = format!("'\"{}'", python_repr_character(ch, PythonReprQuote::Single).as_str());
+            assert_eq!(actual, expected, "scalar U+{point:04X}");
+        }
+        assert_eq!(python_repr_character('"', PythonReprQuote::Double).as_str(), "\\\"");
+        assert_eq!(python_repr_character('\'', PythonReprQuote::Double).as_str(), "'");
+    }
+}
+
+// Static subset of accepted contracts/unicode/python-text-16.0.0.json.
+// Source SHA256 9f6d9cb6e81031954d91cc03084237592e9d7bb2224f22cab5a5fba8cebefabd
+const PYTHON_DECIMAL_ZEROES: &[u32] = &[
+    0x30, 0x660, 0x6f0, 0x7c0, 0x966, 0x9e6, 0xa66, 0xae6, 0xb66, 0xbe6, 0xc66, 0xce6, 0xd66,
+    0xde6, 0xe50, 0xed0, 0xf20, 0x1040, 0x1090, 0x17e0, 0x1810, 0x1946, 0x19d0, 0x1a80, 0x1a90,
+    0x1b50, 0x1bb0, 0x1c40, 0x1c50, 0xa620, 0xa8d0, 0xa900, 0xa9d0, 0xa9f0, 0xaa50, 0xabf0, 0xff10,
+    0x104a0, 0x10d30, 0x10d40, 0x11066, 0x110f0, 0x11136, 0x111d0, 0x112f0, 0x11450, 0x114d0,
+    0x11650, 0x116c0, 0x116d0, 0x116da, 0x11730, 0x118e0, 0x11950, 0x11bf0, 0x11c50, 0x11d50,
+    0x11da0, 0x11f50, 0x16130, 0x16a60, 0x16ac0, 0x16b50, 0x16d70, 0x1ccf0, 0x1d7ce, 0x1d7d8,
+    0x1d7e2, 0x1d7ec, 0x1d7f6, 0x1e140, 0x1e2f0, 0x1e4f0, 0x1e5f1, 0x1e950, 0x1fbf0,
+];
+/// Unicode16 decimal digit value without lazy JSON initialization or allocation.
+pub fn python_decimal_digit(ch: char) -> Option<u8> {
+    let code = ch as u32;
+    let index = PYTHON_DECIMAL_ZEROES.partition_point(|zero| *zero <= code);
+    if index > 0 {
+        let digit = code - PYTHON_DECIMAL_ZEROES[index - 1];
+        if digit < 10 {
+            return Some(digit as u8);
+        }
+    }
+    None
+}
+#[cfg(test)]
+mod a06_decimal_subset_tests {
+    use super::*;
+    #[test]
+    fn static_decimal_membership_equals_accepted_unicode16_source() {
+        let source: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../contracts/unicode/python-text-16.0.0.json"
+        ))
+        .unwrap();
+        let expected: Vec<u32> = source["decimal_zeroes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|v| v.as_u64().unwrap() as u32)
+            .collect();
+        assert_eq!(PYTHON_DECIMAL_ZEROES, expected);
+        for point in 0..=0x10ffff {
+            let Some(ch) = char::from_u32(point) else {
+                continue;
+            };
+            let expected = expected.iter().find_map(|zero| {
+                point
+                    .checked_sub(*zero)
+                    .filter(|v| *v < 10)
+                    .map(|v| v as u8)
+            });
+            assert_eq!(python_decimal_digit(ch), expected, "scalar U+{point:04X}");
+        }
+    }
+}

@@ -186,4 +186,6 @@ pub fn strict_idna_parameter(bytes: &[u8]) -> Result<StrictAsciiOutcome, Paramet
 }
 
 mod bounded_parameter;
-pub use bounded_parameter::{BoundedParameterError, strict_parameter_ascii_bounded};
+pub use bounded_parameter::{
+    BoundedParameterError, lookup_http_encoding_bounded, strict_parameter_ascii_bounded,
+};

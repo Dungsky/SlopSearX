@@ -5,6 +5,10 @@ use std::{cmp::Ordering, future::Future, pin::Pin, time::Instant};
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Error {
     Source(String),
+    ComparisonType {
+        left: &'static str,
+        right: &'static str,
+    },
     Deadline,
     Resource,
 }
@@ -72,22 +76,56 @@ fn integer_cmp(a: &str, b: &str) -> Ordering {
         order => order,
     }
 }
-fn integer_float_cmp(integer: &str, float: f64) -> Option<Ordering> {
+fn integer_float_cmp(
+    integer: &str,
+    float: f64,
+    budget: Option<&ssx_owned_budget::Budget>,
+) -> Result<Option<Ordering>, Error> {
     if float.is_nan() {
-        return None;
+        return Ok(None);
     }
     if float == f64::INFINITY {
-        return Some(Ordering::Less);
+        return Ok(Some(Ordering::Less));
     }
     if float == f64::NEG_INFINITY {
-        return Some(Ordering::Greater);
+        return Ok(Some(Ordering::Greater));
     }
     // Every finite integral f64 is represented exactly by fixed-point formatting.
     // Compare decimal integers without rounding an arbitrary integer to f64.
     let whole = float.trunc();
-    let text = format!("{whole:.0}");
+    // f64::MAX < 10^309: at most309 integral decimal digits, plus one
+    // negative sign. No decimal point/exponent at precision zero. Exact backing
+    // is precharged; Limited refuses any formatting growth beyond310 bytes.
+    const CAPACITY: usize = 310;
+    let _charge = budget
+        .map(|b| b.reserve(CAPACITY))
+        .transpose()
+        .map_err(|_| Error::Resource)?;
+    let mut text = String::new();
+    text.try_reserve_exact(CAPACITY)
+        .map_err(|_| Error::Resource)?;
+    if text.capacity() != CAPACITY {
+        return Err(Error::Resource);
+    }
+    struct Limited<'a>(&'a mut String);
+    impl std::fmt::Write for Limited<'_> {
+        fn write_str(&mut self, s: &str) -> std::fmt::Result {
+            if self
+                .0
+                .len()
+                .checked_add(s.len())
+                .is_none_or(|n| n > self.0.capacity())
+            {
+                return Err(std::fmt::Error);
+            }
+            self.0.push_str(s);
+            Ok(())
+        }
+    }
+    use std::fmt::Write as _;
+    write!(Limited(&mut text), "{whole:.0}").map_err(|_| Error::Resource)?;
     let order = integer_cmp(integer, &text);
-    Some(if order == Ordering::Equal {
+    Ok(Some(if order == Ordering::Equal {
         if float > whole {
             Ordering::Less
         } else if float < whole {
@@ -97,14 +135,20 @@ fn integer_float_cmp(integer: &str, float: f64) -> Option<Ordering> {
         }
     } else {
         order
-    })
+    }))
 }
-fn numeric_cmp(a: Numeric<'_>, b: Numeric<'_>) -> Option<Ordering> {
+fn numeric_cmp(
+    a: Numeric<'_>,
+    b: Numeric<'_>,
+    budget: Option<&ssx_owned_budget::Budget>,
+) -> Result<Option<Ordering>, Error> {
     match (a, b) {
-        (Numeric::Integer(a), Numeric::Integer(b)) => Some(integer_cmp(a, b)),
-        (Numeric::Float(a), Numeric::Float(b)) => a.partial_cmp(&b),
-        (Numeric::Integer(a), Numeric::Float(b)) => integer_float_cmp(a, b),
-        (Numeric::Float(a), Numeric::Integer(b)) => integer_float_cmp(b, a).map(Ordering::reverse),
+        (Numeric::Integer(a), Numeric::Integer(b)) => Ok(Some(integer_cmp(a, b))),
+        (Numeric::Float(a), Numeric::Float(b)) => Ok(a.partial_cmp(&b)),
+        (Numeric::Integer(a), Numeric::Float(b)) => integer_float_cmp(a, b, budget),
+        (Numeric::Float(a), Numeric::Integer(b)) => {
+            integer_float_cmp(b, a, budget).map(|order| order.map(Ordering::reverse))
+        }
     }
 }
 async fn tick(deadline: Instant) -> Result<(), Error> {
@@ -174,7 +218,7 @@ fn equal_inner<'a>(
             if matches!((a,b), (Numeric::Float(a),Numeric::Float(b)) if a.is_nan() && b.is_nan()) {
                 return Ok(true);
             }
-            return Ok(numeric_cmp(a, b) == Some(Ordering::Equal));
+            return Ok(numeric_cmp(a, b, budget)? == Some(Ordering::Equal));
         }
         if let (Some(an), Some(bn)) = (a.string_len(), b.string_len()) {
             if an != bn {
@@ -238,7 +282,9 @@ fn equal_inner<'a>(
 }
 /// Python less-than; unordered NaN is false, not an invented total ordering.
 pub fn less<'a>(a: Ref<'a>, b: Ref<'a>, deadline: Instant) -> Comparison<'a> {
-    less_inner(a, b, deadline, None).expect("unbudgeted comparison does not reserve charges")
+    let inner =
+        less_inner(a, b, deadline, None).expect("unbudgeted comparison does not reserve charges");
+    Box::pin(async move { inner.await.map_err(legacy_error) })
 }
 fn less_inner<'a>(
     a: Ref<'a>,
@@ -249,7 +295,7 @@ fn less_inner<'a>(
     let future = async move {
         tick(deadline).await?;
         if let (Some(a), Some(b)) = (numeric(a), numeric(b)) {
-            return Ok(numeric_cmp(a, b) == Some(Ordering::Less));
+            return Ok(numeric_cmp(a, b, budget)? == Some(Ordering::Less));
         }
         if let (Some(an), Some(bn)) = (a.string_len(), b.string_len()) {
             for at in 0..an.min(bn) {
@@ -271,11 +317,10 @@ fn less_inner<'a>(
             }
             return Ok(a.len() < b.len());
         }
-        Err(Error::Source(format!(
-            "'<' not supported between instances of '{}' and '{}'",
-            a.kind(),
-            b.kind()
-        )))
+        Err(Error::ComparisonType {
+            left: a.kind(),
+            right: b.kind(),
+        })
     };
     boxed(future, budget)
 }
@@ -287,7 +332,9 @@ pub struct Pair<'a> {
 }
 /// Tuple comparison checks equality first, including decoded NaN identity.
 pub async fn pair_less(a: Pair<'_>, b: Pair<'_>, deadline: Instant) -> Result<bool, Error> {
-    pair_less_budgeted(a, b, deadline, None).await
+    pair_less_budgeted(a, b, deadline, None)
+        .await
+        .map_err(legacy_error)
 }
 pub(super) async fn pair_less_budgeted<'a>(
     a: Pair<'a>,
@@ -503,5 +550,54 @@ mod tests {
             "openalex.order.87",
         ];
         assert_eq!(checked, expected);
+    }
+}
+
+/// Legacy wrappers retain their original String diagnostic contract.
+pub(super) fn legacy_error(error: Error) -> Error {
+    match error {
+        Error::ComparisonType { left, right } => Error::Source(format!(
+            "'<' not supported between instances of '{left}' and '{right}'"
+        )),
+        other => other,
+    }
+}
+
+#[cfg(test)]
+mod bounded_numeric_controls {
+    use super::*;
+    #[test]
+    fn exact_source_numeric_order_and_fixed_max_scratch() {
+        let data: ssx_json::Value = ssx_json::from_str(include_str!(
+            "../../../../docs/rust-rewrite/a06/source-order-numeric.json"
+        ))
+        .unwrap();
+        let budget = ssx_owned_budget::Budget::new(310).unwrap();
+        let mut ids = std::collections::BTreeSet::new();
+        for row in data["records"].as_array().unwrap() {
+            assert!(ids.insert(row["id"].as_str().unwrap()));
+            let float = f64::from_bits(
+                u64::from_str_radix(row["float_bits"].as_str().unwrap(), 16).unwrap(),
+            );
+            let actual =
+                integer_float_cmp(row["integer"].as_str().unwrap(), float, Some(&budget)).unwrap();
+            let expected = match row["ordering"].as_str() {
+                Some("less") => Some(Ordering::Less),
+                Some("greater") => Some(Ordering::Greater),
+                Some("equal") => Some(Ordering::Equal),
+                None => None,
+                _ => panic!(),
+            };
+            assert_eq!(actual, expected, "{}", row["id"]);
+            assert_eq!(budget.snapshot().unwrap().used, 0);
+        }
+        assert_eq!(ids.len(), 144);
+        assert_eq!(budget.snapshot().unwrap().peak, 310);
+        let tiny = ssx_owned_budget::Budget::new(309).unwrap();
+        assert_eq!(
+            integer_float_cmp("0", -f64::MAX, Some(&tiny)),
+            Err(Error::Resource)
+        );
+        assert_eq!(tiny.snapshot().unwrap().used, 0);
     }
 }

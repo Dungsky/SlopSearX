@@ -352,7 +352,232 @@ impl Drop for Operation {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RawAdmissionError {
+    Deadline,
+    Saturated,
+    Shutdown,
+}
+/// Must be acquired before the adapter's HTTP call. The same operation stays
+/// alive through response framing, supervised disposal and parent projection.
+pub struct RawOperation {
+    pool: AtomPool,
+    operation: std::sync::Arc<Operation>,
+    budget: ssx_owned_budget::Budget,
+    deadline: tokio::time::Instant,
+}
+struct RawLease {
+    _operation: std::sync::Arc<Operation>,
+    _child: ssx_owned_budget::Charge,
+    _output: std::sync::Arc<ssx_owned_budget::Charge>,
+}
+impl RawOperation {
+    /// Scope pre-helper work (including HTTP) to this operation's existing
+    /// absolute deadline and pool lifetime. No additional admission is acquired.
+    /// Already-closing pools are checked before the supplied future is polled.
+    pub async fn run_until_cancelled<F: std::future::Future>(
+        &self,
+        future: F,
+    ) -> Result<F::Output, RawAdmissionError> {
+        let mut closing = self.pool.closing.subscribe();
+        if *closing.borrow() {
+            return Err(RawAdmissionError::Shutdown);
+        }
+        if tokio::time::Instant::now() >= self.deadline {
+            return Err(RawAdmissionError::Deadline);
+        }
+        tokio::select! {
+            biased;
+            // Sender closure also means this owner can no longer authorize work.
+            _ = closing.changed() => Err(RawAdmissionError::Shutdown),
+            _ = tokio::time::sleep_until(self.deadline) => Err(RawAdmissionError::Deadline),
+            result = future => Ok(result),
+        }
+    }
+    pub fn budget(&self) -> &ssx_owned_budget::Budget {
+        &self.budget
+    }
+    pub async fn parse<'a, I>(self, headers: I, body: &[u8]) -> AdapterResponse
+    where
+        I: Iterator<Item = super::scholarly_frame::Header<'a>> + Clone + Send,
+    {
+        let mut closing = self.pool.closing.subscribe();
+        tokio::select! {
+            result=self.parse_admitted(headers,body)=>result,
+            _=tokio::time::sleep_until(self.deadline)=>timeout(),
+            _=async{if *closing.borrow(){return}let _=closing.changed().await;}=>parser_error("arXiv native XML parser shutdown"),
+        }
+    }
+    async fn source_error(&self, message: &str) -> AdapterResponse {
+        use super::source_payload::{Outcome, ProducedBatch};
+        let result = async {
+            let batch = ProducedBatch::new(&self.budget, 0, Some(self.deadline.into_std()))?;
+            batch
+                .into_adapter_response(Outcome {
+                    status: EngineStatus::Error,
+                    error_message: Some(message),
+                    latency_ms: 0.0,
+                    synthetic: false,
+                })
+                .await
+        }
+        .await;
+        match result {
+            Ok(response) => response,
+            Err(super::source_payload::BudgetError::Deadline) => timeout(),
+            Err(_) => resource(),
+        }
+    }
+    async fn parse_admitted<'a, I>(&self, headers: I, body: &[u8]) -> AdapterResponse
+    where
+        I: Iterator<Item = super::scholarly_frame::Header<'a>> + Clone + Send,
+    {
+        use super::source_payload::{BudgetError, Outcome};
+        use super::{scholarly_frame as frame, scholarly_reply as reply};
+        if tokio::time::Instant::now() >= self.deadline {
+            return timeout();
+        }
+        let child = match self.budget.reserve(frame::CANDIDATE_CHILD_BYTES) {
+            Ok(value) => value,
+            Err(_) => return resource(),
+        };
+        let output_charge = match self.budget.reserve(reply::MAX_BYTES) {
+            Ok(value) => std::sync::Arc::new(value),
+            Err(_) => return resource(),
+        };
+        let payload = match frame::encode(
+            frame::Operation::Atom,
+            headers,
+            body,
+            &self.budget,
+            self.deadline.into_std(),
+        )
+        .await
+        {
+            Ok(frame) => frame,
+            Err(frame::Error::Deadline) => return timeout(),
+            Err(_) => return resource(),
+        };
+        let lease = RawLease {
+            _operation: self.operation.clone(),
+            _child: child,
+            _output: output_charge.clone(),
+        };
+        let output = match self
+            .pool
+            .workers
+            .exchange_with_lease(self.deadline, Vec::new(), payload, reply::MAX_BYTES, lease)
+            .await
+        {
+            Ok(output) => output,
+            Err(ProcessError::Deadline) => return timeout(),
+            Err(ProcessError::OutputBound | ProcessError::Allocation) => return resource(),
+            Err(ProcessError::Shutdown | ProcessError::AdmissionClosed) => {
+                return parser_error("arXiv native XML parser shutdown");
+            }
+            Err(_) => {
+                return self
+                    .source_error("arXiv native scholarly helper failed")
+                    .await;
+            }
+        };
+        let view = match reply::view(&output) {
+            Ok(view) => view,
+            Err(_) => {
+                return self
+                    .source_error("arXiv native scholarly helper invalid response")
+                    .await;
+            }
+        };
+        let bytes = match view {
+            reply::View::Atom(bytes) => bytes,
+            reply::View::Resource(_) => return resource(),
+            reply::View::Deadline(_) => return timeout(),
+            reply::View::Source { message, .. } => return self.source_error(message).await,
+            reply::View::Defect(_) => {
+                return self
+                    .source_error("arXiv native scholarly helper defect")
+                    .await;
+            }
+        };
+        // Parent wire/string/entry allocations share the existing quota formula;
+        // reserve its full upper bound BEFORE decoding, while reply remains live.
+        let entries_charge = match self.budget.reserve(MEMORY) {
+            Ok(charge) => charge,
+            Err(_) => return resource(),
+        };
+        let decoded = wire::decode(bytes, self.deadline).await;
+        drop(output);
+        drop(output_charge);
+        let result = match decoded {
+            Err(wire::Error::Deadline) => return timeout(),
+            Ok(Reply::Syntax) => return syntax(),
+            Ok(Reply::Resource) => return resource(),
+            Ok(Reply::Entries(entries)) => {
+                let batch = super::arxiv_projection::project(
+                    &entries,
+                    &self.budget,
+                    self.deadline.into_std(),
+                )
+                .await;
+                drop(entries);
+                drop(entries_charge);
+                match batch {
+                    Ok(batch) => {
+                        batch
+                            .into_adapter_response(Outcome {
+                                status: EngineStatus::Ok,
+                                error_message: None,
+                                latency_ms: 0.0,
+                                synthetic: false,
+                            })
+                            .await
+                    }
+                    Err(error) => Err(error),
+                }
+            }
+            _ => {
+                return self
+                    .source_error("arXiv native scholarly helper invalid Atom response")
+                    .await;
+            }
+        };
+        match result {
+            Ok(response) => response,
+            Err(BudgetError::Deadline) => timeout(),
+            Err(_) => resource(),
+        }
+    }
+}
+
 impl AtomPool {
+    /// Acquire before HTTP so admission and cancellation ownership span the
+    /// entire actual adapter operation, not just subprocess execution.
+    pub fn begin_raw(
+        &self,
+        budget: ssx_owned_budget::Budget,
+        deadline: tokio::time::Instant,
+    ) -> Result<RawOperation, RawAdmissionError> {
+        if tokio::time::Instant::now() >= deadline {
+            return Err(RawAdmissionError::Deadline);
+        }
+        let permit = self.admission.clone().try_acquire_owned().map_err(|_| {
+            if self.admission.is_closed() {
+                RawAdmissionError::Shutdown
+            } else {
+                RawAdmissionError::Saturated
+            }
+        })?;
+        Ok(RawOperation {
+            pool: self.clone(),
+            operation: std::sync::Arc::new(Operation {
+                permit: Some(permit),
+                drained: self.drained.clone(),
+            }),
+            budget,
+            deadline,
+        })
+    }
     pub fn new(helper: PathBuf, capacity: NonZeroUsize) -> Result<Self, ProcessError> {
         // Initial reviewed operational policy is exactly one operation. Raising
         // concurrency requires a matching aggregate application/container budget.
@@ -502,6 +727,21 @@ fn timeout() -> AdapterResponse {
 pub fn helper_main() -> Result<(), String> {
     ssx_source_xml::prepare_worker().map_err(|_| "XML helper resource setup failed")?;
     let mut input = std::io::stdin().lock();
+    let mut prefix = [0; 4];
+    input
+        .read_exact(&mut prefix)
+        .map_err(|error| error.to_string())?;
+    let mut input = std::io::Cursor::new(prefix).chain(input);
+    if &prefix == b"SSXS" {
+        let mut output = std::io::stdout().lock();
+        return super::scholarly_helper::worker(
+            &mut input,
+            &mut output,
+            super::scholarly_frame::CANDIDATE_CHILD_BYTES,
+        )
+        .map(|_| ())
+        .map_err(|error| error.to_string());
+    }
     let mut header = [0; 8];
     input.read_exact(&mut header).map_err(|e| e.to_string())?;
     let length = usize::try_from(u64::from_be_bytes(header)).map_err(|_| "XML input overflow")?;

@@ -4,7 +4,7 @@
 //! enable serde_json's globally unified `arbitrary_precision` feature: its private
 //! number map tag collides with otherwise ordinary user object keys.
 pub mod float;
-pub use float::{FloatError, FloatNormalizer, parse_json_f64};
+pub use float::{FloatBufferError, FloatError, FloatNormalizer, parse_json_f64};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use std::ops::{Index, IndexMut};
 pub type Error = serde_json::Error;
@@ -454,18 +454,30 @@ mod object_order_tests {
     }
 }
 
-pub fn casefold(value: &str) -> String {
+fn casefold_table() -> &'static std::collections::BTreeMap<String, String> {
     static TABLE: std::sync::OnceLock<std::collections::BTreeMap<String, String>> =
         std::sync::OnceLock::new();
-    let table = TABLE.get_or_init(|| {
+    TABLE.get_or_init(|| {
         serde_json::from_str(include_str!(
             "../../../contracts/unicode/casefold-16.0.0.json"
         ))
         .expect("reviewed Unicode table")
-    });
+    })
+}
+/// Borrow one Unicode16 full casefold mapping without allocating a lookup key.
+/// None preserves the original scalar. Surrogates cannot be Rust chars.
+/// Cold immutable-table initialization belongs to shared-process startup, not
+/// caller output accounting; consumers must retain their own destination owner.
+pub fn casefold_char(ch: char) -> Option<&'static str> {
+    let mut encoded = [0; 4];
+    casefold_table()
+        .get(ch.encode_utf8(&mut encoded))
+        .map(String::as_str)
+}
+pub fn casefold(value: &str) -> String {
     let mut out = String::new();
     for ch in value.chars() {
-        if let Some(folded) = table.get(&ch.to_string()) {
+        if let Some(folded) = casefold_char(ch) {
             out.push_str(folded)
         } else {
             out.push(ch)

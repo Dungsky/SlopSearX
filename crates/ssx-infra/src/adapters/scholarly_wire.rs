@@ -178,6 +178,127 @@ fn openalex_url_text(
     }
     url
 }
+/// Source-owned arXiv query scanning/encoding shares the admitted operation
+/// budget. URL/header/socket storage beyond this returned query remains the
+/// explicitly open F08/G02 transport ownership boundary.
+pub async fn arxiv_parameters_budgeted(
+    budget: &ssx_owned_budget::Budget,
+    query: &str,
+    limit: &super::scholarly_config::Scalar,
+    deadline: std::time::Instant,
+) -> Result<ssx_owned_budget::OwnedString, super::source_payload::BudgetError> {
+    use super::source_payload::BudgetError;
+    use ssx_owned_budget::OwnedString;
+    async fn check(deadline: std::time::Instant) -> Result<(), BudgetError> {
+        tokio::task::yield_now().await;
+        if std::time::Instant::now() >= deadline {
+            Err(BudgetError::Deadline)
+        } else {
+            Ok(())
+        }
+    }
+    async fn encode(
+        out: &mut OwnedString,
+        text: &str,
+        deadline: std::time::Instant,
+    ) -> Result<(), BudgetError> {
+        const HEX: &[u8] = b"0123456789ABCDEF";
+        for (index, byte) in text.bytes().enumerate() {
+            if index % 4096 == 0 {
+                check(deadline).await?;
+            }
+            // OwnedString's exact-capacity append must not turn this bounded
+            // byte loop into a fresh old-buffer copy for every encoded byte.
+            let wanted = out.len().checked_add(3).ok_or(BudgetError::Resource)?;
+            if wanted > out.capacity() {
+                let capacity = out
+                    .capacity()
+                    .checked_mul(2)
+                    .and_then(|n| n.checked_add(8))
+                    .ok_or(BudgetError::Resource)?
+                    .max(wanted);
+                out.try_reserve_exact(capacity - out.len())
+                    .map_err(|_| BudgetError::Resource)?;
+            }
+            if byte.is_ascii_alphanumeric() || b"-._~".contains(&byte) {
+                out.try_push(char::from(byte))
+                    .map_err(|_| BudgetError::Resource)?;
+            } else if byte == b' ' {
+                out.try_push('+').map_err(|_| BudgetError::Resource)?;
+            } else {
+                for c in [
+                    '%',
+                    char::from(HEX[usize::from(byte >> 4)]),
+                    char::from(HEX[usize::from(byte & 15)]),
+                ] {
+                    out.try_push(c).map_err(|_| BudgetError::Resource)?;
+                }
+            }
+        }
+        Ok(())
+    }
+    check(deadline).await?;
+    let (mut first, mut last) = (None, 0);
+    for (index, (at, c)) in query.char_indices().enumerate() {
+        if index % 1024 == 0 {
+            check(deadline).await?;
+        }
+        if !whitespace(c) {
+            first.get_or_insert(at);
+            last = at + c.len_utf8();
+        }
+    }
+    let stripped = &query[first.unwrap_or(last)..last];
+    let (mut terms, mut plain, mut boolean, mut term_start) = (0, true, false, None);
+    for (index, (at, c)) in stripped
+        .char_indices()
+        .chain(std::iter::once((stripped.len(), ' ')))
+        .enumerate()
+    {
+        if index % 1024 == 0 {
+            check(deadline).await?;
+        }
+        if whitespace(c) {
+            if let Some(start) = term_start.take() {
+                terms += 1;
+                let term = &stripped[start..at];
+                // Matching candidates have at most six ASCII bytes; reject
+                // long terms before eq_ignore_ascii_case can scan them.
+                if term.len() <= 6 {
+                    boolean |= ["AND", "OR", "ANDNOT"]
+                        .iter()
+                        .any(|op| term.eq_ignore_ascii_case(op));
+                }
+            }
+        } else {
+            term_start.get_or_insert(at);
+            plain &= c == '-' || word(c);
+        }
+    }
+    let quoted = terms >= 2 && plain && !boolean;
+    let mut out = OwnedString::new(budget).map_err(|_| BudgetError::Resource)?;
+    out.try_push_str("search_query=all%3A")
+        .map_err(|_| BudgetError::Resource)?;
+    if quoted {
+        out.try_push_str("%22").map_err(|_| BudgetError::Resource)?;
+    }
+    encode(&mut out, if quoted { stripped } else { query }, deadline).await?;
+    if quoted {
+        out.try_push_str("%22").map_err(|_| BudgetError::Resource)?;
+    }
+    out.try_push_str("&start=0&max_results=")
+        .map_err(|_| BudgetError::Resource)?;
+    // Numeric source formatting is finite (i64/f64); text is borrowed. Keep the
+    // reservation through encoding so its tiny numeric temporary overlaps out.
+    let _numeric = budget.reserve(256).map_err(|_| BudgetError::Resource)?;
+    let limit = limit.query_text();
+    encode(&mut out, &limit, deadline).await?;
+    out.try_push_str("&sortBy=relevance&sortOrder=descending")
+        .map_err(|_| BudgetError::Resource)?;
+    check(deadline).await?;
+    Ok(out)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -299,5 +420,88 @@ mod tests {
             count += 1;
         }
         assert_eq!(count, 63);
+    }
+}
+
+#[cfg(test)]
+mod bounded_arxiv_growth_controls {
+    use super::*;
+    use crate::adapters::{scholarly_config::Scalar, source_payload::BudgetError};
+    use ssx_owned_budget::Budget;
+    use std::{
+        future::Future,
+        task::{Context, Poll, Waker},
+        time::{Duration, Instant},
+    };
+    #[tokio::test]
+    async fn large_complete_query_matches_full_original_request_bytes() {
+        let query = "z".repeat(1024 * 1024);
+        let budget = Budget::new(8 * 1024 * 1024).unwrap();
+        let actual = arxiv_parameters_budgeted(
+            &budget,
+            &query,
+            &Scalar::Integer(5),
+            Instant::now() + Duration::from_secs(10),
+        )
+        .await
+        .unwrap();
+        let source = arxiv_url_scalar(
+            "https://export.arxiv.org/api/query",
+            &query,
+            &Scalar::Integer(5),
+        )
+        .unwrap();
+        let source = url::Url::parse(&source).unwrap();
+        assert_eq!(actual.as_bytes(), source.query().unwrap().as_bytes());
+        assert_eq!(
+            actual.len(),
+            query.len()
+                + "search_query=all%3A&start=0&max_results=5&sortBy=relevance&sortOrder=descending"
+                    .len()
+        );
+        assert!(budget.snapshot().unwrap().peak > actual.charged_bytes());
+        drop(actual);
+        assert_eq!(budget.snapshot().unwrap().used, 0);
+    }
+    #[tokio::test]
+    async fn large_encoding_quota_drop_and_real_deadline_keep_one_root() {
+        let query = "z".repeat(1024 * 1024);
+        let tiny = Budget::new(1024).unwrap();
+        assert!(matches!(
+            arxiv_parameters_budgeted(
+                &tiny,
+                &query,
+                &Scalar::Integer(5),
+                Instant::now() + Duration::from_secs(30)
+            )
+            .await,
+            Err(BudgetError::Resource)
+        ));
+        assert_eq!(tiny.snapshot().unwrap().used, 0);
+        for expire in [false, true] {
+            let budget = Budget::new(8 * 1024 * 1024).unwrap();
+            let deadline = Instant::now() + Duration::from_secs(if expire { 2 } else { 30 });
+            let limit = Scalar::Integer(5);
+            let mut future = Box::pin(arxiv_parameters_budgeted(&budget, &query, &limit, deadline));
+            let mut context = Context::from_waker(Waker::noop());
+            let mut observed = 0;
+            for _ in 0..100000 {
+                assert!(matches!(future.as_mut().poll(&mut context), Poll::Pending));
+                if budget.snapshot().unwrap().used >= 1024 * 1024 {
+                    observed += 1;
+                    if observed == 16 {
+                        break;
+                    }
+                }
+            }
+            assert_eq!(observed, 16);
+            if expire {
+                tokio::time::sleep_until(deadline.into()).await;
+                assert!(matches!(future.await, Err(BudgetError::Deadline)));
+            } else {
+                drop(future);
+            }
+            assert_eq!(budget.snapshot().unwrap().used, 0);
+        }
     }
 }

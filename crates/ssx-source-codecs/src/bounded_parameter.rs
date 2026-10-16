@@ -131,6 +131,22 @@ pub(crate) fn unicode_into(
         Ok(true)
     })())
 }
+/// Bounded source registry lookup. Whole-response empty-body precedence is
+/// caller-owned; unlike strict empty parameters, this operation always looks up.
+pub fn lookup_http_encoding_bounded(
+    label: &str,
+    budget: &Budget,
+    checkpoint: &dyn Fn() -> Result<(), Error>,
+) -> Result<Option<&'static str>, BoundedParameterError> {
+    checkpoint()?;
+    if label.contains('\0') {
+        return Err(BoundedParameterError::ValueError("embedded null character"));
+    }
+    crate::bounded_http::canonical(label, budget, checkpoint).map_err(|error| match error {
+        BoundedDecodeError::Output(error) => BoundedParameterError::Output(error),
+        _ => BoundedParameterError::RegistryInvariant,
+    })
+}
 /// Caller must supervise the operation: non-emitting scans and bulk copies are
 /// finite admitted work, not a hard wall-clock guarantee from these callbacks.
 pub fn strict_parameter_ascii_bounded(
@@ -148,11 +164,7 @@ pub fn strict_parameter_ascii_bounded(
             budget, "",
         )?));
     }
-    let name = crate::bounded_http::canonical(label, budget, checkpoint)
-        .map_err(|error| match error {
-            BoundedDecodeError::Output(error) => BoundedParameterError::Output(error),
-            _ => BoundedParameterError::RegistryInvariant,
-        })?
+    let name = lookup_http_encoding_bounded(label, budget, checkpoint)?
         .ok_or(BoundedParameterError::LookupFailure)?;
     if matches!(
         name,
