@@ -29,8 +29,9 @@ DOM remain separate inherited boundaries. The current input codec retains its
 4 MiB bytes/text, depth 100 and integer 4300-digit limits and cooperative checks;
 this packet does not claim those allocations belong to the row-output ledger.
 The separately accepted R2 parser ownership component is not imported here:
-A07's baseline lacks its F15 dependency and no whole SourceJSON overwrite was
-made. Allocator/RSS/process containment and total cross-query residency are
+The earlier A07 baseline lacked its F15 dependency. The final integration
+includes accepted F15 through the normal main merge; no whole SourceJSON
+overwrite from the separate R2 component was made. Allocator/RSS/process containment and total cross-query residency are
 therefore not established by a 32 MiB row ledger.
 
 ## Cooperative source repr and shared scalar rules
