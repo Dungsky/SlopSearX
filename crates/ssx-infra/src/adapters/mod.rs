@@ -1,6 +1,11 @@
 //! Native provider adapters currently ported from the registry-search pilot.
+mod community;
 mod crates_io;
+mod github;
+mod hackernews;
+mod huggingface;
 mod npm;
+mod stackexchange;
 
 use crate::http::AdapterHttp;
 use ssx_application::rate::RateLimiter;
@@ -105,6 +110,83 @@ impl SearchAdmission for F10Admission {
 pub fn f10_monotonic_seconds() -> f64 {
     static ORIGIN: OnceLock<Instant> = OnceLock::new();
     ORIGIN.get_or_init(Instant::now).elapsed().as_secs_f64()
+}
+
+pub use community::CommunitySettings;
+pub use github::GitHubConfig;
+pub use hackernews::HackerNewsConfig;
+pub use huggingface::HuggingFaceConfig;
+pub use stackexchange::StackExchangeConfig;
+
+/// A03 settings projected by the composition root; no configuration loader or
+/// credential discovery is hidden in an adapter.
+#[derive(Clone, Debug, Default)]
+pub struct CommunityConfig {
+    pub github: GitHubConfig,
+    pub huggingface: HuggingFaceConfig,
+    pub stackexchange: StackExchangeConfig,
+    pub hackernews: HackerNewsConfig,
+}
+/// Attach A03 factories while retaining caller ownership of transport/admission.
+pub fn register_community(
+    registry: &mut Registry,
+    http: Arc<AdapterHttp>,
+    admission: Arc<dyn SearchAdmission>,
+    config: CommunityConfig,
+) -> Result<(), RegistryError> {
+    let engine_http = http.clone();
+    let engine_admission = admission.clone();
+    let engine_config = config.github;
+    registry.register(
+        "github",
+        Arc::new(move || {
+            Box::new(github::GitHubAdapter::new(
+                engine_http.clone(),
+                engine_admission.clone(),
+                engine_config.clone(),
+            )) as Box<dyn ssx_registry::Engine>
+        }) as EngineFactory,
+    )?;
+    let engine_http = http.clone();
+    let engine_admission = admission.clone();
+    let engine_config = config.huggingface;
+    registry.register(
+        "huggingface",
+        Arc::new(move || {
+            Box::new(huggingface::HuggingFaceAdapter::new(
+                engine_http.clone(),
+                engine_admission.clone(),
+                engine_config.clone(),
+            )) as Box<dyn ssx_registry::Engine>
+        }) as EngineFactory,
+    )?;
+    let engine_http = http.clone();
+    let engine_admission = admission.clone();
+    let engine_config = config.stackexchange;
+    registry.register(
+        "stackexchange",
+        Arc::new(move || {
+            Box::new(stackexchange::StackExchangeAdapter::new(
+                engine_http.clone(),
+                engine_admission.clone(),
+                engine_config.clone(),
+            )) as Box<dyn ssx_registry::Engine>
+        }) as EngineFactory,
+    )?;
+    let engine_http = http.clone();
+    let engine_admission = admission.clone();
+    let engine_config = config.hackernews;
+    registry.register(
+        "hackernews",
+        Arc::new(move || {
+            Box::new(hackernews::HackerNewsAdapter::new(
+                engine_http.clone(),
+                engine_admission.clone(),
+                engine_config.clone(),
+            )) as Box<dyn ssx_registry::Engine>
+        }) as EngineFactory,
+    )?;
+    Ok(())
 }
 
 mod dockerhub;
