@@ -1,7 +1,40 @@
 //! PyYAML SafeLoader scalar resolution over grammar-aware parser events.
 //! Parsing budgets remain those of the pinned YAML reader; alias copies are bounded too.
 use super::ConfigError;
-use serde_json::{Map, Number, Value};
+use serde_json::Number;
+type Map<K, V> = indexmap::IndexMap<K, V>;
+#[derive(Clone)]
+enum Value {
+    Null,
+    Bool(bool),
+    Number(Number),
+    String(String),
+    Array(Vec<Value>),
+    Object(Map<String, Value>),
+}
+impl Value {
+    fn into_json(self) -> serde_json::Value {
+        match self {
+            Self::Null => serde_json::Value::Null,
+            Self::Bool(v) => serde_json::Value::Bool(v),
+            Self::Number(v) => serde_json::Value::Number(v),
+            Self::String(v) => serde_json::Value::String(v),
+            Self::Array(v) => {
+                serde_json::Value::Array(v.into_iter().map(Self::into_json).collect())
+            }
+            Self::Object(v) => {
+                serde_json::Value::Object(v.into_iter().map(|(k, v)| (k, v.into_json())).collect())
+            }
+        }
+    }
+    fn child(&self, key: &str) -> Option<&Self> {
+        if let Self::Object(m) = self {
+            m.get(key)
+        } else {
+            None
+        }
+    }
+}
 use serde_saphyr::{
     Budget,
     granit_parser::{Event, Parser, ScalarStyle, Tag},
@@ -87,7 +120,11 @@ fn merge_into(target: &mut Map<String, Value>, value: Value) -> Result<()> {
     }
     Ok(())
 }
-pub(super) fn parse(raw: &str) -> Result<Value> {
+#[cfg(test)]
+pub(super) fn parse(raw: &str) -> Result<serde_json::Value> {
+    parse_with_topic_order(raw).map(|(v, _)| v)
+}
+pub(super) fn parse_with_topic_order(raw: &str) -> Result<(serde_json::Value, Vec<String>)> {
     // This public preflight retains the pinned reader's event/depth/scalar/anchor budgets.
     if serde_saphyr::budget::parse_yaml(raw, Budget::default()).map_err(|_| invalid())? {
         return Err(invalid());
@@ -234,7 +271,16 @@ pub(super) fn parse(raw: &str) -> Result<Value> {
     if !stack.is_empty() {
         return Err(invalid());
     }
-    Ok(root.map_or(Value::Null, |n| n.value))
+    let root = root.map_or(Value::Null, |n| n.value);
+    let mut order = Vec::new();
+    if let Some(Value::Object(topics)) = root.child("routing").and_then(|v| v.child("topics")) {
+        for key in topics.keys() {
+            let charge = Node::scalar(Value::Null, key.len(), false);
+            charge_copy(&charge, &mut replayed_nodes, &mut copied_bytes)?;
+            order.push(key.clone());
+        }
+    }
+    Ok((root.into_json(), order))
 }
 fn boolean(text: &str) -> Option<bool> {
     match text {
@@ -516,7 +562,7 @@ mod tests {
     use super::*;
     #[test]
     fn captured_python_yaml_resolution_and_composition() {
-        let corpus: Value =
+        let corpus: serde_json::Value =
             serde_json::from_str(include_str!("../../xtask/fixtures/f06/yaml.json")).unwrap();
         for case in corpus["cases"].as_array().unwrap() {
             let result = parse(case["yaml"].as_str().unwrap());

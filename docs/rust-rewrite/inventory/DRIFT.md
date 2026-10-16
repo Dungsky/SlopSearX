@@ -188,3 +188,12 @@ F01 records the final merged inventory-document identities after the narrow
 reviewed refresh and adds the accepted F10 exporter blob pin. Existing W01/T01/F10
 exporter bytes, Python runtime pins and historical F01 baseline evidence remain
 unchanged.
+
+## F09 temporary source oracle
+
+F09 adds one developer-only exporter for synthetic scope, policy, filter, date
+and named-topic ordering observations. This is backend-coupled migration tooling,
+not a client exception. Native F09 consumes pinned JSON and never executes Python.
+G08 retires the exporter before backend removal. The exact inventory becomes
+371 Python paths (122 runtime, 248 tooling/test, one client) and eight developer
+oracle invocation rows. Existing runtime and baseline hashes are unchanged.
