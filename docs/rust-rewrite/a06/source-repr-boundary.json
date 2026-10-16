@@ -7,7 +7,7 @@
   "repr_utf8_bytes": 6291452,
   "repr_sha256": "822794801db331db89bdca20a804d4835760d1c31e96b3cea26d98e82b93e785",
   "repr_prefix": "'一一",
-  "repr_suffix": "一",
+  "repr_suffix": "一一'",
   "exception": null,
   "scope": "actual CPython json.loads(bytes) and repr; no whole-adapter or provider claim",
   "input_recipe": {
@@ -15,5 +15,6 @@
     "encoding": "UTF16LE without BOM"
   },
   "native_regression": "adapters::source_json::tests::accepted_utf16_expansion_repr_matches_complete_source_hash",
-  "correction": "construct typed Value::Array/String before existing python_value_string formatter; preserve global JSON limits"
+  "correction": "construct typed Value::Array/String before existing python_value_string formatter; preserve global JSON limits",
+  "metadata_correction": "Fresh pinned Python recapture corrects suffix extraction from one indexed interior character to final3characters; complete input/repr hashes unchanged."
 }
