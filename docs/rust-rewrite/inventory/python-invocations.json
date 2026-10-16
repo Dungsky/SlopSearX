@@ -14,7 +14,7 @@
       "100644": 729
     },
     "configured_precommit_hook_rows": 15,
-    "developer_oracle_invocation_rows": 40
+    "developer_oracle_invocation_rows": 41
   },
   "interpreter_invocations": [
     {
@@ -8640,6 +8640,15 @@
       "migration_owner": "A07",
       "retirement_owner": "G08",
       "disposition": "historical invocation recipe only; existing producers retain pinned original source/root and tmp outputs; no new run requested; retire executable Python before backend removal; retain JSON evidence"
+    },
+    {
+      "path": "docs/rust-rewrite/w04/README.md",
+      "example_path": "docs/rust-rewrite/w04/capture_source.py",
+      "evidence": "Reproduction guidance only (not an execution receipt): PYTHONPATH=. /private/tmp/slopsearx-rust-oracle-py314/bin/python docs/rust-rewrite/w04/capture_source.py",
+      "classification": "temporary backend-coupled developer oracle; never executed by native runtime or mandatory gates; source artifact hash-read by W04 gate",
+      "migration_owner": "W04",
+      "retirement_owner": "G08",
+      "disposition": "retire executable Python before backend removal; retain immutable JSON source observations and provenance"
     }
   ]
 }

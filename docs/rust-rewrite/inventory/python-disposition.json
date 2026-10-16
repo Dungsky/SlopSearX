@@ -3,7 +3,7 @@
   "baseline_sha": "20109f9083babd014971951e8c02565ae51c2326",
   "source": "Pinned F01 baseline inventory plus reviewed post-baseline additions recorded in DRIFT.md; source-set validation refreshed at acceptance.",
   "summary": {
-    "tracked_python_source_count": 399,
+    "tracked_python_source_count": 400,
     "extensionless_python_entrypoints": 1,
     "executable_config_python_invocation_lines": 63,
     "interpreter_configuration_lines": 106,
@@ -11,7 +11,7 @@
     "documented_example_invocation_references": 49,
     "source_classifications": {
       "backend/runtime": 122,
-      "backend-coupled tooling/test": 276,
+      "backend-coupled tooling/test": 277,
       "client-only": 1
     },
     "documentation_file_modes": {
@@ -19,13 +19,13 @@
     },
     "source_path_set_validation": {
       "method": "sorted exact-set comparison between git ls-files paths ending .py/.pyw/.pyi plus ssx and files[].path",
-      "tracked_expected_count": 399,
-      "manifest_count": 399,
+      "tracked_expected_count": 400,
+      "manifest_count": 400,
       "exact_match": true,
       "extensionless_python_paths": [
         "ssx"
       ],
-      "validation_scope": "normal main merge tracked source union; final committed head will be rechecked"
+      "validation_scope": "W04 normal merge of accepted A07; exact tracked source union verified before commit"
     },
     "historical_evidence_py_txt_path_count": 729,
     "non_runtime_historical_py_txt_path_count": 728,
@@ -120,6 +120,174 @@
       "evidence": "Offline Python 3.14.7 edge-matrix exporter invokes Brave, Wikipedia, and Reddit adapters through httpx.MockTransport; no provider calls; native gates consume matrix JSON only.",
       "reason": "Temporary source oracle, never runtime/client code or a required native gate. A04 owns source evidence; G08 retires executable Python before backend removal.",
       "introduced_after_baseline": "66b29c3f8437af45a4f0d28f7c54a0f0727f7fa5"
+    },
+    {
+      "path": "docs/rust-rewrite/a07/oracle/export_complete.py",
+      "classification": "backend-coupled tooling/test",
+      "migration_owner": "A07",
+      "migration_owners": [
+        "A07",
+        "G08"
+      ],
+      "disposition": "temporary_developer_oracle_retire_before_backend_removal",
+      "evidence": "Isolated pinned offline actual source controls or owned loopback timeout controls; preserved nonexecutable captures are consumed by native tests. No provider calls. Source SHA256 4ab87da9ea04380c17402245807d563f6ffda555cedda47e3839bd1901daac23",
+      "reason": "Historical developer oracle only; never runtime/client code or required/invoked native gate. G08 retires executable producer before backend removal; preserve immutable JSON and provenance.",
+      "introduced_after_baseline": "A07 candidate based on1e9dd82d62456fe6f511cc5ade88bae619fac027",
+      "sha256": "4ab87da9ea04380c17402245807d563f6ffda555cedda47e3839bd1901daac23"
+    },
+    {
+      "path": "docs/rust-rewrite/a07/oracle/export_date_grammar.py",
+      "classification": "backend-coupled tooling/test",
+      "migration_owner": "A07",
+      "migration_owners": [
+        "A07",
+        "G08"
+      ],
+      "disposition": "temporary_developer_oracle_retire_before_backend_removal",
+      "evidence": "Isolated pinned offline actual source controls or owned loopback timeout controls; preserved nonexecutable captures are consumed by native tests. No provider calls. Source SHA256 2de63b0b2a6b6c0c4b06e6da4a62d7e7489992d137506d5505f4927cb36275b8",
+      "reason": "Historical developer oracle only; never runtime/client code or required/invoked native gate. G08 retires executable producer before backend removal; preserve immutable JSON and provenance.",
+      "introduced_after_baseline": "A07 candidate based on1e9dd82d62456fe6f511cc5ade88bae619fac027",
+      "sha256": "2de63b0b2a6b6c0c4b06e6da4a62d7e7489992d137506d5505f4927cb36275b8"
+    },
+    {
+      "path": "docs/rust-rewrite/a07/oracle/export_digits.py",
+      "classification": "backend-coupled tooling/test",
+      "migration_owner": "A07",
+      "migration_owners": [
+        "A07",
+        "G08"
+      ],
+      "disposition": "temporary_developer_oracle_retire_before_backend_removal",
+      "evidence": "Isolated pinned offline actual source controls or owned loopback timeout controls; preserved nonexecutable captures are consumed by native tests. No provider calls. Source SHA256 c59228e2e1881ec802992ed10775f90e14acf2d8fa500b207e988d724ce0d212",
+      "reason": "Historical developer oracle only; never runtime/client code or required/invoked native gate. G08 retires executable producer before backend removal; preserve immutable JSON and provenance.",
+      "introduced_after_baseline": "A07 candidate based on1e9dd82d62456fe6f511cc5ade88bae619fac027",
+      "sha256": "c59228e2e1881ec802992ed10775f90e14acf2d8fa500b207e988d724ce0d212"
+    },
+    {
+      "path": "docs/rust-rewrite/a07/oracle/export_empty_iterables.py",
+      "classification": "backend-coupled tooling/test",
+      "migration_owner": "A07",
+      "migration_owners": [
+        "A07",
+        "G08"
+      ],
+      "disposition": "temporary_developer_oracle_retire_before_backend_removal",
+      "evidence": "Isolated pinned offline actual source controls or owned loopback timeout controls; preserved nonexecutable captures are consumed by native tests. No provider calls. Source SHA256 23e8fc249a10155682df0c3cb84a420785daf4dba78e7e5a288e50d6f3fe3fd3",
+      "reason": "Historical developer oracle only; never runtime/client code or required/invoked native gate. G08 retires executable producer before backend removal; preserve immutable JSON and provenance.",
+      "introduced_after_baseline": "A07 candidate based on1e9dd82d62456fe6f511cc5ade88bae619fac027",
+      "sha256": "23e8fc249a10155682df0c3cb84a420785daf4dba78e7e5a288e50d6f3fe3fd3"
+    },
+    {
+      "path": "docs/rust-rewrite/a07/oracle/export_gene_shapes.py",
+      "classification": "backend-coupled tooling/test",
+      "migration_owner": "A07",
+      "migration_owners": [
+        "A07",
+        "G08"
+      ],
+      "disposition": "temporary_developer_oracle_retire_before_backend_removal",
+      "evidence": "Isolated pinned offline actual source controls or owned loopback timeout controls; preserved nonexecutable captures are consumed by native tests. No provider calls. Source SHA256 b86975a7386061a2d3be83861653601de843d1164fa9dfabc1314b78f14d5456",
+      "reason": "Historical developer oracle only; never runtime/client code or required/invoked native gate. G08 retires executable producer before backend removal; preserve immutable JSON and provenance.",
+      "introduced_after_baseline": "A07 candidate based on1e9dd82d62456fe6f511cc5ade88bae619fac027",
+      "sha256": "b86975a7386061a2d3be83861653601de843d1164fa9dfabc1314b78f14d5456"
+    },
+    {
+      "path": "docs/rust-rewrite/a07/oracle/export_numeric.py",
+      "classification": "backend-coupled tooling/test",
+      "migration_owner": "A07",
+      "migration_owners": [
+        "A07",
+        "G08"
+      ],
+      "disposition": "temporary_developer_oracle_retire_before_backend_removal",
+      "evidence": "Isolated pinned offline actual source controls or owned loopback timeout controls; preserved nonexecutable captures are consumed by native tests. No provider calls. Source SHA256 188d91dcc20ee43a7ad09a596d421b92128ddf6c37c16413352475795065c085",
+      "reason": "Historical developer oracle only; never runtime/client code or required/invoked native gate. G08 retires executable producer before backend removal; preserve immutable JSON and provenance.",
+      "introduced_after_baseline": "A07 candidate based on1e9dd82d62456fe6f511cc5ade88bae619fac027",
+      "sha256": "188d91dcc20ee43a7ad09a596d421b92128ddf6c37c16413352475795065c085"
+    },
+    {
+      "path": "docs/rust-rewrite/a07/oracle/export_payload_adapter_controls.py",
+      "classification": "backend-coupled tooling/test",
+      "migration_owner": "A07",
+      "migration_owners": [
+        "A07",
+        "G08"
+      ],
+      "disposition": "temporary_developer_oracle_retire_before_backend_removal",
+      "evidence": "Isolated pinned offline actual source controls or owned loopback timeout controls; preserved nonexecutable captures are consumed by native tests. No provider calls. Source SHA256 2992ef3d3a1171b204d67eafaba74d63e0b9f72769d557bb5f6d9d4b3c7822e0",
+      "reason": "Historical developer oracle only; never runtime/client code or required/invoked native gate. G08 retires executable producer before backend removal; preserve immutable JSON and provenance.",
+      "introduced_after_baseline": "A07 candidate based on1e9dd82d62456fe6f511cc5ade88bae619fac027",
+      "sha256": "2992ef3d3a1171b204d67eafaba74d63e0b9f72769d557bb5f6d9d4b3c7822e0"
+    },
+    {
+      "path": "docs/rust-rewrite/a07/oracle/export_sequences.py",
+      "classification": "backend-coupled tooling/test",
+      "migration_owner": "A07",
+      "migration_owners": [
+        "A07",
+        "G08"
+      ],
+      "disposition": "temporary_developer_oracle_retire_before_backend_removal",
+      "evidence": "Isolated pinned offline actual source controls or owned loopback timeout controls; preserved nonexecutable captures are consumed by native tests. No provider calls. Source SHA256 e2d18efa1f137f11da19339a181f98de8018e52e6b1a6c3b73ab1461dc627c02",
+      "reason": "Historical developer oracle only; never runtime/client code or required/invoked native gate. G08 retires executable producer before backend removal; preserve immutable JSON and provenance.",
+      "introduced_after_baseline": "A07 candidate based on1e9dd82d62456fe6f511cc5ade88bae619fac027",
+      "sha256": "e2d18efa1f137f11da19339a181f98de8018e52e6b1a6c3b73ab1461dc627c02"
+    },
+    {
+      "path": "docs/rust-rewrite/a07/oracle/export_source.py",
+      "classification": "backend-coupled tooling/test",
+      "migration_owner": "A07",
+      "migration_owners": [
+        "A07",
+        "G08"
+      ],
+      "disposition": "temporary_developer_oracle_retire_before_backend_removal",
+      "evidence": "Isolated pinned offline actual source controls or owned loopback timeout controls; preserved nonexecutable captures are consumed by native tests. No provider calls. Source SHA256 29df4626997cb2681c0630904568d39fe5536817256e9906b725a6503258da8a",
+      "reason": "Historical developer oracle only; never runtime/client code or required/invoked native gate. G08 retires executable producer before backend removal; preserve immutable JSON and provenance.",
+      "introduced_after_baseline": "A07 candidate based on1e9dd82d62456fe6f511cc5ade88bae619fac027",
+      "sha256": "29df4626997cb2681c0630904568d39fe5536817256e9906b725a6503258da8a"
+    },
+    {
+      "path": "docs/rust-rewrite/a07/oracle/export_source_repr.py",
+      "classification": "backend-coupled tooling/test",
+      "migration_owner": "A07",
+      "migration_owners": [
+        "A07",
+        "G08"
+      ],
+      "disposition": "temporary_developer_oracle_retire_before_backend_removal",
+      "evidence": "Isolated pinned offline actual source controls or owned loopback timeout controls; preserved nonexecutable captures are consumed by native tests. No provider calls. Source SHA256 3f648523f2aa62a1bbf470f210956c22ac2dbc39115f438c5e7990ba78607ade",
+      "reason": "Historical developer oracle only; never runtime/client code or required/invoked native gate. G08 retires executable producer before backend removal; preserve immutable JSON and provenance.",
+      "introduced_after_baseline": "A07 candidate based on1e9dd82d62456fe6f511cc5ade88bae619fac027",
+      "sha256": "3f648523f2aa62a1bbf470f210956c22ac2dbc39115f438c5e7990ba78607ade"
+    },
+    {
+      "path": "docs/rust-rewrite/a07/oracle/export_supplement.py",
+      "classification": "backend-coupled tooling/test",
+      "migration_owner": "A07",
+      "migration_owners": [
+        "A07",
+        "G08"
+      ],
+      "disposition": "temporary_developer_oracle_retire_before_backend_removal",
+      "evidence": "Isolated pinned offline actual source controls or owned loopback timeout controls; preserved nonexecutable captures are consumed by native tests. No provider calls. Source SHA256 032a60ce62a2d9ebaf7191a6ba93b1ddc41337804e97ed4bd6b15ee5f25c5816",
+      "reason": "Historical developer oracle only; never runtime/client code or required/invoked native gate. G08 retires executable producer before backend removal; preserve immutable JSON and provenance.",
+      "introduced_after_baseline": "A07 candidate based on1e9dd82d62456fe6f511cc5ade88bae619fac027",
+      "sha256": "032a60ce62a2d9ebaf7191a6ba93b1ddc41337804e97ed4bd6b15ee5f25c5816"
+    },
+    {
+      "path": "docs/rust-rewrite/a07/oracle/export_timeout_loopback.py",
+      "classification": "backend-coupled tooling/test",
+      "migration_owner": "A07",
+      "migration_owners": [
+        "A07",
+        "G08"
+      ],
+      "disposition": "temporary_developer_oracle_retire_before_backend_removal",
+      "evidence": "Isolated pinned offline actual source controls or owned loopback timeout controls; preserved nonexecutable captures are consumed by native tests. No provider calls. Source SHA256 9cb3f7c9173adce2f7d3c0a76c501e09d6c72a9d9fd1c2394c6657c587f2ffb3",
+      "reason": "Historical developer oracle only; never runtime/client code or required/invoked native gate. G08 retires executable producer before backend removal; preserve immutable JSON and provenance.",
+      "introduced_after_baseline": "A07 candidate based on1e9dd82d62456fe6f511cc5ade88bae619fac027",
+      "sha256": "9cb3f7c9173adce2f7d3c0a76c501e09d6c72a9d9fd1c2394c6657c587f2ffb3"
     },
     {
       "path": "docs/rust-rewrite/f05/oracle/export.py",
@@ -354,6 +522,19 @@
       "evidence": "W01 isolated developer-only source finish_attempt identity capture; accepted F11 public/synthetic URL inputs, no network/store; native gates read captured JSON only.",
       "reason": "Temporary backend-coupled reference oracle, not a runtime or client exception. G08 removes executable Python after native successor evidence is accepted.",
       "introduced_after_baseline": "cfd7a0af61a22cfd040a7fcd41ad950f82005959"
+    },
+    {
+      "path": "docs/rust-rewrite/w04/capture_source.py",
+      "classification": "backend-coupled tooling/test",
+      "migration_owner": "W04",
+      "migration_owners": [
+        "W04",
+        "G08"
+      ],
+      "disposition": "temporary_developer_oracle_retire_before_backend_removal",
+      "evidence": "Isolated CPython3.14.7 offline synthetic saved observation/comparison corpus producer; SHA256 718d4591e0d87ccad5f29023ccd3c2e4b568c73c291bdd4f80bf23b8fc99528d. Native runtime and mandatory gates never execute it; W04 gate hash-reads this source artifact.",
+      "reason": "Temporary developer oracle; G08 removes executable Python before backend removal while retaining immutable JSON observations.",
+      "introduced_after_baseline": "a97a7384"
     },
     {
       "path": "docs/rust-rewrite/w11/oracle/export.py",
@@ -4570,174 +4751,6 @@
       "migration_owners": [
         "O05"
       ]
-    },
-    {
-      "path": "docs/rust-rewrite/a07/oracle/export_complete.py",
-      "classification": "backend-coupled tooling/test",
-      "migration_owner": "A07",
-      "migration_owners": [
-        "A07",
-        "G08"
-      ],
-      "disposition": "temporary_developer_oracle_retire_before_backend_removal",
-      "evidence": "Isolated pinned offline actual source controls or owned loopback timeout controls; preserved nonexecutable captures are consumed by native tests. No provider calls. Source SHA256 4ab87da9ea04380c17402245807d563f6ffda555cedda47e3839bd1901daac23",
-      "reason": "Historical developer oracle only; never runtime/client code or required/invoked native gate. G08 retires executable producer before backend removal; preserve immutable JSON and provenance.",
-      "introduced_after_baseline": "A07 candidate based on1e9dd82d62456fe6f511cc5ade88bae619fac027",
-      "sha256": "4ab87da9ea04380c17402245807d563f6ffda555cedda47e3839bd1901daac23"
-    },
-    {
-      "path": "docs/rust-rewrite/a07/oracle/export_date_grammar.py",
-      "classification": "backend-coupled tooling/test",
-      "migration_owner": "A07",
-      "migration_owners": [
-        "A07",
-        "G08"
-      ],
-      "disposition": "temporary_developer_oracle_retire_before_backend_removal",
-      "evidence": "Isolated pinned offline actual source controls or owned loopback timeout controls; preserved nonexecutable captures are consumed by native tests. No provider calls. Source SHA256 2de63b0b2a6b6c0c4b06e6da4a62d7e7489992d137506d5505f4927cb36275b8",
-      "reason": "Historical developer oracle only; never runtime/client code or required/invoked native gate. G08 retires executable producer before backend removal; preserve immutable JSON and provenance.",
-      "introduced_after_baseline": "A07 candidate based on1e9dd82d62456fe6f511cc5ade88bae619fac027",
-      "sha256": "2de63b0b2a6b6c0c4b06e6da4a62d7e7489992d137506d5505f4927cb36275b8"
-    },
-    {
-      "path": "docs/rust-rewrite/a07/oracle/export_digits.py",
-      "classification": "backend-coupled tooling/test",
-      "migration_owner": "A07",
-      "migration_owners": [
-        "A07",
-        "G08"
-      ],
-      "disposition": "temporary_developer_oracle_retire_before_backend_removal",
-      "evidence": "Isolated pinned offline actual source controls or owned loopback timeout controls; preserved nonexecutable captures are consumed by native tests. No provider calls. Source SHA256 c59228e2e1881ec802992ed10775f90e14acf2d8fa500b207e988d724ce0d212",
-      "reason": "Historical developer oracle only; never runtime/client code or required/invoked native gate. G08 retires executable producer before backend removal; preserve immutable JSON and provenance.",
-      "introduced_after_baseline": "A07 candidate based on1e9dd82d62456fe6f511cc5ade88bae619fac027",
-      "sha256": "c59228e2e1881ec802992ed10775f90e14acf2d8fa500b207e988d724ce0d212"
-    },
-    {
-      "path": "docs/rust-rewrite/a07/oracle/export_empty_iterables.py",
-      "classification": "backend-coupled tooling/test",
-      "migration_owner": "A07",
-      "migration_owners": [
-        "A07",
-        "G08"
-      ],
-      "disposition": "temporary_developer_oracle_retire_before_backend_removal",
-      "evidence": "Isolated pinned offline actual source controls or owned loopback timeout controls; preserved nonexecutable captures are consumed by native tests. No provider calls. Source SHA256 23e8fc249a10155682df0c3cb84a420785daf4dba78e7e5a288e50d6f3fe3fd3",
-      "reason": "Historical developer oracle only; never runtime/client code or required/invoked native gate. G08 retires executable producer before backend removal; preserve immutable JSON and provenance.",
-      "introduced_after_baseline": "A07 candidate based on1e9dd82d62456fe6f511cc5ade88bae619fac027",
-      "sha256": "23e8fc249a10155682df0c3cb84a420785daf4dba78e7e5a288e50d6f3fe3fd3"
-    },
-    {
-      "path": "docs/rust-rewrite/a07/oracle/export_gene_shapes.py",
-      "classification": "backend-coupled tooling/test",
-      "migration_owner": "A07",
-      "migration_owners": [
-        "A07",
-        "G08"
-      ],
-      "disposition": "temporary_developer_oracle_retire_before_backend_removal",
-      "evidence": "Isolated pinned offline actual source controls or owned loopback timeout controls; preserved nonexecutable captures are consumed by native tests. No provider calls. Source SHA256 b86975a7386061a2d3be83861653601de843d1164fa9dfabc1314b78f14d5456",
-      "reason": "Historical developer oracle only; never runtime/client code or required/invoked native gate. G08 retires executable producer before backend removal; preserve immutable JSON and provenance.",
-      "introduced_after_baseline": "A07 candidate based on1e9dd82d62456fe6f511cc5ade88bae619fac027",
-      "sha256": "b86975a7386061a2d3be83861653601de843d1164fa9dfabc1314b78f14d5456"
-    },
-    {
-      "path": "docs/rust-rewrite/a07/oracle/export_numeric.py",
-      "classification": "backend-coupled tooling/test",
-      "migration_owner": "A07",
-      "migration_owners": [
-        "A07",
-        "G08"
-      ],
-      "disposition": "temporary_developer_oracle_retire_before_backend_removal",
-      "evidence": "Isolated pinned offline actual source controls or owned loopback timeout controls; preserved nonexecutable captures are consumed by native tests. No provider calls. Source SHA256 188d91dcc20ee43a7ad09a596d421b92128ddf6c37c16413352475795065c085",
-      "reason": "Historical developer oracle only; never runtime/client code or required/invoked native gate. G08 retires executable producer before backend removal; preserve immutable JSON and provenance.",
-      "introduced_after_baseline": "A07 candidate based on1e9dd82d62456fe6f511cc5ade88bae619fac027",
-      "sha256": "188d91dcc20ee43a7ad09a596d421b92128ddf6c37c16413352475795065c085"
-    },
-    {
-      "path": "docs/rust-rewrite/a07/oracle/export_sequences.py",
-      "classification": "backend-coupled tooling/test",
-      "migration_owner": "A07",
-      "migration_owners": [
-        "A07",
-        "G08"
-      ],
-      "disposition": "temporary_developer_oracle_retire_before_backend_removal",
-      "evidence": "Isolated pinned offline actual source controls or owned loopback timeout controls; preserved nonexecutable captures are consumed by native tests. No provider calls. Source SHA256 e2d18efa1f137f11da19339a181f98de8018e52e6b1a6c3b73ab1461dc627c02",
-      "reason": "Historical developer oracle only; never runtime/client code or required/invoked native gate. G08 retires executable producer before backend removal; preserve immutable JSON and provenance.",
-      "introduced_after_baseline": "A07 candidate based on1e9dd82d62456fe6f511cc5ade88bae619fac027",
-      "sha256": "e2d18efa1f137f11da19339a181f98de8018e52e6b1a6c3b73ab1461dc627c02"
-    },
-    {
-      "path": "docs/rust-rewrite/a07/oracle/export_source.py",
-      "classification": "backend-coupled tooling/test",
-      "migration_owner": "A07",
-      "migration_owners": [
-        "A07",
-        "G08"
-      ],
-      "disposition": "temporary_developer_oracle_retire_before_backend_removal",
-      "evidence": "Isolated pinned offline actual source controls or owned loopback timeout controls; preserved nonexecutable captures are consumed by native tests. No provider calls. Source SHA256 29df4626997cb2681c0630904568d39fe5536817256e9906b725a6503258da8a",
-      "reason": "Historical developer oracle only; never runtime/client code or required/invoked native gate. G08 retires executable producer before backend removal; preserve immutable JSON and provenance.",
-      "introduced_after_baseline": "A07 candidate based on1e9dd82d62456fe6f511cc5ade88bae619fac027",
-      "sha256": "29df4626997cb2681c0630904568d39fe5536817256e9906b725a6503258da8a"
-    },
-    {
-      "path": "docs/rust-rewrite/a07/oracle/export_supplement.py",
-      "classification": "backend-coupled tooling/test",
-      "migration_owner": "A07",
-      "migration_owners": [
-        "A07",
-        "G08"
-      ],
-      "disposition": "temporary_developer_oracle_retire_before_backend_removal",
-      "evidence": "Isolated pinned offline actual source controls or owned loopback timeout controls; preserved nonexecutable captures are consumed by native tests. No provider calls. Source SHA256 032a60ce62a2d9ebaf7191a6ba93b1ddc41337804e97ed4bd6b15ee5f25c5816",
-      "reason": "Historical developer oracle only; never runtime/client code or required/invoked native gate. G08 retires executable producer before backend removal; preserve immutable JSON and provenance.",
-      "introduced_after_baseline": "A07 candidate based on1e9dd82d62456fe6f511cc5ade88bae619fac027",
-      "sha256": "032a60ce62a2d9ebaf7191a6ba93b1ddc41337804e97ed4bd6b15ee5f25c5816"
-    },
-    {
-      "path": "docs/rust-rewrite/a07/oracle/export_timeout_loopback.py",
-      "classification": "backend-coupled tooling/test",
-      "migration_owner": "A07",
-      "migration_owners": [
-        "A07",
-        "G08"
-      ],
-      "disposition": "temporary_developer_oracle_retire_before_backend_removal",
-      "evidence": "Isolated pinned offline actual source controls or owned loopback timeout controls; preserved nonexecutable captures are consumed by native tests. No provider calls. Source SHA256 9cb3f7c9173adce2f7d3c0a76c501e09d6c72a9d9fd1c2394c6657c587f2ffb3",
-      "reason": "Historical developer oracle only; never runtime/client code or required/invoked native gate. G08 retires executable producer before backend removal; preserve immutable JSON and provenance.",
-      "introduced_after_baseline": "A07 candidate based on1e9dd82d62456fe6f511cc5ade88bae619fac027",
-      "sha256": "9cb3f7c9173adce2f7d3c0a76c501e09d6c72a9d9fd1c2394c6657c587f2ffb3"
-    },
-    {
-      "path": "docs/rust-rewrite/a07/oracle/export_source_repr.py",
-      "classification": "backend-coupled tooling/test",
-      "migration_owner": "A07",
-      "migration_owners": [
-        "A07",
-        "G08"
-      ],
-      "disposition": "temporary_developer_oracle_retire_before_backend_removal",
-      "evidence": "Isolated pinned offline actual source controls or owned loopback timeout controls; preserved nonexecutable captures are consumed by native tests. No provider calls. Source SHA256 3f648523f2aa62a1bbf470f210956c22ac2dbc39115f438c5e7990ba78607ade",
-      "reason": "Historical developer oracle only; never runtime/client code or required/invoked native gate. G08 retires executable producer before backend removal; preserve immutable JSON and provenance.",
-      "introduced_after_baseline": "A07 candidate based on1e9dd82d62456fe6f511cc5ade88bae619fac027",
-      "sha256": "3f648523f2aa62a1bbf470f210956c22ac2dbc39115f438c5e7990ba78607ade"
-    },
-    {
-      "path": "docs/rust-rewrite/a07/oracle/export_payload_adapter_controls.py",
-      "classification": "backend-coupled tooling/test",
-      "migration_owner": "A07",
-      "migration_owners": [
-        "A07",
-        "G08"
-      ],
-      "disposition": "temporary_developer_oracle_retire_before_backend_removal",
-      "evidence": "Isolated pinned offline actual source controls or owned loopback timeout controls; preserved nonexecutable captures are consumed by native tests. No provider calls. Source SHA256 2992ef3d3a1171b204d67eafaba74d63e0b9f72769d557bb5f6d9d4b3c7822e0",
-      "reason": "Historical developer oracle only; never runtime/client code or required/invoked native gate. G08 retires executable producer before backend removal; preserve immutable JSON and provenance.",
-      "introduced_after_baseline": "A07 candidate based on1e9dd82d62456fe6f511cc5ade88bae619fac027",
-      "sha256": "2992ef3d3a1171b204d67eafaba74d63e0b9f72769d557bb5f6d9d4b3c7822e0"
     }
   ],
   "documentation_examples": []
