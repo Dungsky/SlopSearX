@@ -36,7 +36,7 @@
     },
     {
       "path": "docs/rust-rewrite/inventory/DRIFT.md",
-      "git_blob": "16c62de5afc11044e319da65bb7d2bc9d69ac13b"
+      "git_blob": "7ab00bf63bf944e5fc2b37eeee7e70841e8990a4"
     },
     {
       "path": "docs/rust-rewrite/inventory/README.md",
@@ -60,11 +60,11 @@
     },
     {
       "path": "docs/rust-rewrite/inventory/python-disposition.json",
-      "git_blob": "95ef9ecf5de044420ea7f5b9e7229d2085b3b5b1"
+      "git_blob": "f92423c874283c3ea8af0752b4c7a3a3e88dd44b"
     },
     {
       "path": "docs/rust-rewrite/inventory/python-invocations.json",
-      "git_blob": "c64c5e629c5d68c86fdc44353df5a5359122f8cb"
+      "git_blob": "fc6e49a66fcc1ae1d2a95aa305f438772361f3c7"
     },
     {
       "path": "docs/rust-rewrite/inventory/surface-contracts.md",
@@ -1561,6 +1561,38 @@
     {
       "path": "docs/rust-rewrite/a03/capture.py",
       "git_blob": "8888dec2f5aedd826bfab49b54a30b36a96bab0f"
+    },
+    {
+      "path": "docs/rust-rewrite/a06/oracle/export_shared.py",
+      "git_blob": "8e0e1c05595e7fb3803b7d39d349b15f05942713"
+    },
+    {
+      "path": "docs/rust-rewrite/a06/oracle/export_source.py",
+      "git_blob": "13a2206d3ee500950a05901c00aacff108f70bfe"
+    },
+    {
+      "path": "docs/rust-rewrite/a06/oracle/export_xml.py",
+      "git_blob": "f0685047285d3b22a8e2564263751193b475b974"
+    },
+    {
+      "path": "docs/rust-rewrite/a06/oracle/export_xml_grammar.py",
+      "git_blob": "061bf394c2e30173b51806158f5250316943b43a"
+    },
+    {
+      "path": "docs/rust-rewrite/a06/oracle/export_xml_stress.py",
+      "git_blob": "aab456634286392a6aff5e3ef5d8fcd8a5aea363"
+    },
+    {
+      "path": "scripts/rust-a06-native-qualification.py",
+      "git_blob": "a7f2a96429662178c94f68fcbf43d404979916aa"
+    },
+    {
+      "path": "docs/rust-rewrite/a06/oracle/export_wire.py",
+      "git_blob": "72ea33973d9669e1b25b8a3e11ad1e459f98e926"
+    },
+    {
+      "path": "docs/rust-rewrite/a06/oracle/export_json_matrix.py",
+      "git_blob": "226a975df274b69fa6410c511bf727097e0bbc94"
     }
   ]
 }

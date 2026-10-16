@@ -111,6 +111,12 @@ jobs:
       - name: Workspace tests, including xtask
         run: cargo test --locked --workspace
 
+      - name: A06 native Expat boundary qualification
+        run: |
+          cargo test --locked -p ssx-source-xml
+          cargo build --locked -p ssx-source-xml --message-format=json > target/a06-native-build.jsonl
+          python3 scripts/rust-a06-native-qualification.py --build-messages target/a06-native-build.jsonl
+
       - name: Locked workspace build
         run: cargo build --locked --workspace --target "${{ matrix.target }}"
 

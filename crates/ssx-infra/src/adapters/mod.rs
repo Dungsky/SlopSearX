@@ -1,4 +1,7 @@
 //! Native provider adapters currently ported from the registry-search pilot.
+pub mod arxiv;
+mod arxiv_accounting;
+mod arxiv_xml;
 mod community;
 mod crates_io;
 mod github;
@@ -249,3 +252,11 @@ pub fn register_packages(
     )?;
     Ok(())
 }
+
+/// Expat candidate, not a registered adapter.
+pub mod arxiv_expat;
+
+mod arxiv_expat_wire;
+
+pub mod scholarly_wire;
+mod scholarly_word;

@@ -3,14 +3,14 @@
   "baseline_sha": "20109f9083babd014971951e8c02565ae51c2326",
   "source": "Pinned F01 baseline inventory plus reviewed post-baseline additions recorded in DRIFT.md; source-set validation refreshed at acceptance.",
   "summary": {
-    "tracked_python_source_count": 379,
+    "tracked_python_source_count": 387,
     "extensionless_python_entrypoints": 1,
-    "executable_config_python_invocation_lines": 63,
+    "executable_config_python_invocation_lines": 64,
     "interpreter_configuration_lines": 106,
     "documentation_shebang_script_count": 8,
     "documented_example_invocation_references": 49,
     "source_classifications": {
-      "backend-coupled tooling/test": 256,
+      "backend-coupled tooling/test": 264,
       "backend/runtime": 122,
       "client-only": 1
     },
@@ -19,8 +19,8 @@
     },
     "source_path_set_validation": {
       "method": "sorted exact-set comparison between git ls-files paths ending .py/.pyw/.pyi plus ssx and files[].path",
-      "tracked_expected_count": 379,
-      "manifest_count": 379,
+      "tracked_expected_count": 387,
+      "manifest_count": 387,
       "exact_match": true,
       "extensionless_python_paths": [
         "ssx"
@@ -4465,6 +4465,110 @@
       "evidence": "Developer-only pinned Python3.14.7/HTTPX0.28.1 unmodified GitHub/HuggingFace/StackExchange/HackerNews observations with injected offline transport; mandatory A03 gate consumes JSON only.",
       "reason": "No provider calls; not a runtime/client exception. G08 removes executable Python before backend removal.",
       "introduced_after_baseline": "35d97ccf8c9b2d8246373b2024cc8d7a457705a3"
+    },
+    {
+      "path": "docs/rust-rewrite/a06/oracle/export_shared.py",
+      "classification": "backend-coupled tooling/test",
+      "migration_owner": "A06",
+      "migration_owners": [
+        "A06",
+        "G08"
+      ],
+      "disposition": "temporary_developer_oracle_retire_before_backend_removal",
+      "evidence": "Offline source capture using pinned Python/HTTPX MockTransport; no provider calls; Rust parser consumes frozen JSON only.",
+      "reason": "Not a client-only or runtime exception. G08 must retire executable Python; replace required qualification driver with a native successor before backend removal.",
+      "introduced_after_baseline": "730c37a5f48b9830088594582cefb4c2f10a35e8"
+    },
+    {
+      "path": "docs/rust-rewrite/a06/oracle/export_source.py",
+      "classification": "backend-coupled tooling/test",
+      "migration_owner": "A06",
+      "migration_owners": [
+        "A06",
+        "G08"
+      ],
+      "disposition": "temporary_developer_oracle_retire_before_backend_removal",
+      "evidence": "Offline source capture using pinned Python/HTTPX MockTransport; no provider calls; Rust parser consumes frozen JSON only.",
+      "reason": "Not a client-only or runtime exception. G08 must retire executable Python; replace required qualification driver with a native successor before backend removal.",
+      "introduced_after_baseline": "730c37a5f48b9830088594582cefb4c2f10a35e8"
+    },
+    {
+      "path": "docs/rust-rewrite/a06/oracle/export_xml.py",
+      "classification": "backend-coupled tooling/test",
+      "migration_owner": "A06",
+      "migration_owners": [
+        "A06",
+        "G08"
+      ],
+      "disposition": "temporary_developer_oracle_retire_before_backend_removal",
+      "evidence": "Offline source capture using pinned Python/HTTPX MockTransport; no provider calls; Rust parser consumes frozen JSON only.",
+      "reason": "Not a client-only or runtime exception. G08 must retire executable Python; replace required qualification driver with a native successor before backend removal.",
+      "introduced_after_baseline": "730c37a5f48b9830088594582cefb4c2f10a35e8"
+    },
+    {
+      "path": "docs/rust-rewrite/a06/oracle/export_xml_grammar.py",
+      "classification": "backend-coupled tooling/test",
+      "migration_owner": "A06",
+      "migration_owners": [
+        "A06",
+        "G08"
+      ],
+      "disposition": "temporary_developer_oracle_retire_before_backend_removal",
+      "evidence": "Offline source capture using pinned Python/HTTPX MockTransport; no provider calls; Rust parser consumes frozen JSON only.",
+      "reason": "Not a client-only or runtime exception. G08 must retire executable Python; replace required qualification driver with a native successor before backend removal.",
+      "introduced_after_baseline": "730c37a5f48b9830088594582cefb4c2f10a35e8"
+    },
+    {
+      "path": "docs/rust-rewrite/a06/oracle/export_xml_stress.py",
+      "classification": "backend-coupled tooling/test",
+      "migration_owner": "A06",
+      "migration_owners": [
+        "A06",
+        "G08"
+      ],
+      "disposition": "temporary_developer_oracle_retire_before_backend_removal",
+      "evidence": "Offline source capture using pinned Python/HTTPX MockTransport; no provider calls; Rust parser consumes frozen JSON only.",
+      "reason": "Not a client-only or runtime exception. G08 must retire executable Python; replace required qualification driver with a native successor before backend removal.",
+      "introduced_after_baseline": "730c37a5f48b9830088594582cefb4c2f10a35e8"
+    },
+    {
+      "path": "scripts/rust-a06-native-qualification.py",
+      "classification": "backend-coupled tooling/test",
+      "migration_owner": "A06",
+      "migration_owners": [
+        "A06",
+        "G08"
+      ],
+      "disposition": "temporary_developer_oracle_retire_before_backend_removal",
+      "evidence": "Temporary native build/FD/resource qualification driver invoked by Rust CI; no runtime/backend Python or provider calls.",
+      "reason": "Not a client-only or runtime exception. G08 must retire executable Python; replace required qualification driver with a native successor before backend removal.",
+      "introduced_after_baseline": "730c37a5f48b9830088594582cefb4c2f10a35e8"
+    },
+    {
+      "path": "docs/rust-rewrite/a06/oracle/export_wire.py",
+      "classification": "backend-coupled tooling/test",
+      "migration_owner": "A06",
+      "migration_owners": [
+        "A06",
+        "G08"
+      ],
+      "disposition": "temporary_developer_oracle_retire_before_backend_removal",
+      "evidence": "Actual offline whole-adapter request URLs, exhaustive pinned Python Unicode16 word predicate, and HTTPX UTF7 surrogate-versus-XML error outcomes. No provider calls.",
+      "reason": "Temporary source oracle only; retain JSON and retire executable Python before backend removal.",
+      "introduced_after_baseline": "730c37a5f48b9830088594582cefb4c2f10a35e8"
+    },
+    {
+      "path": "docs/rust-rewrite/a06/oracle/export_json_matrix.py",
+      "classification": "backend-coupled tooling/test",
+      "migration_owner": "A06",
+      "migration_owners": [
+        "A06",
+        "G08"
+      ],
+      "disposition": "temporary_developer_oracle_retire_before_backend_removal",
+      "evidence": "198 actual whole-adapter offline OpenAlex/SemanticScholar JSON-operation captures, including source-error precedence after otherwise unrepresentable earlier rows; no provider calls.",
+      "reason": "Temporary source oracle; retain JSON evidence and retire executable Python before backend removal.",
+      "introduced_after_baseline": "730c37a5f48b9830088594582cefb4c2f10a35e8"
     }
   ],
   "documentation_examples": []

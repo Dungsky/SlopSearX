@@ -412,3 +412,16 @@ The combined source manifest retains all complete A02 and A03 oracle records: 37
 ## F13 integration after A03 acceptance
 
 All complete parent records are preserved: 379 source paths and 17 developer-oracle invocations. A03 was accepted in PR #975 at `5c1b48b9e625501ab61828299168101ac00301b3`. Earlier counts describe historical checkpoints. The F13 raw snapshot EOF exception remains narrowly bound in the native hygiene ledger.
+
+## A06 parser candidate tooling (pending package acceptance)
+
+At preserved baseline 730c37a5, seven offline source exporters add eight distinct
+developer invocations (initial and direct-regression modes are separate). One
+additional temporary native resource/descriptor qualification driver is invoked
+by Rust CI. The projected staged inventory is 387 Python source paths: 122 runtime,
+264 backend-coupled tooling/test and one optional client, with 25 developer oracle
+invocations and 64 executable invocation lines. Earlier counts remain historical.
+All eight new files are A06/G08-owned; no Python backend/client exception is added.
+The CI driver must gain a native successor before required Python gate retirement.
+These counts describe this candidate's intended staged set, not a claimed passed
+F01 gate before parent stages/reviews it. Existing runtime/source pins stay intact.

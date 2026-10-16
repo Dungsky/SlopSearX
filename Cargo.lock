@@ -2494,6 +2494,7 @@ dependencies = [
  "ssx-domain",
  "ssx-json",
  "ssx-registry",
+ "ssx-source-xml",
  "time",
  "tokio",
  "tokio-rustls",
@@ -2567,6 +2568,13 @@ dependencies = [
  "ssx-infra",
  "ssx-registry",
  "tokio",
+]
+
+[[package]]
+name = "ssx-source-xml"
+version = "0.1.0"
+dependencies = [
+ "sha2",
 ]
 
 [[package]]
