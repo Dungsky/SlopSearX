@@ -109,15 +109,16 @@ impl DistributedQuota {
         })
     }
     pub async fn cooldown(&self, engine: &EngineKey) -> Result<SharedCooldown, RateFailure> {
-        let mut cmd = redis::cmd("TTL");
+        let mut cmd = redis::cmd("PTTL");
         cmd.arg(format!("ratelimit:upstream-cooldown:{}", engine.as_str()));
         let ttl: i64 =
             redis::from_redis_value(self.store()?.execute(cmd, false).await.map_err(failure)?)
                 .map_err(|_| RateFailure::Malformed)?;
         match ttl {
-            -2 | 0 => Ok(SharedCooldown::Missing),
-            1.. => Ok(SharedCooldown::Active {
-                seconds: ttl as u64,
+            -2 => Ok(SharedCooldown::Missing),
+            0.. => Ok(SharedCooldown::Active {
+                // The public port uses whole seconds; never round a live key down.
+                seconds: (ttl as u64).div_ceil(1000).max(1),
             }),
             _ => Err(RateFailure::Malformed),
         }

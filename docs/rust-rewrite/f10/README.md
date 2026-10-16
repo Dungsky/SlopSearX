@@ -42,7 +42,8 @@ explicit process-local development mode, never an automatic distributed fallback
 It rejects a backward/nonfinite supplied monotonic clock.
 
 Provider cooldowns retain `ratelimit:upstream-cooldown:{engine}`, value `1`,
-source TTL/EX semantics and the exact set-or-extend Lua body. Numeric/date
+source EX publishing semantics and the exact set-or-extend Lua body; reads use
+the PTTL expiry hardening documented below. Numeric/date
 Retry-After parsing preserves source email/obsolete-date forms, Unicode numeric
 inputs and bounds 1..300 seconds/default30. The wrapper treats zero/negative
 input as default30; the lower strategy clamps finite values to1. Shared cooldown
@@ -130,3 +131,17 @@ peer-started timeout records failure with null latency. Test worker processes ar
 owned and killed on failure. Native gates never execute Python; G08 retires the
 developer exporter before backend removal. Independent recapture/review and
 exact-head Linux CI remain acceptance requirements.
+
+### Provider cooldown expiry hardening
+
+The source Python reads `TTL`, which rounds a live key with less than 500ms
+remaining to zero and can admit a fresh replica early. Native F10 intentionally
+reads `PTTL` instead. A present key, including a zero-millisecond observation,
+remains active; missing keys permit admission and persistent keys fail closed.
+The existing whole-second port rounds positive milliseconds upward, so a local
+cooldown can conservatively extend by less than one second. Captured Python
+observations and the source-exact publishing Lua remain unchanged.
+
+The loopback HTTP fixture tolerates connections closed before any request bytes
+(for example when an expired deadline wins during connection setup), rejects
+partial requests, and still requires exactly two complete requests.

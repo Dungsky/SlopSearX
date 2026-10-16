@@ -390,6 +390,41 @@ async fn shared_cooldown_extension_recovery_and_unavailable_distinction() {
     assert_eq!(denied.reason, RateReason::ProviderCooldown);
     assert_eq!(limiter.state(&name).unwrap().consecutive_denials, 0);
     assert!(keys(&server, "ratelimit:provider:*").is_empty());
+    // A subsecond live key must deny; explicit expiry avoids a sleep boundary.
+    let boundary = engine("subsecond");
+    redis::cmd("SET")
+        .arg("ratelimit:upstream-cooldown:subsecond")
+        .arg("1")
+        .arg("PX")
+        .arg(400)
+        .query::<()>(&mut server.connection())
+        .unwrap();
+    assert_eq!(
+        b.cooldown(&boundary).await.unwrap(),
+        SharedCooldown::Active { seconds: 1 }
+    );
+    let mut boundary_limiter = RateLimiter::new(b.clone(), true);
+    assert_eq!(
+        boundary_limiter
+            .acquire(&boundary, 1, 0.0)
+            .await
+            .unwrap()
+            .reason,
+        RateReason::ProviderCooldown
+    );
+    redis::cmd("PEXPIRE")
+        .arg("ratelimit:upstream-cooldown:subsecond")
+        .arg(0)
+        .query::<()>(&mut server.connection())
+        .unwrap();
+    boundary_limiter.reactivate(&boundary);
+    assert!(
+        boundary_limiter
+            .acquire(&boundary, 1, 2.0)
+            .await
+            .unwrap()
+            .allowed
+    );
     assert_eq!(a.publish_cooldown(&name, 9000.0).await.unwrap(), 300);
     redis::cmd("PEXPIRE")
         .arg("ratelimit:upstream-cooldown:provider")
@@ -469,18 +504,40 @@ async fn actual_f08_429_cooldown_prevents_redispatch_and_health_stays_observed()
     let calls = Arc::new(AtomicUsize::new(0));
     let counter = calls.clone();
     let task = tokio::spawn(async move {
-        for i in 0..2 {
+        let mut i = 0;
+        while i < 2 {
             let (mut stream, _) = peer.accept().await.unwrap();
             let mut request = Vec::new();
             let mut byte = [0];
             while !request.ends_with(b"\r\n\r\n") {
-                stream.read_exact(&mut byte).await.unwrap();
-                request.push(byte[0]);
+                match stream.read_exact(&mut byte).await {
+                    Ok(_) => request.push(byte[0]),
+                    Err(error)
+                        if error.kind() == std::io::ErrorKind::UnexpectedEof
+                            && request.is_empty() =>
+                    {
+                        break;
+                    }
+                    Err(error) => panic!("truncated mock request: {error}"),
+                }
+            }
+            if request.is_empty() {
+                continue;
             }
             counter.fetch_add(1, Ordering::SeqCst);
             stream.write_all(if i==0{b"HTTP/1.1 429 Too Many Requests\r\nRetry-After: 1\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"}else{b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"}).await.unwrap();
+            i += 1;
         }
     });
+    // A deadline may close an accepted socket before any HTTP bytes arrive.
+    drop(
+        tokio::net::TcpStream::connect(
+            url.trim_start_matches("http://")
+                .trim_end_matches("/fixture"),
+        )
+        .await
+        .unwrap(),
+    );
     let server = Server::start();
     let mut limiter = RateLimiter::new(Arc::new(quota(&server, 10.0, 1.0)), true);
     let name = engine("loopback");
