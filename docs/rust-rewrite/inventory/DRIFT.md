@@ -284,10 +284,13 @@ F12 adds `docs/rust-rewrite/f12/oracle/export.py`, a temporary offline source
 oracle pinned to Python 3.14.7, MCP 2.3.0 and FastMCP 4.0.11. Synthetic local
 transports capture exact Jev payloads, decisions, keyless/enhanced scopes and
 cache identities. Native gates read immutable JSON; they never invoke Python.
-F12/G08 own retirement before backend removal. The exact inventory now contains
+F12/G08 own retirement before backend removal. At the isolated F12 commit
+`e1f16cfa`, before the accepted T09 integration below, the inventory contained
 373 Python sources: 122 backend/runtime, 250 backend-coupled tooling/test and one
-client-only source, with ten developer-oracle invocation rows. Existing baseline
-source hashes and historical evidence are unchanged.
+client-only source, with ten developer-oracle invocation rows. These are historical
+counts verified from that commit, not the final F12 integration totals of 374
+paths and eleven invocations at `fc97fc6d`. Existing baseline source hashes and
+historical evidence are unchanged.
 
 ## F12 integration with accepted T09
 

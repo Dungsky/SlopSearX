@@ -36,7 +36,7 @@
     },
     {
       "path": "docs/rust-rewrite/f12/oracle/export.py",
-      "git_blob": "905f48ae80aba2fc5d6d667231c117a0248d1513"
+      "git_blob": "de0879e3b7aaa9c55d0ec7ec255d8a63c086898e"
     },
     {
       "path": "docs/rust-rewrite/f13/capture.py",
@@ -52,7 +52,7 @@
     },
     {
       "path": "docs/rust-rewrite/inventory/DRIFT.md",
-      "git_blob": "6117a5ef13794801ac46b868a61811b07fc34acb"
+      "git_blob": "51cccaaef2d6737b2be28c6f436b3171b5608168"
     },
     {
       "path": "docs/rust-rewrite/inventory/README.md",
