@@ -14,7 +14,7 @@ ssx-application.workspace = true
 ssx-wire.workspace = true
 rmcp = { workspace = true, features = ["client", "transport-io", "transport-child-process", "transport-streamable-http-server", "transport-streamable-http-client-reqwest"] }
 tokio.workspace = true
-axum.workspace = true
+axum = { workspace = true, features = ["multipart"] }
 serde.workspace = true
 serde_json = { workspace = true, features = ["raw_value"] }
 reqwest = { workspace = true, features = ["stream"] }
@@ -25,3 +25,13 @@ subtle = "=2.6.1"
 sse-stream = "=0.2.6"
 ssx-domain.workspace = true
 ssx-json.workspace = true
+
+# T05 protocol codecs and accepted AWS-LC credential randomness.
+base64 = "=0.23.1"
+url.workspace = true
+sha2.workspace = true
+rustls.workspace = true
+
+[dev-dependencies]
+ssx-infra.workspace = true
+redis.workspace = true

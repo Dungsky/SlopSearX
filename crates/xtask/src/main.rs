@@ -13,6 +13,7 @@ mod o06;
 mod replay;
 mod t01;
 mod t04;
+mod t05;
 mod t09;
 mod w01;
 use serde::Deserialize;
@@ -444,6 +445,7 @@ fn execute(root: &Path, id: &str, records: &mut Vec<Value>) -> Result<()> {
         "T01" => t01::check(root, records),
         "T09" => t09::check(root, records),
         "T04" => t04::check(root, records),
+        "T05" => t05::check(root, records),
         "F05" => f05::check(root, records),
         "F06" => f06::check(root, records),
         "F07" => f07::check(root, records),
@@ -572,6 +574,8 @@ fn main() {
         "active tooling inventory and prospective evidence contracts only; no experiment, provider call, receipt issuance or historical evidence mutation"
     } else if id == "T01" {
         "synthetic MCP registry, real stdio/streamable HTTP/legacy SSE and gateway SDK qualification; no production tool parity or OAuth authorization-server claim"
+    } else if id == "T05" {
+        "OAuth wire endpoints and all-network transport authentication with real clients/private Valkey; no provider, production cutover or browser identity claim"
     } else if id == "T04" {
         "authoritative machine OAuth state and atomic transitions with private Valkey; no endpoint, OIDC, provider or deployment claim"
     } else if id == "O06" {
