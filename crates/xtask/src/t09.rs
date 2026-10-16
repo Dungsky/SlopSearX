@@ -134,6 +134,7 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
             "dropping_listener_closes_owned_pending_tls_peers_promptly",
             "unicode_idempotency_counts_source_characters_not_utf8_bytes",
             "csrf_header_is_supported_but_conflicting_values_deny_and_audit_is_pseudonymous",
+            "request_ids_correlate_real_audit_events_without_cross_request_leaks",
             "audit_stream_is_bounded_and_wrong_type_audit_failure_does_not_authorize_read",
             "authority_namespaces_isolate_sessions_quotas_and_closed_store_is_terminal",
             "audit_failure_during_reauthentication_never_issues_unlogged_session_cookie",

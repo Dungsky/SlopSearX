@@ -103,7 +103,8 @@ tests remain required; native F12 asserts preview/provenance and no double call.
 T02/T03 own full wire/HTML integration after native shared search composition.
 
 Overflow recapture uses the same inventoried exporter with `--overflow` followed
-by an output path. It requires the disposable pinned Valkey executable, never a
-production URL. Its nine observations were compared with a separately written
-source probe before freezing. Main source/hazard captures and earlier source pins
+by an output path. Set `SLOPSEARX_TEST_VALKEY_SERVER` to the disposable pinned
+Valkey executable; there is no machine-specific fallback or production URL.
+An unset or empty variable fails before starting a process. Its nine observations
+were compared with a separately written source probe before freezing. Main source/hazard captures and earlier source pins
 were not refreshed when this additive artifact was introduced.
