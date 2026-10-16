@@ -12,7 +12,7 @@
     },
     {
       "path": "docs/adr/005-rust-protocol-tls-and-platforms.md",
-      "git_blob": "bbfef9b23f634bbcd1b92304a9b19ec3b86f1ed0"
+      "git_blob": "ba30f2bdd30ac0ed47d8a4b7087269ac1b2b64b9"
     },
     {
       "path": "docs/rust-rewrite/architecture/README.md",
@@ -20,7 +20,7 @@
     },
     {
       "path": "docs/rust-rewrite/architecture/pins.json",
-      "git_blob": "aac960b4c71ac837cf0f35949f976e02098bd358"
+      "git_blob": "761973764e5d4fb5f81623746b6350c6d2ef1365"
     },
     {
       "path": "docs/rust-rewrite/architecture/state-compatibility.md",

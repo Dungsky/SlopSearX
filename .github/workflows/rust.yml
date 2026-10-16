@@ -129,6 +129,9 @@ jobs:
       - name: Portable replay and differential evidence
         run: cargo xtask check F04 --output target/rust-evidence/F04.json
 
+      - name: MCP transport and gateway qualification
+        run: cargo xtask check T01 --output target/rust-evidence/T01.json
+
       - name: Typed records and stable serialization evidence
         run: cargo xtask check F05 --output target/rust-evidence/F05.json
 
@@ -154,6 +157,8 @@ jobs:
           path: |
             target/rust-evidence/F03.json
             target/rust-evidence/F04.json
+            target/rust-evidence/T01.json
+
             target/rust-evidence/F05.json
             target/rust-evidence/F07.json
             target/rust-evidence/F08.json
