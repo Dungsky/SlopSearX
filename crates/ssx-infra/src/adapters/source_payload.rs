@@ -439,6 +439,20 @@ pub async fn publication_budgeted(
     budget: &ssx_owned_budget::Budget,
     deadline: Option<std::time::Instant>,
 ) -> Result<BudgetPayload, BudgetError> {
+    envelope_budgeted("science", "publication", engine, fields, budget, deadline).await
+}
+
+/// Generic source payload envelope. Domain/type are engine declarations, never
+/// inferred from provider data. Identical visitor, provenance and charge owner
+/// to the publication API; existing callers retain that API unchanged.
+pub async fn envelope_budgeted(
+    domain: &str,
+    kind: &str,
+    engine: &str,
+    fields: &[Field<'_>],
+    budget: &ssx_owned_budget::Budget,
+    deadline: Option<std::time::Instant>,
+) -> Result<BudgetPayload, BudgetError> {
     use ssx_json::Value as Out;
     let mut state = Projection {
         budget,
@@ -518,9 +532,9 @@ pub async fn publication_budgeted(
         .insert(&mut provenance, "inferred_fields", Out::Array(Vec::new()))
         .await?;
     let mut out = state.map(5)?;
-    let domain = Out::String(state.scalar("science").await?);
+    let domain = Out::String(state.scalar(domain).await?);
     state.insert(&mut out, "domain", domain).await?;
-    let kind = Out::String(state.scalar("publication").await?);
+    let kind = Out::String(state.scalar(kind).await?);
     state.insert(&mut out, "type", kind).await?;
     state.reserve(2)?;
     let version = ssx_json::Number::new("1").map_err(|_| BudgetError::Resource)?;
@@ -1191,6 +1205,43 @@ mod scalar_borrow_tests {
                 }
                 assert_eq!(budget.snapshot().unwrap().used, 0);
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod generic_envelope_tests {
+    use super::*;
+    #[tokio::test]
+    async fn generic_science_wrapper_keeps_bytes_charges_and_declared_envelopes() {
+        let value = Value::String(Text::from("full source field"));
+        let fields = [Field {
+            name: "notes",
+            value: FieldRef::Value(&value),
+        }];
+        let budget = ssx_owned_budget::Budget::new(1 << 20).unwrap();
+        let publication = publication_budgeted("engine", &fields, &budget, None)
+            .await
+            .unwrap();
+        let generic = envelope_budgeted("science", "publication", "engine", &fields, &budget, None)
+            .await
+            .unwrap();
+        assert_eq!(publication.value(), generic.value());
+        assert_eq!(publication.charged_bytes(), generic.charged_bytes());
+        for (domain, kind) in [
+            ("financial", "economic_series"),
+            ("biomedical", "drug_label"),
+        ] {
+            let payload = envelope_budgeted(domain, kind, "engine", &fields, &budget, None)
+                .await
+                .unwrap();
+            assert_eq!(payload.value()["domain"], domain);
+            assert_eq!(payload.value()["type"], kind);
+            assert_eq!(payload.value()["data"]["notes"], "full source field");
+            assert_eq!(
+                payload.value()["provenance"]["adapter_fields"],
+                ssx_json::json!(["notes"])
+            );
         }
     }
 }
