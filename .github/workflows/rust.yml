@@ -163,6 +163,8 @@ jobs:
       - name: Native distributed quota cooldown and observed health evidence
         run: cargo xtask check F10 --output target/rust-evidence/F10.json
 
+      - name: Browser OIDC sessions and tenant authority evidence
+        run: cargo xtask check T09 --output target/rust-evidence/T09.json
       - name: Native npm and crates registry pilot adapters
         run: cargo xtask check A01 --output target/rust-evidence/A01.json
 
@@ -191,6 +193,7 @@ jobs:
             target/rust-evidence/F08.json
             target/rust-evidence/F10.json
             target/rust-evidence/F11.json
+            target/rust-evidence/T09.json
             target/rust-evidence/A01.json
             target/rust-feature-graph.txt
           if-no-files-found: warn

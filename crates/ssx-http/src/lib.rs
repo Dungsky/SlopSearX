@@ -85,3 +85,5 @@ mod tests {
         assert_eq!(response.status(), StatusCode::NOT_IMPLEMENTED);
     }
 }
+
+pub mod browser_identity;

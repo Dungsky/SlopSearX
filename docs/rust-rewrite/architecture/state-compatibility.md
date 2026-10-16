@@ -28,3 +28,19 @@ Each owner adds a machine-verifiable record with: F01 ID/key pattern and owner, 
 3. G05 states the bounded admission interruption, RTO/RPO, backup/restore drill, rollback observation window and traffic thresholds. G06 verifies exact image/binary digests. G07 records exclusive writer handoff and canary results. G08 may remove the Python backend only after the rollback window is explicitly closed and a roll-forward/recovery path is accepted.
 
 A pre-cutover snapshot is recovery material; restoring it after accepting Rust writes discards those writes. That is a separately approved **restore with data-loss accounting**, not a code rollback. External provider calls already made cannot be undone. When their outcome is unknown, retain the charged attempt and reconcile without claiming exactly-once remote execution.
+
+## T09 browser authority exception (cutover remains G04/G07-gated)
+
+T09 native browser keys use `portal:native:v1:<authority digest>:<kind>:<keyed id>`.
+This is an explicit drain/relogin design, not a same-namespace rollback claim.
+The module is not wired into production by default. G04/G07 must stop legacy
+admission/writers, drain and reconcile workflow commands and pending browser
+admissions, expire old login/session authority and require fresh native sign-in.
+Rollback stops native admission, reconciles results and requires fresh legacy
+sign-in; neither reader adopts the other's cookie records. Old audit evidence
+remains retained/read-only under its original keys; G04 preserves/exports it with
+original retention. No migration rehearsal, reverse compatibility, completed
+workflow rollback or production cutover is claimed by the T09 implementation.
+Membership directory remains validated operator process configuration. Browser
+admission expiry never proves a prior workflow operation did not happen; W10
+retains durable command idempotency beyond the 600-second browser guard horizon.

@@ -1743,6 +1743,10 @@
               "run": "cargo xtask check F10 --output target/rust-evidence/F10.json"
             },
             {
+              "name": "Browser OIDC sessions and tenant authority evidence",
+              "run": "cargo xtask check T09 --output target/rust-evidence/T09.json"
+            },
+            {
               "name": "Native npm and crates registry pilot adapters",
               "run": "cargo xtask check A01 --output target/rust-evidence/A01.json"
             },
@@ -1760,7 +1764,7 @@
               "with": {
                 "if-no-files-found": "warn",
                 "name": "rust-foundation-${{ matrix.target }}-${{ github.sha }}",
-                "path": "target/rust-evidence/F03.json\ntarget/rust-evidence/F04.json\ntarget/rust-evidence/T01.json\ntarget/rust-evidence/T04.json\ntarget/rust-evidence/F05.json\ntarget/rust-evidence/F06.json\ntarget/rust-evidence/F09.json\ntarget/rust-evidence/F12.json\ntarget/rust-evidence/F07.json\ntarget/rust-evidence/W01.json\ntarget/rust-evidence/O03.json\ntarget/rust-evidence/F08.json\ntarget/rust-evidence/F10.json\ntarget/rust-evidence/F11.json\ntarget/rust-evidence/A01.json\ntarget/rust-feature-graph.txt\n"
+                "path": "target/rust-evidence/F03.json\ntarget/rust-evidence/F04.json\ntarget/rust-evidence/T01.json\ntarget/rust-evidence/T04.json\ntarget/rust-evidence/F05.json\ntarget/rust-evidence/F06.json\ntarget/rust-evidence/F09.json\ntarget/rust-evidence/F12.json\ntarget/rust-evidence/F07.json\ntarget/rust-evidence/W01.json\ntarget/rust-evidence/O03.json\ntarget/rust-evidence/F08.json\ntarget/rust-evidence/F10.json\ntarget/rust-evidence/F11.json\ntarget/rust-evidence/T09.json\ntarget/rust-evidence/A01.json\ntarget/rust-feature-graph.txt\n"
               }
             }
           ],
