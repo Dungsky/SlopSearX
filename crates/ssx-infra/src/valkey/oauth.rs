@@ -462,6 +462,7 @@ impl OAuthStore {
         if !scopes.is_empty() {
             grant.scopes = scopes.to_vec()
         };
+        validate_grant(&grant)?;
         let client = self.client(&grant.client_id).await?;
         let (pair, new) = self.pair(grant, self.now().await?)?;
         changes.extend(new);

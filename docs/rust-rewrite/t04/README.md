@@ -39,7 +39,9 @@ resource audience and protocol errors. After loading a grant, it passes the exac
 validated binding to redemption/rotation. State rereads that binding and fences
 it atomically; it does not accept a detached grant as authority. Optional resource,
 subject and redirect explicitness are retained exactly, and refresh scopes may
-only narrow (an empty request retains the previous scope list).
+only narrow (an empty request retains the previous scope list). The resulting
+grant is revalidated against the 128-scope storage bound before minting or
+mutation; an oversized request leaves the original pair byte-for-byte intact.
 
 ## Storage and atomicity
 

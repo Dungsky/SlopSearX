@@ -625,3 +625,35 @@ async fn captured_source_flow_replays_binding_lifetimes_rotation_and_revocation(
     );
     assert_eq!(flow["revoked_refresh_missing"], true);
 }
+#[tokio::test]
+async fn narrowed_scope_bound_rejects_without_consuming_live_pair() {
+    let server = Server::start();
+    let a = oauth(&server, OAuthTtls::default());
+    a.register_client(client("c")).await.unwrap();
+    let old = pair(&a).await;
+    let access_key = key("access", &old.access_token);
+    let refresh_key = key("refresh", &old.refresh_token);
+    let access_before = get(&server, &access_key);
+    let refresh_before = get(&server, &refresh_key);
+    let oversized = vec!["read".to_owned(); 129];
+    let result = a
+        .rotate_refresh(&old.refresh_token, &old.grant, &oversized)
+        .await;
+
+    assert_eq!(result, Err(OAuthError::InvalidInput));
+    assert_eq!(get(&server, &access_key), access_before);
+    assert_eq!(get(&server, &refresh_key), refresh_before);
+    let valid = vec!["read".to_owned(); 128];
+    let next = a
+        .rotate_refresh(&old.refresh_token, &old.grant, &valid)
+        .await
+        .unwrap();
+    assert_eq!(
+        a.load_token(TokenKind::Refresh, &next.refresh_token)
+            .await
+            .unwrap()
+            .grant
+            .scopes,
+        valid
+    );
+}

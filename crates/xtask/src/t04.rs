@@ -41,6 +41,7 @@ const TESTS: &[&str] = &[
     "malformed_asymmetric_links_never_delete_unrelated_pair",
     "malformed_schema_and_oversize_records_fail_without_writes",
     "natural_asymmetric_expiry_preserves_refresh_and_reverse_revocation",
+    "narrowed_scope_bound_rejects_without_consuming_live_pair",
     "optional_empty_subject_resource_and_scope_narrowing_remain_exact",
     "revoke_rotate_race_never_revives_revoked_or_old_pair",
     "source_registration_model_dump_roundtrips_complete_nullable_metadata",
@@ -105,7 +106,7 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
         &["test", "--locked", "-p", "ssx-infra", "--test", "t04"],
         records,
     )?;
-    if !output.contains("12 passed; 0 failed; 0 ignored") {
+    if !output.contains("13 passed; 0 failed; 0 ignored") {
         return Err("T04 native integration tests missing or ignored".into());
     }
     let domain_list = command(
@@ -157,7 +158,7 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
     if !docs.contains("1 passed; 0 failed; 0 ignored") {
         return Err("T04 credential serialization negative missing".into());
     }
-    records.push(json!({"kind":"t04_authority","source_baseline":BASELINE,"corpus_sha256":CORPUS,"private_valkey_tests":12,"scope":"state transitions only; no endpoint, provider or deployment claim"}));
+    records.push(json!({"kind":"t04_authority","source_baseline":BASELINE,"corpus_sha256":CORPUS,"private_valkey_tests":13,"scope":"state transitions only; no endpoint, provider or deployment claim"}));
     Ok(())
 }
 #[cfg(test)]
