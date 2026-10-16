@@ -35,6 +35,12 @@
       "source": "persisted finite deadlines have no timer representation bound; workflow budget conversions trust supplied shape",
       "native": "large finite horizons use checked optional timers; constructor rejects unrepresentable Valkey expiry/Instant settings; present malformed counters fail closed instead of using larger defaults",
       "reason": "prevent worker panics and inadvertent spend authorization while preserving stored horizons and all acknowledged charges"
+    },
+    {
+      "contract": "immutable denied-workflow attempt audit",
+      "source": "workflow grant denial appends a failed predispatch attempt without reservation accounting",
+      "native": "reserve and immediately settle denied attempt under W01; attempt and engine reservation charges are conserved, actual dossier adapter-call budget remains unchanged and provider dispatch is zero; exhausted reservations append no attempt",
+      "reason": "retain denial diagnostics across retry while satisfying accepted W01 charged-attempt invariant; no-work and malformed-budget outcomes are not blanket-charged"
     }
   ],
   "limitations": [

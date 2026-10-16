@@ -356,16 +356,33 @@ impl ResearchRunner {
                 continue;
             }
             if let Err(error) = self.search.validate_research_workflow(&job) {
+                let denied_attempt = attempt();
                 store
                     .mutate(id, token, |j| {
-                        let q = &mut j.queries[index];
-                        q.state = "failed".into();
-                        q.error = Some(format!("policy_rejected: {error:?}"));
-                        q.engine_coverage = q
-                            .engines
-                            .iter()
-                            .map(|name| classify_coverage(name.clone(), false, None, 0, false))
-                            .collect();
+                        let now = self.now();
+                        if j.cancel_requested || now.seconds() >= j.deadline.get() {
+                            return Ok(());
+                        }
+                        // Source records a failed predispatch audit. Native W01
+                        // requires every appended attempt to conserve reservation
+                        // charges; no actual dossier adapter call is charged here.
+                        if j.reserve_attempt(index, denied_attempt.clone(), now)? {
+                            let q = &mut j.queries[index];
+                            q.state = "failed".into();
+                            q.error = Some(format!("policy_rejected: {error:?}"));
+                            q.engine_coverage = q
+                                .engines
+                                .iter()
+                                .map(|name| classify_coverage(name.clone(), false, None, 0, false))
+                                .collect();
+                            ssx_application::research::finish_attempt(
+                                j,
+                                index,
+                                &denied_attempt,
+                                None,
+                                now,
+                            )?;
+                        }
                         Ok(())
                     })
                     .await?;
@@ -616,7 +633,9 @@ impl ResearchRunner {
                     if j.stop_reason.is_none() {
                         j.stop_reason = Some(
                             if j.state == "succeeded" {
-                                if j.queries.len() as u64 >= j.budget_limits["queries"] {
+                                if !dossier(j)
+                                    && j.queries.len() as u64 >= j.budget_limits["queries"]
+                                {
                                     "query_budget_exhausted"
                                 } else {
                                     "plan_executed"

@@ -674,7 +674,7 @@ async fn workflow_grant_matrix_denies_atomically_without_provider_calls() {
             assert_eq!(j.workflow["budget"]["captured_results"], ssx_json::json!(1));
         } else {
             assert_eq!(j.state, "failed");
-            assert_eq!(j.budget_used["attempts"], 0);
+            assert_eq!(j.budget_used["attempts"], 1);
         }
         search.shutdown().await;
     }
@@ -703,7 +703,16 @@ async fn workflow_mixed_sensitive_plan_denies_before_first_dispatch() {
     let (_stop, rx) = shutdown();
     let j = runner.run_once(rx).await.unwrap().unwrap();
     assert_eq!(e.calls.load(Ordering::SeqCst), 0);
-    assert_eq!(j.budget_used["attempts"], 0);
+    assert_eq!(j.budget_used["attempts"], 2);
+    assert!(j.queries.iter().all(|q| {
+        q.attempts.len() == 1
+            && q.attempts[0].state == "failed"
+            && q.attempts[0]
+                .error
+                .as_deref()
+                .unwrap()
+                .contains("policy_rejected")
+    }));
     assert_eq!(j.state, "failed");
     search.shutdown().await;
 }
@@ -1510,4 +1519,156 @@ async fn malformed_workflow_budget_never_defaults_into_more_spend() {
         assert_eq!(j.budget_used["attempts"], 0);
         service.shutdown().await;
     }
+}
+#[tokio::test]
+async fn source_success_at_query_ceiling_distinguishes_dossier_stop_reason() {
+    for is_dossier in [false, true] {
+        let server = Server::start();
+        let (runner, jobs, service, _) = setup_policy(
+            server.store(),
+            engine(false),
+            &["research", "security", "dependency_dossier"],
+        );
+        let mut j = job("org:other");
+        j.initialize_budget(ResearchCeilings {
+            queries: 1,
+            engines_per_query: 1,
+            results: 10,
+        })
+        .unwrap();
+        if is_dossier {
+            j.workflow
+                .insert("kind".into(), ssx_json::json!("dependency_dossier"));
+            j.workflow.insert(
+                "budget".into(),
+                ssx_json::json!({"max_adapter_calls":1,"max_results":10}),
+            );
+        }
+        jobs.for_tenant(tenant("org:other"))
+            .create(&j)
+            .await
+            .unwrap();
+        let (_stop, rx) = shutdown();
+        let j = runner.run_once(rx).await.unwrap().unwrap();
+        assert_eq!(j.state, "succeeded");
+        assert_eq!(
+            j.stop_reason.as_deref(),
+            Some(if is_dossier {
+                "plan_executed"
+            } else {
+                "query_budget_exhausted"
+            })
+        );
+        service.shutdown().await;
+    }
+}
+#[tokio::test]
+async fn denied_workflow_audit_survives_restored_authority_retry_without_actual_call_charge() {
+    let server = Server::start();
+    let e = Arc::new(PartialEngine {
+        success_calls: AtomicUsize::new(0),
+        failed_calls: AtomicUsize::new(0),
+    });
+    let (initial, jobs, service, _) = setup_policy(
+        server.store(),
+        e,
+        &["research", "security", "dependency_dossier"],
+    );
+    let scoped = jobs.for_tenant(tenant("org:other"));
+    let mut j = job("org:other");
+    j.queries.push(ResearchQuery {
+        index: 1,
+        query: "failure".into(),
+        intent: "web".into(),
+        engines: vec!["fake".into()],
+        ..Default::default()
+    });
+    j.workflow
+        .insert("kind".into(), ssx_json::json!("dependency_dossier"));
+    j.workflow.insert(
+        "budget".into(),
+        ssx_json::json!({"max_adapter_calls":5,"max_results":10}),
+    );
+    scoped.create(&j).await.unwrap();
+    let (_stop, rx) = shutdown();
+    let before = initial.run_once(rx.clone()).await.unwrap().unwrap();
+    assert_eq!(before.state, "partial");
+    let successful = before.queries[0].clone();
+    assert_eq!(
+        before.workflow["budget"]["used_adapter_calls"],
+        ssx_json::json!(2)
+    );
+    let blocked_engine = engine(false);
+    let (denied, _, denied_service, _) = setup_policy(server.store(), blocked_engine.clone(), &[]);
+    let audited = denied
+        .retry(tenant("org:other"), &id(), rx.clone())
+        .await
+        .unwrap();
+    assert_eq!(blocked_engine.calls.load(Ordering::SeqCst), 0);
+    assert_eq!(audited.queries[0], successful);
+    assert_eq!(audited.budget_used["attempts"], 3);
+    assert_eq!(
+        audited.workflow["budget"]["used_adapter_calls"],
+        ssx_json::json!(2)
+    );
+    let denied_attempt = audited.queries[1].attempts[1].clone();
+    assert_eq!(denied_attempt.state, "failed");
+    assert!(denied_attempt.error.as_deref().unwrap().contains("grant"));
+    assert!(
+        denied_attempt
+            .engine_coverage
+            .iter()
+            .all(|c| c.bucket == "not-selected")
+    );
+    let restored_engine = engine(false);
+    let (restored, _, restored_service, _) = setup_policy(
+        server.store(),
+        restored_engine.clone(),
+        &["research", "security", "dependency_dossier"],
+    );
+    let done = restored
+        .retry(tenant("org:other"), &id(), rx)
+        .await
+        .unwrap();
+    assert_eq!(done.state, "succeeded");
+    assert_eq!(done.queries[0], successful);
+    assert_eq!(done.queries[1].attempts[1], denied_attempt);
+    assert_eq!(done.queries[1].attempts[0], before.queries[1].attempts[0]);
+    assert_eq!(done.budget_used["attempts"], 4);
+    assert_eq!(
+        done.workflow["budget"]["used_adapter_calls"],
+        ssx_json::json!(3)
+    );
+    assert_eq!(restored_engine.calls.load(Ordering::SeqCst), 1);
+    service.shutdown().await;
+    denied_service.shutdown().await;
+    restored_service.shutdown().await;
+}
+#[tokio::test]
+async fn exhausted_denial_reservation_never_fabricates_attempt_or_refunds_counts() {
+    let server = Server::start();
+    let e = engine(false);
+    let (runner, jobs, service, _) = setup_policy(server.store(), e.clone(), &[]);
+    let mut j = job("org:other");
+    j.initialize_budget(ResearchCeilings {
+        queries: 0,
+        engines_per_query: 1,
+        results: 10,
+    })
+    .unwrap();
+    j.workflow
+        .insert("kind".into(), ssx_json::json!("dependency_dossier"));
+    let original = j.budget_used.clone();
+    jobs.for_tenant(tenant("org:other"))
+        .create(&j)
+        .await
+        .unwrap();
+    let (_stop, rx) = shutdown();
+    let j = runner.run_once(rx).await.unwrap().unwrap();
+    assert_eq!(j.state, "failed");
+    assert!(j.queries[0].attempts.is_empty());
+    assert_eq!(j.budget_used, original);
+    assert_eq!(e.calls.load(Ordering::SeqCst), 0);
+    assert_eq!(j.stop_reason.as_deref(), Some("attempt_budget_exhausted"));
+    service.shutdown().await;
 }

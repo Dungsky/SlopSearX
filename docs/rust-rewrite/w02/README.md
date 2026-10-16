@@ -85,6 +85,17 @@ including a real-Valkey mutation whose proposed publication leaves the record
 unchanged. Cross-surface live policy lifecycle disposition remains an integration
 requirement; no synthetic circuit-as-grant-revocation claim is made.
 
+Denied workflow authority records an immutable failed predispatch audit by
+reserving and immediately settling the acknowledged attempt. This charges the
+conservative research attempt/engine reservation, preserves not-selected coverage
+and denial diagnostics across retry, and does not charge the dossier actual-call
+counter or dispatch providers. Exhausted reservation appends no fabricated attempt.
+The source appends this audit without charged reservation; W01 requires the native
+accounting difference. A restored-configuration retry fixture verifies prior
+success and denial attempt history remain byte-identical. Successful dossiers at
+the query ceiling retain source `plan_executed`, while ordinary research uses
+`query_budget_exhausted`.
+
 ## Evidence and portal impact
 
 `sources.json` pins eight current source/regression files to Git blobs and SHA256.

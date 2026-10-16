@@ -6,6 +6,9 @@ use std::{collections::BTreeSet, fs, path::Path};
 const BASELINE: &str = "5aa7983aebc2dddbf00727d5a7e6b1192b3dfee0";
 const SOURCES: &str = "ec5e8e7a26032612d7571e7d1ead77262c1fb83bbb36b6c6c239bdae2b495ddf";
 const TESTS: &[&str] = &[
+    "denied_workflow_audit_survives_restored_authority_retry_without_actual_call_charge",
+    "exhausted_denial_reservation_never_fabricates_attempt_or_refunds_counts",
+    "source_success_at_query_ceiling_distinguishes_dossier_stop_reason",
     "malformed_workflow_budget_never_defaults_into_more_spend",
     "large_finite_persisted_deadlines_execute_without_duration_or_instant_panic",
     "runner_rejects_unrepresentable_lease_and_poll_configuration",
