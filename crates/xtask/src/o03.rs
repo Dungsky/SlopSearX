@@ -374,23 +374,24 @@ fn validate_artifact(a: &Artifact) -> Result<()> {
     ensure(!a.path.trim().is_empty(), "artifact path is empty")
 }
 
+// Source receipt references are portable repository paths, not arbitrary host
+// filenames. Forward slashes are canonical; reject Windows drive/separator and
+// trailing-dot/space aliases even when validating on Unix.
+fn portable_source_path(path: &str) -> bool {
+    !path.trim().is_empty()
+        && !path.contains(['\\', ':', '\0'])
+        && path.split('/').all(|part| {
+            !part.is_empty() && part != "." && part != ".." && !part.ends_with(['.', ' '])
+        })
+}
+
 fn validate_source_files(files: &[SourceFile]) -> Result<()> {
     ensure(!files.is_empty(), "source receipt has no source files")?;
     let mut paths = BTreeSet::new();
     for file in files {
-        let path = Path::new(&file.path);
         ensure(
-            !file.path.trim().is_empty() && !path.is_absolute(),
-            "source path must be nonempty and relative",
-        )?;
-        ensure(
-            !path.components().any(|part| {
-                matches!(
-                    part,
-                    std::path::Component::ParentDir | std::path::Component::CurDir
-                )
-            }),
-            "source path contains traversal or dot segments",
+            portable_source_path(&file.path),
+            "source path must be a portable canonical repository-relative path",
         )?;
         ensure(paths.insert(file.path.as_str()), "duplicate source path")?;
         ensure(
@@ -1567,6 +1568,48 @@ mod tests {
             let instance = serde_json::json!({"git_commit": commit});
             assert!(!valid_git_commit(&"a".repeat(length)));
             assert!(validate_schema_instance(&schema, &instance, &schema, "receipt").is_err());
+        }
+    }
+
+    #[test]
+    fn source_paths_reject_cross_platform_traversal_and_aliases() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let bytes =
+            fs::read(root.join("crates/xtask/fixtures/o03/source-receipt.valid.json")).unwrap();
+        let original = numeric::receipt_value(&bytes).unwrap();
+        for path in [
+            r"..\outside",
+            r"src\..\outside",
+            r"C:\outside",
+            r"C:outside",
+            r"\\server\share\file",
+            "/outside",
+            "src/../outside",
+            "src/./file",
+            "src//file",
+            "src/",
+            "src/.. /outside",
+            "src/file.",
+            "src/file ",
+            "src/fi\0le",
+            "\t\n",
+            "   ",
+        ] {
+            let mut receipt = original.clone();
+            receipt["files"][0]["path"] = Value::String(path.into());
+            assert!(validate_source_receipt(receipt).is_err(), "{path:?}");
+        }
+        let inventory: Value = serde_json::from_slice(
+            &fs::read(root.join("docs/rust-rewrite/inventory/o03-active-tooling.json")).unwrap(),
+        )
+        .unwrap();
+        for row in inventory["scripts"].as_array().unwrap() {
+            assert!(portable_source_path(row["path"].as_str().unwrap()));
+        }
+        for path in ["src/lib.rs", ".github/workflows/rust.yml", "雪/source.rs"] {
+            let mut receipt = original.clone();
+            receipt["files"][0]["path"] = Value::String(path.into());
+            validate_source_receipt(receipt).unwrap();
         }
     }
 

@@ -20,12 +20,12 @@ fn normalize(raw: &RawValue, depth: usize) -> Result<Value, String> {
     let text = raw.get();
     match text.as_bytes()[0] {
         b'{' => {
-            let fields: serde_json::Map<String, Value> =
-                serde_json::from_str::<std::collections::BTreeMap<String, Box<RawValue>>>(text)
-                    .map_err(|e| e.to_string())?
-                    .into_iter()
-                    .map(|(key, value)| Ok((key, normalize(&value, depth + 1)?)))
-                    .collect::<Result<_, String>>()?;
+            let fields = serde_json::from_str::<UniqueObject>(text)
+                .map_err(|e| e.to_string())?
+                .0
+                .into_iter()
+                .map(|(key, value)| Ok((key, normalize(&value, depth + 1)?)))
+                .collect::<Result<_, String>>()?;
             Ok(Value::Object(fields))
         }
         b'[' => Ok(Value::Array(
@@ -37,6 +37,36 @@ fn normalize(raw: &RawValue, depth: usize) -> Result<Value, String> {
         )),
         b'-' | b'0'..=b'9' => integer(text).map(Value::from),
         _ => serde_json::from_str(text).map_err(|e| e.to_string()),
+    }
+}
+
+// Map collection alone silently resolves duplicates. Reject decoded keys while
+// reading entries, including escaped spellings of the same key, before any
+// schema or typed interpretation. normalize applies this at every object depth.
+struct UniqueObject(std::collections::BTreeMap<String, Box<RawValue>>);
+impl<'de> serde::Deserialize<'de> for UniqueObject {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        struct ObjectVisitor;
+        impl<'de> serde::de::Visitor<'de> for ObjectVisitor {
+            type Value = UniqueObject;
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("a receipt object with unique decoded keys")
+            }
+            fn visit_map<M: serde::de::MapAccess<'de>>(
+                self,
+                mut map: M,
+            ) -> Result<Self::Value, M::Error> {
+                let mut fields = std::collections::BTreeMap::new();
+                while let Some(key) = map.next_key::<String>()? {
+                    if fields.contains_key(&key) {
+                        return Err(serde::de::Error::custom("duplicate receipt object key"));
+                    }
+                    fields.insert(key, map.next_value::<Box<RawValue>>()?);
+                }
+                Ok(UniqueObject(fields))
+            }
+        }
+        deserializer.deserialize_map(ObjectVisitor)
     }
 }
 
@@ -96,6 +126,20 @@ fn integer(raw: &str) -> Result<u64, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn receipt_objects_reject_duplicate_decoded_keys_at_every_depth() {
+        for raw in [
+            r#"{"outcome":"failure","outcome":"accepted"}"#,
+            r#"{"counter":1.0,"counter":1e0}"#,
+            r#"{"nested":[{"a":1,"a":2}]}"#,
+            r#"{"a":1,"\u0061":2}"#,
+            r#"{"nested":[{"a":1,"\u0061":2}]}"#,
+        ] {
+            assert!(receipt_value(raw.as_bytes()).is_err(), "{raw}");
+        }
+        assert!(receipt_value(br#"{"one":{"a":1},"two":{"a":2}}"#).is_ok());
+    }
+
     #[test]
     fn exact_unsigned_integrality_and_range() {
         for (raw, expected) in [

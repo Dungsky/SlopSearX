@@ -169,6 +169,17 @@ deterministic receipt fixture validation. It does not issue receipts, prove a
 signature, dispatch, or implement O08's production verifier; those remain O08
 work.
 
+Receipt ingress rejects duplicate decoded JSON object keys at every depth,
+including equivalent escaped key spellings, before schema or typed validation.
+Numbers retain the exact unsigned-integer normalization contract; runtime receipt
+digests still bind the original bytes, never the normalized representation.
+Source-file references use a portable repository-relative path contract: nonblank, nonempty
+forward-slash-separated components, with no empty, dot or parent components,
+backslashes, colons, NUL, or components ending in a dot or ASCII space. These
+rules apply independently of the validating host's filesystem conventions and
+preserve canonical paths in the active source inventory. They describe source
+receipt references, not a general library for arbitrary Unix filenames.
+
 ## Verification and retirement sequence
 
 Run `cargo xtask check O03` for deterministic contract and inventory validation.
