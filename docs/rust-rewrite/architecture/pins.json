@@ -120,14 +120,20 @@
       "source": "https://docs.rs/indexmap/2.14.2/indexmap/",
       "retrieval_source": "https://docs.rs/indexmap/2.14.2/indexmap/",
       "retrieved_identity": "Pinned version already resolved in accepted Cargo.lock; official docs verified insertion-order/serde API 2026-10-15"
-    },
-    "flate2": {
-      "version": "=1.1.9",
-      "source": "https://docs.rs/flate2/1.1.9/flate2/",
-      "retrieved_identity": "F08 exact Cargo.lock resolution and inspected bounded Read decoder API; native gzip and raw/zlib deflate regression qualification"
     }
   },
   "lock_gate": "F03 resolves Cargo.lock and compiles mandatory targets with --locked; T01 qualifies rmcp and SSE against real clients",
+  "t01_qualified_dependencies": {
+    "sse-stream": {
+      "version": "=0.2.6",
+      "source": "https://docs.rs/crate/sse-stream/0.2.6/source/Cargo.toml",
+      "registry_source": "registry+https://github.com/rust-lang/crates.io-index",
+      "package_checksum": "c25ac7aff0abd1dbc474536e40416e1102c7dd9bfba0b9861c6d357f835dcfb4",
+      "license": "MIT OR Apache-2.0",
+      "msrv": "not declared by package; compiled on accepted Rust 1.99.0",
+      "reason": "Existing rmcp transitive parser made direct so bounded POST SSE bytes can retain the same parser; no new resolved package or version"
+    }
+  },
   "test_dependencies": {
     "rcgen": {
       "version": "=0.14.10",

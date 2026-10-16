@@ -182,8 +182,18 @@ source capture of actual source research settlement identities, with no provider
 store or runtime execution. It consumes all accepted F11 URL fixture inputs and
 records their shard hashes; F11 and original W01 oracle bytes are unchanged.
 W01 owns migration qualification and G08 retires this executable oracle before
-backend removal. The union now has 368 Python source paths, including 245
-backend-coupled tooling/test paths, and five developer oracle invocation rows.
-Existing mandatory/runtime Python commands and all existing runtime source pins
-remain unchanged. Native F01 exact inventory and source pins must reject stale
-merged documentation hashes before a narrow reviewed refresh.
+backend removal. The union with accepted T01 has 369 Python source paths,
+including 246 backend-coupled tooling/test paths and six developer oracle
+invocation rows. Existing mandatory/runtime Python commands, source-oracle
+hashes, Python runtime pins and historical F01 baseline evidence remain
+unchanged.
+
+## Accepted T01 integration
+
+The normal integration also retains the accepted T01 MCP qualification and its
+developer-only `replay/oracle/export_mcp.py` source capture. The W01 research
+exporter and identity capture and T01 MCP exporter are temporary developer
+oracles; native acceptance gates consume captured JSON only and G08 owns their
+eventual retirement. F01 records the merged inventory-document identities after
+the narrow reviewed refresh; no source-oracle hashes, Python runtime pins or
+historical F01 baseline evidence change.
