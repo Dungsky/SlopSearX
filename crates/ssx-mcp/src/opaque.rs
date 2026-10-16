@@ -524,6 +524,7 @@ pub struct RawGateway {
 }
 impl RawGateway {
     async fn exchange(&self, body: &str) -> Result<Option<String>> {
+        let deadline = tokio::time::Instant::now() + self.deadline;
         let mut request = self
             .http
             .post(&self.url)
@@ -538,7 +539,7 @@ impl RawGateway {
         if let Some(session) = &attempted_session {
             request = request.header("mcp-session-id", session.as_str());
         }
-        let mut response = tokio::time::timeout(self.deadline, request.send()).await??;
+        let mut response = tokio::time::timeout_at(deadline, request.send()).await??;
         if let Some(id) = response.headers().get("mcp-session-id") {
             let id = id.to_str()?.to_owned();
             let mut current = self.session.lock().unwrap();
@@ -627,7 +628,7 @@ impl RawGateway {
             validate_reply(&fields, expected.as_deref())?;
             Ok(Some(body))
         };
-        tokio::time::timeout(self.deadline, read).await?
+        tokio::time::timeout_at(deadline, read).await?
     }
     pub async fn connect(url: String, token: Option<String>, deadline: Duration) -> Result<Self> {
         let parsed = reqwest::Url::parse(&url)?;
@@ -959,6 +960,58 @@ mod tests {
 #[cfg(test)]
 mod close_tests {
     use super::*;
+    #[tokio::test]
+    async fn exchange_shares_deadline_across_headers_and_body() -> Result<()> {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        for sse in [false, true] {
+            let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
+            let address = listener.local_addr()?;
+            let server = tokio::spawn(async move {
+                let (mut socket, _) = listener.accept().await.unwrap();
+                let mut input = [0; 1];
+                socket.read_exact(&mut input).await.unwrap();
+                tokio::time::sleep(Duration::from_millis(700)).await;
+                let body = if sse {
+                    "data: {\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{}}\n\n"
+                } else {
+                    "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{}}"
+                };
+                let mime = if sse {
+                    "text/event-stream"
+                } else {
+                    "application/json"
+                };
+                let headers = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Type: {mime}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                    body.len()
+                );
+                socket.write_all(headers.as_bytes()).await.unwrap();
+                tokio::time::sleep(Duration::from_millis(700)).await;
+                let _ = socket.write_all(body.as_bytes()).await;
+            });
+            let gateway = RawGateway {
+                http: reqwest::Client::new(),
+                url: format!("http://{address}/mcp"),
+                token: None,
+                catalogs: BTreeMap::new(),
+                deadline: Duration::from_secs(1),
+                session: Default::default(),
+                initialize_result: None,
+                protocol: String::new(),
+            };
+            let result = gateway
+                .exchange(r#"{"jsonrpc":"2.0","id":1,"method":"ping"}"#)
+                .await;
+            server.await?;
+            assert!(
+                result
+                    .err()
+                    .is_some_and(|error| error.is::<tokio::time::error::Elapsed>()),
+                "split header/body delays exceeded one deadline: SSE={sse}"
+            );
+        }
+        Ok(())
+    }
     #[test]
     fn stale_close_cannot_clear_replaced_session_generation() {
         let gateway = RawGateway {
