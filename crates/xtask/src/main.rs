@@ -4,6 +4,7 @@ mod a02;
 mod a03;
 mod a04;
 mod a07;
+mod a08;
 mod date_amendment;
 mod f05;
 mod f06;
@@ -451,6 +452,7 @@ fn execute(root: &Path, id: &str, records: &mut Vec<Value>) -> Result<()> {
         "A01" => a01::check(root, records),
         "A04" => a04::check(root, records),
         "A07" => a07::check(root, records),
+        "A08" => a08::check(root, records),
         "A03" => a03::check(root, records),
         "A02" => a02::check(root, records),
         "O03" => o03::check(root, records),
@@ -589,7 +591,9 @@ fn main() {
             }
         }
     }
-    let scope = if id == "A07" {
+    let scope = if id == "A08" {
+        "source-bound EDGAR/FRED/openFDA/Oyez factories;285 adapter controls,2 typed configuration supersessions,44 original functions/47 parameters,real loopback deadlines/drop and compact JSON; no provider,full portal,global RSS or deployment claim"
+    } else if id == "A07" {
         "source-bound biomedical factories/config/scope,172 offline controls and charged runtime/context/compact regressions; no provider calls, global G02 or full HTML/MCP transport claim"
     } else if id == "A03" {
         "source-mapped GitHub, Hugging Face, Stack Exchange and Hacker News adapters through caller-owned F08/F10; offline loopback/private Valkey only, no provider or deployment claim"

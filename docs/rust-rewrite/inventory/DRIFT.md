@@ -568,3 +568,15 @@ A07 biomedical candidate adds12 exact-hash temporary offline source producers,39
 ## A07 normal accepted-main integration
 
 The DCO A07 checkpoint is normally merged with accepted main1bad48b (F15/W11/W02). All complete parent and A07 inventory records are retained:399 tracked Python source paths and40 temporary developer-oracle invocation rows. Existing source observations and source Git pins remain immutable. Historical native/CI baseline blobs are checked separately from current native implementations. Final integrated gates and exact-head CI remain required.
+
+
+## A08 actual source migration evidence
+
+A08 starts from fresh accepted-main `2f78b9d02cfe62c9829fcfb38b85cd632a889de0`.
+Four exact-hash temporary source producers have actual completed offline or
+private-loopback invocation receipts in `a08/oracle-runs.json`. The candidate
+union is403 tracked Python source paths and44 developer-oracle invocation rows.
+Every existing parent record and historical capture is preserved. Native A08
+runtime and mandatory gate read immutable JSON only and never execute Python.
+G08 retires all four executable producers; source captures/provenance remain.
+Initial exploratory/partial attempts are not these accepted capture receipts.
