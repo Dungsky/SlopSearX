@@ -133,5 +133,17 @@
       "msrv": "not declared by package; compiled on accepted Rust 1.99.0",
       "reason": "Existing rmcp transitive parser made direct so bounded POST SSE bytes can retain the same parser; no new resolved package or version"
     }
+  },
+  "test_dependencies": {
+    "rcgen": {
+      "version": "=0.14.10",
+      "source": "https://docs.rs/rcgen/0.14.10/rcgen/",
+      "purpose": "F08 in-memory CA/leaf generation, no static expiry; aws_lc_rs and pem features only"
+    },
+    "time": {
+      "version": "=0.3.55",
+      "source": "https://docs.rs/time/0.3.55/time/",
+      "purpose": "F08 runtime test certificate validity; already resolved transitively"
+    }
   }
 }
