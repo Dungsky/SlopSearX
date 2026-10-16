@@ -12,7 +12,16 @@ workspace = true
 [dependencies]
 ssx-application.workspace = true
 ssx-wire.workspace = true
-rmcp.workspace = true
+rmcp = { workspace = true, features = ["client", "transport-io", "transport-child-process", "transport-streamable-http-server", "transport-streamable-http-client-reqwest"] }
+tokio.workspace = true
+axum.workspace = true
+serde.workspace = true
+serde_json = { workspace = true, features = ["raw_value"] }
+reqwest = { workspace = true, features = ["stream"] }
+tokio-util = "=0.7.20"
+futures-util = "=0.3.34"
+uuid = { version = "=1.28.0", features = ["v4"] }
+subtle = "=2.6.1"
+sse-stream = "=0.2.6"
 ssx-domain.workspace = true
-serde_json.workspace = true
 ssx-json.workspace = true
