@@ -352,6 +352,47 @@ fn validate_scalar_corpus(raw: &[u8]) -> Result<Value> {
     }
     Ok(data)
 }
+const CREDENTIAL_CORPUS_SHA256: &str =
+    "8252ac8e98611e12713c0e68fb0a74a66d3453552e92b2482b0acbc204889bf7";
+fn validate_credential_corpus(raw: &[u8]) -> Result<Value> {
+    let hash: String = Sha256::digest(raw)
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect();
+    if hash != CREDENTIAL_CORPUS_SHA256 {
+        return Err("F06 reviewed credential capture mismatch".into());
+    }
+    let data: Value = serde_json::from_slice(raw).map_err(|error| error.to_string())?;
+    if data["schema_version"] != 1
+        || data["python"] != "3.14.7"
+        || data["baseline"] != "7cc420f7ffb61127750e77bf6130e225925f9186"
+        || data["cases"].as_array().map(Vec::len) != Some(10)
+    {
+        return Err("F06 credential capture provenance mismatch".into());
+    }
+    Ok(data)
+}
+const YAML_CORPUS_SHA256: &str = "28b483215affabba971a6c9f0aa8e31f6dbb86589beee52f91ef5bbac4c48451";
+fn validate_yaml_corpus(raw: &[u8]) -> Result<Value> {
+    let hash: String = Sha256::digest(raw)
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect();
+    if hash != YAML_CORPUS_SHA256 {
+        return Err("F06 reviewed YAML capture mismatch".into());
+    }
+    let data: Value = serde_json::from_slice(raw).map_err(|error| error.to_string())?;
+    if data["schema_version"] != 1
+        || data["python"] != "3.14.7"
+        || data["yaml_version"] != "6.0.3"
+        || data["baseline"] != "7cc420f7ffb61127750e77bf6130e225925f9186"
+        || data["cases"].as_array().map(Vec::len) != Some(79)
+        || data["config_cases"].as_array().map(Vec::len) != Some(7)
+    {
+        return Err("F06 YAML capture provenance mismatch".into());
+    }
+    Ok(data)
+}
 pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
     let scalar = validate_scalar_corpus(
         &fs::read(root.join("crates/xtask/fixtures/f06/scalars.json"))
@@ -365,6 +406,22 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
     )?;
     if scalar["source_blob"].as_str() != Some(actual.trim()) {
         return Err("F06 scalar capture source drift".into());
+    }
+
+    let credentials = validate_credential_corpus(
+        &fs::read(root.join("crates/xtask/fixtures/f06/credentials.json"))
+            .map_err(|error| error.to_string())?,
+    )?;
+    if credentials["source_blob"].as_str() != Some(actual.trim()) {
+        return Err("F06 credential capture source drift".into());
+    }
+
+    let yaml = validate_yaml_corpus(
+        &fs::read(root.join("crates/xtask/fixtures/f06/yaml.json"))
+            .map_err(|error| error.to_string())?,
+    )?;
+    if yaml["source_blob"].as_str() != Some(actual.trim()) {
+        return Err("F06 YAML capture source drift".into());
     }
 
     source_pins(root, records)?;
@@ -431,6 +488,24 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
 #[cfg(test)]
 mod scalar_capture_tests {
     use super::*;
+    #[test]
+    fn yaml_answers_cannot_redeclare_their_own_identity() {
+        let raw = include_bytes!("../fixtures/f06/yaml.json");
+        assert!(validate_yaml_corpus(raw).is_ok());
+        let mut data: Value = serde_json::from_slice(raw).unwrap();
+        data["cases"][0]["expected"] = json!({"value":12});
+        assert!(validate_yaml_corpus(&serde_json::to_vec(&data).unwrap()).is_err());
+        assert!(validate_yaml_corpus(&[]).is_err());
+    }
+    #[test]
+    fn credential_answers_cannot_redeclare_their_own_identity() {
+        let raw = include_bytes!("../fixtures/f06/credentials.json");
+        assert!(validate_credential_corpus(raw).is_ok());
+        let mut data: Value = serde_json::from_slice(raw).unwrap();
+        data["cases"][0]["expected"] = json!({"api_key": null, "api_secret": null});
+        assert!(validate_credential_corpus(&serde_json::to_vec(&data).unwrap()).is_err());
+        assert!(validate_credential_corpus(&[]).is_err());
+    }
     #[test]
     fn scalar_answers_cannot_redeclare_their_own_identity() {
         let raw = include_bytes!("../fixtures/f06/scalars.json");

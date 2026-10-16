@@ -5,6 +5,8 @@ use ssx_domain::storage::normalize_python_number_text;
 use ssx_registry::{AuthClass, EngineDescriptor, Registry};
 use std::{collections::BTreeMap, fmt, fs, path::Path};
 
+mod yaml;
+
 pub const CONFIG_FILE_PATH: &str = "/etc/slopsearx/config.yaml";
 
 #[derive(Clone, Default, PartialEq, Eq)]
@@ -359,8 +361,7 @@ fn load_config_entries(
     if path.exists() {
         let raw = fs::read_to_string(path)
             .map_err(|error| ConfigError(format!("config file: {error}")))?;
-        let parsed: Value =
-            serde_saphyr::from_str(&raw).map_err(|_| ConfigError("invalid config YAML".into()))?;
+        let parsed = yaml::parse(&raw)?;
         if !parsed.is_null()
             && parsed != json!(false)
             && parsed != json!(0)
@@ -451,17 +452,31 @@ fn apply_engine_file(
         .as_object()
         .cloned()
         .ok_or_else(|| ConfigError("engine settings must be a mapping".into()))?;
+    let mut api_key = entry.api_key.clone();
+    let mut api_secret = entry.api_secret.clone();
     for (key, value) in object {
-        if key == "api_key" || key == "api_secret" {
-            return Err(ConfigError(format!(
-                "{key} must be supplied through the environment"
-            )));
+        match key.as_str() {
+            "api_key" => api_key = file_secret(value)?,
+            "api_secret" => api_secret = file_secret(value)?,
+            _ => {
+                merged.insert(key.clone(), value.clone());
+            }
         }
-        merged.insert(key.clone(), value.clone());
     }
-    *entry = serde_json::from_value(Value::Object(merged))
+    let mut next: EngineConfig = serde_json::from_value(Value::Object(merged))
         .map_err(|_| ConfigError("invalid engine settings".into()))?;
+    next.api_key = api_key;
+    next.api_secret = api_secret;
+    *entry = next;
     Ok(())
+}
+
+fn file_secret(value: &Value) -> Result<Secret, ConfigError> {
+    match value {
+        Value::Null => Ok(Secret::default()),
+        Value::String(value) => Ok(Secret::new(Some(value.clone()))),
+        _ => Err(ConfigError("credential must be a string or null".into())),
+    }
 }
 
 fn overlay_typed<T: for<'de> Deserialize<'de> + Serialize + Default>(
@@ -1098,12 +1113,110 @@ mod tests {
             env.engines["censys"].api_secret.expose(),
             Some("env-secret")
         );
+        let file_debug = format!("{file:?}");
+        let file_json = serde_json::to_string(&file).unwrap();
+        assert!(!file_debug.contains("file-id") && !file_debug.contains("file-secret"));
+        assert!(!file_json.contains("file-id") && !file_json.contains("file-secret"));
+        assert!(serde_json::to_string(&file.engines["censys"].api_key).is_err());
         let debug = format!("{env:?}");
         assert!(
             !debug.contains("env-id")
                 && !debug.contains("env-secret")
                 && !debug.contains("file-secret")
         );
+    }
+    #[test]
+    fn source_captured_yaml_origin_controls_environment_coercion() {
+        let corpus: Value =
+            serde_json::from_str(include_str!("../../xtask/fixtures/f06/yaml.json")).unwrap();
+        for case in corpus["config_cases"].as_array().unwrap() {
+            let env: Vec<_> = case["env"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|pair| (pair[0].as_str().unwrap(), pair[1].as_str().unwrap()))
+                .collect();
+            let config = config_yaml(case["yaml"].as_str().unwrap(), &env);
+            let engine = &config.engines["brave"];
+            for (name, value) in [
+                ("weight", &engine.weight),
+                ("max_results", &engine.max_results),
+            ] {
+                let kind = match value {
+                    ConfigScalar::Boolean(_) => "bool",
+                    ConfigScalar::Integer(_) => "int",
+                    ConfigScalar::Float(_) => "float",
+                    ConfigScalar::Text(_) => "str",
+                };
+                assert_eq!(
+                    json!({"kind":kind,"value":value}),
+                    case["expected"][name],
+                    "{}",
+                    case["name"]
+                );
+            }
+        }
+    }
+    #[test]
+    fn source_captured_file_credential_replay() {
+        let corpus: Value =
+            serde_json::from_str(include_str!("../../xtask/fixtures/f06/credentials.json"))
+                .unwrap();
+        for case in corpus["cases"].as_array().unwrap() {
+            let env: Vec<(&str, &str)> = case["env"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|pair| (pair[0].as_str().unwrap(), pair[1].as_str().unwrap()))
+                .collect();
+            let config = config_yaml(case["yaml"].as_str().unwrap(), &env);
+            let entry = &config.engines[case["engine"].as_str().unwrap()];
+            assert_eq!(
+                entry.api_key.expose(),
+                case["expected"]["api_key"].as_str(),
+                "{}",
+                case["name"]
+            );
+            assert_eq!(
+                entry.api_secret.expose(),
+                case["expected"]["api_secret"].as_str(),
+                "{}",
+                case["name"]
+            );
+            let debug = format!("{config:?}");
+            let encoded = serde_json::to_string(&config).unwrap();
+            for secret in [entry.api_key.expose(), entry.api_secret.expose()]
+                .into_iter()
+                .flatten()
+                .filter(|s| !s.is_empty())
+            {
+                assert!(!debug.contains(secret) && !encoded.contains(secret));
+            }
+        }
+    }
+    #[test]
+    fn malformed_file_credentials_are_redacted_and_failed_overlay_is_atomic() {
+        let mut entry = EngineConfig {
+            api_key: Secret::new(Some("original-fixture-key".into())),
+            api_secret: Secret::new(Some("original-fixture-secret".into())),
+            ..Default::default()
+        };
+        let before = entry.clone();
+        let invalid =
+            json!({"api_key":"next-fixture-key", "api_secret":{"nested":"never-echo-fixture"}});
+        let error = apply_engine_file(&mut entry, invalid.as_object().unwrap()).unwrap_err();
+        assert_eq!(entry, before);
+        assert!(
+            !error.to_string().contains("next-fixture-key")
+                && !error.to_string().contains("never-echo-fixture")
+        );
+        for value in [json!(["never-echo-fixture"]), json!(true), json!(123)] {
+            assert!(file_secret(&value).is_err());
+        }
+        let overlay = json!({"weight":2});
+        apply_engine_file(&mut entry, overlay.as_object().unwrap()).unwrap();
+        assert_eq!(entry.api_key, before.api_key);
+        assert_eq!(entry.api_secret, before.api_secret);
     }
     #[test]
     fn malformed_yaml_errors_never_echo_secret_values() {
