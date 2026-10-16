@@ -724,7 +724,11 @@ impl Text {
     }
     pub fn repr(&self) -> String {
         if let Some(s) = self.as_str() {
-            let escaped = ssx_domain::storage::python_value_string(&ssx_json::json!([s]));
+            // Accepted UTF16/32 JSON bytes can expand beyond the public JSON
+            // byte limit as scalar UTF8. Reuse the existing repr formatter on
+            // typed values without serializing/reparsing that accepted text.
+            let values = ssx_json::Value::Array(vec![ssx_json::Value::String(s.to_owned())]);
+            let escaped = ssx_domain::storage::python_value_string(&values);
             return escaped[1..escaped.len() - 1].into();
         }
         let quote = if self.0.contains(&39) && !self.0.contains(&34) {
@@ -879,6 +883,33 @@ pub fn opaque_error(value: &Value, engine: &str, field: &str) -> Option<String> 
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[tokio::test]
+    async fn accepted_utf16_expansion_repr_matches_complete_source_hash() {
+        use sha2::{Digest, Sha256};
+        let input = format!("\"{}\"", "一".repeat(2 * 1024 * 1024 - 2));
+        let bytes: Vec<u8> = input.encode_utf16().flat_map(u16::to_le_bytes).collect();
+        assert_eq!(bytes.len(), MAX_BYTES);
+        assert_eq!(
+            Sha256::digest(&bytes)
+                .iter()
+                .map(|b| format!("{b:02x}"))
+                .collect::<String>(),
+            "69bd52fa264c0224ea2afd24e671b0ac123f814d912349e56d4a783e22c319a9"
+        );
+        let value = from_slice(&bytes, None).await.unwrap();
+        let text = value.as_text().unwrap();
+        assert_eq!(text.len(), 2_097_150);
+        assert_eq!(text.as_str().unwrap().len(), 6_291_450);
+        let repr = text.repr();
+        assert_eq!(repr.len(), 6_291_452);
+        assert_eq!(
+            Sha256::digest(repr.as_bytes())
+                .iter()
+                .map(|b| format!("{b:02x}"))
+                .collect::<String>(),
+            "822794801db331db89bdca20a804d4835760d1c31e96b3cea26d98e82b93e785"
+        );
+    }
     #[tokio::test]
     async fn encodings_and_recursive_float_projection() {
         let input = "{\"x\":[1.234567890123456789,1e3,1e-7,-0.0,1e-9999,99999999999999999999999999999999999999999]}";

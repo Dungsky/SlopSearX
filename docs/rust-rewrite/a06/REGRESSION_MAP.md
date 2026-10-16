@@ -203,3 +203,15 @@ live acquisition.
   reject tampered archived responses or a changed summary after verification.
 
 These are reviewed source expectations, not completed native assertions.
+
+## Shared SourceJSON repr expansion follow-up
+
+`source-repr-boundary.json` records actual pinned CPython json.loads(bytes)/repr
+input and full output hashes. The native regression
+`adapters::source_json::tests::accepted_utf16_expansion_repr_matches_complete_source_hash`
+accepts exactly4MiB UTF16LE JSON that expands to6,291,450 UTF8 bytes and checks the
+complete6,291,452-byte representation hash. The prior JSON-macro scalar conversion
+panicked at the unrelated public JSON byte limit. Direct typed Value construction
+now invokes the existing Unicode repr formatter without another serialization/
+parse. Global JSON bounds and all original A04/A06 source corpora are unchanged.
+This is a shared boundary correction, not full A06 adapter acceptance.
