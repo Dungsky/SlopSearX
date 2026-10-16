@@ -1727,8 +1727,20 @@
               "run": "cargo xtask check F11 --output target/rust-evidence/F11.json"
             },
             {
+              "name": "Canonical cache and immutable snapshot evidence",
+              "run": "cargo xtask check F13 --output target/rust-evidence/F13.json"
+            },
+            {
+              "name": "Integrated search execution and cancellation evidence",
+              "run": "cargo xtask check F14 --output target/rust-evidence/F14.json"
+            },
+            {
               "name": "Native Valkey ownership and lifecycle evidence",
               "run": "cargo xtask check F07 --output target/rust-evidence/F07.json"
+            },
+            {
+              "name": "Saved definitions revisions and schedule claim evidence",
+              "run": "cargo xtask check W00 --output target/rust-evidence/W00.json"
             },
             {
               "name": "Research records and conserved budget evidence",
@@ -1759,6 +1771,14 @@
               "run": "cargo xtask check A02 --output target/rust-evidence/A02.json"
             },
             {
+              "name": "Native developer and community adapters",
+              "run": "cargo xtask check A03 --output target/rust-evidence/A03.json"
+            },
+            {
+              "name": "Native Brave, Wikipedia, and Reddit adapters",
+              "run": "cargo xtask check A04 --output target/rust-evidence/A04.json"
+            },
+            {
               "name": "Native DuckDuckGo and Google HTML adapters",
               "run": "cargo xtask check A05 --output target/rust-evidence/A05.json"
             },
@@ -1776,7 +1796,7 @@
               "with": {
                 "if-no-files-found": "warn",
                 "name": "rust-foundation-${{ matrix.target }}-${{ github.sha }}",
-                "path": "target/rust-evidence/F03.json\ntarget/rust-evidence/F04.json\ntarget/rust-evidence/T01.json\ntarget/rust-evidence/T04.json\ntarget/rust-evidence/T05.json\ntarget/rust-evidence/F05.json\ntarget/rust-evidence/F06.json\ntarget/rust-evidence/F09.json\ntarget/rust-evidence/F12.json\ntarget/rust-evidence/F07.json\ntarget/rust-evidence/W01.json\ntarget/rust-evidence/O03.json\ntarget/rust-evidence/F08.json\ntarget/rust-evidence/F10.json\ntarget/rust-evidence/F11.json\ntarget/rust-evidence/T09.json\ntarget/rust-evidence/A01.json\ntarget/rust-evidence/A02.json\ntarget/rust-evidence/A05.json\ntarget/rust-feature-graph.txt\n"
+                "path": "target/rust-evidence/F03.json\ntarget/rust-evidence/F04.json\ntarget/rust-evidence/T01.json\ntarget/rust-evidence/T04.json\ntarget/rust-evidence/T05.json\ntarget/rust-evidence/F05.json\ntarget/rust-evidence/F06.json\ntarget/rust-evidence/F09.json\ntarget/rust-evidence/F12.json\ntarget/rust-evidence/F07.json\ntarget/rust-evidence/W00.json\ntarget/rust-evidence/W01.json\ntarget/rust-evidence/O03.json\ntarget/rust-evidence/F08.json\ntarget/rust-evidence/F10.json\ntarget/rust-evidence/F11.json\ntarget/rust-evidence/F13.json\ntarget/rust-evidence/F14.json\ntarget/rust-evidence/T09.json\ntarget/rust-evidence/A01.json\ntarget/rust-evidence/A02.json\ntarget/rust-evidence/A03.json\ntarget/rust-evidence/A04.json\ntarget/rust-evidence/A05.json\ntarget/rust-feature-graph.txt\n"
               }
             }
           ],
@@ -1818,7 +1838,7 @@
       },
       "owner": "F03",
       "state": "additive",
-      "successor": "cargo fmt --all --check; cargo clippy --locked --workspace --all-targets -- -D warnings; cargo test/build --locked --workspace; cargo deny --locked --workspace check all; F03 smoke; A01 #917 source-bound npm/crates pilot gate and both-architecture artifact. A02 #922 source-bound package adapters gate and both-architecture artifact. A05 #925 source-bound DuckDuckGo/Google HTML gate and both-architecture artifact."
+      "successor": "cargo fmt --all --check; cargo clippy --locked --workspace --all-targets -- -D warnings; cargo test/build --locked --workspace; cargo deny --locked --workspace check all; F03 smoke; A01 #917 source-bound npm/crates pilot gate and both-architecture artifact. A02 #922 source-bound package adapters gate and both-architecture artifact."
     },
     "rust.yml:supply-chain": {
       "source": {
@@ -1931,7 +1951,7 @@
           },
           {
             "id": "end-of-file-fixer",
-            "exclude": "^docs/experiments/evidence/(.*\\.(json|txt)|EXP-003/reproduce\\.md)$"
+            "exclude": "^(docs/experiments/evidence/(.*\\.(json|txt)|EXP-003/reproduce\\.md)|crates/xtask/fixtures/f13/native-record\\.json)$"
           },
           {
             "id": "check-yaml"

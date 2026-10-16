@@ -23,6 +23,11 @@ pub enum Failure {
     Malformed,
     InvalidInput,
 }
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Create {
+    Stored,
+    Exists,
+}
 #[derive(Debug, PartialEq)]
 pub enum Read<T> {
     Found(T),
@@ -150,6 +155,21 @@ impl Valkey {
             Read::Closed => Read::Closed,
         }
     }
+    /// Single atomic immutable creation. Unknown write outcomes are never retried.
+    pub async fn put_if_absent(
+        &self,
+        key: &str,
+        bytes: &[u8],
+        ttl: NonZeroU64,
+    ) -> Result<Create, Failure> {
+        let mut cmd = redis::cmd("SET");
+        cmd.arg(key).arg(bytes).arg("EX").arg(ttl.get()).arg("NX");
+        match self.execute(cmd, true).await? {
+            Value::Okay => Ok(Create::Stored),
+            Value::Nil => Ok(Create::Exists),
+            _ => Err(Failure::Malformed),
+        }
+    }
     pub async fn put(&self, key: &str, bytes: &[u8], ttl: NonZeroU64) -> Result<(), Failure> {
         let mut cmd = redis::cmd("SET");
         cmd.arg(key).arg(bytes).arg("EX").arg(ttl.get());
@@ -274,3 +294,8 @@ pub mod research;
 
 pub mod browser_identity;
 pub mod oauth;
+
+pub mod cache;
+pub mod snapshot;
+
+pub mod saved;

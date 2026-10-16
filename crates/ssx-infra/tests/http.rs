@@ -90,6 +90,12 @@ async fn serve(
             .nth(1)
             .unwrap()
             .to_owned();
+        // Proxy requests use absolute-form targets; route solely on the URL path.
+        let path = if path.starts_with("http://") || path.starts_with("https://") {
+            url::Url::parse(&path).unwrap().path().to_owned()
+        } else {
+            path
+        };
         let method = request
             .lines()
             .next()
@@ -737,6 +743,19 @@ async fn env_proxy_child() {
 }
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn environment_proxy_and_no_proxy_use_real_subprocesses() {
+    // Absolute-form proxy targets must not route on digits in their authority.
+    let authority_probe = server().await;
+    let mut probe =
+        tokio::net::TcpStream::connect(authority_probe.url.strip_prefix("http://").unwrap())
+            .await
+            .unwrap();
+    probe
+        .write_all(b"GET http://127.0.0.1:42999/ HTTP/1.1\r\nHost: 127.0.0.1:42999\r\n\r\n")
+        .await
+        .unwrap();
+    let mut status = String::new();
+    BufReader::new(probe).read_line(&mut status).await.unwrap();
+    assert_eq!(status, "HTTP/1.1 200 OK\r\n");
     let target = server().await;
     let proxy = server().await;
     for bypass in [false, true] {

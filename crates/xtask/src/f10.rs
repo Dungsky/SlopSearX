@@ -103,21 +103,14 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
         {
             return Err("invalid F10 source namespace".into());
         }
-        let old = command(
+        crate::date_amendment::source(
             root,
-            "git",
-            &["rev-parse", &format!("{BASELINE}:{path}")],
+            path,
+            BASELINE,
+            source["git_blob"].as_str().ok_or("F10 source blob")?,
+            Some(source["sha256"].as_str().ok_or("F10 source SHA")?),
             records,
         )?;
-        let current = command(root, "git", &["hash-object", "--", path], records)?;
-        if old.trim() != source["git_blob"].as_str().unwrap_or("")
-            || current.trim() != old.trim()
-            || digest(&read(path)?) != source["sha256"].as_str().unwrap_or("")
-        {
-            return Err(format!(
-                "F10 source drift requires reviewed recapture: {path}"
-            ));
-        }
     }
     inventory(
         root,

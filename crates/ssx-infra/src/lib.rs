@@ -3,6 +3,8 @@ pub mod adapters;
 pub mod html;
 pub mod http;
 pub mod jev;
+pub mod search;
+pub mod suggest;
 pub mod valkey;
 use ssx_application::{
     Audit, Clock, Engine, Metrics, NoopSink, PortFuture, Runtime, Store, Supervisor, TaskEvent,

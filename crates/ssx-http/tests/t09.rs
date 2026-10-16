@@ -1925,3 +1925,112 @@ async fn decoded_nul_semantic_components_deny_before_claim_or_workflow() {
     );
     assert_eq!(f.workflows.calls.load(Ordering::SeqCst), 1);
 }
+
+#[tokio::test]
+async fn request_ids_correlate_real_audit_events_without_cross_request_leaks() {
+    let f = Fixture::new(false).await;
+    let url = format!("{}/workflows", f.portal.url);
+    let (first, second, generated, empty) = tokio::join!(
+        f.client
+            .get(&url)
+            .header("x-request-id", "first-request")
+            .send(),
+        f.client
+            .get(&url)
+            .header("x-request-id", "second-request")
+            .send(),
+        f.client.get(&url).send(),
+        f.client.get(&url).header("x-request-id", "").send(),
+    );
+    let mut expected = Vec::new();
+    for (response, supplied) in [
+        (first.unwrap(), Some("first-request")),
+        (second.unwrap(), Some("second-request")),
+        (generated.unwrap(), None),
+        (empty.unwrap(), None),
+    ] {
+        assert_eq!(response.status(), 303);
+        let id = response.headers()["x-request-id"]
+            .to_str()
+            .unwrap()
+            .to_owned();
+        if let Some(supplied) = supplied {
+            assert_eq!(id, supplied);
+        } else {
+            assert_eq!(id.len(), 36);
+            assert_eq!(&id[14..15], "4");
+            assert!(matches!(&id[19..20], "8" | "9" | "a" | "b"));
+        }
+        expected.push(id);
+    }
+    assert_eq!(expected.iter().collect::<BTreeSet<_>>().len(), 4);
+    assert_eq!(f.login().await.status(), 303);
+    let read = f
+        .client
+        .get(&url)
+        .header("x-request-id", "authorized-read")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(read.status(), 200);
+    assert_eq!(read.headers()["x-request-id"], "authorized-read");
+    let denied = f
+        .client
+        .post(format!("{}/auth/logout", f.portal.url))
+        .header("x-request-id", "csrf-denial")
+        .header("origin", &f.portal.url)
+        .header("content-type", "application/x-www-form-urlencoded")
+        .body("csrf=wrong")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(denied.status(), 403);
+    assert_eq!(denied.headers()["x-request-id"], "csrf-denial");
+    let long = "x".repeat(160);
+    let bounded = f
+        .client
+        .get(&url)
+        .header("x-request-id", &long)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(bounded.status(), 200);
+    assert_eq!(bounded.headers()["x-request-id"], long.as_str());
+
+    let mut connection = f.valkey.connection();
+    let keys: Vec<String> = redis::cmd("KEYS")
+        .arg("portal:native:v1:*:audit:*")
+        .query(&mut connection)
+        .unwrap();
+    let mut events = Vec::<Value>::new();
+    for key in keys {
+        let rows: redis::streams::StreamRangeReply = redis::cmd("XRANGE")
+            .arg(key)
+            .arg("-")
+            .arg("+")
+            .query(&mut connection)
+            .unwrap();
+        for row in rows.ids {
+            let raw: String =
+                redis::from_redis_value(row.map.get("event").unwrap().clone()).unwrap();
+            events.push(serde_json::from_str(&raw).unwrap());
+        }
+    }
+    assert!(
+        events
+            .iter()
+            .all(|e| !e["request_id"].as_str().unwrap().is_empty())
+    );
+    for id in expected {
+        let matching: Vec<_> = events.iter().filter(|e| e["request_id"] == id).collect();
+        assert_eq!(matching.len(), 1);
+        assert_eq!(matching[0]["outcome"], "denied");
+        assert_eq!(matching[0]["reason"], "authentication_required");
+    }
+    for (id, outcome) in [("authorized-read", "allowed"), ("csrf-denial", "denied")] {
+        let matching: Vec<_> = events.iter().filter(|e| e["request_id"] == id).collect();
+        assert_eq!(matching.len(), 1);
+        assert_eq!(matching[0]["outcome"], outcome);
+    }
+    assert!(events.iter().any(|e| e["request_id"] == "x".repeat(128)));
+}

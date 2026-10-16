@@ -118,10 +118,14 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
         if pin["path"] != path {
             return Err("F09 source path mismatch".into());
         }
-        let actual = command(root, "git", &["hash-object", "--", path], records)?;
-        if Some(actual.trim()) != pin["git_blob"].as_str() {
-            return Err(format!("F09 stale source: {path}"));
-        }
+        crate::date_amendment::source(
+            root,
+            path,
+            "1f3f5bc85083f4fd24bd9a2b07f161626e6bfef5",
+            pin["git_blob"].as_str().ok_or("F09 source blob")?,
+            None,
+            records,
+        )?;
     }
     let app = [
         "explicit_inactive_members_reject_atomically_without_changing_http_or_preview_availability",

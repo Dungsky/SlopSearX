@@ -25,8 +25,8 @@ secrets. No unaccepted T04/F09 interface is imported.
   are polled concurrently as owned futures; no detached handshake tasks exist.
   Excess peers are refused; dropping the listener closes pending peers.
 
-The composition root explicitly mounts `browser_router` with injected identity
-and workflow ports and serves it through `BrowserTlsListener` with
+W10 must mount `browser_router` with injected identity and workflow ports
+and serve it through `BrowserTlsListener` with
 `into_make_service_with_connect_info::<BrowserTlsPeer>()`. Other listeners cannot
 supply that private peer marker; protected routes deny without direct TLS.
 Forwarding headers are ignored and trusted-proxy configuration is rejected.
@@ -157,3 +157,22 @@ separator collisions in the preserved source semantic digest. Actual TLS/private
 Valkey tests reject both collision tuples and every component, proving no claim
 or workflow call, then allow an ordinary command with the same idempotency key.
 Existing ordinary source digest bytes and captured observations are unchanged.
+
+## Request correlation correction
+
+The browser boundary now preserves a nonempty ASCII `X-Request-ID` header or
+creates a cryptographically random UUIDv4 once per request, and echoes that ID
+on its response. Every audit call uses the same request-local context, including
+authentication denial, CSRF denial, successful login/read/mutation and logout.
+The shared router configuration never stores a request ID. Audit storage retains
+its existing 128-character limit and control-character removal; response headers
+retain the supplied value. Duplicate headers use the first value, matching the
+source middleware. A header not representable by the HTTP library's ASCII text
+view receives a fresh ID; it is never copied into structured audit text. Random
+source failure returns503 before identity operations. No new dependency is added.
+
+`request_ids_correlate_real_audit_events_without_cross_request_leaks` uses actual
+concurrent TLS requests and reads the private Valkey audit stream. It covers
+supplied/generated/empty IDs, authentication and CSRF denial, authorized reads,
+and bounded audit storage without truncating the response header. T09's gate
+requires this test. This correction does not constitute W10 production mounting.
