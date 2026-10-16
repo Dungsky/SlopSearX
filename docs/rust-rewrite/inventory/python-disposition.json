@@ -3,15 +3,15 @@
   "baseline_sha": "20109f9083babd014971951e8c02565ae51c2326",
   "source": "Pinned F01 baseline inventory plus reviewed post-baseline additions recorded in DRIFT.md; source-set validation refreshed at acceptance.",
   "summary": {
-    "tracked_python_source_count": 396,
+    "tracked_python_source_count": 399,
     "extensionless_python_entrypoints": 1,
     "executable_config_python_invocation_lines": 63,
     "interpreter_configuration_lines": 106,
     "documentation_shebang_script_count": 8,
     "documented_example_invocation_references": 49,
     "source_classifications": {
-      "backend-coupled tooling/test": 273,
       "backend/runtime": 122,
+      "backend-coupled tooling/test": 276,
       "client-only": 1
     },
     "documentation_file_modes": {
@@ -19,14 +19,13 @@
     },
     "source_path_set_validation": {
       "method": "sorted exact-set comparison between git ls-files paths ending .py/.pyw/.pyi plus ssx and files[].path",
-      "tracked_expected_count": 396,
-      "manifest_count": 396,
-      "exact_match": false,
+      "tracked_expected_count": 399,
+      "manifest_count": 399,
+      "exact_match": true,
       "extensionless_python_paths": [
         "ssx"
       ],
-      "candidate_projected_exact_match": true,
-      "candidate_note": "12 A07 paths pending tracked acceptance; recompute exact committed union after main integration"
+      "validation_scope": "normal main merge tracked source union; final committed head will be rechecked"
     },
     "historical_evidence_py_txt_path_count": 729,
     "non_runtime_historical_py_txt_path_count": 728,
@@ -227,6 +226,32 @@
       "introduced_after_baseline": "730c37a5f48b9830088594582cefb4c2f10a35e8"
     },
     {
+      "path": "docs/rust-rewrite/f15/capture.py",
+      "classification": "backend-coupled tooling/test",
+      "migration_owner": "F15",
+      "migration_owners": [
+        "F15",
+        "G08"
+      ],
+      "disposition": "temporary_developer_oracle_retire_before_backend_removal",
+      "evidence": "Developer-only pinned CPython3.14.7 actual source observations using synthetic candidate data and HTTPX mock transport. Mandatory F15 gate consumes immutable JSON only; no provider calls.",
+      "reason": "G08 retires executable Python before backend removal, retaining source observations.",
+      "introduced_after_baseline": "4dfc0f5691b6a5a1c039a2837372b1977422ec27"
+    },
+    {
+      "path": "docs/rust-rewrite/f15/capture_headers.py",
+      "classification": "backend-coupled tooling/test",
+      "migration_owner": "F15",
+      "migration_owners": [
+        "F15",
+        "G08"
+      ],
+      "disposition": "temporary_developer_oracle_retire_before_backend_removal",
+      "evidence": "Developer-only pinned CPython3.14.7 actual source observations using synthetic candidate data and HTTPX mock transport. Mandatory F15 gate consumes immutable JSON only; no provider calls.",
+      "reason": "G08 retires executable Python before backend removal, retaining source observations.",
+      "introduced_after_baseline": "4dfc0f5691b6a5a1c039a2837372b1977422ec27"
+    },
+    {
       "path": "docs/rust-rewrite/replay/oracle/export.py",
       "classification": "backend-coupled tooling/test",
       "migration_owner": "F04",
@@ -329,6 +354,19 @@
       "evidence": "W01 isolated developer-only source finish_attempt identity capture; accepted F11 public/synthetic URL inputs, no network/store; native gates read captured JSON only.",
       "reason": "Temporary backend-coupled reference oracle, not a runtime or client exception. G08 removes executable Python after native successor evidence is accepted.",
       "introduced_after_baseline": "cfd7a0af61a22cfd040a7fcd41ad950f82005959"
+    },
+    {
+      "path": "docs/rust-rewrite/w11/oracle/export.py",
+      "classification": "backend-coupled tooling/test",
+      "migration_owner": "W11",
+      "migration_owners": [
+        "W11",
+        "G08"
+      ],
+      "disposition": "temporary_developer_oracle_retire_before_backend_removal",
+      "evidence": "W11 offline AST plan digest/array normalization and actual staged-store read/retry observations against private disposable Valkey; native gate consumes immutable JSON only.",
+      "reason": "No backend imports, providers, live state, runtime or mandatory Python invocation. Retire executable Python in G08, retain JSON.",
+      "introduced_after_baseline": "1e9dd82d62456fe6f511cc5ade88bae619fac027"
     },
     {
       "path": "engines/__init__.py",

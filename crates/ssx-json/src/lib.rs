@@ -3,6 +3,8 @@
 //! No backend, transport or network dependencies. In particular this does not
 //! enable serde_json's globally unified `arbitrary_precision` feature: its private
 //! number map tag collides with otherwise ordinary user object keys.
+pub mod float;
+pub use float::{FloatError, FloatNormalizer, parse_json_f64};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use std::ops::{Index, IndexMut};
 pub type Error = serde_json::Error;
@@ -21,7 +23,7 @@ impl Number {
         if !matches!(raw.as_bytes().first(), Some(b'-' | b'0'..=b'9')) {
             return Err(error("expected JSON number"));
         }
-        if raw.contains(['.', 'e', 'E']) && !raw.parse::<f64>().is_ok_and(f64::is_finite) {
+        if raw.contains(['.', 'e', 'E']) && !parse_json_f64(raw).is_ok_and(f64::is_finite) {
             return Err(error("JSON float must be finite f64"));
         }
         Ok(Self(if raw == "-0" { "0".into() } else { raw.into() }))
@@ -51,7 +53,7 @@ impl Number {
         }
     }
     pub fn as_f64(&self) -> Option<f64> {
-        self.0.parse::<f64>().ok().filter(|v| v.is_finite())
+        parse_json_f64(&self.0).ok().filter(|v| v.is_finite())
     }
 }
 impl PartialEq for Number {

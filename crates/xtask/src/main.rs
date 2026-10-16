@@ -15,6 +15,7 @@ mod f11;
 mod f12;
 mod f13;
 mod f14;
+mod f15;
 mod o03;
 mod o06;
 mod replay;
@@ -24,6 +25,8 @@ mod t05;
 mod t09;
 mod w00;
 mod w01;
+mod w02;
+mod w11;
 use serde::Deserialize;
 use serde_json::{Value, json};
 use std::{
@@ -463,6 +466,8 @@ fn execute(root: &Path, id: &str, records: &mut Vec<Value>) -> Result<()> {
         "F07" => f07::check(root, records),
         "W00" => w00::check(root, records),
         "W01" => w01::check(root, records),
+        "W02" => w02::check(root, records),
+        "W11" => w11::check(root, records),
         "F08" => f08::check(root, records),
         "F09" => f09::check(root, records),
         "F10" => f10::check(root, records),
@@ -470,6 +475,7 @@ fn execute(root: &Path, id: &str, records: &mut Vec<Value>) -> Result<()> {
         "F12" => f12::check(root, records),
         "F13" => f13::check(root, records),
         "F14" => f14::check(root, records),
+        "F15" => f15::check(root, records),
         "F03" => {
             source_check(root, "F01", records)?;
             source_check(root, "F02", records)?;
@@ -813,7 +819,7 @@ mod tests {
     fn unknown_and_unimplemented_fail() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
         assert!(
-            execute(&root, "F15", &mut vec![])
+            execute(&root, "T02", &mut vec![])
                 .unwrap_err()
                 .contains("unimplemented")
         );

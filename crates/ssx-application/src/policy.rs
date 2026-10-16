@@ -270,6 +270,23 @@ impl PolicyService {
         }
         Ok(())
     }
+    /// Recovered workflow metadata is never dispatch authority. Dossier grants
+    /// and every planned engine traverse the same fail-closed gate atomically.
+    pub fn validate_research_workflow(
+        &self,
+        job: &ssx_domain::research::ResearchJob,
+    ) -> Result<(), PolicyError> {
+        if job.workflow.get("kind").and_then(Value::as_str) != Some("dependency_dossier") {
+            return Ok(());
+        }
+        for grant in ["dependency_dossier", "research", "security"] {
+            self.grant(grant, "")?;
+        }
+        for query in &job.queries {
+            self.authorize(ScopeProposal::from_research_query(query))?;
+        }
+        Ok(())
+    }
     fn grant(&self, grant: &str, field: &str) -> Result<(), PolicyError> {
         if self.policy.grants.contains(grant) {
             return Ok(());

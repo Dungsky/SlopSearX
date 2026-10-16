@@ -223,3 +223,9 @@ the unchanged 60ms delayed response. Keeper cleanup joins and resumes time.
 Full byte/request/count/output assertions and immutable source captures remain
 unchanged. A04 now executes 22 integration tests plus four decoder unit tests;
 this is a fixture scheduling correction, not an adapter behavior change.
+
+## Repeated virtual-clock replay correction during F15 qualification
+
+A full workspace run exposed an additional test-only clock relationship: explicit Tokio advances survive `resume()`, while native adapters construct `std::time::Instant` deadlines. Repeated timeout cases could therefore begin with virtual time ahead of the real deadline, completing before a request was recorded. A controlled 40ms prior-case advance reproduced this failure with a measured 39.940208ms offset.
+
+The replay clock now pauses with its existing cooperative keepalive, then yields under a five-second real guard until the real clock catches the frozen virtual instant. Only afterward is the native search created. The adapter remains configured at 10ms, the delayed response remains 60ms, and complete real headers must still be observed before explicit deadline ticks. The guard owns panic/cancellation cleanup and resumes the test clock. There is no adapter runtime or source-capture change. The durable offset regression joins all 22 existing tests; the exact A04 gate now requires 23 passing, non-ignored integration tests.

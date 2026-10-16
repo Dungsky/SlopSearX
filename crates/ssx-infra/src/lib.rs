@@ -112,3 +112,7 @@ mod tests {
 }
 
 pub mod browser_identity;
+
+pub mod rerank;
+
+pub mod research_runner;

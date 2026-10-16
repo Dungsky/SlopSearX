@@ -88,3 +88,7 @@ separated in cache identity. This is additive recomputable cache state, not a
 durable migration: old omitted-field caches remain valid, newly scoped entries
 start cold and expire normally, and snapshot/result identifiers stay unchanged.
 No public wire parameter or production rollout is introduced.
+
+## F15 ephemeral reranking identity and read-boundary notes
+
+The concrete native host automatically binds the provider/model/rubric/limits/parser/host-ordering identity into cache and singleflight identity. Explicit manual request/config routing identity cannot mask that concrete identity. This intentionally creates a cold ephemeral namespace for the native host; prior cache keys coexist and expire under their existing TTL. No durable state schema, migration or rewrite is introduced. Per-caller advisories remain outside canonical cache and snapshot evidence and derive from the current trusted policy/catalog and full canonical count. Shared strict-JSON decimal normalization corrects finite IEEE conversion for source-valid long numeric tokens; SourceJSON's existing nonfinite policy remains caller-owned, and unrelated Python float-string consumers are not declared fixed by this change.
