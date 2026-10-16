@@ -38,6 +38,7 @@ const INFRA: &[&str] = &[
     "fenced_save_storage_loss_and_partial_script_writes_require_reconciliation",
     "two_stage_owned_completion_and_skipped_fallback_keep_immutable_history",
     "stale_prepared_claim_cannot_reuse_attempt_after_complete_retry_cycle",
+    "retry_completion_preserves_derivable_observed_total",
     "legacy_index_ids_and_stable_cursor_ordering",
     "completion_unknown_and_durable_restart_reconcile_without_refund",
     "deadline_terminalization_and_live_orphan_recovery_preserve_charge",

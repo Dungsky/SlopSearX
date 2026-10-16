@@ -104,3 +104,7 @@ Portal impact: native state APIs only. Active Python HTTP/MCP and portal routes
 are unchanged. W06/W09/W10 surface integration must keep the shared policy/service
 contracts and run the existing portal gate. This packet proves no deployed
 workflow, live provider behavior, relevance improvement or production migration.
+
+## Review correction: observed call conservation
+
+Completion derives the observed-call aggregate from all immutable attempts and the completed current attempt. It rejects erasing a derivable total, including after retries with a known zero count, while preserving unknown totals when an earlier attempt has unknown observations. The real-Valkey `retry_completion_preserves_derivable_observed_total` regression verifies refusal leaves durable state unchanged, valid completion succeeds, and prior history is retained. Legacy record decoding remains permissive; the stronger check applies at the owned write boundary.

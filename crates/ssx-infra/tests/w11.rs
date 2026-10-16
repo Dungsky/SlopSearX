@@ -949,3 +949,71 @@ async fn admission_rejects_unbound_query_filters_http_origin_and_revoked_scope()
         RecordRead::Missing
     );
 }
+
+#[tokio::test]
+async fn retry_completion_preserves_derivable_observed_total() {
+    for prior in [Some(0), Some(1), None] {
+        let server = Server::start();
+        let client = server.store();
+        let store = StagedStore::new(&client);
+        let scope = scopes();
+        store
+            .admit(&policy(), &record(), "observed", &[&scope], now(100.))
+            .await
+            .unwrap();
+        let first = store
+            .claim(&tenant(), &id(), token("first"), "first", now(101.))
+            .await
+            .unwrap()
+            .unwrap();
+        let failed = finish(&first, "failed", prior);
+        assert!(store.save_owned(&first, &failed, now(102.)).await.unwrap());
+        assert_eq!(
+            store
+                .request_retry(&tenant(), &id(), "retry", now(103.))
+                .await
+                .unwrap()
+                .status,
+            Staged::Queued
+        );
+        let second = store
+            .claim(&tenant(), &id(), token("second"), "second", now(104.))
+            .await
+            .unwrap()
+            .unwrap();
+        let completed = finish(&second, "completed", Some(1));
+        if prior.is_some() {
+            let mut erased = completed.value().clone();
+            erased["budget"]["observed"] = Value::Null;
+            let erased = Record::from_value(erased).unwrap();
+            assert_eq!(
+                store.save_owned(&second, &erased, now(105.)).await,
+                Err(Failure::InvalidInput)
+            );
+            let RecordRead::Found(unchanged) =
+                store.read(&tenant(), &id(), now(105.)).await.unwrap()
+            else {
+                panic!("record missing")
+            };
+            assert_eq!(unchanged.value(), second.record().value());
+        }
+        assert!(
+            store
+                .save_owned(&second, &completed, now(105.))
+                .await
+                .unwrap()
+        );
+        let RecordRead::Found(saved) = store.read(&tenant(), &id(), now(105.)).await.unwrap()
+        else {
+            panic!("record missing")
+        };
+        assert_eq!(
+            saved.value()["budget"]["observed"],
+            json!(prior.map(|n| n + 1))
+        );
+        assert_eq!(
+            saved.value()["stages"][0]["attempts"][0],
+            second.record().value()["stages"][0]["attempts"][0]
+        );
+    }
+}

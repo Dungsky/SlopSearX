@@ -347,6 +347,23 @@ impl Record {
                 return Err(invalid());
             }
         }
+        // Completion must conserve the aggregate derivable from every attempt.
+        // A legacy read may contain an unknown aggregate, but a new completion
+        // cannot erase a known total or invent observations for an unknown one.
+        let observed = if self.0["budget"]["observed"].is_null() {
+            // Legacy unknown accounting remains conservative across completion.
+            None
+        } else {
+            stages
+                .iter()
+                .flat_map(|stage| stage["attempts"].as_array().unwrap())
+                .try_fold(0u64, |total, attempt| {
+                    total.checked_add(attempt["observed_engine_calls"].as_u64()?)
+                })
+        };
+        if next.0["budget"]["observed"].as_u64() != observed {
+            return Err(invalid());
+        }
         let mut before = self.0.clone();
         let mut after = next.0.clone();
         // Only unused pending stages may become skipped after initial success.
