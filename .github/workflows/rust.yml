@@ -140,6 +140,8 @@ jobs:
 
       - name: Research records and conserved budget evidence
         run: cargo xtask check W01 --output target/rust-evidence/W01.json
+      - name: Native pooled HTTP session evidence
+        run: cargo xtask check F08 --output target/rust-evidence/F08.json
 
       - name: Native readiness and Python bridge smoke
         env:
@@ -157,6 +159,7 @@ jobs:
             target/rust-evidence/F05.json
             target/rust-evidence/F07.json
             target/rust-evidence/W01.json
+            target/rust-evidence/F08.json
             target/rust-evidence/F11.json
             target/rust-feature-graph.txt
           if-no-files-found: warn
