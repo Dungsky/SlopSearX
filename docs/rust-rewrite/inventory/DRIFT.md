@@ -125,6 +125,16 @@ change migrates no durable identity namespace. Public numeric values retain
 integer-versus-float representation; comparator tolerance must not conceal
 changes in payload values, timing fields, or canonical identity bytes.
 
+## F08 transport differences proposed for review
+
+F08 starts at accepted F05 `7cc420f7ffb61127750e77bf6130e225925f9186`.
+The [transport parity ledger](../f08/parity.md) and [ADR 006](../../adr/006-adapter-http-bounds.md)
+record finite request/body/redirect bounds, unsupported encoding errors, stricter
+redirect credential stripping and the global native idle-pool strategy. Native
+source-bound socket tests qualify those cases; full adapter/provider and
+platform/portal integration parity remains with the named downstream owners.
+No Python source or production browser behavior changes in this slice.
+
 ## F11 temporary pure-algorithm oracle addition
 
 F11 adds `docs/rust-rewrite/f11/oracle/export.py` against accepted F05 revision

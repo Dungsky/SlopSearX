@@ -138,6 +138,9 @@ jobs:
       - name: Native Valkey ownership and lifecycle evidence
         run: cargo xtask check F07 --output target/rust-evidence/F07.json
 
+      - name: Native pooled HTTP session evidence
+        run: cargo xtask check F08 --output target/rust-evidence/F08.json
+
       - name: Native readiness and Python bridge smoke
         env:
           SSX_SERVER_BIN: target/${{ matrix.target }}/debug/ssx-server
@@ -153,6 +156,7 @@ jobs:
             target/rust-evidence/F04.json
             target/rust-evidence/F05.json
             target/rust-evidence/F07.json
+            target/rust-evidence/F08.json
             target/rust-evidence/F11.json
             target/rust-feature-graph.txt
           if-no-files-found: warn
