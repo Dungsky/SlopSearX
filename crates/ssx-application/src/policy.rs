@@ -642,6 +642,30 @@ impl PolicyService {
             }
             error
         })?;
+        // Common to HTTP and every MCP/worker surface, including Http's early
+        // resolve_request branch. Preserve malformed-date validation precedence.
+        let bounded = r.date_from.is_some() || r.date_to.is_some();
+        if bounded && r.time_range.is_some() {
+            return Err(PolicyError::new(
+                "invalid_input",
+                "time_range",
+                "absolute dates cannot be combined with time_range",
+            ));
+        }
+        if bounded
+            && (!proposal
+                .request
+                .engines
+                .as_ref()
+                .is_some_and(|names| names.len() == 1 && names[0] == "openalex")
+                || r.media_type.is_some())
+        {
+            return Err(PolicyError::new(
+                "invalid_input",
+                "engines",
+                "absolute dates require explicit engines=['openalex']",
+            ));
+        }
         let advice = if ScopeResolver::allowed(&proposal.request) {
             advice
         } else {
@@ -654,6 +678,30 @@ impl PolicyService {
                 .extend(self.policy.sensitive_engines.iter().cloned());
         }
         let scope = resolver.with_specialist_advice(&r, &self.catalog, advice);
+        if bounded {
+            if scope.selected_engines != ["openalex"] {
+                return Err(PolicyError::new(
+                    "invalid_input",
+                    "engines",
+                    "audited date scope is unavailable",
+                ));
+            }
+            for field in ["date_from", "date_to"] {
+                if self
+                    .catalog
+                    .get("openalex")
+                    .and_then(|engine| engine.enforced_filters.get(field))
+                    .map(String::as_str)
+                    != Some("upstream")
+                {
+                    return Err(PolicyError::new(
+                        "invalid_input",
+                        "engines",
+                        "selected adapter does not enforce publication dates",
+                    ));
+                }
+            }
+        }
         if proposal.surface != SearchSurface::Http {
             self.engine_rejection(&scope.selected_engines, "engines")?;
         }
@@ -814,6 +862,11 @@ impl PolicyService {
             preview,
             advice,
         })
+    }
+    /// Recheck current policy and expose explanation only. An empty/unavailable
+    /// preview is never dispatch authority; consumers still need with_revalidated.
+    pub fn revalidate_preview(&self, old: &ValidatedScope) -> Result<ScopePreview, PolicyError> {
+        self.preview_with_advice(&old.proposal, &old.advice)
     }
     /// Revalidate a delayed proposal using current grants, catalog, health and
     /// routing. Any changed scope requires fresh caller admission/budgeting.

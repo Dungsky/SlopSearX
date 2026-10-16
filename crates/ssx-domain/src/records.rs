@@ -187,6 +187,7 @@ pub struct SearchResponse {
     pub cached_error: bool,
     pub ranking_explanation: String,
     pub dispatched_engine_count: i64,
+    pub date_filter: Option<crate::PublicationDateProof>,
 }
 impl Default for SearchResponse {
     fn default() -> Self {
@@ -209,6 +210,7 @@ impl Default for SearchResponse {
             cached_error: false,
             ranking_explanation: "tier_then_cross_engine_presence".into(),
             dispatched_engine_count: 0,
+            date_filter: None,
         }
     }
 }
@@ -217,6 +219,8 @@ pub struct SearchRequest {
     pub query: String,
     pub categories: Option<Vec<String>>,
     pub engines: Option<Vec<String>>,
+    /// Provider-specific subreddit scope used by Reddit's `reddit:subreddit` category.
+    pub subreddit: Option<String>,
     pub language: String,
     pub page: u64,
     pub time_range: Option<String>,
@@ -239,6 +243,7 @@ impl Default for SearchRequest {
             query: String::new(),
             categories: None,
             engines: None,
+            subreddit: None,
             language: "en".into(),
             page: 1,
             time_range: None,

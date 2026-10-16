@@ -132,23 +132,14 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
         return Err("F13 source pin count".into());
     }
     for (path, pin) in sources {
-        let raw = fs::read(root.join(path)).map_err(|e| e.to_string())?;
-        if digest(&raw) != pin["sha256"].as_str().ok_or("F13 SHA")? {
-            return Err(format!("F13 runtime source drift {path}"));
-        }
-        let blob = command(root, "git", &["hash-object", "--", path], records)?;
-        if blob.trim() != pin["git_blob"].as_str().ok_or("F13 blob")? {
-            return Err(format!("F13 source blob drift {path}"));
-        }
-        let baseline = command(
+        crate::date_amendment::source(
             root,
-            "git",
-            &["show", &format!("{BASELINE}:{path}")],
+            path,
+            BASELINE,
+            pin["git_blob"].as_str().ok_or("F13 blob")?,
+            Some(pin["sha256"].as_str().ok_or("F13 SHA")?),
             records,
         )?;
-        if baseline.as_bytes() != raw {
-            return Err(format!("F13 pinned baseline drift {path}"));
-        }
     }
     let reverse: Value = serde_json::from_slice(&loaded[1]).map_err(|e| e.to_string())?;
     if reverse["cases"] != corpus["cases"]

@@ -64,3 +64,27 @@ the composed namespace causes a cold cache on native rollout and legacy rollback
 without retagging evidence or requiring flushdb. Existing byte/depth/payload
 bounds apply only at persistence; fresh canonical evidence stays complete.
 G04/G07 must still rehearse mixed-version admission, rollback and retention.
+
+## F14 client admission namespace and composed execution
+
+F14 adds the dedicated typed `ratelimit:client:<sha256 of exact client bytes>:<server-time bucket>` namespace. Provider `ratelimit:<EngineKey>:<bucket>` bytes and cooldown keys/Lua are unchanged. EngineKey forbids colons, so this additional framed component is disjoint even from an engine named `client-<digest>`. The accepted F10 TIME/increment/expiry algorithm, denial charging and exact window retention apply to client counters. Empty/absent clients skip admission; IPv6, punctuation and whitespace-only nonempty identifiers have stable separate digests with no raw identities in keys.
+
+This is a deliberate cold ephemeral client quota transition, not a durable record migration. G04/G07 must stop legacy writers and drain/expire prior windows or explicitly account for the admission reset. Old and native counters coexist under their original TTLs; rollback likewise starts legacy client accounting cold. Provider quota writer handoff remains the existing F10 obligation. Real private-Valkey tests verify exact key bytes, independent counts/TTLs, custom engine noncollision, unavailable policy and terminal-close denial. No production reset, drain or rollback rehearsal is claimed.
+
+F14 composes canonical cache admission from actual execution outcomes: deadline-truncated evidence and downstream rerank fallback are skipped, while full fresh results survive oversized/failed optional writes. Source suggestion keys/1800s TTL stay literal; malformed typed suggestion data is a cache miss or provider fallback. New logical adapter generation/scope-order routing extensions cold the recomputable search cache without changing any durable snapshot/result IDs. [ADR 007](../../adr/007-native-shared-search-execution.md) records the lifecycle, local-calendar and malformed-Brave boundaries.
+
+PR874 date evidence is an additive optional closed field. Unbounded native serialization omits it, retaining accepted legacy fixture bytes; the new Python writer emits null, and both readers treat missing/null as no proof. Bounded legacy cache records miss until fresh retrieval supplies exact evidence. Current scope and request bounds remain authoritative over persisted scope/proof. Wrong provenance or malformed proof rejects optional storage without losing fresh complete results. Snapshot evidence carries a valid proof through the existing bounded codec; no identifiers or durable state keys change.
+
+## A04 subreddit cache identity integration
+
+`SearchRequest.subreddit = None` retains every existing `search:v2:<digest>` base
+key byte. Some(exact string), including empty, uses the disjoint base namespace
+`search:v2:subreddit:<sha256(JSON([legacy-base-key, exact-subreddit]))>`. The
+accepted `search:native:v1` composed key and singleflight bind this base key;
+validated dispatch retains the identical optional value. Explicit empty is
+separate from omission (`/r//search.json` versus `/r/all/search.json`). General
+categories may ignore subreddit at the provider but remain conservatively
+separated in cache identity. This is additive recomputable cache state, not a
+durable migration: old omitted-field caches remain valid, newly scoped entries
+start cold and expire normally, and snapshot/result identifiers stay unchanged.
+No public wire parameter or production rollout is introduced.

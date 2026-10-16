@@ -298,3 +298,7 @@ Ten-paper campaign readout: EXP-113/114/115/117 not-supported; EXP-112 inconclus
 [EXP-119](EXP-119-heterogeneous-resource-selection.md): registered prospective historical-source-quality screen against development-trained fixed and lexical controls; prior EXP-112 remains inconclusive. Retrospective fixed-control audit is explanatory only. No provider calls or new corpus quality metrics yet.
 
 EXP-119 readout:not-supported at development. Metadata-conditioned selector nP@5 .27985 versus fixed .80539 (fitted on development) and lexical .02033; min effect−.52554,95% interval[−.62843,−.41409]. All88 responses valid and guards pass; confirmation uninvoked. [Evidence](evidence/EXP-119/readout.md). Retrospective EXP-112 audit finds constant fulltext reproduces24/24 previous lists; no adaptive-gain credit or outcome reclassification. No current feature/adoption.
+
+## Daily delivery records
+
+- [2026-10-16](daily-delivery-2026-10-16.md): completed existing bounded-date HTTP fix [#874](https://github.com/magnus919/SlopSearX/pull/874), merged `d207d449`; 319 contract tests pass on candidate and merged main. No new experiment or production uplift estimate; zero provider calls.

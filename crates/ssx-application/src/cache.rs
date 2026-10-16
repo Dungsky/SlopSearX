@@ -102,6 +102,7 @@ impl ResponseView {
             all_unresponsive: source.all_unresponsive,
             cached_error: source.cached_error,
             dispatched_engine_count: source.dispatched_engine_count,
+            date_filter: source.date_filter.clone(),
             results: self.results().to_vec(),
             engine_outcomes: self.engine_outcomes().to_vec(),
             suggestions: self.suggestions().to_vec(),
@@ -299,6 +300,8 @@ impl std::fmt::Display for SearchCacheKey {
 #[derive(Debug, Clone)]
 pub struct CacheKeyInput {
     pub query: String,
+    /// A04 provider scope: omission preserves historical keys; empty is explicit.
+    pub subreddit: Option<String>,
     pub language: String,
     pub safesearch: i64,
     pub categories: Vec<String>,
@@ -314,6 +317,7 @@ impl Default for CacheKeyInput {
     fn default() -> Self {
         Self {
             query: String::new(),
+            subreddit: None,
             language: "en".into(),
             safesearch: 0,
             categories: vec![],
@@ -358,7 +362,17 @@ pub fn source_base_key(input: &CacheKeyInput) -> SearchCacheKey {
         window,
     ))
     .expect("closed identity primitives serialize");
-    SearchCacheKey(format!("search:v2:{}", digest(&bytes)))
+    let legacy = SearchCacheKey(format!("search:v2:{}", digest(&bytes)));
+    match &input.subreddit {
+        None => legacy,
+        Some(subreddit) => {
+            // A distinct framing preserves every historical omitted-field key,
+            // while empty and arbitrary string scopes cannot alias that namespace.
+            let scoped = ssx_json::to_vec(&(legacy.as_str(), subreddit))
+                .expect("closed subreddit identity primitives serialize");
+            SearchCacheKey(format!("search:v2:subreddit:{}", digest(&scoped)))
+        }
+    }
 }
 pub fn answer_key(query: &str) -> String {
     format!(

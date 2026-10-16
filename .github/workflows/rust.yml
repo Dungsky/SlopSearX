@@ -162,8 +162,14 @@ jobs:
       - name: Canonical cache and immutable snapshot evidence
         run: cargo xtask check F13 --output target/rust-evidence/F13.json
 
+      - name: Integrated search execution and cancellation evidence
+        run: cargo xtask check F14 --output target/rust-evidence/F14.json
+
       - name: Native Valkey ownership and lifecycle evidence
         run: cargo xtask check F07 --output target/rust-evidence/F07.json
+
+      - name: Saved definitions revisions and schedule claim evidence
+        run: cargo xtask check W00 --output target/rust-evidence/W00.json
 
       - name: Research records and conserved budget evidence
         run: cargo xtask check W01 --output target/rust-evidence/W01.json
@@ -186,6 +192,9 @@ jobs:
       - name: Native developer and community adapters
         run: cargo xtask check A03 --output target/rust-evidence/A03.json
 
+      - name: Native Brave, Wikipedia, and Reddit adapters
+        run: cargo xtask check A04 --output target/rust-evidence/A04.json
+
       - name: Native readiness and Python bridge smoke
         env:
           SSX_SERVER_BIN: target/${{ matrix.target }}/debug/ssx-server
@@ -207,16 +216,19 @@ jobs:
             target/rust-evidence/F09.json
             target/rust-evidence/F12.json
             target/rust-evidence/F07.json
+            target/rust-evidence/W00.json
             target/rust-evidence/W01.json
             target/rust-evidence/O03.json
             target/rust-evidence/F08.json
             target/rust-evidence/F10.json
             target/rust-evidence/F11.json
             target/rust-evidence/F13.json
+            target/rust-evidence/F14.json
             target/rust-evidence/T09.json
             target/rust-evidence/A01.json
             target/rust-evidence/A02.json
             target/rust-evidence/A03.json
+            target/rust-evidence/A04.json
             target/rust-feature-graph.txt
           if-no-files-found: warn
 

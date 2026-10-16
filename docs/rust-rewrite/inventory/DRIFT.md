@@ -284,10 +284,13 @@ F12 adds `docs/rust-rewrite/f12/oracle/export.py`, a temporary offline source
 oracle pinned to Python 3.14.7, MCP 2.3.0 and FastMCP 4.0.11. Synthetic local
 transports capture exact Jev payloads, decisions, keyless/enhanced scopes and
 cache identities. Native gates read immutable JSON; they never invoke Python.
-F12/G08 own retirement before backend removal. The exact inventory now contains
+F12/G08 own retirement before backend removal. At the isolated F12 commit
+`e1f16cfa`, before the accepted T09 integration below, the inventory contained
 373 Python sources: 122 backend/runtime, 250 backend-coupled tooling/test and one
-client-only source, with ten developer-oracle invocation rows. Existing baseline
-source hashes and historical evidence are unchanged.
+client-only source, with ten developer-oracle invocation rows. These are historical
+counts verified from that commit, not the final F12 integration totals of 374
+paths and eleven invocations at `fc97fc6d`. Existing baseline source hashes and
+historical evidence are unchanged.
 
 ## F12 integration with accepted T09
 
@@ -413,6 +416,137 @@ The combined source manifest retains all complete A02 and A03 oracle records: 37
 
 All complete parent records are preserved: 379 source paths and 17 developer-oracle invocations. A03 was accepted in PR #975 at `5c1b48b9e625501ab61828299168101ac00301b3`. Earlier counts describe historical checkpoints. The F13 raw snapshot EOF exception remains narrowly bound in the native hygiene ledger.
 
+## F14 execution and PR874 publication-date amendment
+
+F14 adds exactly two temporary developer-only source capture programs and two invocation rows. All 379 prior source records and all 17 prior invocation records, including both distinct W01 commands, remain unchanged; the resulting exact source set is 381 (122 runtime, 258 backend-coupled tooling/test, one client), with 19 developer-oracle invocations. Neither exporter is a runtime exception or mandatory gate dependency; G08 retires executable Python while retaining immutable JSON observations.
+
+The historical 730c corpus preserves all initial 46 objects and 24 source bindings, adding only two availability observations. A separate independently recaptured d207 corpus contains 14 date admission and eight cache mutation observations across 11 source bindings. PR874 changes eight current Python anchors (formatter, MCP tools, HTTP server, service, and their four regression modules); historical captures retain original baseline identities. The native checker admits only the exact reviewed old/new Git blobs and new source SHA bindings. This source-freshness bridge does not assert unchanged behavior: bounded requests now require explicit audited OpenAlex and exact date evidence, with the corrupt self-consistent cache-scope case explicitly hardened against current authority. F09's 15 named native expectations remain unchanged. T02/T06/portal successors own proof envelope/availability mapping and surface contract qualification.
+
+## W00 temporary saved-definition oracle
+
+W00 adds one offline developer exporter at
+`docs/rust-rewrite/w00/capture_source.py`, owned by W00/G08, against accepted
+main `66b29c3f8437af45a4f0d28f7c54a0f0727f7fa5`. It captures actual saved records,
+strict validation, configured-auth fingerprints, control revisions, source claim
+precision and arithmetic boundaries with private Valkey and no provider calls.
+The native W00 acceptance gate executes Rust tests only and consumes immutable
+reviewed JSON; G08 retires this Python exporter before backend removal.
+
+The existing 375 source rows and 12 developer invocation rows remain unchanged; the
+new counts are 376 and 13. Both distinct W01 invocation rows are preserved. No
+existing runtime, baseline source or legacy exporter identity is refreshed.
+Source claim identity uses actual source rehydration after cjson: a retained early
+failed capture hashed raw integer 1000 instead of the runner's float 1000.0. The
+corrected observation is independently reproducible and the old failure remains
+evidence, rather than a changed native hash rule. The [superseded capture and
+boundary failures](../w00/evidence/README.md) are committed historical evidence;
+current acceptance consumes only `w00/source.json`.
+
+## W00 integration with accepted A02/A03/F13 and bounded-date main
+
+The normal merge into accepted main `544c830724a322d05521dac7f902dbe93142c4a1`
+preserves all complete parent source and developer-invocation records: 380 Python
+sources (122 runtime, 257 backend-coupled tooling/test, one client-only) and 18
+developer-oracle invocations. Both W01 invocation rows remain distinct. Earlier
+counts/statuses describe historical checkpoints. Reviewed W00 runtime and oracle
+bytes are preserved during conflict resolution; changes to current-source oracle
+provenance require the explicit audit and review below rather than a blind pin
+refresh. Accepted upstream runtime/exporter anchors retain their exact values.
+
+PR #874 changes MCP tools only in ordinary search date-filter metadata and the
+science tool's explicit OpenAlex requirement for absolute dates. No saved helper,
+validation, policy fingerprint or saved control function changes. The accompanying
+service/server/formatter changes add bounded-date validation, canonical response
+proof and HTTP/portal rendering; these are outside W00 definition/claim behavior.
+W00's whole-file MCP pin therefore needs a reviewed source-provenance mapping,
+backed by offline recapture of all 55 saved observations with no provider calls.
+
+The historical W00 MCP blob remains
+`061593ce45d3e2440e818703af6b50d6e6d99cf1`; the accepted current blob is
+`d06ecd475b9b523addf79781d2762eddd92f4911`. The separate
+[55-observation integration recapture](../w00/integration-source.json) has reviewed
+SHA256 `c500069182b9975539910e29683531759e0df375e049e8daea5b8664aa10aad3`.
+Every field equals the historical corpus except exactly the named MCP source-hash
+field. The gate checks both pinned source generations and that exact equivalence;
+it does not refresh historical outcomes or ignore a general metadata group.
+
+## W00 dependent F14 integration preparation
+
+The reviewed F14 commit `2427bf38e2241d1ba23637e233f97e7d0ee6d5ea`
+is integrated while PR #978 awaits acceptance. This is dependent preparation,
+not a claim that F14 or W00 has been accepted. The complete source-record union
+contains 382 paths and 20 developer-oracle invocations. Historical source
+observations and their original provenance remain unchanged. Both W01 rows,
+W00's source integration mapping and F14's exact PR874 bridge are retained.
+Final publication requires accepted upstream integration and qualification.
+
+## A04 temporary source-capture oracles
+
+A04 adds two temporary, offline-only Python 3.14.7 exporters under
+`docs/rust-rewrite/a04/oracle/`: `export_cases.py` reproduces all 37 original
+source captures and their per-record config/status/exception context, while
+`export_matrix.py` captures supplementary Brave, Wikipedia, and Reddit edge
+cases. Both use actual source adapter methods with `httpx.MockTransport`; no
+provider, DNS, or paid calls occur. Mandatory native A04 gates consume only the
+committed JSON packs and never execute either exporter. A04 owns the source
+observations; G08 owns executable retirement before backend removal.
+
+The current source-path manifest grows by two backend-coupled tooling files,
+and the developer-oracle invocation appendix grows by two rows. Historical F01
+baseline identities remain unchanged. F01 documentary source pins require the
+normal reviewed refresh; no runtime Python behavior or public client exception
+is added.
+
+## A04 corrected capture inventory
+
+The frozen A04 packet retains 37 original observations and their context, 104 supplementary source observations, and six tagged nonfinite observations documenting the accepted F05 finite-output boundary. The same two developer-only exporters now have three explicit invocation records. This checkpoint inventories 377 Python source paths and 15 developer-oracle invocations; historical example and py.txt counts remain unchanged. All earlier complete source and invocation records are preserved. Staged source paths are checked exactly before F01 documentary pins are refreshed.
+
+
+## A04 fourth-review source semantics and explicit representations
+
+The corrected packet preserves all 37 original source records/context, all 110
+previous ordinary records, and all six tagged nonfinite observations. The
+ordinary matrix now has 296 authentic source observations. A separate 14-record
+representation fixture retains source boolean/overrange media and non-string
+selftext outcomes alongside explicitly reviewed native whole-response refusals.
+The existing two source exporters have four separate commands; all previous 15
+full developer invocation rows are unchanged and the appendix now contains 16.
+Python source paths remain exactly 377; historical example count 49 and all
+historical py.txt counts/modes remain unchanged. This entry changes no accepted
+runtime Python source pin or historical reference capture.
+
+
+The final A04 fourth-review extension retains that 296/14 checkpoint as an exact
+record prefix. It now inventories 333 ordinary source observations and 126
+explicit representation observations, with source-error precedence controls.
+The same fourth exporter command captures approved String/Option<String>
+malformed-output refusals across all three adapters; the four commands and all
+16 invocation rows remain unchanged. Source-path and historical counts remain
+377 and 49 respectively. No runtime/reference source pin changes.
+
+
+## A04 fifth-review source JSON boundary observations
+
+The A04-owned offline exporter adds a separate `--source-json-output` invocation
+and source_json.json evidence for byte encoding, Python numeric decoding,
+Unicode scalar output boundaries, and bounded native JSON resources. Existing
+37/context/333/126/6 captures and all historical/runtime source pins remain
+unchanged. The existing exporter path is reused: projected Python source paths
+remain377, developer oracle invocation rows become17, and historical example
+reference count remains49. Source-success/native-refusal deltas and actual
+Python decoder exceptions are explicit in A04/PARITY.md and the new corpus;
+they do not establish arbitrary JSON or other-adapter parity. Public codec and
+storage remain unchanged. This entry requires narrow own-document/exporter
+anchor review; it does not authorize refreshing runtime source pins.
+
+## A04 accepted-main integration preparation
+
+The reviewed A04 checkpoint is integrated with accepted F14 main `576d43b03c0378ffe113a1386b1ec88eaa4323df`. All complete parent inventory records remain unchanged: the additive union has 383 Python source paths and 24 developer-oracle invocation rows, including both W01 commands. Historical A04 captures and source pins are immutable. Its shared filter-semantics observation now uses the accepted exact PR874 source-freshness bridge and separately bound 22-case date evidence; this does not change adapter runtime semantics. Parent integration review, exact-head CI and acceptance remain pending.
+
+## A04 accepted W00 main integration
+
+The fully qualified A04/F14 checkpoint `ca7c6209b4b5e67f5916297e632afbd93f09d758` is normally integrated with accepted W00 main `950071404c61eabc1201730362baccd01b3f2295`. The complete-record union is384 Python source paths and25 developer-oracle invocations. Both parent records and all raw captures remain exact. W00 adds saved modules, gate and evidence metadata; A04 runtime and its exact optional-subreddit cache/flight correction remain unchanged. This entry changes only combined documentary bindings; independent integration review and acceptance remain pending.
+
 ## A06 parser candidate tooling (pending package acceptance)
 
 At preserved baseline 730c37a5, seven offline source exporters add eight distinct
@@ -425,3 +559,5 @@ All eight new files are A06/G08-owned; no Python backend/client exception is add
 The CI driver must gain a native successor before required Python gate retirement.
 These counts describe this candidate's intended staged set, not a claimed passed
 F01 gate before parent stages/reviews it. Existing runtime/source pins stay intact.
+
+A06 normal merge of accepted main1e9dd82d preserves the complete union: 392 source paths and 33 developer oracle invocation records. Prior A06-only counts above describe the premerge checkpoint, not the integrated total.
