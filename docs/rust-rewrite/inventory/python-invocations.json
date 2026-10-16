@@ -14,7 +14,7 @@
       "100644": 729
     },
     "configured_precommit_hook_rows": 15,
-    "developer_oracle_invocation_rows": 10
+    "developer_oracle_invocation_rows": 11
   },
   "interpreter_invocations": [
     {
@@ -8360,6 +8360,15 @@
       "evidence": "PYTHONPATH=. /private/tmp/slopsearx-rust-oracle-py314/bin/python docs/rust-rewrite/f09/oracle/export.py",
       "classification": "temporary backend-coupled developer oracle; never a mandatory native gate or runtime dependency",
       "migration_owner": "F09",
+      "retirement_owner": "G08",
+      "disposition": "temporary_developer_oracle_retire_before_backend_removal"
+    },
+    {
+      "path": "docs/rust-rewrite/a03/capture.py",
+      "example_path": "docs/rust-rewrite/a03/capture.py",
+      "evidence": "PYTHONHASHSEED=0 PYTHONPATH=. /private/tmp/slopsearx-rust-oracle-py314/bin/python docs/rust-rewrite/a03/capture.py --output docs/rust-rewrite/a03/cases.json",
+      "classification": "temporary backend-coupled developer oracle; never a mandatory native gate or runtime dependency",
+      "migration_owner": "A03",
       "retirement_owner": "G08",
       "disposition": "temporary_developer_oracle_retire_before_backend_removal"
     }

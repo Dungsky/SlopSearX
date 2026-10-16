@@ -165,6 +165,9 @@ jobs:
       - name: Native npm and crates registry pilot adapters
         run: cargo xtask check A01 --output target/rust-evidence/A01.json
 
+      - name: Native developer and community adapters
+        run: cargo xtask check A03 --output target/rust-evidence/A03.json
+
       - name: Native readiness and Python bridge smoke
         env:
           SSX_SERVER_BIN: target/${{ matrix.target }}/debug/ssx-server
@@ -191,6 +194,7 @@ jobs:
             target/rust-evidence/F11.json
             target/rust-evidence/T09.json
             target/rust-evidence/A01.json
+            target/rust-evidence/A03.json
             target/rust-feature-graph.txt
           if-no-files-found: warn
 

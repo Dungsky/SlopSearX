@@ -251,3 +251,15 @@ G08 retains executable retirement ownership. Historical isolated/earlier union
 counts above remain historical. All original runtime and source oracle bytes
 are unchanged. F09 is accepted at `6ae5e34fed19e8e9da7c19b95eeea894512f0e6d`;
 T09 remains in review and requires qualification against the combined source.
+
+
+## A03 community adapters
+
+A03 adds exactly one temporary developer-only exporter,
+`docs/rust-rewrite/a03/capture.py`, owned by A03 with executable retirement under
+G08. Its pinned Python/HTTPX observations use injected offline transport only;
+mandatory native gates consume committed JSON without invoking Python. All
+373 existing source rows and ten developer invocation rows remain unchanged.
+The combined counts are 374 Python sources (122 backend/runtime, 251
+backend-coupled tooling/test, one client-only) and eleven developer-oracle
+invocations. No runtime source or accepted oracle pins are refreshed.
