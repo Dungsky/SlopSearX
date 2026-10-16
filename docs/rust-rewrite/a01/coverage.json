@@ -20,6 +20,7 @@
     "crates/ssx-application/src/lib.rs",
     "crates/ssx-application/src/rate.rs",
     "crates/ssx-domain/src/lib.rs",
+    "crates/ssx-domain/src/storage.rs",
     "crates/ssx-domain/src/records.rs",
     "crates/ssx-domain/src/rate.rs",
     "crates/ssx-registry/Cargo.toml",

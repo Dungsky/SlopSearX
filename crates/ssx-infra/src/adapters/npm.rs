@@ -112,7 +112,7 @@ impl NpmAdapter {
                 started,
             );
         }
-        let data: serde_json::Value = match serde_json::from_slice(&response.body) {
+        let data: ssx_json::Value = match ssx_json::from_slice(&response.body) {
             Ok(value) => value,
             Err(_) => return failed(EngineStatus::Error, "npm returned invalid JSON", started),
         };
@@ -141,7 +141,7 @@ impl NpmAdapter {
                 return failed(EngineStatus::Error, "npm result must be an object", started);
             };
             let package = match object.get("package") {
-                None => serde_json::Map::new(),
+                None => ssx_json::Map::new(),
                 Some(value) => match value.as_object() {
                     Some(package) => package.clone(),
                     None => {
@@ -183,7 +183,7 @@ impl NpmAdapter {
             };
             let repository = package
                 .get("links")
-                .and_then(serde_json::Value::as_object)
+                .and_then(ssx_json::Value::as_object)
                 .and_then(|links| links.get("repository"));
             let score =
                 match popularity(object).and_then(|n| FiniteF64::new(n * 1000.0).map_err(|_| ())) {
@@ -233,24 +233,20 @@ fn failed(status: EngineStatus, message: &str, started: Instant) -> AdapterRespo
 fn elapsed(start: Instant) -> FiniteF64 {
     FiniteF64::new(start.elapsed().as_secs_f64() * 1000.0).unwrap_or_default()
 }
-fn source_text(value: Option<&serde_json::Value>) -> Result<String, ()> {
+fn source_text(value: Option<&ssx_json::Value>) -> Result<String, ()> {
     match value {
         None => Ok(String::new()),
         Some(value) if !truthy(value) => Ok(String::new()),
-        Some(serde_json::Value::String(s)) => Ok(s.clone()),
+        Some(ssx_json::Value::String(s)) => Ok(s.clone()),
         _ => Err(()),
     }
 }
-fn python_string(value: Option<&serde_json::Value>) -> String {
-    match value {
-        None => String::new(),
-        Some(serde_json::Value::Null) => "None".into(),
-        Some(serde_json::Value::Bool(value)) => if *value { "True" } else { "False" }.into(),
-        Some(serde_json::Value::String(value)) => value.clone(),
-        Some(value) => value.to_string(),
-    }
+fn python_string(value: Option<&ssx_json::Value>) -> String {
+    value
+        .map(ssx_domain::storage::python_value_string)
+        .unwrap_or_default()
 }
-fn popularity(object: &serde_json::Map<String, serde_json::Value>) -> Result<f64, ()> {
+fn popularity(object: &ssx_json::Map<String, ssx_json::Value>) -> Result<f64, ()> {
     let score = match object.get("score") {
         None => return Ok(0.0),
         Some(v) => v.as_object().ok_or(())?,
@@ -266,9 +262,9 @@ fn popularity(object: &serde_json::Map<String, serde_json::Value>) -> Result<f64
         return Ok(0.0);
     }
     let number = match value {
-        serde_json::Value::Bool(v) => f64::from(u8::from(*v)),
-        serde_json::Value::Number(v) => v.as_f64().ok_or(())?,
-        serde_json::Value::String(v) => parse_python_float(v).ok_or(())?,
+        ssx_json::Value::Bool(v) => f64::from(u8::from(*v)),
+        ssx_json::Value::Number(v) => v.as_f64().ok_or(())?,
+        ssx_json::Value::String(v) => parse_python_float(v).ok_or(())?,
         _ => return Err(()),
     };
     number.is_finite().then_some(number).ok_or(())
@@ -279,25 +275,22 @@ fn parse_python_float(input: &str) -> Option<f64> {
     value.is_finite().then_some(value)
 }
 fn npm_payload(
-    package: &serde_json::Map<String, serde_json::Value>,
+    package: &ssx_json::Map<String, ssx_json::Value>,
     description: &str,
-    repository: Option<&serde_json::Value>,
+    repository: Option<&ssx_json::Value>,
 ) -> Option<ssx_json::Value> {
     use ssx_json::{Map, Value};
     let mut data = Map::new();
     for field in ["name", "version"] {
         if let Some(value) = package.get(field).filter(|value| truthy(value)) {
-            data.insert(field.into(), ssx_json::to_value(value).ok()?);
+            data.insert(field.into(), value.clone());
         }
     }
     if !description.is_empty() {
         data.insert("summary".into(), Value::String(description.into()));
     }
     if let Some(repository) = repository.filter(|value| truthy(value)) {
-        data.insert(
-            "repository_url".into(),
-            ssx_json::to_value(repository).ok()?,
-        );
+        data.insert("repository_url".into(), repository.clone());
     }
     let fields = data.keys().cloned().map(Value::String).collect();
     let mut provenance = Map::new();
@@ -316,13 +309,16 @@ fn npm_payload(
     envelope.insert("provenance".into(), Value::Object(provenance));
     Some(Value::Object(envelope))
 }
-fn truthy(value: &serde_json::Value) -> bool {
+fn truthy(value: &ssx_json::Value) -> bool {
     match value {
-        serde_json::Value::Null => false,
-        serde_json::Value::Bool(value) => *value,
-        serde_json::Value::Number(value) => value.as_f64().is_some_and(|n| n != 0.0),
-        serde_json::Value::String(value) => !value.is_empty(),
-        serde_json::Value::Array(value) => !value.is_empty(),
-        serde_json::Value::Object(value) => !value.is_empty(),
+        ssx_json::Value::Null => false,
+        ssx_json::Value::Bool(value) => *value,
+        ssx_json::Value::Number(value) if value.is_f64() => {
+            value.as_f64().is_some_and(|number| number != 0.0)
+        }
+        ssx_json::Value::Number(value) => value.as_str() != "0",
+        ssx_json::Value::String(value) => !value.is_empty(),
+        ssx_json::Value::Array(value) => !value.is_empty(),
+        ssx_json::Value::Object(value) => !value.is_empty(),
     }
 }

@@ -941,6 +941,13 @@ fn value_to_string(value: &Value) -> String {
         _ => python_repr(value),
     }
 }
+
+/// Format a lossless JSON value using the Python `str(value)` behavior used by
+/// legacy adapter payloads, including Python container and scalar spellings.
+pub fn python_value_string(value: &Value) -> String {
+    value_to_string(value)
+}
+
 fn python_repr(value: &Value) -> String {
     match value {
         Value::Null => "None".into(),

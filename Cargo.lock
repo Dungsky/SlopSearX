@@ -2449,6 +2449,7 @@ dependencies = [
  "reqwest",
  "rustls",
  "scraper",
+ "serde",
  "serde_json",
  "sha2",
  "ssx-application",

@@ -327,19 +327,38 @@ async fn npm_non_mapping_package_links_are_ignored() {
 
 #[tokio::test]
 async fn crates_download_rendering_matches_offline_python_observations() {
-    let fixture: serde_json::Value = serde_json::from_str(A01_CASES).unwrap();
+    let fixture: ssx_json::Value = ssx_json::from_str(A01_CASES).unwrap();
     for observation in fixture["source_observations"].as_array().unwrap() {
         let case = observation["case"].as_str().unwrap();
         if !case.starts_with("crates_") {
             continue;
         }
-        let mut row = serde_json::json!({"name":"probe","max_version":"1"});
-        for field in ["downloads", "recent_downloads", "description"] {
-            if let Some(value) = observation["input"].get(field) {
-                row[field] = value.clone();
+        let body = if let Some(raw) = observation["input"]["raw_body"].as_str() {
+            raw.as_bytes().to_vec()
+        } else {
+            let source_row = observation["input"]["crates"][0]
+                .as_object()
+                .or_else(|| observation["input"].as_object());
+            let mut row = ssx_json::Value::Object(ssx_json::Map::new());
+            row["name"] = ssx_json::Value::String("probe".into());
+            row["max_version"] = ssx_json::Value::String("1".into());
+            if let Some(source_row) = source_row {
+                for field in [
+                    "name",
+                    "max_version",
+                    "downloads",
+                    "recent_downloads",
+                    "description",
+                ] {
+                    if let Some(value) = source_row.get(field) {
+                        row[field] = value.clone();
+                    }
+                }
             }
-        }
-        let body = serde_json::to_vec(&serde_json::json!({"crates":[row]})).unwrap();
+            let mut response = ssx_json::Map::new();
+            response.insert("crates".into(), ssx_json::Value::Array(vec![row]));
+            ssx_json::to_vec(&ssx_json::Value::Object(response)).unwrap()
+        };
         let response = exercise_http_case("crates", 200, &body, 2_000, false).await;
         let expected_status = match observation["output"]["status"].as_str().unwrap() {
             "ok" => EngineStatus::Ok,
@@ -362,6 +381,35 @@ async fn crates_download_rendering_matches_offline_python_observations() {
             assert!(response.results.is_empty(), "{case}");
         }
     }
+}
+
+#[tokio::test]
+async fn npm_nested_python_container_stringification_matches_captured_python_observation() {
+    let fixture: ssx_json::Value = ssx_json::from_str(A01_CASES).unwrap();
+    let observation = fixture["source_observations"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|row| row["case"].as_str() == Some("npm_nested_python_container_stringification"))
+        .unwrap();
+    let mut object = ssx_json::Map::new();
+    object.insert("package".into(), observation["input"]["package"].clone());
+    let mut response = ssx_json::Map::new();
+    response.insert(
+        "objects".into(),
+        ssx_json::Value::Array(vec![ssx_json::Value::Object(object)]),
+    );
+    let body = ssx_json::to_vec(&ssx_json::Value::Object(response)).unwrap();
+    let response = exercise_http_case("npm", 200, &body, 2_000, false).await;
+    assert_eq!(response.status, EngineStatus::Ok);
+    assert_eq!(
+        response.results[0].title,
+        observation["output"]["title"].as_str().unwrap()
+    );
+    assert_eq!(
+        response.results[0].content,
+        observation["output"]["content"].as_str().unwrap()
+    );
 }
 
 #[tokio::test]

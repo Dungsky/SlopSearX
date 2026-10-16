@@ -1,7 +1,117 @@
 //! Source-bound native tests for the npm/crates registry-search pilot.
 use crate::{Result, command};
 use serde_json::{Value, json};
+use sha2::{Digest, Sha256};
 use std::{collections::BTreeSet, path::Path};
+
+const SOURCE_OBSERVATIONS: [(&str, &str); 8] = [
+    ("engines/npm.py", "8ef11a1ad4e71437c1fcb0d88c35b4e4140c7c06"),
+    (
+        "engines/crates.py",
+        "89308bdf1ff037b924003b7c2c6283006744e621",
+    ),
+    (
+        "docs/rust-rewrite/f06/fragments/npm.json",
+        "6d7b391ec908ed2e24f6665b060f29ceaabdee7f",
+    ),
+    (
+        "docs/rust-rewrite/f06/fragments/crates.json",
+        "de5a8a025731e0b5c9d1bd6d33120d9534704ef8",
+    ),
+    (
+        "tests/test_new_engines.py",
+        "4e5293d694bb40332584a9541b6ad41326a01cc0",
+    ),
+    (
+        "tests/test_upstream_contracts.py",
+        "38890808971958c1322b502a885d71f5db5d8d64",
+    ),
+    (
+        "tests/fixtures/upstream_contracts/npm.json",
+        "76fb9a81b01db87cd001434ef6b93010bb10dbfc",
+    ),
+    (
+        "tests/fixtures/upstream_contracts/crates.json",
+        "1409df4adc780242212ea65f17f5abf75d76b878",
+    ),
+];
+
+const NATIVE_IDENTITY_SOURCES: &[&str] = &[
+    "docs/rust-rewrite/a01/README.md",
+    "docs/rust-rewrite/a01/cases.json",
+    "docs/adr/003-rust-workspace-and-contract-boundaries.md",
+    "crates/ssx-application/src/lib.rs",
+    "crates/ssx-application/src/rate.rs",
+    "crates/ssx-domain/src/lib.rs",
+    "crates/ssx-domain/src/storage.rs",
+    "crates/ssx-domain/src/records.rs",
+    "crates/ssx-domain/src/rate.rs",
+    "crates/ssx-registry/Cargo.toml",
+    "crates/ssx-registry/src/lib.rs",
+    "crates/ssx-infra/Cargo.toml",
+    "crates/ssx-infra/src/lib.rs",
+    "crates/ssx-infra/src/http.rs",
+    "crates/ssx-infra/src/adapters/mod.rs",
+    "crates/ssx-infra/src/adapters/npm.rs",
+    "crates/ssx-infra/src/adapters/crates_io.rs",
+    "crates/ssx-infra/tests/a01_pilots.rs",
+    "crates/xtask/src/a01.rs",
+    "crates/xtask/src/main.rs",
+    ".github/workflows/rust.yml",
+    "docs/rust-rewrite/ci/gates.json",
+];
+
+// Updated only with review of the complete source-mapped case and inventory files.
+const CASES_SHA256: &str = "3c17a05a2aac67c86e5dd72b24d8854f8497fede22b227e2bba08af894a629ef";
+const COVERAGE_SHA256: &str = "45c6abe5d280d1ce30c8759ec6eece1d584c69c66794cd1d8a0e9e6545e45a4e";
+
+fn sha256_hex(bytes: &[u8]) -> String {
+    Sha256::digest(bytes)
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
+}
+
+fn validate_fixture_digest(bytes: &[u8], expected: &str) -> Result<()> {
+    if sha256_hex(bytes) != expected {
+        return Err("A01 fixture digest differs from reviewed bytes".into());
+    }
+    Ok(())
+}
+
+fn validate_source_inventory(sources: &[Value]) -> Result<()> {
+    if sources.len() != SOURCE_OBSERVATIONS.len()
+        || sources
+            .iter()
+            .zip(SOURCE_OBSERVATIONS)
+            .any(|(row, (path, blob))| {
+                row["path"].as_str() != Some(path) || row["git_blob"].as_str() != Some(blob)
+            })
+    {
+        return Err("A01 source observation inventory differs from reviewed baseline".into());
+    }
+    Ok(())
+}
+
+fn validate_native_inventory(sources: &[Value]) -> Result<Vec<String>> {
+    let paths: Vec<_> = sources
+        .iter()
+        .map(|source| {
+            source
+                .as_str()
+                .map(str::to_owned)
+                .ok_or_else(|| "invalid A01 native identity path".to_owned())
+        })
+        .collect::<Result<_>>()?;
+    if paths
+        .iter()
+        .map(String::as_str)
+        .ne(NATIVE_IDENTITY_SOURCES.iter().copied())
+    {
+        return Err("A01 native identity inventory differs from reviewed source set".into());
+    }
+    Ok(paths)
+}
 
 fn require_test_summary(output: &str, expected: usize, label: &str) -> Result<()> {
     let summaries: Vec<_> = output
@@ -21,11 +131,11 @@ fn require_test_summary(output: &str, expected: usize, label: &str) -> Result<()
 }
 
 pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
-    let coverage: Value = serde_json::from_slice(
-        &std::fs::read(root.join("docs/rust-rewrite/a01/coverage.json"))
-            .map_err(|e| e.to_string())?,
-    )
-    .map_err(|e| e.to_string())?;
+    let coverage_bytes = std::fs::read(root.join("docs/rust-rewrite/a01/coverage.json"))
+        .map_err(|e| e.to_string())?;
+    validate_fixture_digest(&coverage_bytes, COVERAGE_SHA256)
+        .map_err(|_| "A01 coverage manifest digest differs from reviewed fixture")?;
+    let coverage: Value = serde_json::from_slice(&coverage_bytes).map_err(|e| e.to_string())?;
     if coverage["schema_version"] != 1
         || coverage["plan_id"] != "A01"
         || coverage["baseline"] != "1f3f5bc85083f4fd24bd9a2b07f161626e6bfef5"
@@ -50,6 +160,7 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
     let sources = coverage["source_observations"]
         .as_array()
         .ok_or("missing A01 immutable source observations")?;
+    validate_source_inventory(sources)?;
     let mut paths = BTreeSet::new();
     for source in sources {
         let path = source["path"].as_str().ok_or("missing A01 source path")?;
@@ -75,10 +186,10 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
     let native_sources = coverage["native_identity_sources"]
         .as_array()
         .ok_or("missing A01 native identity source paths")?;
+    let expected_native_paths = validate_native_inventory(native_sources)?;
     let mut native_paths = BTreeSet::new();
     let mut native_identity = Vec::new();
-    for source in native_sources {
-        let path = source.as_str().ok_or("invalid A01 native identity path")?;
+    for path in &expected_native_paths {
         if path.is_empty()
             || Path::new(path).is_absolute()
             || path.split('/').any(|part| part == "..")
@@ -90,10 +201,11 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
         native_identity.push(json!({"path":path,"git_blob":blob.trim()}));
     }
 
-    let cases: Value = serde_json::from_slice(
-        &std::fs::read(root.join("docs/rust-rewrite/a01/cases.json")).map_err(|e| e.to_string())?,
-    )
-    .map_err(|e| e.to_string())?;
+    let cases_bytes =
+        std::fs::read(root.join("docs/rust-rewrite/a01/cases.json")).map_err(|e| e.to_string())?;
+    validate_fixture_digest(&cases_bytes, CASES_SHA256)
+        .map_err(|_| "A01 case manifest digest differs from reviewed fixture")?;
+    let cases: Value = serde_json::from_slice(&cases_bytes).map_err(|e| e.to_string())?;
     if cases["schema_version"] != 1
         || cases["plan_id"] != "A01"
         || !cases["provenance"]
@@ -106,7 +218,7 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
     let observations = cases["source_observations"]
         .as_array()
         .ok_or("missing offline Python source observations")?;
-    if observations.len() != 39
+    if observations.len() != 47
         || observations.iter().any(|row| {
             !matches!(
                 row["captured_by"].as_str(),
@@ -156,7 +268,7 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
     .into_iter()
     .map(str::to_owned)
     .collect();
-    if ids.len() < 40 || source_tests != expected_source_tests {
+    if ids.len() != 78 || source_tests != expected_source_tests {
         return Err("A01 case manifest is incomplete".into());
     }
     let required_cases: BTreeSet<_> = [
@@ -183,6 +295,14 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
         "crates_drop_cancels_f08_socket",
         "crates_download_format_observations",
         "crates_large_integer_exact_display",
+        "crates_integer_above_u64_exact_format",
+        "crates_float_zero_is_falsey",
+        "npm_publisher_float_zero_is_falsey",
+        "crates_raw_json_float_trailing_zero",
+        "crates_raw_json_float_rounding",
+        "crates_raw_json_float_underflow_zero",
+        "crates_raw_json_negative_float_zero",
+        "npm_nested_python_container_stringification",
         "crates_integral_float_preserves_decimal",
         "crates_fractional_float_grouping",
         "crates_numeric_string_format_error",
@@ -213,6 +333,14 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
     if !required_cases.iter().all(|case| ids.contains(case)) {
         return Err("A01 source-to-native contract matrix is incomplete".into());
     }
+
+    let gate_tests = command(
+        root,
+        "cargo",
+        &["test", "--locked", "-p", "xtask", "a01::tests::"],
+        records,
+    )?;
+    require_test_summary(&gate_tests, 3, "A01 gate validation tests")?;
 
     let listed = command(
         root,
@@ -322,4 +450,49 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
     }
     records.push(json!({"contract":"A01","coverage":"docs/rust-rewrite/a01/coverage.json","source_observations":sources.len(),"native_identity":native_identity,"cases":ids.len(),"tests":actual_tests,"status":"passed","scope":"offline source-mapped npm/crates adapters via registry and F08 loopback; no live provider calls"}));
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn fixture_digest_rejects_any_manifest_edit() {
+        assert!(validate_fixture_digest(b"reviewed", &sha256_hex(b"reviewed")).is_ok());
+        assert!(validate_fixture_digest(b"edited", &sha256_hex(b"reviewed")).is_err());
+    }
+
+    #[test]
+    fn source_inventory_rejects_empty_shortened_or_replaced_inputs() {
+        let full: Vec<_> = SOURCE_OBSERVATIONS
+            .iter()
+            .map(|(path, blob)| json!({"path":path,"git_blob":blob}))
+            .collect();
+        assert!(validate_source_inventory(&full).is_ok());
+        assert!(validate_source_inventory(&[]).is_err());
+        assert!(validate_source_inventory(&full[..full.len() - 1]).is_err());
+        let mut replaced = full.clone();
+        replaced[0]["path"] = json!("tests/other.py");
+        assert!(validate_source_inventory(&replaced).is_err());
+        replaced = full.clone();
+        replaced[0]["git_blob"] = json!("0000000000000000000000000000000000000000");
+        assert!(validate_source_inventory(&replaced).is_err());
+    }
+
+    #[test]
+    fn native_identity_rejects_empty_or_modified_inventory() {
+        let full: Vec<_> = NATIVE_IDENTITY_SOURCES
+            .iter()
+            .map(|path| json!(path))
+            .collect();
+        assert_eq!(
+            validate_native_inventory(&full).unwrap().len(),
+            NATIVE_IDENTITY_SOURCES.len()
+        );
+        assert!(validate_native_inventory(&[]).is_err());
+        assert!(validate_native_inventory(&full[..full.len() - 1]).is_err());
+        let mut changed = full;
+        changed[0] = json!("docs/empty.md");
+        assert!(validate_native_inventory(&changed).is_err());
+    }
 }

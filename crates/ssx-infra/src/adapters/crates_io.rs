@@ -132,7 +132,7 @@ impl CratesAdapter {
                 started,
             );
         }
-        let data: serde_json::Value = match serde_json::from_slice(&response.body) {
+        let data: ssx_json::Value = match ssx_json::from_slice(&response.body) {
             Ok(value) => value,
             Err(_) => {
                 return failed(
@@ -251,28 +251,24 @@ fn failed(status: EngineStatus, message: &str, started: Instant) -> AdapterRespo
 fn elapsed(start: Instant) -> FiniteF64 {
     FiniteF64::new(start.elapsed().as_secs_f64() * 1000.0).unwrap_or_default()
 }
-fn python_string(value: Option<&serde_json::Value>) -> String {
-    match value {
-        None => String::new(),
-        Some(serde_json::Value::Null) => "None".into(),
-        Some(serde_json::Value::Bool(value)) => if *value { "True" } else { "False" }.into(),
-        Some(serde_json::Value::String(value)) => value.clone(),
-        Some(value) => value.to_string(),
-    }
+fn python_string(value: Option<&ssx_json::Value>) -> String {
+    value
+        .map(ssx_domain::storage::python_value_string)
+        .unwrap_or_default()
 }
-fn source_text(value: Option<&serde_json::Value>) -> Result<String, ()> {
+fn source_text(value: Option<&ssx_json::Value>) -> Result<String, ()> {
     match value {
         None => Ok(String::new()),
         Some(value) if !truthy(value) => Ok(String::new()),
-        Some(serde_json::Value::String(s)) => Ok(s.clone()),
+        Some(ssx_json::Value::String(s)) => Ok(s.clone()),
         _ => Err(()),
     }
 }
-fn python_float(value: &serde_json::Value) -> Result<f64, ()> {
+fn python_float(value: &ssx_json::Value) -> Result<f64, ()> {
     let value = match value {
-        serde_json::Value::Bool(value) => f64::from(u8::from(*value)),
-        serde_json::Value::Number(value) => value.as_f64().ok_or(())?,
-        serde_json::Value::String(value) => parse_python_float(value).ok_or(())?,
+        ssx_json::Value::Bool(value) => f64::from(u8::from(*value)),
+        ssx_json::Value::Number(value) => value.as_f64().ok_or(())?,
+        ssx_json::Value::String(value) => parse_python_float(value).ok_or(())?,
         _ => return Err(()),
     };
     value.is_finite().then_some(value).ok_or(())
@@ -282,38 +278,35 @@ fn parse_python_float(input: &str) -> Option<f64> {
     let value = normalized.parse::<f64>().ok()?;
     value.is_finite().then_some(value)
 }
-fn truthy(value: &serde_json::Value) -> bool {
+fn truthy(value: &ssx_json::Value) -> bool {
     match value {
-        serde_json::Value::Null => false,
-        serde_json::Value::Bool(value) => *value,
-        serde_json::Value::Number(value) => value.as_f64().is_some_and(|number| number != 0.0),
-        serde_json::Value::String(value) => !value.is_empty(),
-        serde_json::Value::Array(value) => !value.is_empty(),
-        serde_json::Value::Object(value) => !value.is_empty(),
+        ssx_json::Value::Null => false,
+        ssx_json::Value::Bool(value) => *value,
+        ssx_json::Value::Number(value) if value.is_f64() => {
+            value.as_f64().is_some_and(|number| number != 0.0)
+        }
+        ssx_json::Value::Number(value) => value.as_str() != "0",
+        ssx_json::Value::String(value) => !value.is_empty(),
+        ssx_json::Value::Array(value) => !value.is_empty(),
+        ssx_json::Value::Object(value) => !value.is_empty(),
     }
 }
-fn python_grouped(value: &serde_json::Value) -> Result<String, ()> {
+fn python_grouped(value: &ssx_json::Value) -> Result<String, ()> {
     match value {
-        serde_json::Value::Bool(value) => Ok(if *value { "1" } else { "0" }.into()),
-        serde_json::Value::Number(number) if number.is_u64() => {
-            Ok(grouped_decimal(&number.to_string()))
-        }
-        serde_json::Value::Number(number) if number.is_i64() => {
-            Ok(grouped_decimal(&number.to_string()))
-        }
-        serde_json::Value::Number(number) => {
+        ssx_json::Value::Bool(value) => Ok(if *value { "1" } else { "0" }.into()),
+        ssx_json::Value::Number(number) if !number.is_f64() => Ok(grouped_decimal(number.as_str())),
+        ssx_json::Value::Number(number) => {
             let numeric = number
                 .as_f64()
                 .filter(|value| value.is_finite())
                 .ok_or(())?;
+            let python = ssx_json::python_float(numeric).map_err(|_| ())?;
             // Match Python's `format(float_value, ',')`: Python retains repr's
             // scientific notation at abs(x) >= 1e16 or 0 < abs(x) < 1e-4.
-            // serde_json's Ryu representation is also shortest-roundtrip, but
-            // does not pad/sign exponents the way Python repr does.
             if numeric.abs() >= 1e16 || (numeric != 0.0 && numeric.abs() < 1e-4) {
-                return python_exponent(&format!("{numeric:e}"));
+                return Ok(python);
             }
-            let mut decimal = expand_exponent(&number.to_string())?;
+            let mut decimal = python;
             if !decimal.contains('.') {
                 decimal.push_str(".0");
             }
@@ -321,44 +314,6 @@ fn python_grouped(value: &serde_json::Value) -> Result<String, ()> {
         }
         _ => Err(()),
     }
-}
-
-fn python_exponent(value: &str) -> Result<String, ()> {
-    let (mantissa, exponent) = value.split_once(['e', 'E']).ok_or(())?;
-    let exponent: i32 = exponent.parse().map_err(|_| ())?;
-    Ok(format!(
-        "{mantissa}e{}{abs_exponent:02}",
-        if exponent >= 0 { "+" } else { "-" },
-        abs_exponent = exponent.unsigned_abs()
-    ))
-}
-
-fn expand_exponent(value: &str) -> Result<String, ()> {
-    let (mantissa, exponent) = match value.find(['e', 'E']) {
-        Some(index) => (
-            &value[..index],
-            value[index + 1..].parse::<i32>().map_err(|_| ())?,
-        ),
-        None => return Ok(value.to_owned()),
-    };
-    let (sign, unsigned) = mantissa
-        .strip_prefix('-')
-        .map_or(("", mantissa), |value| ("-", value));
-    let decimal_index = unsigned.find('.').unwrap_or(unsigned.len()) as i32 + exponent;
-    let digits: String = unsigned.chars().filter(|c| *c != '.').collect();
-    let expanded = if decimal_index <= 0 {
-        format!("0.{}{}", "0".repeat((-decimal_index) as usize), digits)
-    } else if decimal_index as usize >= digits.len() {
-        format!(
-            "{}{}",
-            digits,
-            "0".repeat(decimal_index as usize - digits.len())
-        )
-    } else {
-        let at = decimal_index as usize;
-        format!("{}.{}", &digits[..at], &digits[at..])
-    };
-    Ok(format!("{sign}{expanded}"))
 }
 
 fn grouped_decimal(value: &str) -> String {

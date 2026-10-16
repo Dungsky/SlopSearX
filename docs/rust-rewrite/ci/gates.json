@@ -1695,6 +1695,10 @@
               "run": "cargo xtask check F04 --output target/rust-evidence/F04.json"
             },
             {
+              "name": "Authoritative OAuth state and atomic token transitions",
+              "run": "cargo xtask check T04 --output target/rust-evidence/T04.json"
+            },
+            {
               "name": "MCP transport and gateway qualification",
               "run": "cargo xtask check T01 --output target/rust-evidence/T01.json"
             },
@@ -1748,7 +1752,7 @@
               "with": {
                 "if-no-files-found": "warn",
                 "name": "rust-foundation-${{ matrix.target }}-${{ github.sha }}",
-                "path": "target/rust-evidence/F03.json\ntarget/rust-evidence/F04.json\ntarget/rust-evidence/T01.json\ntarget/rust-evidence/F05.json\ntarget/rust-evidence/F06.json\ntarget/rust-evidence/F07.json\ntarget/rust-evidence/W01.json\ntarget/rust-evidence/O03.json\ntarget/rust-evidence/F08.json\ntarget/rust-evidence/F10.json\ntarget/rust-evidence/F11.json\ntarget/rust-evidence/A01.json\ntarget/rust-feature-graph.txt\n"
+                "path": "target/rust-evidence/F03.json\ntarget/rust-evidence/F04.json\ntarget/rust-evidence/T01.json\ntarget/rust-evidence/T04.json\ntarget/rust-evidence/F05.json\ntarget/rust-evidence/F06.json\ntarget/rust-evidence/F07.json\ntarget/rust-evidence/W01.json\ntarget/rust-evidence/O03.json\ntarget/rust-evidence/F08.json\ntarget/rust-evidence/F10.json\ntarget/rust-evidence/F11.json\ntarget/rust-evidence/A01.json\ntarget/rust-feature-graph.txt\n"
               }
             }
           ],
