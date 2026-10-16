@@ -29,13 +29,33 @@ that clear this implicit evidence or initialize it away. W02 must call this help
 before applying reset/accounting/reservation to a legacy candidate.
 
 `initialize_budget` only lowers ceilings and infers pre-ledger usage by the source
-rules. `reserve_attempt` interrupts an uncertain prior running attempt without
-refunding it, checks attempt/engine/result capacity, clears current query fields,
-appends a fresh attempt and charges attempt/engine slots. `finish_attempt` settles
-once, bounds admitted results, charges every admitted result including duplicate
-leads, and deduplicates only newly seen lead identities. All clocks and attempt
-identifiers are explicit inputs. Source legacy recovery synthesizes interrupted
-attempts before accounting; the oracle preserves that exact reconstruction rule.
+rules. `reserve_attempt` requires a pending query with no active last attempt,
+checks attempt/engine/result capacity, clears current query fields, appends a
+fresh attempt and charges attempt/engine slots. Reservation no longer performs implicit recovery. Authoritative claim
+and cancellation recovery paths interrupt uncertain attempts while retaining
+charges; claim resets running queries to pending, while cancellation remains
+terminal. Explicit retry admission uses `reset_retryable_queries`.
+`finish_attempt` now requires `&AttemptId` in both domain and application APIs;
+it settles only the matching running attempt once, bounds admitted results,
+charges duplicates, and deduplicates newly seen lead identities. W02 must capture
+the attempt ID from the durable reservation before dispatch and carry that exact
+ID into completion, rather than derive it from the latest reloaded query. An
+identity mismatch aborts the store mutation before CAS, so response fields set
+on its clone cannot leak into durable state. Leases still fence old owners.
+
+This is intentional hardening of Python's raw helper: it can interrupt an active
+attempt or reopen a terminal query directly and has no expected-ID argument.
+The unchanged source corpus retains both raw-helper cases
+`reserve-interrupts-before-budget-rejection` and `result-exhaustion`. Native replay
+asserts typed rejection and unchanged native state, compares complete source
+payloads permitting only query state/error, stop reason and the prior attempt's
+interruption state/error/time where observed, and retains full budget-summary
+and roundtrip checks. Both differences must be exercised. Valid recovered
+reservation replay explicitly models the claim entrypoint's pending transition.
+All clocks and attempt identifiers remain explicit; the source's legacy orphan
+reconstruction observation is retained exactly. Existing accounting, recovery,
+and retry contracts remain tested through real Valkey without worker/provider
+execution.
 
 `ssx_infra::valkey::research::ResearchStore` uses F07 connections, literal tenant
 job/lease/cancel keys, typed leases and source-exact ready/recent assets. The F07 legacy idempotency asset remains unchanged; W01 adds a disjoint admission namespace. Its authority
@@ -138,7 +158,7 @@ portal contract/browser gate. The existing Python portal remains active.
 
 `ssx_application::research::lead_id(url)` now computes the source lead-v1
 SHA256 identity from accepted F11 `normalise_url` and UTF-8 bytes.
-`ssx_application::research::finish_attempt` takes an optional typed SearchResponse
+`ssx_application::research::finish_attempt` takes the captured expected AttemptId and an optional typed SearchResponse
 and settles its actual result URLs through the domain accounting transition.
 Use it inside `ResearchStore::mutate` after recording the current query outcome,
 snapshot cursor and provenance. Domain remains independent of application.

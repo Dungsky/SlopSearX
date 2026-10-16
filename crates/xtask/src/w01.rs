@@ -58,6 +58,34 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
     let identity_exporter = fs::read(root.join("docs/rust-rewrite/w01/oracle/identity.py"))
         .map_err(|e| e.to_string())?;
     validate_identity(&identity, &identity_exporter)?;
+    for (package, required) in [
+        (
+            "ssx-domain",
+            &["reservation_admission_rejects_nonpending_and_active_history_without_changes"][..],
+        ),
+        (
+            "ssx-infra",
+            &[
+                "same_lease_active_dispatch_rejects_a_second_reservation",
+                "recovered_attempt_rejects_stale_application_completion_with_current_lease",
+                "reservation_crash_reclaim_and_completed_evidence",
+            ][..],
+        ),
+    ] {
+        let listed = command(
+            root,
+            "cargo",
+            &[
+                "test", "--locked", "-p", package, "--test", "w01", "--", "--list",
+            ],
+            records,
+        )?;
+        for name in required {
+            if !listed.lines().any(|line| line == format!("{name}: test")) {
+                return Err(format!("W01 mandatory attempt contract missing: {name}"));
+            }
+        }
+    }
     command(
         root,
         "cargo",

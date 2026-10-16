@@ -261,7 +261,12 @@ async fn reservation_crash_reclaim_and_completed_evidence() {
             j.queries[0].cursor = Some("snap".into());
             j.queries[0].result_count = 2;
             let lead = LeadId::new(format!("lead-v1-{}", "a".repeat(64)))?;
-            j.finish_attempt(0, Some(&[lead.clone(), lead]), now(13.0))?;
+            j.finish_attempt(
+                0,
+                &AttemptId::new("b")?,
+                Some(&[lead.clone(), lead]),
+                now(13.0),
+            )?;
             j.state = "partial".into();
             Ok(())
         })
@@ -289,6 +294,7 @@ async fn reservation_crash_reclaim_and_completed_evidence() {
     assert_eq!(retained, done);
     let rejected = b
         .mutate(&id(), &second.token, |j| {
+            j.queries[0].state = "pending".into(); // Admit another attempt before testing its exhausted budget.
             assert!(!j.reserve_attempt(0, AttemptId::new("c")?, now(14.0))?);
             Ok(())
         })
@@ -517,7 +523,7 @@ async fn prepared_mutation_reloads_terminal_evidence_and_preserves_guards() {
         j.reserve_attempt(0, AttemptId::new("historical")?, now(11.0))?;
         j.queries[0].state = "failed".into();
         j.queries[0].cursor = Some("old-evidence".into());
-        j.finish_attempt(0, None, now(12.0))?;
+        j.finish_attempt(0, &AttemptId::new("historical")?, None, now(12.0))?;
         j.state = "partial".into();
         Ok(())
     })
@@ -1194,6 +1200,7 @@ async fn fresh_identity_and_lead_history_require_authoritative_admissions() {
             j.queries[0].result_count = 2;
             j.finish_attempt(
                 0,
+                &AttemptId::new("valid")?,
                 Some(&[
                     LeadId::new(leads[0].clone())?,
                     LeadId::new(leads[1].clone())?,
@@ -1323,7 +1330,13 @@ async fn actual_url_settlement_is_fenced_charged_and_retained_across_retry() {
             job.queries[0].state = "done".into();
             job.queries[0].cursor = Some("snapshot-one".into());
             job.queries[0].result_count = 2;
-            ssx_application::research::finish_attempt(job, 0, Some(&response), now(12.0))
+            ssx_application::research::finish_attempt(
+                job,
+                0,
+                &AttemptId::new("first-url-attempt")?,
+                Some(&response),
+                now(12.0),
+            )
         })
         .await
         .unwrap();
@@ -1335,6 +1348,7 @@ async fn actual_url_settlement_is_fenced_charged_and_retained_across_retry() {
     let first = done.queries[0].attempts[0].clone();
     store
         .mutate(&id(), &owner.token, |job| {
+            job.queries[0].state = "pending".into(); // Explicit retry admission; completed history remains immutable.
             job.reserve_attempt(0, AttemptId::new("second-url-attempt")?, now(13.0))?;
             Ok(())
         })
@@ -1345,7 +1359,13 @@ async fn actual_url_settlement_is_fenced_charged_and_retained_across_retry() {
             job.queries[0].state = "done".into();
             job.queries[0].cursor = Some("snapshot-two".into());
             job.queries[0].result_count = 2;
-            ssx_application::research::finish_attempt(job, 0, Some(&response), now(14.0))
+            ssx_application::research::finish_attempt(
+                job,
+                0,
+                &AttemptId::new("second-url-attempt")?,
+                Some(&response),
+                now(14.0),
+            )
         })
         .await
         .unwrap();
@@ -1695,7 +1715,7 @@ async fn cancellation_intent_rejects_new_reservations_but_retains_existing_settl
     let settled = store
         .mutate(&id(), &owner.token, |job| {
             job.queries[0].state = "done".into();
-            job.finish_attempt(0, None, now(12.0))
+            job.finish_attempt(0, &AttemptId::new("already-reserved")?, None, now(12.0))
         })
         .await
         .unwrap();
@@ -1800,4 +1820,166 @@ async fn scoped_ready_selection_preserves_microseconds_and_excludes_future_score
         .unwrap();
     assert_eq!(bounded.len(), 16);
     assert!(!bounded.iter().any(|id| id == "future"));
+}
+
+#[tokio::test]
+async fn same_lease_active_dispatch_rejects_a_second_reservation() {
+    let server = Server::start();
+    let store = scoped(&server);
+    store.create(&job()).await.unwrap();
+    let owner = claim(&store, "overlap-owner", 30).await;
+    store.mutate(&id(), &owner.token, initialize).await.unwrap();
+    let first_store = scoped(&server);
+    let token = owner.token.clone();
+    let (reserved_tx, reserved_rx) = tokio::sync::oneshot::channel();
+    let (complete_tx, complete_rx) = tokio::sync::oneshot::channel();
+    let first = tokio::spawn(async move {
+        first_store
+            .mutate(&id(), &token, |job| {
+                job.reserve_attempt(0, AttemptId::new("overlap-first")?, now(11.0))?;
+                Ok(())
+            })
+            .await
+            .unwrap();
+        reserved_tx.send(()).unwrap();
+        complete_rx.await.unwrap();
+        first_store
+            .mutate(&id(), &token, |job| {
+                job.queries[0].state = "done".into();
+                ssx_application::research::finish_attempt(
+                    job,
+                    0,
+                    &AttemptId::new("overlap-first")?,
+                    None,
+                    now(13.0),
+                )
+            })
+            .await
+            .unwrap()
+    });
+    reserved_rx.await.unwrap(); // First dispatch is outstanding while caller two loads its reservation.
+    let reserved = found(&store).await;
+    let second = scoped(&server)
+        .mutate(&id(), &owner.token, |job| {
+            job.reserve_attempt(0, AttemptId::new("overlap-second")?, now(12.0))?;
+            Ok(())
+        })
+        .await;
+    assert!(
+        matches!(
+            second,
+            Err(Error::Invalid(ssx_domain::DomainError(
+                "reservation requires a pending query without an active attempt"
+            )))
+        ),
+        "unexpected reservation result: {second:?}"
+    );
+    assert_eq!(found(&store).await, reserved);
+    complete_tx.send(()).unwrap();
+    let done = first.await.unwrap();
+    assert_eq!(done.queries[0].attempts.len(), 1);
+    assert_eq!(done.queries[0].attempts[0].attempt_id, "overlap-first");
+    assert_eq!(done.queries[0].attempts[0].state, "done");
+    assert_eq!(done.budget_used["attempts"], 1);
+}
+
+#[tokio::test]
+async fn recovered_attempt_rejects_stale_application_completion_with_current_lease() {
+    let server = Server::start();
+    let store = scoped(&server);
+    store.create(&job()).await.unwrap();
+    let first = claim(&store, "old-worker", 1).await;
+    store
+        .mutate(&id(), &first.token, |job| {
+            initialize(job)?;
+            job.reserve_attempt(0, AttemptId::new("stale-first")?, now(11.0))?;
+            Ok(())
+        })
+        .await
+        .unwrap();
+    tokio::time::sleep(Duration::from_millis(1100)).await;
+    let successor = scoped(&server);
+    let next = claim(&successor, "new-worker", 30).await;
+    assert_eq!(next.job.queries[0].state, "pending");
+    assert_eq!(next.job.queries[0].attempts[0].state, "interrupted");
+    successor
+        .mutate(&id(), &next.token, |job| {
+            job.reserve_attempt(0, AttemptId::new("fresh-second")?, now(12.0))?;
+            Ok(())
+        })
+        .await
+        .unwrap();
+    let reserved = found(&successor).await;
+    assert!(matches!(
+        store.mutate(&id(), &first.token, |_| Ok(())).await,
+        Err(Error::OwnershipLost)
+    ));
+    let response = ssx_domain::SearchResponse {
+        results: vec![ssx_domain::SearchResult {
+            url: "https://stale.example/".into(),
+            ..Default::default()
+        }],
+        ..Default::default()
+    };
+    let stale = successor
+        .mutate(&id(), &next.token, |job| {
+            job.queries[0].state = "done".into();
+            job.queries[0].cursor = Some("stale-snapshot".into());
+            job.queries[0].result_count = 1;
+            ssx_application::research::finish_attempt(
+                job,
+                0,
+                &AttemptId::new("stale-first")?,
+                Some(&response),
+                now(13.0),
+            )
+        })
+        .await;
+    assert!(
+        matches!(
+            stale,
+            Err(Error::Invalid(ssx_domain::DomainError(
+                "research attempt identity changed before settlement"
+            )))
+        ),
+        "unexpected stale completion result: {stale:?}"
+    );
+    assert_eq!(
+        found(&successor).await,
+        reserved,
+        "stale response fields must not persist"
+    );
+    let mut fresh_response = response.clone();
+    fresh_response.results[0].url = "https://fresh.example/".into();
+    let done = successor
+        .mutate(&id(), &next.token, |job| {
+            job.queries[0].state = "done".into();
+            job.queries[0].cursor = Some("fresh-snapshot".into());
+            job.queries[0].result_count = 1;
+            ssx_application::research::finish_attempt(
+                job,
+                0,
+                &AttemptId::new("fresh-second")?,
+                Some(&fresh_response),
+                now(14.0),
+            )
+        })
+        .await
+        .unwrap();
+    assert_eq!(done.queries[0].attempts[0], reserved.queries[0].attempts[0]);
+    assert_eq!(done.queries[0].attempts[1].state, "done");
+    assert_eq!(
+        done.queries[0].attempts[1].cursor.as_deref(),
+        Some("fresh-snapshot")
+    );
+    assert_eq!(done.budget_used["attempts"], 2);
+    assert_eq!(done.budget_used["results"], 1);
+    assert_eq!(
+        done.seen_lead_ids,
+        vec![
+            ssx_application::research::lead_id("https://fresh.example/")
+                .as_str()
+                .to_owned()
+        ]
+    );
 }

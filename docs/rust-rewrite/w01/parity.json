@@ -71,6 +71,17 @@
       "before": "prior native lookup truncated Valkey time to milliseconds while accepted source ready scores retain microseconds",
       "after": "atomic Valkey TIME plus bounded ZRANGEBYSCORE with full microsecond fraction; no future-score rounding",
       "reason": "retained W01 gate failure reproduced newly due job omission; deterministic actual-Valkey clock seam proves inclusion, future exclusion and limit16"
+    },
+    {
+      "contract": "active attempt admission and completion identity",
+      "before": "Python raw reserve helper interrupts an active attempt or reopens terminal query; finish helper settles latest running attempt without caller identity",
+      "after": "reservation requires pending query and no active last attempt; reservation performs no implicit recovery; authoritative claim/cancellation recovery retains charges, claim resets pending and cancellation remains terminal; domain/application settlement requires expected AttemptId captured before dispatch and rejects mismatches before authoritative CAS",
+      "reason": "real Valkey same-lease overlap and stale completion after legitimate recovery reproduced replacement and successor misattribution; strict admission and carried identity preserve durable evidence and charges",
+      "source_cases": [
+        "reserve-interrupts-before-budget-rejection",
+        "result-exhaustion"
+      ],
+      "evidence": "unchanged source oracles; exact path-only payload differences plus summary/roundtrip; real same-lease overlap, recovery, stale token/identity rejection and successful successor settlement"
     }
   ],
   "remaining": [

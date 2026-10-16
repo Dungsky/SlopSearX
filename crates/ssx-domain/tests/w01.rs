@@ -8,6 +8,7 @@ fn source_bound_research_record_and_budget_goldens() {
     let corpus: Value =
         ssx_json::from_str(include_str!("../../xtask/fixtures/w01/corpus.json")).unwrap();
     assert_eq!(corpus["cases"].as_array().unwrap().len(), 10);
+    let mut hardened_cases = std::collections::BTreeSet::new();
     for case in corpus["cases"].as_array().unwrap() {
         let name = case["name"].as_str().unwrap();
         let mut job = ResearchJob::from_payload(case["input"].clone()).unwrap();
@@ -31,6 +32,94 @@ fn source_bound_research_record_and_budget_goldens() {
                     .unwrap();
                 }
                 "reserve" => {
+                    // Source recovery helper leaves the query running; the actual
+                    // native claim entrypoint resets recovered queries to pending.
+                    if job.queries[index].state == "running"
+                        && job.queries[index]
+                            .attempts
+                            .last()
+                            .is_some_and(|a| a.state == "interrupted")
+                    {
+                        job.queries[index].state = "pending".into();
+                    }
+                    if job.queries[index].state != "pending"
+                        || job.queries[index]
+                            .attempts
+                            .last()
+                            .is_some_and(|a| a.state == "running")
+                    {
+                        assert!(
+                            [
+                                "reserve-interrupts-before-budget-rejection",
+                                "result-exhaustion"
+                            ]
+                            .contains(&name),
+                            "unexpected source difference {name}"
+                        );
+                        let unchanged = job.clone();
+                        let error = job
+                            .reserve_attempt(
+                                index,
+                                AttemptId::new("rejected-source-helper").unwrap(),
+                                now,
+                            )
+                            .unwrap_err();
+                        assert_eq!(
+                            error.0,
+                            "reservation requires a pending query without an active attempt"
+                        );
+                        assert_eq!(job, unchanged);
+                        // Retain the source observation: its raw helper mutates
+                        // the query to failed, whereas native admission rejects.
+                        assert_eq!(expected["job"]["queries"][index]["state"], "failed");
+                        assert_eq!(
+                            expected["job"]["budget_used"],
+                            ssx_json::to_value(&job.budget_used).unwrap()
+                        );
+                        assert!(hardened_cases.insert(name.to_owned()));
+                        let reason = if name == "result-exhaustion" {
+                            "result_budget_exhausted"
+                        } else {
+                            "attempt_budget_exhausted"
+                        };
+                        assert_eq!(expected["job"]["stop_reason"], reason);
+                        assert_eq!(expected["job"]["queries"][index]["error"], reason);
+                        let mut source_projection = job.to_payload().unwrap();
+                        assert_ne!(source_projection, expected["job"]);
+                        source_projection["stop_reason"] = expected["job"]["stop_reason"].clone();
+                        for key in ["state", "error"] {
+                            source_projection["queries"].as_array_mut().unwrap()[index][key] =
+                                expected["job"]["queries"][index][key].clone();
+                        }
+                        if name == "reserve-interrupts-before-budget-rejection" {
+                            let last = job.queries[index].attempts.len() - 1;
+                            let source_attempt =
+                                &expected["job"]["queries"][index]["attempts"][last];
+                            assert_eq!(source_attempt["state"], "interrupted");
+                            assert_eq!(
+                                source_attempt["error"],
+                                "Previous dispatch outcome is unknown after worker recovery; reservation retained"
+                            );
+                            assert_eq!(source_attempt["finished_at"].as_f64(), Some(now.seconds()));
+                            for key in ["state", "error", "finished_at"] {
+                                source_projection["queries"].as_array_mut().unwrap()[index]["attempts"].as_array_mut().unwrap()[last][key] =
+                                    source_attempt[key].clone();
+                            }
+                        }
+                        assert_eq!(
+                            source_projection, expected["job"],
+                            "full source payload {name}"
+                        );
+                        assert_eq!(
+                            ssx_json::to_value(job.budget_summary()).unwrap(),
+                            expected["summary"]
+                        );
+                        assert_eq!(
+                            ResearchJob::from_payload(job.to_payload().unwrap()).unwrap(),
+                            job
+                        );
+                        continue;
+                    }
                     let accepted = job
                         .reserve_attempt(
                             index,
@@ -42,6 +131,15 @@ fn source_bound_research_record_and_budget_goldens() {
                     assert_eq!(accepted, !operation["attempt_id"].is_null(), "{name}");
                 }
                 "finish" => {
+                    let expected_attempt = AttemptId::new(
+                        job.queries[index]
+                            .attempts
+                            .last()
+                            .unwrap()
+                            .attempt_id
+                            .clone(),
+                    )
+                    .unwrap();
                     let mut query = ssx_json::to_value(&job.queries[index]).unwrap();
                     for (key, value) in operation["outcome"].as_object().unwrap() {
                         query[key.as_str()] = value.clone();
@@ -53,7 +151,8 @@ fn source_bound_research_record_and_budget_goldens() {
                             .map(|v| LeadId::new(v.as_str().unwrap().into()).unwrap())
                             .collect::<Vec<_>>()
                     });
-                    job.finish_attempt(index, leads.as_deref(), now).unwrap();
+                    job.finish_attempt(index, &expected_attempt, leads.as_deref(), now)
+                        .unwrap();
                 }
                 "recover" => {
                     let mut generated = operation["generated_ids"].as_array().unwrap().iter();
@@ -83,6 +182,14 @@ fn source_bound_research_record_and_budget_goldens() {
             );
         }
     }
+    assert_eq!(
+        hardened_cases,
+        [
+            "reserve-interrupts-before-budget-rejection".to_owned(),
+            "result-exhaustion".to_owned()
+        ]
+        .into()
+    );
 }
 #[test]
 fn malformed_authority_and_historical_edits_fail_closed() {
@@ -109,10 +216,18 @@ fn malformed_authority_and_historical_edits_fail_closed() {
     job.queries[0].state = "done".into();
     job.queries[0].cursor = Some("snap".into());
     let lead = LeadId::new(format!("lead-v1-{}", "a".repeat(64))).unwrap();
-    job.finish_attempt(0, Some(&[lead.clone(), lead]), time(2.0))
-        .unwrap();
+    job.finish_attempt(
+        0,
+        &AttemptId::new("attempt-a").unwrap(),
+        Some(&[lead.clone(), lead]),
+        time(2.0),
+    )
+    .unwrap();
     let evidence = job.queries[0].attempts[0].clone();
-    assert!(job.finish_attempt(0, None, time(3.0)).is_err());
+    assert!(
+        job.finish_attempt(0, &AttemptId::new("attempt-a").unwrap(), None, time(3.0))
+            .is_err()
+    );
     let mut next = job.clone();
     next.queries[0].attempts[0].cursor = Some("rewritten".into());
     assert!(job.validate_transition(&next).is_err());
@@ -155,4 +270,50 @@ fn coverage_classification_source_matrix() {
             case["summary"]
         );
     }
+}
+
+#[test]
+fn reservation_admission_rejects_nonpending_and_active_history_without_changes() {
+    let corpus: Value =
+        ssx_json::from_str(include_str!("../../xtask/fixtures/w01/corpus.json")).unwrap();
+    let mut job = ResearchJob::from_payload(corpus["cases"][1]["input"].clone()).unwrap();
+    job.initialize_budget(ResearchCeilings {
+        queries: 10,
+        engines_per_query: 10,
+        results: 10,
+    })
+    .unwrap();
+    for state in ["running", "done", "failed", "cancelled"] {
+        let mut candidate = job.clone();
+        candidate.queries[0].state = state.into();
+        let unchanged = candidate.clone();
+        assert_eq!(
+            candidate
+                .reserve_attempt(0, AttemptId::new("rejected").unwrap(), time(1.0))
+                .unwrap_err()
+                .0,
+            "reservation requires a pending query without an active attempt"
+        );
+        assert_eq!(candidate, unchanged);
+    }
+    job.reserve_attempt(0, AttemptId::new("original").unwrap(), time(1.0))
+        .unwrap();
+    job.queries[0].state = "pending".into(); // A state edit cannot bypass the active-attempt guard.
+    let unchanged = job.clone();
+    assert!(
+        job.reserve_attempt(0, AttemptId::new("bypass").unwrap(), time(2.0))
+            .is_err()
+    );
+    assert_eq!(job, unchanged);
+    job.queries[0].state = "done".into();
+    let unchanged = job.clone();
+    assert_eq!(
+        job.finish_attempt(0, &AttemptId::new("wrong").unwrap(), None, time(2.0))
+            .unwrap_err()
+            .0,
+        "research attempt identity changed before settlement"
+    );
+    assert_eq!(job, unchanged);
+    job.finish_attempt(0, &AttemptId::new("original").unwrap(), None, time(2.0))
+        .unwrap();
 }

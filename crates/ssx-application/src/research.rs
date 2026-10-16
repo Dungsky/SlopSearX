@@ -18,9 +18,12 @@ pub fn lead_id(url: &str) -> LeadId {
 /// domain transition charges duplicate admissions and caps results; only new
 /// identities deduplicate. Call within the authoritative store mutation after
 /// setting the query's outcome/cursor/provenance. No response means no admission.
+/// Carry the attempt identity captured before dispatch into this callback; an
+/// identity mismatch aborts the authoritative mutation without persisting fields.
 pub fn finish_attempt(
     job: &mut ResearchJob,
     index: usize,
+    expected_attempt: &ssx_domain::AttemptId,
     response: Option<&SearchResponse>,
     now: WallClockTimestamp,
 ) -> Result<(), DomainError> {
@@ -31,5 +34,5 @@ pub fn finish_attempt(
             .map(|r| lead_id(&r.url))
             .collect::<Vec<_>>()
     });
-    job.finish_attempt(index, leads.as_deref(), now)
+    job.finish_attempt(index, expected_attempt, leads.as_deref(), now)
 }

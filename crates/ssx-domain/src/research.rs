@@ -435,7 +435,11 @@ impl ResearchJob {
             .queries
             .get_mut(index)
             .ok_or(DomainError("unknown research query"))?;
-        interrupt(q, now);
+        if q.state != "pending" || q.attempts.last().is_some_and(|a| a.state == "running") {
+            return Err(DomainError(
+                "reservation requires a pending query without an active attempt",
+            ));
+        }
         for (key, amount, reason) in [
             ("attempts", 1, "attempt_budget_exhausted"),
             (
@@ -482,9 +486,12 @@ impl ResearchJob {
     }
     /// Snapshot current evidence once. Every admitted result is charged, including
     /// duplicates; only new_lead_ids is deduplicated. None means no response.
+    /// expected_attempt must be captured when reserving, never reloaded from the
+    /// current query by a completion callback. Orphan recovery may replace it.
     pub fn finish_attempt(
         &mut self,
         index: usize,
+        expected_attempt: &crate::AttemptId,
         leads: Option<&[LeadId]>,
         now: WallClockTimestamp,
     ) -> Result<(), DomainError> {
@@ -497,6 +504,11 @@ impl ResearchJob {
             .attempts
             .last_mut()
             .ok_or(DomainError("no running research attempt"))?;
+        if a.attempt_id != expected_attempt.as_str() {
+            return Err(DomainError(
+                "research attempt identity changed before settlement",
+            ));
+        }
         if a.state != "running" {
             return Err(DomainError("only a running attempt may be finalized"));
         }
