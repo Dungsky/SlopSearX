@@ -4,7 +4,7 @@ W00 implements saved-definition records, pure validation and policy fingerprints
 tenant-bound persistence, optimistic edits, pause/resume/delete controls, quotas,
 recent/due indexes, bounded reconciliation and schedule leases. It makes no
 provider calls and does not execute saved searches. W04 owns execution and guarded
-result/schedule publication; W03 owns comparison/report construction and W05 owns
+result/schedule publication and comparison/report construction; W05 owns
 event/outbox behavior. W09/W10 own public tool/portal composition.
 
 `SavedPolicy` consumes the accepted F09 pure `PolicyService`, a separate saved
