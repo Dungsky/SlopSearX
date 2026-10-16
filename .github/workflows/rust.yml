@@ -171,6 +171,9 @@ jobs:
       - name: Native npm and crates registry pilot adapters
         run: cargo xtask check A01 --output target/rust-evidence/A01.json
 
+      - name: Native package registry adapters
+        run: cargo xtask check A02 --output target/rust-evidence/A02.json
+
       - name: Native developer and community adapters
         run: cargo xtask check A03 --output target/rust-evidence/A03.json
 
@@ -202,6 +205,7 @@ jobs:
             target/rust-evidence/F11.json
             target/rust-evidence/T09.json
             target/rust-evidence/A01.json
+            target/rust-evidence/A02.json
             target/rust-evidence/A03.json
             target/rust-feature-graph.txt
           if-no-files-found: warn

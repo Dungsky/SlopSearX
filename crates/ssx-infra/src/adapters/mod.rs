@@ -188,3 +188,64 @@ pub fn register_community(
     )?;
     Ok(())
 }
+
+mod dockerhub;
+mod pypi;
+mod rubygems;
+pub use dockerhub::DockerHubConfig;
+pub use pypi::PyPIConfig;
+pub use rubygems::RubyGemsConfig;
+
+/// Source-compatible package adapter settings. Caller retains transport/admission ownership.
+#[derive(Clone, Debug, Default)]
+pub struct PackageConfig {
+    pub pypi: PyPIConfig,
+    pub rubygems: RubyGemsConfig,
+    pub dockerhub: DockerHubConfig,
+}
+
+/// Register executable named-engine factories without changing catalog metadata.
+pub fn register_packages(
+    registry: &mut Registry,
+    http: Arc<AdapterHttp>,
+    admission: Arc<dyn SearchAdmission>,
+    config: PackageConfig,
+) -> Result<(), RegistryError> {
+    let h = http.clone();
+    let a = admission.clone();
+    let c = config.pypi;
+    registry.register(
+        "pypi",
+        Arc::new(move || {
+            Box::new(pypi::PyPIAdapter::new(h.clone(), a.clone(), c.clone()))
+                as Box<dyn ssx_registry::Engine>
+        }) as EngineFactory,
+    )?;
+    let h = http.clone();
+    let a = admission.clone();
+    let c = config.rubygems;
+    registry.register(
+        "rubygems",
+        Arc::new(move || {
+            Box::new(rubygems::RubyGemsAdapter::new(
+                h.clone(),
+                a.clone(),
+                c.clone(),
+            )) as Box<dyn ssx_registry::Engine>
+        }) as EngineFactory,
+    )?;
+    let h = http.clone();
+    let a = admission.clone();
+    let c = config.dockerhub;
+    registry.register(
+        "dockerhub",
+        Arc::new(move || {
+            Box::new(dockerhub::DockerHubAdapter::new(
+                h.clone(),
+                a.clone(),
+                c.clone(),
+            )) as Box<dyn ssx_registry::Engine>
+        }) as EngineFactory,
+    )?;
+    Ok(())
+}
