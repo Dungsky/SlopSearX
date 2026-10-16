@@ -132,6 +132,9 @@ jobs:
       - name: Authoritative OAuth state and atomic token transitions
         run: cargo xtask check T04 --output target/rust-evidence/T04.json
 
+      - name: OAuth endpoints and every-network-transport authentication
+        run: cargo xtask check T05 --output target/rust-evidence/T05.json
+
       - name: MCP transport and gateway qualification
         run: cargo xtask check T01 --output target/rust-evidence/T01.json
 
@@ -143,6 +146,9 @@ jobs:
 
       - name: Shared policy, filters and scope evidence
         run: cargo xtask check F09 --output target/rust-evidence/F09.json
+
+      - name: Optional Jev routing and deterministic fallback evidence
+        run: cargo xtask check F12 --output target/rust-evidence/F12.json
 
       - name: Deterministic ranking, scholarly grouping and retrieval evidence
         run: cargo xtask check F11 --output target/rust-evidence/F11.json
@@ -183,9 +189,11 @@ jobs:
             target/rust-evidence/F04.json
             target/rust-evidence/T01.json
             target/rust-evidence/T04.json
+            target/rust-evidence/T05.json
             target/rust-evidence/F05.json
             target/rust-evidence/F06.json
             target/rust-evidence/F09.json
+            target/rust-evidence/F12.json
             target/rust-evidence/F07.json
             target/rust-evidence/W01.json
             target/rust-evidence/O03.json

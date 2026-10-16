@@ -3,6 +3,7 @@ pub mod gateway;
 pub mod harness;
 pub mod http_client;
 pub mod legacy;
+pub mod oauth;
 pub mod opaque;
 pub mod projection;
 use rmcp::{ErrorData, RoleServer, ServerHandler, model::*, service::RequestContext};

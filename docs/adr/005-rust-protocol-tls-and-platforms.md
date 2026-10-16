@@ -91,6 +91,26 @@ consumer owner. These native overload choices bound transport-owned wire data;
 they are not Python saturation parity or total process RSS claims. See
 [the T01 ownership and qualification contract](../rust-rewrite/protocol/T01.md#aggregate-legacy-admission-correction).
 
+## T05 bounded OAuth form parsing amendment
+
+T05 adds Axum's maintained `multipart` feature for the source's ordinary multipart
+OAuth forms, alongside URL-encoded forms. This selects `multer =3.1.0` (MIT) and
+`spin =0.9.9` (MIT), without a handwritten multipart parser or disk-backed upload
+path. Existing locked `base64 =0.23.1`, `url =2.5.8`, `sha2 =0.11.1` and
+`rustls =0.23.46` provide encoding, URL parsing, PKCE and the accepted AWS-LC secure
+random source; no existing package version/checksum is changed. `ssx-infra` and
+`redis =1.7.1` are qualification-only direct dependencies of `ssx-mcp`.
+
+Before maintained parsing, T05 bounds the raw request body to 64 KiB and the
+Content-Type/boundary header to 512 bytes. Parsed forms accept at most 64 fields,
+128-byte field names and 4096-byte field values. Duplicate credential fields or
+Content-Type headers, malformed/truncated multipart and files in known protocol
+fields fail closed. Bounded files in unknown fields are ignored, matching source
+unknown-field behavior. These refusal boundaries are intentional native hardening;
+ordinary captured URL-encoded and multipart requests preserve source wire behavior.
+See [Axum Multipart](https://docs.rs/axum/0.8.9/axum/extract/struct.Multipart.html)
+and [multer constraints](https://docs.rs/multer/3.1.0/multer/).
+
 ## T09 maintained browser cryptography amendment
 
 T09 uses exact `aws-lc-rs =1.18.2` (already selected transitively by accepted

@@ -7,12 +7,14 @@ mod f08;
 mod f09;
 mod f10;
 mod f11;
+mod f12;
 mod f13;
 mod o03;
 mod o06;
 mod replay;
 mod t01;
 mod t04;
+mod t05;
 mod t09;
 mod w01;
 use serde::Deserialize;
@@ -444,6 +446,7 @@ fn execute(root: &Path, id: &str, records: &mut Vec<Value>) -> Result<()> {
         "T01" => t01::check(root, records),
         "T09" => t09::check(root, records),
         "T04" => t04::check(root, records),
+        "T05" => t05::check(root, records),
         "F05" => f05::check(root, records),
         "F06" => f06::check(root, records),
         "F07" => f07::check(root, records),
@@ -452,6 +455,7 @@ fn execute(root: &Path, id: &str, records: &mut Vec<Value>) -> Result<()> {
         "F09" => f09::check(root, records),
         "F10" => f10::check(root, records),
         "F11" => f11::check(root, records),
+        "F12" => f12::check(root, records),
         "F13" => f13::check(root, records),
         "F03" => {
             source_check(root, "F01", records)?;
@@ -572,6 +576,8 @@ fn main() {
         "active tooling inventory and prospective evidence contracts only; no experiment, provider call, receipt issuance or historical evidence mutation"
     } else if id == "T01" {
         "synthetic MCP registry, real stdio/streamable HTTP/legacy SSE and gateway SDK qualification; no production tool parity or OAuth authorization-server claim"
+    } else if id == "T05" {
+        "OAuth wire endpoints and all-network transport authentication with real clients/private Valkey; no provider, production cutover or browser identity claim"
     } else if id == "T04" {
         "authoritative machine OAuth state and atomic transitions with private Valkey; no endpoint, OIDC, provider or deployment claim"
     } else if id == "O06" {
@@ -786,7 +792,7 @@ mod tests {
     fn unknown_and_unimplemented_fail() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
         assert!(
-            execute(&root, "F12", &mut vec![])
+            execute(&root, "F14", &mut vec![])
                 .unwrap_err()
                 .contains("unimplemented")
         );
