@@ -276,6 +276,23 @@
         "failure",
         "outcome_unknown"
       ]
+    },
+    "failure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "reason_code",
+        "terminal_evidence"
+      ],
+      "properties": {
+        "reason_code": {
+          "type": "string",
+          "minLength": 1
+        },
+        "terminal_evidence": {
+          "$ref": "#/$defs/artifact"
+        }
+      }
     }
   },
   "$defs": {
@@ -393,6 +410,40 @@
             }
           }
         }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "outcome": {
+            "const": "failure"
+          }
+        },
+        "required": [
+          "outcome"
+        ]
+      },
+      "then": {
+        "required": [
+          "failure"
+        ]
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "failure"
+        ]
+      },
+      "then": {
+        "properties": {
+          "outcome": {
+            "const": "failure"
+          }
+        },
+        "required": [
+          "outcome"
+        ]
       }
     }
   ]

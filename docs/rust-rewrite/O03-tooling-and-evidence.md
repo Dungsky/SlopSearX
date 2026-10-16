@@ -137,11 +137,14 @@ Schema validation:
   conservation equations, cost caps, deadline binding, denied authority, and
   accepted-with-unknown-cost rejection.
 * **Failure versus unknown:** known application/provider errors are `failure`
-  with a reason and terminal evidence. If a dispatch may have occurred but the
-  acknowledgment/receipt is absent or transport outcome is ambiguous, record
-  `outcome_unknown`; do not call it a failure, retry, or success without a new
-  bounded authorization and idempotency/reconciliation evidence. `accepted`,
-  `rejected`, `inconclusive`, and `blocked` retain distinct decision meanings.
+  with `failure.reason_code` and a content-bound `failure.terminal_evidence`
+  artifact (SHA-256, byte size, and path). Missing either field invalidates the
+  receipt, and failure details are invalid on other outcomes. If a dispatch may
+  have occurred but the acknowledgment/receipt is absent or transport outcome
+  is ambiguous, record `outcome_unknown`; do not call it a failure, retry, or
+  success without a new bounded authorization and idempotency/reconciliation
+  evidence. `accepted`, `rejected`, `inconclusive`, and `blocked` retain
+  distinct decision meanings.
 * **Qualification:** each declared check is present once. `not_run`,
   `unknown`, or a failed check cannot yield `accepted`. All rejection and
   inconclusive reasons remain in the append-only record. Missing data is not a
@@ -154,9 +157,10 @@ required fields, types, constants, enums, supported patterns, numeric/string/
 array bounds, unique items, references, `oneOf`, `allOf`, and conditional
 `if`/`then`. Unsupported schema keywords fail closed. It then decodes the
 examples into closed typed records and checks their binding and conservation
-semantics. Four valid examples include accepted-known-cost and
-outcome-unknown-with-unknown-cost; sixteen negative examples cover schema and
-cross-field failures, including a failure with unresolved work, a dispatch
+semantics. Five valid examples include accepted-known-cost,
+outcome-unknown-with-unknown-cost, and a known failure with terminal evidence;
+eighteen negative examples cover schema and cross-field failures, including
+missing failure reason/evidence, a failure with unresolved work, a dispatch
 after deadline, duplicate authority scopes, invalid plan IDs, duplicate reason
 codes, and a qualification bound to the wrong runtime-receipt digest. Accepted
 qualification is checked against exact runtime receipt bytes, plan ID,

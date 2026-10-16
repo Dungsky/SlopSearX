@@ -67,5 +67,13 @@
       "reason_code": "provider_ack_lost"
     }
   },
-  "outcome": "failure"
+  "outcome": "failure",
+  "failure": {
+    "reason_code": "provider_rejected",
+    "terminal_evidence": {
+      "sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+      "size_bytes": 16,
+      "path": "evidence/ambiguous-provider-terminal.json"
+    }
+  }
 }

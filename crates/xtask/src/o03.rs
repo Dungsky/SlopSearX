@@ -126,6 +126,14 @@ struct RuntimeReceipt {
     reservation: Reservation,
     accounting: RuntimeAccounting,
     outcome: String,
+    failure: Option<RuntimeFailure>,
+}
+
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RuntimeFailure {
+    reason_code: String,
+    terminal_evidence: Artifact,
 }
 
 #[derive(serde::Deserialize)]
@@ -602,6 +610,22 @@ fn validate_runtime_receipt(value: Value) -> Result<()> {
         ),
         "runtime outcome invalid",
     )?;
+    match (r.outcome.as_str(), r.failure.as_ref()) {
+        ("failure", Some(failure)) => {
+            ensure(
+                !failure.reason_code.trim().is_empty(),
+                "failure outcome requires a reason code",
+            )?;
+            validate_artifact(&failure.terminal_evidence)?;
+        }
+        ("failure", None) => {
+            return Err("failure outcome requires reason and terminal evidence".into());
+        }
+        (_, Some(_)) => {
+            return Err("failure details are only valid for failure outcomes".into());
+        }
+        (_, None) => {}
+    }
     ensure(
         r.accounting.requests_unresolved == 0 || r.outcome == "outcome_unknown",
         "unresolved dispatched work requires outcome_unknown, never failure or acceptance",
@@ -752,6 +776,25 @@ fn validate_contract_fixtures(root: &Path, records: &mut Vec<Value>) -> Result<(
             true,
         ),
         (
+            "runtime-receipt.invalid-failure-reason.json",
+            "runtime",
+            false,
+            false,
+        ),
+        (
+            "runtime-receipt.invalid-failure-terminal-evidence.json",
+            "runtime",
+            false,
+            false,
+        ),
+        (
+            "runtime-receipt.invalid-failure-on-accepted.json",
+            "runtime",
+            false,
+            false,
+        ),
+        ("runtime-receipt.failure.json", "runtime", true, true),
+        (
             "runtime-receipt.invalid-cost-accepted.json",
             "runtime",
             false,
@@ -892,7 +935,7 @@ fn validate_contract_fixtures(root: &Path, records: &mut Vec<Value>) -> Result<(
             ),
         )?;
     }
-    records.push(serde_json::json!({"check":"o03_receipt_fixtures","cases":cases.len(),"valid_examples":4,"negative_examples":cases.len()-4,"schema_valid_negative_examples":10,"status":"passed"}));
+    records.push(serde_json::json!({"check":"o03_receipt_fixtures","cases":cases.len(),"valid_examples":5,"negative_examples":cases.len()-5,"schema_valid_negative_examples":10,"status":"passed"}));
     Ok(())
 }
 
@@ -1509,7 +1552,7 @@ mod tests {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
         let mut records = Vec::new();
         assert!(validate_contract_fixtures(&root, &mut records).is_ok());
-        assert_eq!(records[0]["valid_examples"], 4);
-        assert_eq!(records[0]["negative_examples"], 16);
+        assert_eq!(records[0]["valid_examples"], 5);
+        assert_eq!(records[0]["negative_examples"], 19);
     }
 }
