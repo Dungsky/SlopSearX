@@ -658,10 +658,13 @@ impl Parser<'_> {
                 self.pos = save;
             }
         }
-        let s: String = self.text[start..self.pos]
-            .iter()
-            .map(|c| char::from_u32(*c).expect("ASCII number"))
-            .collect();
+        let mut s = String::with_capacity(self.pos - start);
+        for (index, codepoint) in self.text[start..self.pos].iter().enumerate() {
+            if index & 4095 == 0 {
+                checkpoint(self.deadline).await?;
+            }
+            s.push(char::from_u32(*codepoint).expect("ASCII number"));
+        }
         if self.pos == integer_end {
             let digits = s.len() - usize::from(s.starts_with('-'));
             if digits > MAX_INTEGER_DIGITS {
@@ -673,9 +676,20 @@ impl Parser<'_> {
                 s
             }))))
         } else {
-            Ok(Value::Number(Number::Float(
-                s.parse().expect("JSON float grammar"),
-            )))
+            let mut normalizer = ssx_json::FloatNormalizer::new(&s)
+                .map_err(|_| self.syntax("invalid JSON float"))?;
+            while !normalizer
+                .advance(1024)
+                .map_err(|_| self.syntax("invalid JSON float"))?
+            {
+                checkpoint(self.deadline).await?;
+            }
+            checkpoint(self.deadline).await?;
+            let value = normalizer
+                .finish()
+                .map_err(|_| self.syntax("invalid JSON float"))?;
+            checkpoint(self.deadline).await?;
+            Ok(Value::Number(Number::Float(value)))
         }
     }
 }
@@ -1032,5 +1046,78 @@ mod tests {
         )
         .await;
         assert!(result.is_err(), "decoder must yield to cancellation");
+    }
+}
+
+#[cfg(test)]
+mod f15_numeric_tests {
+    use super::*;
+    #[tokio::test]
+    async fn shared_float_normalizer_preserves_long_finite_and_nonfinite_source_policy() {
+        use sha2::{Digest, Sha256};
+        let fixture: ssx_json::Value = ssx_json::from_slice(include_bytes!(
+            "../../../../docs/rust-rewrite/f15/cases.json"
+        ))
+        .unwrap();
+        let mut count = 0;
+        for case in fixture["cases"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|c| c["kind"] == "number")
+        {
+            let input = &case["input"];
+            let raw = if let Some(text) = input["text"].as_str() {
+                text.to_owned()
+            } else if let Some(zeros) = input["zeros"].as_u64() {
+                format!("0.{}1e+{zeros}", "0".repeat(zeros as usize))
+            } else {
+                format!(
+                    "0.{}",
+                    input["repeat"]
+                        .as_str()
+                        .unwrap()
+                        .repeat(input["count"].as_u64().unwrap() as usize)
+                )
+            };
+            if let Some(expected) = case["input_sha256"].as_str() {
+                assert_eq!(
+                    Sha256::digest(raw.as_bytes())
+                        .iter()
+                        .map(|b| format!("{b:02x}"))
+                        .collect::<String>(),
+                    expected
+                );
+            }
+            let expected = case["output"]["bits"].as_str().unwrap();
+            let number = ssx_json::parse_json_f64(&raw).unwrap();
+            assert_eq!(
+                format!("{:016x}", number.to_bits()),
+                expected,
+                "{} primitive",
+                case["id"]
+            );
+            let source = from_slice(raw.as_bytes(), None).await.unwrap();
+            assert_eq!(
+                format!("{:016x}", source.as_f64().unwrap().to_bits()),
+                expected,
+                "{} SourceJSON",
+                case["id"]
+            );
+            if case["output"]["finite"].as_bool().unwrap() {
+                let value = ssx_json::Number::new(&raw).unwrap();
+                assert_eq!(
+                    format!("{:016x}", value.as_f64().unwrap().to_bits()),
+                    expected,
+                    "{} publicNumber",
+                    case["id"]
+                );
+            } else {
+                assert!(ssx_json::Number::new(&raw).is_err());
+                assert!(source.project().is_err());
+            }
+            count += 1;
+        }
+        assert_eq!(count, 14);
     }
 }

@@ -57,6 +57,12 @@ pub struct RerankDecision {
 /// F15 implements this optional stage. Absence executes the complete baseline
 /// ranking path; a classified fallback must never populate canonical cache.
 pub trait RerankStage: Send + Sync {
+    fn identity(&self) -> Option<(String, String)> {
+        None
+    }
+    fn shutdown(&self) -> PortFuture<'_, ()> {
+        Box::pin(async {})
+    }
     fn rerank<'a>(
         &'a self,
         request: &'a SearchRequest,
@@ -259,7 +265,14 @@ impl Drop for Waiter {
         }
     }
 }
+/// Trusted read-only runtime facts. Implementations must return an in-memory,
+/// secret-free snapshot; this seam never authorizes or dispatches engines.
+pub trait AdvisoryCatalog: Send + Sync {
+    fn snapshot(&self) -> ssx_application::scope::CatalogSnapshot;
+}
 struct Inner {
+    advisory_catalog: Option<Arc<dyn AdvisoryCatalog>>,
+    registry: Arc<ssx_registry::Registry>,
     config: SearchConfig,
     deps: SearchDependencies,
     callers: Arc<Semaphore>,
@@ -288,8 +301,173 @@ pub struct CapturedSearch {
     /// Optional persistence failure never discards the fresh complete evidence.
     pub snapshot: Result<ssx_domain::SnapshotId, ssx_application::snapshot::SnapshotFailure>,
 }
+/// Immutable read capture. Presentation bounds and admitted caller context remain
+/// private; obtaining a capture executes the original single authority/quota path.
+pub struct SearchReadCapture {
+    canonical: CanonicalResponse,
+    request: SearchRequest,
+    scope: ScopeDecision,
+    query_id: String,
+    elapsed_ms: i64,
+    cached: bool,
+    service: std::sync::Weak<Inner>,
+}
+pub struct SearchReadView {
+    pub response: SearchResponse,
+    /// Read-only notes are deliberately outside canonical cache/snapshot evidence.
+    pub advisories: Vec<ssx_json::Value>,
+}
+impl SearchReadCapture {
+    fn new(
+        service: &SearchService,
+        canonical: CanonicalResponse,
+        request: SearchRequest,
+        mut scope: ScopeDecision,
+        query_id: String,
+        start: Instant,
+        cached: bool,
+    ) -> Self {
+        if canonical.response().deadline_exceeded
+            && !scope
+                .warnings
+                .iter()
+                .any(|w| w.contains("Interactive deadline"))
+        {
+            scope.warnings.push(
+                "Interactive deadline reached; captured results or suggestions may be incomplete."
+                    .into(),
+            );
+        }
+        Self {
+            canonical,
+            request,
+            scope,
+            query_id,
+            elapsed_ms: i64::try_from(start.elapsed().as_millis()).unwrap_or(i64::MAX),
+            cached,
+            service: Arc::downgrade(&service.0),
+        }
+    }
+    pub fn full_result_count(&self) -> usize {
+        self.canonical.response().results.len()
+    }
+    fn personalize(&self, mut response: SearchResponse) -> SearchResponse {
+        response.query = self.request.query.clone();
+        response.query_id = self.query_id.clone();
+        response.scope = self.scope.clone();
+        response.response_time_ms = self.elapsed_ms;
+        response
+    }
+    pub fn present(&self) -> SearchResponse {
+        self.personalize(
+            self.canonical
+                .view(
+                    self.request.include.clone(),
+                    self.request.max_results.and_then(|v| i64::try_from(v).ok()),
+                    self.cached,
+                )
+                .to_response(),
+        )
+    }
+    fn full_personalized(&self) -> SearchResponse {
+        self.personalize(
+            self.canonical
+                .view(
+                    ["results", "suggestions", "engine_status", "diagnostics"]
+                        .into_iter()
+                        .map(str::to_owned)
+                        .collect(),
+                    None,
+                    self.cached,
+                )
+                .to_response(),
+        )
+    }
+    pub fn present_with_advisories(&self) -> Result<SearchReadView, SearchError> {
+        let inner = self.service.upgrade().ok_or(SearchError::Closed)?;
+        let service = SearchService(inner.clone());
+        let policy = service.current_policy(inner.deps.clock.capture().0)?;
+        let query = self.request.query.to_lowercase();
+        let topic = policy.resolver.topics.as_ref().and_then(|topics| {
+            topics
+                .iter()
+                .find(|t| !t.engines.is_empty() && t.keywords.iter().any(|k| query.contains(k)))
+        });
+        let automatic_names = topic.map_or_else(
+            || policy.resolver.tier1.clone(),
+            |t| t.engines.iter().cloned().collect(),
+        );
+        let catalog = inner
+            .advisory_catalog
+            .as_ref()
+            .map(|source| source.snapshot())
+            .unwrap_or_else(|| policy.catalog.clone());
+        let engines = catalog
+            .engines()
+            .iter()
+            .filter_map(|e| {
+                let descriptor = inner.registry.descriptor(&e.name)?;
+                Some(ssx_application::advisories::Engine {
+                    name: e.name.clone(),
+                    display_name: descriptor.display_name.clone(),
+                    enabled: e.enabled,
+                    credentials_required: descriptor.auth_class
+                        == ssx_registry::AuthClass::Required,
+                    credentials_configured: e.auth_ready,
+                    sensitive: descriptor.sensitive,
+                    categories: e.categories.clone(),
+                    media_types: e.media_types.clone(),
+                })
+            })
+            .collect();
+        let hidden = policy
+            .policy
+            .sensitive_engines
+            .union(&policy.resolver.sensitive)
+            .cloned()
+            .collect();
+        let context = ssx_application::advisories::Context {
+            engines,
+            hidden,
+            automatic_names,
+            routing_configured: inner.deps.jev.is_some(),
+            reranking_configured: inner.deps.reranker.is_some(),
+        };
+        Ok(SearchReadView {
+            response: self.present(),
+            advisories: ssx_application::advisories::search(
+                &self.request,
+                &self.scope,
+                &context,
+                self.full_result_count(),
+            ),
+        })
+    }
+}
 impl SearchService {
     pub fn new(config: SearchConfig, deps: SearchDependencies) -> Result<Self, SearchError> {
+        let registry =
+            ssx_registry::Registry::builtins().map_err(|_| SearchError::InvalidConfiguration)?;
+        Self::new_with_registry(config, deps, Arc::new(registry))
+    }
+    /// Trusted composition only; this registry never comes from a search input.
+    pub fn new_with_registry(
+        config: SearchConfig,
+        deps: SearchDependencies,
+        registry: Arc<ssx_registry::Registry>,
+    ) -> Result<Self, SearchError> {
+        Self::new_with_read_catalog(config, deps, registry, None)
+    }
+    /// Constructor-only live advisory source. It cannot change policy authority.
+    pub fn new_with_read_catalog(
+        config: SearchConfig,
+        mut deps: SearchDependencies,
+        registry: Arc<ssx_registry::Registry>,
+        advisory_catalog: Option<Arc<dyn AdvisoryCatalog>>,
+    ) -> Result<Self, SearchError> {
+        if let Some(identity) = deps.reranker.as_ref().and_then(|stage| stage.identity()) {
+            deps.routing_identity.rerank_identity = Some(identity);
+        }
         if config.max_callers == 0
             || config.max_flights == 0
             || config.max_parallel_engines == 0
@@ -309,6 +487,8 @@ impl SearchService {
             return Err(SearchError::InvalidConfiguration);
         }
         Ok(Self(Arc::new(Inner {
+            advisory_catalog,
+            registry,
             callers: Arc::new(Semaphore::new(config.max_callers)),
             callers_done: Arc::new(Notify::new()),
             stop: watch::channel(false).0,
@@ -393,24 +573,21 @@ impl SearchService {
         authority: ValidatedScope,
         cancellation: SearchCancellation,
     ) -> Result<SearchResponse, SearchError> {
-        self.search_inner(None, Some(authority), cancellation).await
+        Ok(self
+            .capture_inner(None, Some(authority), cancellation)
+            .await?
+            .present())
     }
     pub async fn search_snapshot(
         &self,
-        mut proposal: ScopeProposal,
+        proposal: ScopeProposal,
         snapshots: &ssx_application::snapshot::SnapshotService,
         parents: &[ssx_domain::ArtifactRef],
     ) -> Result<CapturedSearch, SearchError> {
-        let include = proposal.request.include.clone();
-        let max = proposal.request.max_results;
-        proposal.request.include = ["results", "suggestions", "engine_status", "diagnostics"]
-            .into_iter()
-            .map(str::to_owned)
-            .collect();
-        proposal.request.max_results = None;
-        let full = self.search(proposal).await?;
-        let cached = full.cached;
-        let canonical = CanonicalResponse::new(full);
+        let capture = self
+            .capture_read(proposal, SearchCancellation::default())
+            .await?;
+        let canonical = CanonicalResponse::new(capture.full_personalized());
         let snapshot = if let Ok(permit) = self.0.callers.clone().try_acquire_owned() {
             let _caller = CallerGuard {
                 permit: Some(permit),
@@ -425,9 +602,7 @@ impl SearchService {
         } else {
             Err(ssx_application::snapshot::SnapshotFailure::CompletionUnknown)
         };
-        let response = canonical
-            .view(include, max.and_then(|v| i64::try_from(v).ok()), cached)
-            .to_response();
+        let response = capture.present();
         Ok(CapturedSearch {
             canonical,
             response,
@@ -445,14 +620,29 @@ impl SearchService {
         proposal: ScopeProposal,
         cancellation: SearchCancellation,
     ) -> Result<SearchResponse, SearchError> {
-        self.search_inner(Some(proposal), None, cancellation).await
+        Ok(self.capture_read(proposal, cancellation).await?.present())
     }
-    async fn search_inner(
+    pub async fn capture_read(
+        &self,
+        proposal: ScopeProposal,
+        cancellation: SearchCancellation,
+    ) -> Result<SearchReadCapture, SearchError> {
+        self.capture_inner(Some(proposal), None, cancellation).await
+    }
+    pub async fn capture_prepared(
+        &self,
+        authority: ValidatedScope,
+        cancellation: SearchCancellation,
+    ) -> Result<SearchReadCapture, SearchError> {
+        self.capture_inner(None, Some(authority), cancellation)
+            .await
+    }
+    async fn capture_inner(
         &self,
         proposal: Option<ScopeProposal>,
         prepared: Option<ValidatedScope>,
         cancellation: SearchCancellation,
-    ) -> Result<SearchResponse, SearchError> {
+    ) -> Result<SearchReadCapture, SearchError> {
         let start = Instant::now();
         if *cancellation.0.borrow() {
             return Err(SearchError::Cancelled);
@@ -551,9 +741,10 @@ impl SearchService {
                     include: request.include.clone(),
                     max_results: request.max_results.and_then(|v| i64::try_from(v).ok()),
                 };
-                let mut response = entry.view(context).to_response();
-                personalize(&mut response, &request, scope, query_id, start);
-                return Ok(response);
+                let canonical = entry.view(context).canonical().clone();
+                return Ok(SearchReadCapture::new(
+                    self, canonical, request, scope, query_id, start, true,
+                ));
             }
         }
         let identities: Vec<_> = scope
@@ -665,17 +856,11 @@ impl SearchService {
                 result = rx.changed() => { result.map_err(|_| SearchError::Cancelled)?; }
             }
         };
-        let mut response = canonical
-            .view(
-                request.include.clone(),
-                request.max_results.and_then(|v| i64::try_from(v).ok()),
-                false,
-            )
-            .to_response();
-        personalize(&mut response, &request, scope, query_id, start);
+        let capture =
+            SearchReadCapture::new(self, canonical, request, scope, query_id, start, false);
         self.0.deps.audit.record("search_query");
         drop(waiter);
-        Ok(response)
+        Ok(capture)
     }
     /// Cancels all owned flights and joins their engine/suggestion descendants.
     /// Concurrent/repeated shutdown is safe; transport owners close after joins.
@@ -707,6 +892,9 @@ impl SearchService {
         }
         if let Some(j) = &self.0.deps.jev {
             j.shutdown().await;
+        }
+        if let Some(stage) = &self.0.deps.reranker {
+            stage.shutdown().await;
         }
         for http in &self.0.deps.owned_http {
             http.shutdown_and_wait().await;
@@ -827,29 +1015,6 @@ fn cache_key(
         request.generate_suggestions,
     )
 }
-fn personalize(
-    response: &mut SearchResponse,
-    request: &SearchRequest,
-    mut scope: ScopeDecision,
-    query_id: String,
-    start: Instant,
-) {
-    response.query = request.query.clone();
-    response.query_id = query_id;
-    if response.deadline_exceeded
-        && !scope
-            .warnings
-            .iter()
-            .any(|w| w.contains("Interactive deadline"))
-    {
-        scope.warnings.push(
-            "Interactive deadline reached; captured results or suggestions may be incomplete."
-                .into(),
-        );
-    }
-    response.scope = scope;
-    response.response_time_ms = i64::try_from(start.elapsed().as_millis()).unwrap_or(i64::MAX);
-}
 async fn cancelled(rx: &mut watch::Receiver<bool>) {
     loop {
         if *rx.borrow_and_update() {
@@ -869,6 +1034,17 @@ fn synthetic(status: EngineStatus, message: &str) -> AdapterResponse {
     }
 }
 struct Finished(usize, AdapterResponse);
+fn rerank_scope_and_results_public(
+    names: &[String],
+    results: &[ssx_domain::SearchResult],
+    sensitive: &std::collections::BTreeSet<String>,
+) -> bool {
+    !names.iter().any(|n| sensitive.contains(n))
+        && !results.iter().any(|r| {
+            sensitive.contains(&r.engine) || r.engines.iter().any(|n| sensitive.contains(n))
+        })
+}
+
 async fn execute(
     inner: &Arc<Inner>,
     mut request: SearchRequest,
@@ -1179,10 +1355,7 @@ async fn execute(
     let sensitive = &inner.deps.policy.policy.sensitive_engines;
     if let Some(reranker) = &inner.deps.reranker {
         if response.results.len() > 1
-            && !names.iter().any(|n| sensitive.contains(n))
-            && !response.results.iter().any(|r| {
-                sensitive.contains(&r.engine) || r.engines.iter().any(|n| sensitive.contains(n))
-            })
+            && rerank_scope_and_results_public(&names, &response.results, sensitive)
         {
             let rerank_deadline = if interactive {
                 deadline.min(Instant::now() + Duration::from_secs(1))
@@ -1434,5 +1607,44 @@ mod tests {
         assert!(response.response().deadline_exceeded);
         assert_eq!(admission, CacheAdmission::DeadlineTruncated);
         service.shutdown().await;
+    }
+}
+
+#[cfg(test)]
+mod f15_sensitive_tests {
+    use super::*;
+    #[test]
+    fn sensitive_post_rank_engine_and_provenance_are_excluded() {
+        let sensitive =
+            std::collections::BTreeSet::from(["hibp".to_owned(), "dehashed".to_owned()]);
+        let selected = vec!["brave".to_owned()];
+        let public = ssx_domain::SearchResult {
+            engine: "brave".into(),
+            ..Default::default()
+        };
+        assert!(rerank_scope_and_results_public(
+            &selected,
+            std::slice::from_ref(&public),
+            &sensitive
+        ));
+        assert!(!rerank_scope_and_results_public(
+            &["hibp".into()],
+            std::slice::from_ref(&public),
+            &sensitive
+        ));
+        let mut row = public.clone();
+        row.engine = "hibp".into();
+        assert!(!rerank_scope_and_results_public(
+            &selected,
+            &[row],
+            &sensitive
+        ));
+        let mut row = public;
+        row.engines.insert("dehashed".into());
+        assert!(!rerank_scope_and_results_public(
+            &selected,
+            &[row],
+            &sensitive
+        ));
     }
 }

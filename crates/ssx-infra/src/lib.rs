@@ -112,3 +112,5 @@ mod tests {
 }
 
 pub mod browser_identity;
+
+pub mod rerank;
