@@ -2492,8 +2492,10 @@ dependencies = [
  "serde_json",
  "sha2",
  "ssx-application",
+ "ssx-config",
  "ssx-domain",
  "ssx-json",
+ "ssx-owned-budget",
  "ssx-registry",
  "time",
  "tokio",
@@ -2537,6 +2539,10 @@ dependencies = [
  "url",
  "uuid",
 ]
+
+[[package]]
+name = "ssx-owned-budget"
+version = "0.1.0"
 
 [[package]]
 name = "ssx-publication"

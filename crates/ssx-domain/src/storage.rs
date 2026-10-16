@@ -1003,6 +1003,92 @@ fn python_text_tables() -> &'static PythonTextTables {
         .expect("reviewed Python Unicode16 text tables")
     })
 }
+/// One accepted Unicode16 Python repr character, held entirely on the stack.
+/// Cold immutable Unicode-table initialization remains shared-process overhead.
+#[derive(Clone, Copy)]
+pub enum PythonReprQuote {
+    Single,
+    Double,
+}
+pub struct PythonReprCharacter {
+    bytes: [u8; 10],
+    length: usize,
+}
+impl PythonReprCharacter {
+    pub fn as_str(&self) -> &str {
+        std::str::from_utf8(&self.bytes[..self.length]).expect("repr character is UTF8/ASCII")
+    }
+}
+/// Escape one scalar under the caller's chosen single/double quote. This is the
+/// same scalar rule used by the legacy Python formatter; no new Unicode table.
+pub fn python_repr_character(ch: char, quote: PythonReprQuote) -> PythonReprCharacter {
+    let quote = match quote {
+        PythonReprQuote::Single => '\'',
+        PythonReprQuote::Double => '"',
+    };
+    let mut bytes = [0; 10];
+    let length;
+    match ch {
+        '\\' => {
+            bytes[..2].copy_from_slice(b"\\\\");
+            length = 2;
+        }
+        '\n' => {
+            bytes[..2].copy_from_slice(b"\\n");
+            length = 2;
+        }
+        '\r' => {
+            bytes[..2].copy_from_slice(b"\\r");
+            length = 2;
+        }
+        '\t' => {
+            bytes[..2].copy_from_slice(b"\\t");
+            length = 2;
+        }
+        ch if ch == quote => {
+            bytes[0] = b'\\';
+            bytes[1] = ch as u8;
+            length = 2;
+        }
+        ch => {
+            let code = ch as u32;
+            let nonprintable = python_text_tables()
+                .nonprintable_ranges
+                .binary_search_by(|&(start, end)| {
+                    if code < start {
+                        std::cmp::Ordering::Greater
+                    } else if code > end {
+                        std::cmp::Ordering::Less
+                    } else {
+                        std::cmp::Ordering::Equal
+                    }
+                })
+                .is_ok();
+            if nonprintable {
+                let (width, prefix) = if code <= 255 {
+                    (2, b'x')
+                } else if code <= 65535 {
+                    (4, b'u')
+                } else {
+                    (8, b'U')
+                };
+                bytes[0] = b'\\';
+                bytes[1] = prefix;
+                const HEX: &[u8; 16] = b"0123456789abcdef";
+                for i in 0..width {
+                    bytes[2 + i] = HEX[((code >> ((width - i - 1) * 4)) & 15) as usize];
+                }
+                length = width + 2;
+            } else {
+                let mut encoded = [0; 4];
+                let text = ch.encode_utf8(&mut encoded);
+                bytes[..text.len()].copy_from_slice(text.as_bytes());
+                length = text.len();
+            }
+        }
+    }
+    PythonReprCharacter { bytes, length }
+}
 fn python_string_repr(text: &str) -> String {
     let quote = if text.contains('\'') && !text.contains('"') {
         '"'
@@ -1012,42 +1098,17 @@ fn python_string_repr(text: &str) -> String {
     let mut out = String::new();
     out.push(quote);
     for ch in text.chars() {
-        match ch {
-            '\\' => out.push_str("\\\\"),
-            '\n' => out.push_str("\\n"),
-            '\r' => out.push_str("\\r"),
-            '\t' => out.push_str("\\t"),
-            ch if ch == quote => {
-                out.push('\\');
-                out.push(ch);
-            }
-            ch => {
-                let code = ch as u32;
-                let nonprintable = python_text_tables()
-                    .nonprintable_ranges
-                    .binary_search_by(|&(start, end)| {
-                        if code < start {
-                            std::cmp::Ordering::Greater
-                        } else if code > end {
-                            std::cmp::Ordering::Less
-                        } else {
-                            std::cmp::Ordering::Equal
-                        }
-                    })
-                    .is_ok();
-                if nonprintable {
-                    if code <= 255 {
-                        out.push_str(&format!("\\x{code:02x}"));
-                    } else if code <= 65535 {
-                        out.push_str(&format!("\\u{code:04x}"));
-                    } else {
-                        out.push_str(&format!("\\U{code:08x}"));
-                    }
+        out.push_str(
+            python_repr_character(
+                ch,
+                if quote == '"' {
+                    PythonReprQuote::Double
                 } else {
-                    out.push(ch);
-                }
-            }
-        }
+                    PythonReprQuote::Single
+                },
+            )
+            .as_str(),
+        );
     }
     out.push(quote);
     out

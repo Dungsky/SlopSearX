@@ -17,7 +17,9 @@ fn in_ranges(c: char, key: &str) -> bool {
                 && c as u64 <= r[1].as_u64().expect("range end")
         })
 }
-pub(crate) fn digit(c: char) -> bool {
+/// Character predicate used by Python str.isdigit: decimal digits and Unicode16 digit-extra characters.
+/// Whole-string callers must additionally reject the empty string.
+pub fn digit(c: char) -> bool {
     ssx_json::decimal_digit(c) || in_ranges(c, "digit_extra_ranges")
 }
 pub(crate) fn word(c: char) -> bool {
