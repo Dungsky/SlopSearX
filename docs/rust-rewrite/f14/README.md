@@ -2,6 +2,8 @@
 
 Baseline: `730c37a5f48b9830088594582cefb4c2f10a35e8`. F10–F13 are accepted prerequisites. This lane implements native runtime composition in `ssx-infra`; application policy, ranking, health, cache and snapshot contracts remain their accepted owners' APIs. F15 owns semantic reranking/advisories; O01 owns production metric/audit exporters; T02/T06 own public transport composition. No providers, production state, deployment or performance claim is authorized.
 
+The complete frozen source packet passed independent full review after correction of three demonstrated defects. Signed-off checkpoint `2c7cdf44ada9b4d42c4d69d9279bf12f001957af` was merged normally with freshly fetched upstream `544c830724a322d05521dac7f902dbe93142c4a1` at `04117109063e915188f720955b1992d86326b746`. All 35 reviewed files survived that merge byte-exact. Only the eight independently reviewed PR874 current-source F01 anchors are refreshed; historical source/corpus bindings remain intact. Current-source qualification and parent acceptance remain separate from source-review approval; no F14 milestone acceptance or publication is claimed here.
+
 The independently recaptured historical corpus contains 56 cases and 24 source bindings; its first 48 cases remain byte-identical to the availability freeze (and its initial 46 cases retain the original freeze). A separate 22-case, 11-binding corpus captures PR874 at `d207d4496129d496fe8a74b040ebe1a71151b6f9`. Only query IDs and elapsed response time are normalized. Native tests consume immutable JSON; Python is developer-only reference capture and retires under G08.
 
 Required claims and independent evidence:

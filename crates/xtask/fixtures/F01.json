@@ -556,7 +556,7 @@
     },
     {
       "path": "slopsearx/formatter.py",
-      "git_blob": "a703e3fbeaaff5e85230caff9b23d994fcaed250"
+      "git_blob": "8fa2bb950dc341adace7b9524b5755e98a4da406"
     },
     {
       "path": "slopsearx/jev.py",
@@ -652,7 +652,7 @@
     },
     {
       "path": "slopsearx/mcp/tools.py",
-      "git_blob": "061593ce45d3e2440e818703af6b50d6e6d99cf1"
+      "git_blob": "d06ecd475b9b523addf79781d2762eddd92f4911"
     },
     {
       "path": "slopsearx/merger.py",
@@ -760,11 +760,11 @@
     },
     {
       "path": "slopsearx/server.py",
-      "git_blob": "f60c03fe48ce837f3b2ad65c58d0336ad3b72983"
+      "git_blob": "412ad973735f0199be9a32da4763437f55a584bb"
     },
     {
       "path": "slopsearx/service.py",
-      "git_blob": "8b45ce71efc3c7cc4a72b962968e146a63e135be"
+      "git_blob": "82eb29d50c4ca98a237949d4d8994cfe3cbeca9f"
     },
     {
       "path": "slopsearx/snapshot.py",
@@ -1152,7 +1152,7 @@
     },
     {
       "path": "tests/test_filter_semantics.py",
-      "git_blob": "7c724c4d3367eb505f4e0f3b4ea01bc046bebccc"
+      "git_blob": "6475f5fff325f8476976d664dbb798f42296bafa"
     },
     {
       "path": "tests/test_formatter.py",
@@ -1224,7 +1224,7 @@
     },
     {
       "path": "tests/test_mcp_enforcement.py",
-      "git_blob": "e422d794e7db1bf0f29ab58edff6c89aa87fe533"
+      "git_blob": "aa2a9be0b47e3e36d106c5af69610dec87f048d2"
     },
     {
       "path": "tests/test_mcp_gateway.py",
@@ -1268,7 +1268,7 @@
     },
     {
       "path": "tests/test_mcp_tools.py",
-      "git_blob": "90495a0038f43ca1140140576f28eec1015b1183"
+      "git_blob": "9804b31ace1575fc1253dd82549d4f3a17bcebda"
     },
     {
       "path": "tests/test_media_contract.py",
@@ -1480,7 +1480,7 @@
     },
     {
       "path": "tests/test_server.py",
-      "git_blob": "128af281562581b96d26111f3e2bfa81501c69d1"
+      "git_blob": "ec95d1c7d79e3cbdee3eac7251cd8a23914912fe"
     },
     {
       "path": "tests/test_service.py",

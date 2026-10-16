@@ -2,7 +2,7 @@
   "plan_id": "F14",
   "issue": 893,
   "baseline": "730c37a5f48b9830088594582cefb4c2f10a35e8",
-  "status": "implemented_pending_independent_full_source_review_and_exact_head_ci",
+  "status": "source_review_approved_current_main_qualification_and_parent_acceptance_pending",
   "source_capture": {
     "sha256": "f3adbefd92e5bc057c1df421a93be3fe3097012af9f56fa4790b1f741b8d7310",
     "exporter_sha256": "8b41723cfe47b1488fe24cd09948911105f521c8a78809c1b62dd913ef3ea3cd",
@@ -99,5 +99,55 @@
     ],
     "source_wire_cases_added": 8,
     "date_corpus_unchanged": true
+  },
+  "current_main_integration": {
+    "checkpoint": "2c7cdf44ada9b4d42c4d69d9279bf12f001957af",
+    "upstream": "544c830724a322d05521dac7f902dbe93142c4a1",
+    "merge": "04117109063e915188f720955b1992d86326b746",
+    "reviewed_files_preserved_at_merge": 35,
+    "F01_anchor_updates": [
+      {
+        "path": "slopsearx/formatter.py",
+        "old": "a703e3fbeaaff5e85230caff9b23d994fcaed250",
+        "new": "8fa2bb950dc341adace7b9524b5755e98a4da406"
+      },
+      {
+        "path": "slopsearx/mcp/tools.py",
+        "old": "061593ce45d3e2440e818703af6b50d6e6d99cf1",
+        "new": "d06ecd475b9b523addf79781d2762eddd92f4911"
+      },
+      {
+        "path": "slopsearx/server.py",
+        "old": "f60c03fe48ce837f3b2ad65c58d0336ad3b72983",
+        "new": "412ad973735f0199be9a32da4763437f55a584bb"
+      },
+      {
+        "path": "slopsearx/service.py",
+        "old": "8b45ce71efc3c7cc4a72b962968e146a63e135be",
+        "new": "82eb29d50c4ca98a237949d4d8994cfe3cbeca9f"
+      },
+      {
+        "path": "tests/test_filter_semantics.py",
+        "old": "7c724c4d3367eb505f4e0f3b4ea01bc046bebccc",
+        "new": "6475f5fff325f8476976d664dbb798f42296bafa"
+      },
+      {
+        "path": "tests/test_mcp_enforcement.py",
+        "old": "e422d794e7db1bf0f29ab58edff6c89aa87fe533",
+        "new": "aa2a9be0b47e3e36d106c5af69610dec87f048d2"
+      },
+      {
+        "path": "tests/test_mcp_tools.py",
+        "old": "90495a0038f43ca1140140576f28eec1015b1183",
+        "new": "9804b31ace1575fc1253dd82549d4f3a17bcebda"
+      },
+      {
+        "path": "tests/test_server.py",
+        "old": "128af281562581b96d26111f3e2bfa81501c69d1",
+        "new": "ec95d1c7d79e3cbdee3eac7251cd8a23914912fe"
+      }
+    ],
+    "historical_corpora_unchanged": true,
+    "acceptance": "pending parent acceptance and exact-head CI"
   }
 }
