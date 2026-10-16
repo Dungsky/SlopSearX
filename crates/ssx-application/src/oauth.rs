@@ -2,6 +2,8 @@
 use crate::PortFuture;
 use ssx_domain::oauth::*;
 pub trait OAuthState: Send + Sync {
+    /// Milliseconds from the durable authority clock; failure is never a local-clock fallback.
+    fn now_ms(&self) -> PortFuture<'_, Result<u64, OAuthError>>;
     fn register_client(&self, client: ClientRegistration)
     -> PortFuture<'_, Result<(), OAuthError>>;
     fn get_client<'a>(
