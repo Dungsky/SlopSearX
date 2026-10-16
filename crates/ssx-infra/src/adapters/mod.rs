@@ -603,3 +603,103 @@ pub(crate) fn html_extract_rows(
 // Shared selector single-owned by A06; consumed inside existing helpers.
 pub mod http_charset;
 pub mod http_headers;
+// A07 native biomedical implementations; selection remains resolved policy.
+pub mod clinicaltrials;
+pub mod europepmc;
+pub mod pubchem;
+pub mod pubmed;
+pub mod uniprot;
+// Accepted budgeted payload component, consumed by the A07 runtime candidate.
+pub mod source_payload;
+
+pub mod source_repr;
+
+/// Source-compatible settings for the five biomedical factories. Availability
+/// does not grant selection: callers retain the resolved enabled policy.
+#[derive(Clone, Debug)]
+pub struct BiomedicalSettings {
+    pub clinicaltrials: clinicaltrials::BiomedicalConfig,
+    pub europepmc: clinicaltrials::BiomedicalConfig,
+    pub pubmed: clinicaltrials::BiomedicalConfig,
+    pub pubchem: clinicaltrials::BiomedicalConfig,
+    pub uniprot: clinicaltrials::BiomedicalConfig,
+}
+impl BiomedicalSettings {
+    /// Apply the source service's base-url normalization before adapter defaults.
+    /// Other scalars retain F06's exact resolved variants.
+    pub fn from_resolved(config: &ssx_config::Config) -> Self {
+        fn resolve(
+            config: &ssx_config::Config,
+            name: &str,
+            endpoint: &str,
+        ) -> clinicaltrials::BiomedicalConfig {
+            let Some(entry) = config.engines.get(name) else {
+                return clinicaltrials::BiomedicalConfig::defaults(endpoint);
+            };
+            let mut settings = clinicaltrials::BiomedicalConfig::from_resolved(entry);
+            if settings.base_url.chars().all(ssx_json::python_whitespace) {
+                settings.base_url = endpoint.into();
+            }
+            settings
+        }
+        Self {
+            clinicaltrials: resolve(
+                config,
+                "clinicaltrials",
+                "https://clinicaltrials.gov/api/v2/studies",
+            ),
+            europepmc: resolve(
+                config,
+                "europepmc",
+                "https://www.ebi.ac.uk/europepmc/webservices/rest",
+            ),
+            pubmed: resolve(
+                config,
+                "pubmed",
+                "https://eutils.ncbi.nlm.nih.gov/entrez/eutils",
+            ),
+            pubchem: resolve(
+                config,
+                "pubchem",
+                "https://pubchem.ncbi.nlm.nih.gov/rest/pug",
+            ),
+            uniprot: resolve(
+                config,
+                "uniprot",
+                "https://rest.uniprot.org/uniprotkb/search",
+            ),
+        }
+    }
+}
+/// Attach actual factories without changing historical F06 catalog declarations
+/// or the caller's enabled/active policy. Shared handles belong to the caller.
+pub fn register_biomedical(
+    registry: &mut Registry,
+    http: Arc<AdapterHttp>,
+    admission: Arc<dyn SearchAdmission>,
+    config: BiomedicalSettings,
+) -> Result<(), RegistryError> {
+    macro_rules! attach {
+        ($module:ident, $adapter:ident) => {{
+            let http = http.clone();
+            let admission = admission.clone();
+            let settings = config.$module;
+            registry.register(
+                stringify!($module),
+                Arc::new(move || {
+                    Box::new($module::$adapter::new(
+                        http.clone(),
+                        admission.clone(),
+                        settings.clone(),
+                    )) as Box<dyn ssx_registry::Engine>
+                }) as EngineFactory,
+            )?;
+        }};
+    }
+    attach!(clinicaltrials, ClinicalTrialsAdapter);
+    attach!(europepmc, EuropePMCAdapter);
+    attach!(pubmed, PubMedAdapter);
+    attach!(pubchem, PubChemAdapter);
+    attach!(uniprot, UniProtAdapter);
+    Ok(())
+}

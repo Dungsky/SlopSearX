@@ -59,6 +59,50 @@ pub struct Response {
     pub headers: HeaderMap,
     pub body: Vec<u8>,
 }
+/// HTTPX joins repeated field values; an additional encoding prevents the
+/// identity-only early size guard. Integer parsing follows the source's Python
+/// text rules without overflowing a machine-sized counter.
+pub(crate) fn identity_announced_oversize(headers: &HeaderMap, limit: usize) -> bool {
+    let combined = |name| -> Option<String> {
+        headers
+            .get_all(name)
+            .iter()
+            .map(|v| v.to_str().ok().map(str::to_owned))
+            .collect::<Option<Vec<_>>>()
+            .map(|v| v.join(", "))
+    };
+    let Some(encoding) = combined(header::CONTENT_ENCODING) else {
+        return false;
+    };
+    if !matches!(
+        encoding.trim().to_ascii_lowercase().as_str(),
+        "" | "identity"
+    ) {
+        return false;
+    }
+    let Some(length) = combined(header::CONTENT_LENGTH) else {
+        return false;
+    };
+    let Ok(normalized) = ssx_domain::storage::normalize_python_number_text(&length) else {
+        return false;
+    };
+    let (negative, digits) = if let Some(digits) = normalized.strip_prefix('-') {
+        (true, digits)
+    } else {
+        (false, normalized.strip_prefix('+').unwrap_or(&normalized))
+    };
+    if digits.is_empty()
+        || digits.len() > 4300
+        || !digits.bytes().all(|b| b.is_ascii_digit())
+        || negative
+    {
+        return false;
+    }
+    let digits = digits.trim_start_matches('0');
+    let bound = limit.to_string();
+    digits.len() > bound.len() || (digits.len() == bound.len() && digits > bound.as_str())
+}
+
 /// New migration safety bounds; adapters can select explicit, finite values.
 #[derive(Clone, Debug)]
 pub struct Bounds {
@@ -90,6 +134,8 @@ pub struct Options {
     pub identity: Option<reqwest::Identity>,
     pub follow_redirects: bool,
     pub bounds: Bounds,
+    /// Optional decoded identity Content-Length ceiling, checked before body reads.
+    pub identity_announced_bytes: Option<usize>,
 }
 impl Default for Options {
     fn default() -> Self {
@@ -103,6 +149,7 @@ impl Default for Options {
             identity: None,
             follow_redirects: false,
             bounds: Bounds::default(),
+            identity_announced_bytes: None,
         }
     }
 }
@@ -605,6 +652,13 @@ impl Session {
         let status = response.status().as_u16();
         let url = response.url().clone();
         let headers = response.headers().clone();
+        if self
+            .options
+            .identity_announced_bytes
+            .is_some_and(|limit| identity_announced_oversize(&headers, limit))
+        {
+            return Err(Error::WireBodyLimit);
+        }
         let mut body = Vec::new();
         while let Some(chunk) = response.chunk().await.map_err(classify)? {
             if chunk.len() > self.options.bounds.wire_bytes.saturating_sub(body.len()) {
@@ -1054,5 +1108,75 @@ mod decode_tests {
             .unwrap_err(),
             Error::UnsupportedEncoding
         );
+    }
+}
+
+#[cfg(test)]
+mod f15_header_tests {
+    use super::*;
+    #[test]
+    fn actual_source_streamed_header_cases_replay_early_admission() {
+        let corpus: ssx_json::Value = ssx_json::from_slice(include_bytes!(
+            "../../../docs/rust-rewrite/f15/headers.json"
+        ))
+        .unwrap();
+        for case in corpus["cases"].as_array().unwrap() {
+            let mut headers = HeaderMap::new();
+            for pair in case["headers"].as_array().unwrap() {
+                let name =
+                    header::HeaderName::from_bytes(pair[0].as_str().unwrap().as_bytes()).unwrap();
+                headers.append(
+                    name,
+                    HeaderValue::from_str(pair[1].as_str().unwrap()).unwrap(),
+                );
+            }
+            assert_eq!(
+                identity_announced_oversize(&headers, 2_000_000),
+                case["body_reads"] == 0,
+                "{}",
+                case["name"]
+            );
+        }
+    }
+    #[test]
+    fn opt_in_identity_length_limit_preserves_encoding_and_python_integer_rules() {
+        assert_eq!(Options::default().identity_announced_bytes, None);
+        let mut h = HeaderMap::new();
+        for (text, expected) in [
+            ("2000000", false),
+            ("2000001", true),
+            ("+2_000_001", true),
+            ("-2000001", false),
+            ("invalid", false),
+            ("2000001x", false),
+            ("++2000001", false),
+            ("2000001, 2000001", false),
+            ("999999999999999999999999999999", true),
+        ] {
+            h.insert(header::CONTENT_LENGTH, HeaderValue::from_str(text).unwrap());
+            assert_eq!(
+                identity_announced_oversize(&h, 2_000_000),
+                expected,
+                "{text}"
+            );
+        }
+        h.insert(header::CONTENT_LENGTH, HeaderValue::from_static("2000001"));
+        for (zeros, expected) in [(4293, true), (4294, false)] {
+            h.insert(
+                header::CONTENT_LENGTH,
+                HeaderValue::from_str(&format!("{}2000001", "0".repeat(zeros))).unwrap(),
+            );
+            assert_eq!(identity_announced_oversize(&h, 2_000_000), expected);
+        }
+        h.insert(header::CONTENT_LENGTH, HeaderValue::from_static("2000001"));
+        h.insert(
+            header::CONTENT_ENCODING,
+            HeaderValue::from_static("identity"),
+        );
+        assert!(identity_announced_oversize(&h, 2_000_000));
+        h.append(header::CONTENT_ENCODING, HeaderValue::from_static("gzip"));
+        assert!(!identity_announced_oversize(&h, 2_000_000));
+        h.insert(header::CONTENT_ENCODING, HeaderValue::from_static("gzip"));
+        assert!(!identity_announced_oversize(&h, 2_000_000));
     }
 }

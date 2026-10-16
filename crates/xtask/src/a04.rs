@@ -397,6 +397,7 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
         "source_json_byte_numeric_and_unicode_contracts_replay_every_record",
         "reddit_subreddit_missing_empty_and_path_special_inputs_match_source_urls",
         "all_three_classify_http_errors_bad_json_and_timeout",
+        "timeout_replay_aligns_accumulated_virtual_offset_before_native_request",
         "dropped_search_cancels_outstanding_loopback_request_for_each_adapter",
         "empty_and_wrong_shape_responses_keep_engine_specific_outcomes",
         "missing_brave_credentials_fail_before_dispatch_and_reddit_401_is_unavailable",
@@ -423,8 +424,8 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
     ensure(
         output
             .lines()
-            .any(|l| l.starts_with("test result:") && l.contains("22 passed; 0 failed; 0 ignored")),
-        "A04 replay must execute exactly twenty-two non-ignored passing tests",
+            .any(|l| l.starts_with("test result:") && l.contains("23 passed; 0 failed; 0 ignored")),
+        "A04 replay must execute exactly twenty-three non-ignored passing tests",
     )?;
 
     for path in [

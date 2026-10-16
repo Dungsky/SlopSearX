@@ -63,8 +63,16 @@
       "git_blob": "811e84daeccaab116e41a82114e9de74f57223ea"
     },
     {
+      "path": "docs/rust-rewrite/f15/capture.py",
+      "git_blob": "b4d7cef44afd26f36ed51950d0f2834e7f203620"
+    },
+    {
+      "path": "docs/rust-rewrite/f15/capture_headers.py",
+      "git_blob": "b0c1477609ff3b67f50af8c7465c4d56b572a8b5"
+    },
+    {
       "path": "docs/rust-rewrite/inventory/DRIFT.md",
-      "git_blob": "60a56df98c8e64af12c45191d350e1b45c1d630a"
+      "git_blob": "d8bfb595d4ea9c481e1326abfccd60e26f37243b"
     },
     {
       "path": "docs/rust-rewrite/inventory/README.md",
@@ -88,11 +96,11 @@
     },
     {
       "path": "docs/rust-rewrite/inventory/python-disposition.json",
-      "git_blob": "9f2f18c78712d217e65f128b9305bbd6569a1186"
+      "git_blob": "9b0ca1e80a279cb3b03e068bcf8c2ff88a26ec81"
     },
     {
       "path": "docs/rust-rewrite/inventory/python-invocations.json",
-      "git_blob": "f5f29ceed98fc6d88daadbe7d29e3f4ee5e82dd8"
+      "git_blob": "0915a9e1884c75b63ee5b7497f8129b4f2c49c5b"
     },
     {
       "path": "docs/rust-rewrite/inventory/surface-contracts.md",
@@ -137,6 +145,10 @@
     {
       "path": "docs/rust-rewrite/w01/oracle/identity.py",
       "git_blob": "7f5566691b6995cfd15047da95e30940a4639106"
+    },
+    {
+      "path": "docs/rust-rewrite/w11/oracle/export.py",
+      "git_blob": "3e6edaa6fd4a32043b84d8eacb5829256b846309"
     },
     {
       "path": "engines/__init__.py",
@@ -1585,6 +1597,54 @@
     {
       "path": "tests/test_workflow_recent_indexes.py",
       "git_blob": "0cd352d9c80cd52ca6aa41d929654dea714b4221"
+    },
+    {
+      "path": "docs/rust-rewrite/a07/oracle/export_complete.py",
+      "git_blob": "82af5455c30970e21ade3cbfe8ac4f76fe5c760d"
+    },
+    {
+      "path": "docs/rust-rewrite/a07/oracle/export_date_grammar.py",
+      "git_blob": "36222538c1bfa78f4ba6288f78aec8162a755017"
+    },
+    {
+      "path": "docs/rust-rewrite/a07/oracle/export_digits.py",
+      "git_blob": "2147484a581185092654da88c3431e9049e9cc6d"
+    },
+    {
+      "path": "docs/rust-rewrite/a07/oracle/export_empty_iterables.py",
+      "git_blob": "6d80133046170c0acdf7624b94818a73eb39cf06"
+    },
+    {
+      "path": "docs/rust-rewrite/a07/oracle/export_gene_shapes.py",
+      "git_blob": "18e99d89755c8c87558eed4978527f36f794b5b1"
+    },
+    {
+      "path": "docs/rust-rewrite/a07/oracle/export_numeric.py",
+      "git_blob": "8e1accc47a5854bbf1373c9e2f5979bb84ae2670"
+    },
+    {
+      "path": "docs/rust-rewrite/a07/oracle/export_sequences.py",
+      "git_blob": "4b17a7fc9399e3e65fe4e69f48d76c0576690bb8"
+    },
+    {
+      "path": "docs/rust-rewrite/a07/oracle/export_source.py",
+      "git_blob": "d851d5e89c021f55dd2079d4ded70dc6b9cfdf00"
+    },
+    {
+      "path": "docs/rust-rewrite/a07/oracle/export_supplement.py",
+      "git_blob": "89f88ec581e6f2fe19467bd1887370752604a7be"
+    },
+    {
+      "path": "docs/rust-rewrite/a07/oracle/export_timeout_loopback.py",
+      "git_blob": "7e5001730daee31ff2eaf8d357875239822385d4"
+    },
+    {
+      "path": "docs/rust-rewrite/a07/oracle/export_source_repr.py",
+      "git_blob": "ff22289ff7205ff24060b32fb2702a68de221fd8"
+    },
+    {
+      "path": "docs/rust-rewrite/a07/oracle/export_payload_adapter_controls.py",
+      "git_blob": "3c99e877c4858b8c3d4e8db9b6bdc7b9b2b4fa37"
     }
   ]
 }

@@ -42,6 +42,9 @@ const TESTS: &[&str] = &[
     "actual_last_waiter_and_shutdown_close_owned_loopback_sockets",
     "coalesced_deadline_warns_each_waiter_once",
     "logical_generation_and_scope_order_bound_cache_identity",
+    "context_deadlines_preserve_service_binding_and_adapter_health_origins",
+    "context_default_dispatches_legacy_once_and_queue_consumes_service_bound",
+    "context_full_service_deadline_retains_synthetic_timeout_health",
 ];
 fn digest(bytes: &[u8]) -> String {
     Sha256::digest(bytes)

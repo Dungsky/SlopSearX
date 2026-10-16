@@ -590,3 +590,37 @@ pin is refreshed. Accepted-main F01 document pins remain unchanged and are
 expected red after this documentary union until exact parent-reviewed refresh.
 All accepted main workflow/module/gate entries are retained; A05 adds its scoped
 step and artifact without claiming package, provider, resource or CI acceptance.
+## W11 staged-store source oracle
+
+At baseline `1e9dd82d62456fe6f511cc5ade88bae619fac027`, add the isolated developer oracle `docs/rust-rewrite/w11/oracle/export.py` and its documented invocation. It executes source AST functions and staged-store read/retry controls against private disposable Valkey only. Mandatory W11 checks consume immutable JSON and execute native Rust. G08 retires this executable Python before backend removal; the original source snapshot remains non-executable historical evidence. Existing inventory entries and runtime boundaries are unchanged.
+
+## F15 bounded reranking and advisory source oracles
+
+The F15 source-bound gate adds exactly two temporary developer-only Python exporters, `f15/capture.py` and `f15/capture_headers.py`, with two corresponding invocation rows. The complete384 source records and25 invocation rows at accepted A04 main remain unchanged, including both W01 calls; the additive union is386/27. The independently recaptured150-case corpus preserves its original124 cases, and the separate12-case streamed-header corpus records actual body-read counts. Source baseline `4dfc0f5691b6a5a1c039a2837372b1977422ec27` and all13 historical blobs are immutable. No provider calls or native Python runtime dependency are introduced. G08 retires executable capture tools while retaining immutable observations. F15 package review and maintainer acceptance remain pending.
+
+## W11 integration with accepted F15
+
+The additive union preserves both original inventories and all historical source pins:387 Python source paths,264 backend-coupled tooling/test paths and28 developer oracle invocations. Both W11 and F15 native gates and retained artifacts remain enabled. This records integration preparation; merged-head validation remains required.
+
+
+## A07 temporary source evidence inventory
+
+A07 biomedical candidate adds12 exact-hash temporary offline source producers,396 projected Python source paths and37 developer-oracle invocation rows against this baseline. All existing records/historical captures unchanged; native A07 gate consumes nonexecutable JSON only and never requires or executes producers. G08 owns executable retirement before backend removal. This is additive inventory, not native runtime Python permission. Projected counts describe this candidate only; recompute after normal accepted-main integration before final acceptance. No complete existing record was replaced.
+
+
+## A07 normal accepted-main integration
+
+The DCO A07 checkpoint is normally merged with accepted main1bad48b (F15/W11/W02). All complete parent and A07 inventory records are retained:399 tracked Python source paths and40 temporary developer-oracle invocation rows. Existing source observations and source Git pins remain immutable. Historical native/CI baseline blobs are checked separately from current native implementations. Final integrated gates and exact-head CI remain required.
+
+## A05 normal integration with accepted A07 main (qualification pending)
+
+Local DCO checkpoint `c9d0e18b9024cf9decdb4710aaa2252e23511976` is normally
+integrated with accepted main `2f78b9d02cfe62c9829fcfb38b85cd632a889de0`.
+The complete historical-record union retains400 source rows and41 developer
+oracle invocation rows, including every complete parent record. These are not
+current-source completeness counts: later A05 producers remain unregistered
+until the explicit final F01/G08 reconciliation. Existing historical pins and
+captures remain unchanged; document pins are not refreshed to manufacture a
+passing gate. All main registrations, gates and artifacts remain present, with
+A05 added separately. Integrated runtime, platform and exact-head qualification
+remain pending.

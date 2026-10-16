@@ -791,53 +791,107 @@ fn python_text_tables() -> &'static PythonTextTables {
         .expect("reviewed Python Unicode16 text tables")
     })
 }
-fn write_python_string_repr(text: &str, out: &mut impl std::fmt::Write) -> std::fmt::Result {
-    let quote = if text.contains('\'') && !text.contains('"') {
-        '"'
-    } else {
-        '\''
+/// One accepted Unicode16 Python repr character, held entirely on the stack.
+/// Cold immutable Unicode-table initialization remains shared-process overhead.
+#[derive(Clone, Copy)]
+pub enum PythonReprQuote {
+    Single,
+    Double,
+}
+pub struct PythonReprCharacter {
+    bytes: [u8; 10],
+    length: usize,
+}
+impl PythonReprCharacter {
+    pub fn as_str(&self) -> &str {
+        std::str::from_utf8(&self.bytes[..self.length]).expect("repr character is UTF8/ASCII")
+    }
+}
+/// Escape one scalar under the caller's chosen single/double quote. This is the
+/// same scalar rule used by the legacy Python formatter; no new Unicode table.
+pub fn python_repr_character(ch: char, quote: PythonReprQuote) -> PythonReprCharacter {
+    let quote = match quote {
+        PythonReprQuote::Single => '\'',
+        PythonReprQuote::Double => '"',
     };
-    out.write_char(quote)?;
-    for ch in text.chars() {
-        match ch {
-            '\\' => out.write_str("\\\\")?,
-            '\n' => out.write_str("\\n")?,
-            '\r' => out.write_str("\\r")?,
-            '\t' => out.write_str("\\t")?,
-            ch if ch == quote => {
-                out.write_char('\\')?;
-                out.write_char(ch)?;
-            }
-            ch => {
-                let code = ch as u32;
-                let nonprintable = python_text_tables()
-                    .nonprintable_ranges
-                    .binary_search_by(|&(start, end)| {
-                        if code < start {
-                            std::cmp::Ordering::Greater
-                        } else if code > end {
-                            std::cmp::Ordering::Less
-                        } else {
-                            std::cmp::Ordering::Equal
-                        }
-                    })
-                    .is_ok();
-                if nonprintable {
-                    if code <= 255 {
-                        write!(out, "\\x{code:02x}")?;
-                    } else if code <= 65535 {
-                        write!(out, "\\u{code:04x}")?;
+    let mut bytes = [0; 10];
+    let length;
+    match ch {
+        '\\' => {
+            bytes[..2].copy_from_slice(b"\\\\");
+            length = 2;
+        }
+        '\n' => {
+            bytes[..2].copy_from_slice(b"\\n");
+            length = 2;
+        }
+        '\r' => {
+            bytes[..2].copy_from_slice(b"\\r");
+            length = 2;
+        }
+        '\t' => {
+            bytes[..2].copy_from_slice(b"\\t");
+            length = 2;
+        }
+        ch if ch == quote => {
+            bytes[0] = b'\\';
+            bytes[1] = ch as u8;
+            length = 2;
+        }
+        ch => {
+            let code = ch as u32;
+            let nonprintable = python_text_tables()
+                .nonprintable_ranges
+                .binary_search_by(|&(start, end)| {
+                    if code < start {
+                        std::cmp::Ordering::Greater
+                    } else if code > end {
+                        std::cmp::Ordering::Less
                     } else {
-                        write!(out, "\\U{code:08x}")?;
+                        std::cmp::Ordering::Equal
                     }
+                })
+                .is_ok();
+            if nonprintable {
+                let (width, prefix) = if code <= 255 {
+                    (2, b'x')
+                } else if code <= 65535 {
+                    (4, b'u')
                 } else {
-                    out.write_char(ch)?;
+                    (8, b'U')
+                };
+                bytes[0] = b'\\';
+                bytes[1] = prefix;
+                const HEX: &[u8; 16] = b"0123456789abcdef";
+                for i in 0..width {
+                    bytes[2 + i] = HEX[((code >> ((width - i - 1) * 4)) & 15) as usize];
                 }
+                length = width + 2;
+            } else {
+                let mut encoded = [0; 4];
+                let text = ch.encode_utf8(&mut encoded);
+                bytes[..text.len()].copy_from_slice(text.as_bytes());
+                length = text.len();
             }
         }
     }
-    out.write_char(quote)?;
-    Ok(())
+    PythonReprCharacter { bytes, length }
+}
+fn write_python_string_repr(text: &str, out: &mut impl std::fmt::Write) -> std::fmt::Result {
+    let quote = if text.contains('\'') && !text.contains('"') {
+        PythonReprQuote::Double
+    } else {
+        PythonReprQuote::Single
+    };
+    let delimiter = match quote {
+        PythonReprQuote::Single => '\'',
+        PythonReprQuote::Double => '"',
+    };
+    out.write_char(delimiter)?;
+    for ch in text.chars() {
+        out.write_str(python_repr_character(ch, quote).as_str())?;
+    }
+    out.write_char(delimiter)
 }
 /// Normalize Python numeric whitespace, Unicode decimal digits and valid digit
 /// separators. Callers still validate numeric grammar, range and finite bounds.
@@ -1274,3 +1328,34 @@ pub mod snapshot;
 #[path = "media_url.rs"]
 mod media_url;
 pub use media_url::{BudgetMediaInfo, MediaBudgetError, build_media_bounded};
+
+#[cfg(test)]
+mod a06_repr_scalar_compatibility {
+    use super::*;
+    #[test]
+    fn additive_scalar_primitive_matches_existing_writer_for_every_unicode_scalar() {
+        // A double quote in the input forces the existing writer's single-quote
+        // branch, including when the inspected scalar itself is an apostrophe.
+        for point in 0..=0x10ffff {
+            let Some(ch) = char::from_u32(point) else {
+                continue;
+            };
+            let input = format!("\"{ch}");
+            let mut actual = String::new();
+            write_python_string_repr(&input, &mut actual).unwrap();
+            let expected = format!(
+                "'\"{}'",
+                python_repr_character(ch, PythonReprQuote::Single).as_str()
+            );
+            assert_eq!(actual, expected, "scalar U+{point:04X}");
+        }
+        assert_eq!(
+            python_repr_character('"', PythonReprQuote::Double).as_str(),
+            "\\\""
+        );
+        assert_eq!(
+            python_repr_character('\'', PythonReprQuote::Double).as_str(),
+            "'"
+        );
+    }
+}

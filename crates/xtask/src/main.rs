@@ -4,6 +4,7 @@ mod a02;
 mod a03;
 mod a04;
 mod a05;
+mod a07;
 mod date_amendment;
 mod f05;
 mod f06;
@@ -15,6 +16,7 @@ mod f11;
 mod f12;
 mod f13;
 mod f14;
+mod f15;
 mod o03;
 mod o06;
 mod replay;
@@ -24,6 +26,8 @@ mod t05;
 mod t09;
 mod w00;
 mod w01;
+mod w02;
+mod w11;
 use serde::Deserialize;
 use serde_json::{Value, json};
 use std::{
@@ -447,6 +451,7 @@ fn execute(root: &Path, id: &str, records: &mut Vec<Value>) -> Result<()> {
     match id {
         "A01" => a01::check(root, records),
         "A04" => a04::check(root, records),
+        "A07" => a07::check(root, records),
         "A03" => a03::check(root, records),
         "A02" => a02::check(root, records),
         "A05" => a05::check(root, records),
@@ -463,6 +468,8 @@ fn execute(root: &Path, id: &str, records: &mut Vec<Value>) -> Result<()> {
         "F07" => f07::check(root, records),
         "W00" => w00::check(root, records),
         "W01" => w01::check(root, records),
+        "W02" => w02::check(root, records),
+        "W11" => w11::check(root, records),
         "F08" => f08::check(root, records),
         "F09" => f09::check(root, records),
         "F10" => f10::check(root, records),
@@ -470,6 +477,7 @@ fn execute(root: &Path, id: &str, records: &mut Vec<Value>) -> Result<()> {
         "F12" => f12::check(root, records),
         "F13" => f13::check(root, records),
         "F14" => f14::check(root, records),
+        "F15" => f15::check(root, records),
         "F03" => {
             source_check(root, "F01", records)?;
             source_check(root, "F02", records)?;
@@ -585,6 +593,8 @@ fn main() {
     }
     let scope = if id == "A05" {
         "offline source-bound DuckDuckGo/Google HTML adapter replay and loopback sessions; explicit host-only cookie correction; no live provider or deployment claims"
+    } else if id == "A07" {
+        "source-bound biomedical factories/config/scope,172 offline controls and charged runtime/context/compact regressions; no provider calls, global G02 or full HTML/MCP transport claim"
     } else if id == "A03" {
         "source-mapped GitHub, Hugging Face, Stack Exchange and Hacker News adapters through caller-owned F08/F10; offline loopback/private Valkey only, no provider or deployment claim"
     } else if id == "A02" {
@@ -813,7 +823,7 @@ mod tests {
     fn unknown_and_unimplemented_fail() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
         assert!(
-            execute(&root, "F15", &mut vec![])
+            execute(&root, "T02", &mut vec![])
                 .unwrap_err()
                 .contains("unimplemented")
         );
