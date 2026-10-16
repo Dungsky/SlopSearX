@@ -188,3 +188,14 @@ F01 records the final merged inventory-document identities after the narrow
 reviewed refresh and adds the accepted F10 exporter blob pin. Existing W01/T01/F10
 exporter bytes, Python runtime pins and historical F01 baseline evidence remain
 unchanged.
+
+
+## T04 isolated OAuth reference
+
+T04 adds `docs/rust-rewrite/t04/capture.py` as a temporary, offline, exact-source
+migration oracle (T04/G08), not a runtime dependency or gate subprocess. It
+captures pinned SDK registration normalization and source provider state locally;
+no HTTP endpoint or provider is called. G08 removes it before backend retirement.
+The exact Python source union has 371 paths: 122 backend/runtime, 248
+backend-coupled tooling/test and one client-only. Existing runtime/oracle bytes
+and all historical baseline identities remain unchanged.

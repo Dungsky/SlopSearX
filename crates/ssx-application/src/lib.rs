@@ -93,3 +93,5 @@ pub mod health;
 pub mod rate;
 pub mod research;
 pub mod retry_after;
+
+pub mod oauth;
