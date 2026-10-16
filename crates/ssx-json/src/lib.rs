@@ -472,6 +472,10 @@ pub fn python_whitespace(ch: char) -> bool {
 }
 /// Unicode 16 decimal digit category, matching Python regex \d.
 pub fn decimal_digit(ch: char) -> bool {
+    decimal_value(ch).is_some()
+}
+/// Unicode 16 decimal value, using the same reviewed F05 zero-codepoint table.
+pub fn decimal_value(ch: char) -> Option<u8> {
     static ZEROES: std::sync::OnceLock<Vec<u32>> = std::sync::OnceLock::new();
     let zeroes = ZEROES.get_or_init(|| {
         let table: serde_json::Value = serde_json::from_str(include_str!(
@@ -485,7 +489,10 @@ pub fn decimal_digit(ch: char) -> bool {
             .map(|v| v.as_u64().expect("codepoint") as u32)
             .collect()
     });
-    zeroes
-        .iter()
-        .any(|zero| (ch as u32).checked_sub(*zero).is_some_and(|v| v < 10))
+    zeroes.iter().find_map(|zero| {
+        (ch as u32)
+            .checked_sub(*zero)
+            .filter(|v| *v < 10)
+            .map(|v| v as u8)
+    })
 }

@@ -172,6 +172,22 @@ new temporary file and these reviewed inventory documents only; existing
 Python runtime source pins are preserved.
 
 
+## F10 temporary rate/health source oracle
+
+F10 adds `docs/rust-rewrite/f10/oracle/export.py` against accepted F08 main
+`9ab1c7a22de933762c42469145c1f50365220de2`. It captures synthetic pinned-source
+rate, provider cooldown, circuit, configuration and actual SearchService health
+observations, with no store or provider calls. Native mandatory gates read JSON
+and run native private-Valkey/loopback tests; they never execute the exporter.
+F10 owns migration observations; G08 retires this executable oracle before backend
+removal. This is backend-coupled developer evidence, not a client exception.
+
+The reviewed manifest now has 367 Python source paths, 244 backend-coupled
+tooling/test paths and four developer oracle invocation rows. Existing mandatory
+runtime/CI interpreter commands, runtime Python source and F05/F11 oracle bytes
+remain unchanged. F01 must first reject the newly staged unpinned source and
+stale inventory document identities; refresh requires narrow reviewed mappings.
+
 ## Accepted F11 integration into T01
 
 The merged F04, F05, F11 and T01 developer-oracle inventory contains four
@@ -182,3 +198,7 @@ oracles with native JSON-only acceptance gates and G08 retirement ownership.
 The integration refreshes only the three merged inventory-document hashes in
 F01 and adds the already accepted F11 exporter pin; Python runtime pins and
 historical F01 baseline evidence remain unchanged.
+
+## Accepted T01 integration into F10
+
+The combined inventory retains the accepted F04/F05/F11/T01 exporters and the F10 exporter: 368 Python paths, 245 backend-coupled tooling/test paths and five developer-oracle invocation rows. Native gates consume frozen JSON only; G08 owns exporter retirement. Integration updates only the three merged inventory-document pins after retaining the expected F01 failure. Runtime source and existing exporter bytes remain unchanged.

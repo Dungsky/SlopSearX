@@ -3,6 +3,7 @@ mod f05;
 mod f06;
 mod f07;
 mod f08;
+mod f10;
 mod f11;
 mod o06;
 mod replay;
@@ -437,6 +438,7 @@ fn execute(root: &Path, id: &str, records: &mut Vec<Value>) -> Result<()> {
         "F06" => f06::check(root, records),
         "F07" => f07::check(root, records),
         "F08" => f08::check(root, records),
+        "F10" => f10::check(root, records),
         "F11" => f11::check(root, records),
         "F03" => {
             source_check(root, "F01", records)?;
