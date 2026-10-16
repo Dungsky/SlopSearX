@@ -27,6 +27,34 @@
       "git_blob": "f0c02454cd89b42b38387b1953572d6a96c1b182"
     },
     {
+      "path": "docs/rust-rewrite/a06/oracle/export_json_matrix.py",
+      "git_blob": "226a975df274b69fa6410c511bf727097e0bbc94"
+    },
+    {
+      "path": "docs/rust-rewrite/a06/oracle/export_shared.py",
+      "git_blob": "8e0e1c05595e7fb3803b7d39d349b15f05942713"
+    },
+    {
+      "path": "docs/rust-rewrite/a06/oracle/export_source.py",
+      "git_blob": "13a2206d3ee500950a05901c00aacff108f70bfe"
+    },
+    {
+      "path": "docs/rust-rewrite/a06/oracle/export_wire.py",
+      "git_blob": "72ea33973d9669e1b25b8a3e11ad1e459f98e926"
+    },
+    {
+      "path": "docs/rust-rewrite/a06/oracle/export_xml.py",
+      "git_blob": "f0685047285d3b22a8e2564263751193b475b974"
+    },
+    {
+      "path": "docs/rust-rewrite/a06/oracle/export_xml_grammar.py",
+      "git_blob": "061bf394c2e30173b51806158f5250316943b43a"
+    },
+    {
+      "path": "docs/rust-rewrite/a06/oracle/export_xml_stress.py",
+      "git_blob": "aab456634286392a6aff5e3ef5d8fcd8a5aea363"
+    },
+    {
       "path": "docs/rust-rewrite/f05/oracle/export.py",
       "git_blob": "650a47a473f3f6e19118773dfc32fc54b0c5f586"
     },
@@ -59,8 +87,16 @@
       "git_blob": "811e84daeccaab116e41a82114e9de74f57223ea"
     },
     {
+      "path": "docs/rust-rewrite/f15/capture.py",
+      "git_blob": "b4d7cef44afd26f36ed51950d0f2834e7f203620"
+    },
+    {
+      "path": "docs/rust-rewrite/f15/capture_headers.py",
+      "git_blob": "b0c1477609ff3b67f50af8c7465c4d56b572a8b5"
+    },
+    {
       "path": "docs/rust-rewrite/inventory/DRIFT.md",
-      "git_blob": "3ec39125aebe26207821e910c28a8d975a300487"
+      "git_blob": "379b5782ef05c66c92f07247453c59b06c19a5b9"
     },
     {
       "path": "docs/rust-rewrite/inventory/README.md",
@@ -84,11 +120,11 @@
     },
     {
       "path": "docs/rust-rewrite/inventory/python-disposition.json",
-      "git_blob": "44ec718d9e4b4f1a5700684aafdaa2ba2c3a064d"
+      "git_blob": "724302f99528e186f458afcc3df5a92eb552d31a"
     },
     {
       "path": "docs/rust-rewrite/inventory/python-invocations.json",
-      "git_blob": "f72c7030855527d3feac21fadffdd81dd1a5184e"
+      "git_blob": "1d7e9e0a1ec3666207649fc18538f51d88ac898a"
     },
     {
       "path": "docs/rust-rewrite/inventory/surface-contracts.md",
@@ -517,6 +553,10 @@
     {
       "path": "scripts/promote_image_digest.py",
       "git_blob": "f7fd073d5e48edf249a56cb5a22af9328e8979ab"
+    },
+    {
+      "path": "scripts/rust-a06-native-qualification.py",
+      "git_blob": "a7f2a96429662178c94f68fcbf43d404979916aa"
     },
     {
       "path": "scripts/upstream_contracts.py",
@@ -1581,38 +1621,6 @@
     {
       "path": "tests/test_workflow_recent_indexes.py",
       "git_blob": "0cd352d9c80cd52ca6aa41d929654dea714b4221"
-    },
-    {
-      "path": "docs/rust-rewrite/a06/oracle/export_shared.py",
-      "git_blob": "8e0e1c05595e7fb3803b7d39d349b15f05942713"
-    },
-    {
-      "path": "docs/rust-rewrite/a06/oracle/export_source.py",
-      "git_blob": "13a2206d3ee500950a05901c00aacff108f70bfe"
-    },
-    {
-      "path": "docs/rust-rewrite/a06/oracle/export_xml.py",
-      "git_blob": "f0685047285d3b22a8e2564263751193b475b974"
-    },
-    {
-      "path": "docs/rust-rewrite/a06/oracle/export_xml_grammar.py",
-      "git_blob": "061bf394c2e30173b51806158f5250316943b43a"
-    },
-    {
-      "path": "docs/rust-rewrite/a06/oracle/export_xml_stress.py",
-      "git_blob": "aab456634286392a6aff5e3ef5d8fcd8a5aea363"
-    },
-    {
-      "path": "scripts/rust-a06-native-qualification.py",
-      "git_blob": "a7f2a96429662178c94f68fcbf43d404979916aa"
-    },
-    {
-      "path": "docs/rust-rewrite/a06/oracle/export_wire.py",
-      "git_blob": "72ea33973d9669e1b25b8a3e11ad1e459f98e926"
-    },
-    {
-      "path": "docs/rust-rewrite/a06/oracle/export_json_matrix.py",
-      "git_blob": "226a975df274b69fa6410c511bf727097e0bbc94"
     }
   ]
 }

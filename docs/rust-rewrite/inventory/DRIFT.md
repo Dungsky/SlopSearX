@@ -561,3 +561,11 @@ These counts describe this candidate's intended staged set, not a claimed passed
 F01 gate before parent stages/reviews it. Existing runtime/source pins stay intact.
 
 A06 normal merge of accepted main1e9dd82d preserves the complete union: 392 source paths and 33 developer oracle invocation records. Prior A06-only counts above describe the premerge checkpoint, not the integrated total.
+
+## F15 bounded reranking and advisory source oracles
+
+The F15 source-bound gate adds exactly two temporary developer-only Python exporters, `f15/capture.py` and `f15/capture_headers.py`, with two corresponding invocation rows. The complete384 source records and25 invocation rows at accepted A04 main remain unchanged, including both W01 calls; the additive union is386/27. The independently recaptured150-case corpus preserves its original124 cases, and the separate12-case streamed-header corpus records actual body-read counts. Source baseline `4dfc0f5691b6a5a1c039a2837372b1977422ec27` and all13 historical blobs are immutable. No provider calls or native Python runtime dependency are introduced. G08 retires executable capture tools while retaining immutable observations. F15 package review and maintainer acceptance remain pending.
+
+## A06 accepted F15 main union (candidate integration)
+
+Both complete parent row sets are preserved:394 inventory records and35 developer invocation records. Current checkpoint has449 Python source paths;55 new development-donor/oracle paths remain unregistered, explicitly exact_match=false. These are pending parent-owned integration proposals, not a passed F01 gate/current-source closure.

@@ -14,7 +14,7 @@
       "100644": 729
     },
     "configured_precommit_hook_rows": 15,
-    "developer_oracle_invocation_rows": 33
+    "developer_oracle_invocation_rows": 35
   },
   "interpreter_invocations": [
     {
@@ -8590,6 +8590,24 @@
       "migration_owner": "A06",
       "retirement_owner": "G08",
       "disposition": "retain immutable JSON evidence; retire executable Python before backend removal"
+    },
+    {
+      "path": "docs/rust-rewrite/f15/README.md",
+      "example_path": "docs/rust-rewrite/f15/capture.py",
+      "evidence": "PYTHONPATH=. /private/tmp/slopsearx-rust-oracle-py314/bin/python docs/rust-rewrite/f15/capture.py --output /private/tmp/f15-source.json",
+      "classification": "temporary backend-coupled developer oracle; never a mandatory native gate or runtime dependency",
+      "migration_owner": "F15",
+      "retirement_owner": "G08",
+      "disposition": "temporary_developer_oracle_retire_before_backend_removal"
+    },
+    {
+      "path": "docs/rust-rewrite/f15/README.md",
+      "example_path": "docs/rust-rewrite/f15/capture_headers.py",
+      "evidence": "PYTHONPATH=. /private/tmp/slopsearx-rust-oracle-py314/bin/python docs/rust-rewrite/f15/capture_headers.py --output /private/tmp/f15-headers.json",
+      "classification": "temporary backend-coupled developer oracle; never a mandatory native gate or runtime dependency",
+      "migration_owner": "F15",
+      "retirement_owner": "G08",
+      "disposition": "temporary_developer_oracle_retire_before_backend_removal"
     }
   ]
 }

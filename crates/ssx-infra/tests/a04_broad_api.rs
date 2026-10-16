@@ -165,15 +165,38 @@ async fn read_replay_headers(
 
 struct FrozenReplayClock(Option<tokio::task::JoinHandle<()>>);
 impl FrozenReplayClock {
-    fn start() -> Self {
+    async fn start(case: &str) -> Self {
         tokio::time::pause();
         // A runnable cooperative task prevents Tokio's idle auto-advance while
         // the real socket connects/writes. Merely pausing is insufficient.
-        Self(Some(tokio::spawn(async {
+        let clock = Self(Some(tokio::spawn(async {
             loop {
                 tokio::task::yield_now().await;
             }
-        })))
+        })));
+        // Prior explicit virtual advances survive resume(). Native adapters use
+        // std::Instant deadlines converted into Tokio instants, so creating a
+        // search while the paused clock is ahead can expire it before dispatch.
+        // Keep virtual time frozen until real time catches up; the adapter's
+        // unchanged 10ms budget starts only after this fixture coordination.
+        let frozen = tokio::time::Instant::now().into_std();
+        let real_start = std::time::Instant::now();
+        eprintln!(
+            "{case}: before alignment Tokio ahead of std by {:?}",
+            frozen.checked_duration_since(real_start)
+        );
+        while std::time::Instant::now() < frozen {
+            assert!(
+                real_start.elapsed() < std::time::Duration::from_secs(5),
+                "{case}: fixture clocks failed to align"
+            );
+            tokio::task::yield_now().await;
+        }
+        eprintln!(
+            "{case}: after alignment Tokio ahead of std by {:?}",
+            frozen.checked_duration_since(std::time::Instant::now())
+        );
+        clock
     }
     async fn finish(mut self) {
         let task = self.0.take().unwrap();
@@ -199,8 +222,15 @@ async fn captured_search(
     let Some(case) = timeout_case else {
         return engine.search(request).await;
     };
-    let clock = FrozenReplayClock::start();
+    let clock = FrozenReplayClock::start(case).await;
     let virtual_start = tokio::time::Instant::now();
+    let observed_std = std::time::Instant::now();
+    eprintln!(
+        "{case}: paused Tokio ahead of std by {:?}",
+        virtual_start
+            .into_std()
+            .checked_duration_since(observed_std)
+    );
     let real_start = std::time::Instant::now();
     let search = engine.search(request);
     tokio::pin!(search);
@@ -2136,4 +2166,48 @@ async fn subreddit_scopes_keep_shared_service_dispatch_cache_and_flights_separat
         .unwrap();
     assert_eq!(keys.len(), 4, "exactly four canonical cache entries");
     service.shutdown().await;
+}
+
+#[tokio::test]
+async fn timeout_replay_aligns_accumulated_virtual_offset_before_native_request() {
+    // Model prior timeout cases on this same current-thread test runtime.
+    let mut ahead = None;
+    // Only establish the precondition here; no adapter/request is attempted or
+    // discarded. A scheduler pause between the two clock reads can underreport
+    // their offset, so allow at most five 40ms setup advances (<5s real guard).
+    for attempt in 1..=5 {
+        tokio::time::pause();
+        tokio::time::advance(std::time::Duration::from_millis(40)).await;
+        tokio::time::resume();
+        ahead = tokio::time::Instant::now()
+            .into_std()
+            .checked_duration_since(std::time::Instant::now());
+        eprintln!("forced prior-case virtual offset setup {attempt}: {ahead:?}");
+        if ahead.is_some_and(|d| d > std::time::Duration::from_millis(10)) {
+            break;
+        }
+    }
+    assert!(
+        ahead.is_some_and(|d| d > std::time::Duration::from_millis(10)),
+        "bounded setup must establish a measurable prior-case clock offset"
+    );
+    let (base, seen, server) = replay(
+        vec![(200, br#"{"data":{"children":[]}}"#.to_vec())],
+        Some(std::time::Duration::from_millis(60)),
+    )
+    .await;
+    let mut config = BroadApiConfig::default();
+    set_base(&mut config, "reddit", &base);
+    set_timeout(&mut config, "reddit", 10);
+    let result = captured_search(
+        registry(config).instantiate("reddit").unwrap(),
+        &SearchRequest::default(),
+        &seen,
+        Some("reddit.accumulated_clock_offset"),
+    )
+    .await;
+    assert_eq!(result.status, EngineStatus::Timeout);
+    assert_eq!(seen.lock().unwrap().len(), 1);
+    server.abort();
+    let _ = server.await;
 }
