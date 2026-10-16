@@ -1811,3 +1811,117 @@ async fn refresh_between_rotation_read_and_cas_conflicts_without_issuing_handle(
         Some("b")
     );
 }
+
+#[tokio::test]
+async fn decoded_nul_semantic_components_deny_before_claim_or_workflow() {
+    let f = Fixture::new(false).await;
+    f.directory.0.lock().unwrap().memberships[0]
+        .grants
+        .insert("workflow.compose".into());
+    assert_eq!(f.login().await.status(), 303);
+    let token = csrf(&f.get("/workflows").await.text().await.unwrap());
+    let cases = [
+        (
+            "collision-first",
+            "/workflows/staged_search/a-object/compose",
+            "",
+            "alpha\0beta",
+            "triangulate",
+        ),
+        (
+            "collision-second",
+            "/workflows/staged_search/a-object/compose",
+            "\0alpha",
+            "beta",
+            "triangulate",
+        ),
+        (
+            "kind",
+            "/workflows/staged_search%00/a-object/compose",
+            "",
+            "question",
+            "triangulate",
+        ),
+        (
+            "id",
+            "/workflows/staged_search/a-object%00/compose",
+            "",
+            "question",
+            "triangulate",
+        ),
+        (
+            "action",
+            "/workflows/staged_search/a-object/compose%00",
+            "",
+            "question",
+            "triangulate",
+        ),
+        (
+            "cursor",
+            "/workflows/staged_search/a-object/compose",
+            "cursor\0",
+            "question",
+            "triangulate",
+        ),
+        (
+            "question",
+            "/workflows/staged_search/a-object/compose",
+            "",
+            "question\0",
+            "triangulate",
+        ),
+        (
+            "strategy",
+            "/workflows/staged_search/a-object/compose",
+            "",
+            "question",
+            "triangulate\0",
+        ),
+    ];
+    for (label, path, cursor, question, strategy) in cases {
+        let response = f
+            .post(
+                path,
+                &[
+                    ("csrf", token.as_str()),
+                    ("expected_revision", "1"),
+                    ("idempotency_key", "nul-replay-regression"),
+                    ("cursor", cursor),
+                    ("question", question),
+                    ("strategy", strategy),
+                ],
+                &f.portal.url,
+            )
+            .await;
+        assert_eq!(response.status(), 403, "{label}");
+        assert_eq!(f.workflows.calls.load(Ordering::SeqCst), 0, "{label}");
+        assert!(f.workflows.received.lock().unwrap().is_empty(), "{label}");
+        let claims: Vec<String> = redis::cmd("KEYS")
+            .arg("portal:native:v1:*:mutation:*")
+            .query(&mut f.valkey.connection())
+            .unwrap();
+        assert!(
+            claims
+                .iter()
+                .all(|key| key.split(':').nth(4) != Some("mutation")),
+            "{label}: invalid semantic input must never claim"
+        );
+    }
+    // Refusal must not consume the idempotency key or block an ordinary command.
+    assert_eq!(
+        f.post(
+            "/workflows/staged_search/a-object/compose",
+            &[
+                ("csrf", token.as_str()),
+                ("expected_revision", "1"),
+                ("idempotency_key", "nul-replay-regression"),
+                ("question", "ordinary question"),
+            ],
+            &f.portal.url
+        )
+        .await
+        .status(),
+        303
+    );
+    assert_eq!(f.workflows.calls.load(Ordering::SeqCst), 1);
+}

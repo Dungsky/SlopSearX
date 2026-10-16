@@ -813,6 +813,21 @@ async fn mutation(
     let cursor = f.get("cursor").map_or("", String::as_str);
     let question = f.get("question").map_or("", String::as_str);
     let strategy = f.get("strategy").map_or("triangulate", String::as_str);
+    // The source digest uses NUL separators. Reject decoded separators before
+    // claiming admission so distinct semantic tuples cannot share an identity.
+    if [
+        kind.as_str(),
+        id.as_str(),
+        action.as_str(),
+        cursor,
+        question,
+        strategy,
+    ]
+    .iter()
+    .any(|value| value.contains('\0'))
+    {
+        return problem(403, "Request denied");
+    }
     // HTTP-only CSRF/cookies and unrelated form fields never enter workflow commands.
     let fields = vec![
         ("cursor".into(), cursor.into()),

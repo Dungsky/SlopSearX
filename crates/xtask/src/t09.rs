@@ -119,6 +119,7 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
             "revoked_membership_and_valkey_failure_deny_protected_but_not_public",
             "two_independent_authorities_refresh_rotate_logout_without_session_revival",
             "refresh_between_rotation_read_and_cas_conflicts_without_issuing_handle",
+            "decoded_nul_semantic_components_deny_before_claim_or_workflow",
             "stale_exact_record_refresh_and_rotation_never_restore_deleted_state",
             "revision_revocation_is_durable_and_operator_grants_only_intersect",
             "previous_key_drain_is_verification_only_and_expiry_cannot_extend_absolute_lifetime",

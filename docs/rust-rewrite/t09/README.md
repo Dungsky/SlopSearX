@@ -150,3 +150,10 @@ The competing refresh/rotation regression permits only an issued rotation or an
 explicit stale-record conflict. A deterministic directory barrier forces refresh
 between the rotation read and CAS, proving conflict preserves the exact current
 record, issues no handle, and allows an explicit fresh rotation.
+
+Decoded NUL is rejected in mutation kind, object ID, action, cursor, question and
+strategy before claiming admission. This intentional source hardening prevents
+separator collisions in the preserved source semantic digest. Actual TLS/private
+Valkey tests reject both collision tuples and every component, proving no claim
+or workflow call, then allow an ordinary command with the same idempotency key.
+Existing ordinary source digest bytes and captured observations are unchanged.
