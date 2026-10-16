@@ -54,3 +54,39 @@ The candidate toolchain is stable Rust **1.99.0**, confirmed by the [Rust releas
 | Client binaries lack current baseline support on macOS/Windows | Release owner | O04 target-specific install/smoke/signature gate before publication |
 | OAuth authorization server and relying party contracts diverge | Identity owner | T04/T05/T09 multi-process fault/security matrix, G02 |
 | Exact crate graph or target build fails | Foundation owner | F03 `cargo build --locked`/Clippy and T01 protocol qualification; ADR amendment if pins change |
+
+## T01 amendment: bounded qualification resource ownership
+
+T01 adds explicit admission limits while preserving all selected transports:
+4 MiB per upstream RPC response (JSON, error body or cumulative POST SSE stream),
+4 MiB per standalone SSE event, and 16 MiB shared discovery bytes across catalogs
+and pages (serialized retained entries in the typed probe; received envelopes in
+the raw gateway). The existing 128-page and 4096-item limits remain. Legacy SSE admits at
+most 128 concurrent sessions; saturation returns 503 before allocating channels,
+a duplex or a session task. Its owned permit spans both the pump and response
+stream, and is released after disconnect, expiry or shutdown. These bounds are
+intentional native admission choices, not claims that Python used identical caps.
+
+The typed SDK reqwest JSON/error path buffers an entire body, so T01's HTTP client
+adapter rejects oversized Content-Length and checks streamed chunks before adding
+them to its bounded buffer. GET/resume and DELETE continue to use the SDK adapter.
+POST SSE uses the SDK's existing `sse-stream =0.2.6` parser after byte admission.
+This is an additive direct dependency on an already locked transitive package,
+not a change to the historical F02 candidate table. Its registry package checksum
+is `c25ac7aff0abd1dbc474536e40416e1102c7dd9bfba0b9861c6d357f835dcfb4`;
+the packaged Cargo.toml declares `MIT OR Apache-2.0` and no MSRV. Accepted Rust
+1.99.0 compilation, locked dependency checks and cargo-deny qualify this selection.
+The additive entry in `architecture/pins.json` records its identity and purpose.
+Real Content-Length, unterminated chunked JSON, multi-page/shared-catalog and SSE
+admission/recovery regressions are mandatory T01 evidence before acceptance.
+
+
+The T01 aggregate correction additionally limits legacy POST bodies to 32 admitted
+messages globally before body extraction, retaining request ownership through its
+correlated response or session teardown. Saturation returns 503 without buffering
+the request. Output has a shared 64 MiB byte budget, a 16 MiB frame limit and
+8 KiB fixed read scratch per session. Output overload closes the affected session
+without truncation. Encoded SSE bytes retain admission through the final HTTP
+consumer owner. These native overload choices bound transport-owned wire data;
+they are not Python saturation parity or total process RSS claims. See
+[the T01 ownership and qualification contract](../rust-rewrite/protocol/T01.md#aggregate-legacy-admission-correction).

@@ -121,7 +121,12 @@ Schema validation:
   maximum requests/cost, and deadline. Missing, expired, mismatched, or denied
   authority prevents dispatch and produces a denied/blocked record.
 * **Clock:** wall-clock timestamps are nonnegative and ordered; a dispatched
-  run must start no later than its bound reservation deadline. A qualification
+  run must start no later than its bound reservation deadline. A denied, blocked
+  receipt with zero dispatched requests may record time spent detecting expiry
+  and writing terminal evidence after the deadline. This does not waive ordered
+  wall timestamps, bound deadline identity, reservation caps or conservation;
+  all actual dispatches retain the start and monotonic deadline-budget checks.
+  A qualification
   decision timestamp cannot predate runtime completion. Elapsed time
   comes from a monotonic clock. A fixed clock is explicit for deterministic
   fixtures. A backward wall-clock jump, missing deadline, or expired reservation

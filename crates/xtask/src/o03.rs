@@ -533,10 +533,13 @@ fn validate_runtime_receipt(value: Value) -> Result<()> {
         "wall clock interval is reversed",
     )?;
     ensure(
-        r.clock.monotonic_elapsed_ms
-            <= r.clock
-                .deadline_unix_ms
-                .saturating_sub(r.clock.started_unix_ms),
+        (r.accounting.requests_dispatched == 0
+            && r.authority.status == "denied"
+            && r.outcome == "blocked")
+            || r.clock.monotonic_elapsed_ms
+                <= r.clock
+                    .deadline_unix_ms
+                    .saturating_sub(r.clock.started_unix_ms),
         "monotonic duration exceeds deadline budget",
     )?;
     ensure(
@@ -1568,6 +1571,43 @@ mod tests {
             let instance = serde_json::json!({"git_commit": commit});
             assert!(!valid_git_commit(&"a".repeat(length)));
             assert!(validate_schema_instance(&schema, &instance, &schema, "receipt").is_err());
+        }
+    }
+
+    #[test]
+    fn expired_undispatched_denial_can_record_terminal_elapsed_time() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let bytes =
+            fs::read(root.join("crates/xtask/fixtures/o03/runtime-receipt.accepted.json")).unwrap();
+        let mut blocked = numeric::receipt_value(&bytes).unwrap();
+        blocked["authority"]["status"] = serde_json::json!("denied");
+        blocked["outcome"] = serde_json::json!("blocked");
+        blocked["clock"]["started_unix_ms"] = serde_json::json!(1001);
+        blocked["clock"]["finished_unix_ms"] = serde_json::json!(1011);
+        blocked["clock"]["monotonic_elapsed_ms"] = serde_json::json!(10);
+        blocked["accounting"]["requests_dispatched"] = serde_json::json!(0);
+        blocked["accounting"]["requests_settled"] = serde_json::json!(0);
+        blocked["accounting"]["requests_released"] = serde_json::json!(2);
+        validate_runtime_receipt(blocked.clone()).unwrap();
+        // The terminal-record exception cannot authorize any actual dispatch.
+        let mut dispatched = blocked.clone();
+        dispatched["authority"]["status"] = serde_json::json!("authorized");
+        dispatched["accounting"]["requests_dispatched"] = serde_json::json!(1);
+        dispatched["accounting"]["requests_settled"] = serde_json::json!(1);
+        dispatched["accounting"]["requests_released"] = serde_json::json!(1);
+        assert!(validate_runtime_receipt(dispatched).is_err());
+        for (pointer, value) in [
+            ("/clock/finished_unix_ms", serde_json::json!(1000)),
+            ("/reservation/deadline_unix_ms", serde_json::json!(999)),
+            ("/accounting/requests_released", serde_json::json!(1)),
+            ("/accounting/requests_unresolved", serde_json::json!(1)),
+            ("/accounting/cost_microusd_reserved", serde_json::json!(101)),
+            ("/outcome", serde_json::json!("accepted")),
+            ("/authority/status", serde_json::json!("authorized")),
+        ] {
+            let mut invalid = blocked.clone();
+            *invalid.pointer_mut(pointer).unwrap() = value;
+            assert!(validate_runtime_receipt(invalid).is_err(), "{pointer}");
         }
     }
 
