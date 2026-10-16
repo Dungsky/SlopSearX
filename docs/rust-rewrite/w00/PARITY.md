@@ -112,7 +112,7 @@ baseline expiry likewise prevent acquisition. No post-commit baseline GET can
 turn an acquired lease into a false missing claim. A timed-out mutating request
 remains CompletionUnknown; callers read authority instead of retrying it.
 Hydration changes the read-only claim view, never its exact committed raw CAS
-snapshot. W03 owns interpretation of the opaque comparison data.
+snapshot. W04 owns interpretation of the opaque comparison data.
 
 Revision updates use a private Rust exact-integer proof: decode the original raw
 snapshot, bind tenant/ID, checked-add one within the existing i64 model, and verify

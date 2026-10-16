@@ -6,7 +6,7 @@ use std::{collections::BTreeSet, fs, io::Read, path::Path};
 const BASELINE: &str = "66b29c3f8437af45a4f0d28f7c54a0f0727f7fa5";
 const CORPUS_SHA256: &str = "e73df07686f402a080cb7d57666eb084e4c2db9ea9f9a1204b90f77bdb831ffb";
 const EXPORTER_SHA256: &str = "6c319ddb761296ec08aca8f786820f85fb80e8fcb4038b4c2e635177273dad09";
-const COVERAGE_SHA256: &str = "720dc286f81938b415d88d113430d95d187068dc7620aca801f79881a31e70f1";
+const COVERAGE_SHA256: &str = "db13d76f5ac125213bb4b2329631b5ca95c829e6dbc367d3e3eae342ac80ec69";
 // Accepted PR874 changes unrelated date-bound search functions, not saved helpers.
 // Preserve historical corpus/source pins and validate the narrow current mapping.
 const CURRENT_MCP_PIN: &str = "d06ecd475b9b523addf79781d2762eddd92f4911";
@@ -373,7 +373,7 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
         records,
     )?;
     summary(&docs, 1)?;
-    records.push(json!({"native_saved_acceptance":{"runtime":"Rust","backend":"private disposable Valkey8.1.10","source_observations":55,"source_test_mappings":37,"domain_tests":DOMAIN_TESTS.len(),"application_tests":APPLICATION_TESTS.len(),"store_tests":INFRA_TESTS.len(),"private_claim_compile_fail":1,"provider_calls":0,"native_identity_sources":native,"scope":"definitions, revisions, quotas, indexes and schedule ownership; W03/W04/W05 publication and W09/W10 public surfaces remain downstream"}}));
+    records.push(json!({"native_saved_acceptance":{"runtime":"Rust","backend":"private disposable Valkey8.1.10","source_observations":55,"source_test_mappings":37,"domain_tests":DOMAIN_TESTS.len(),"application_tests":APPLICATION_TESTS.len(),"store_tests":INFRA_TESTS.len(),"private_claim_compile_fail":1,"provider_calls":0,"native_identity_sources":native,"scope":"definitions, revisions, quotas, indexes and schedule ownership; W04/W05 publication and W09/W10 public surfaces remain downstream"}}));
     Ok(())
 }
 #[cfg(test)]

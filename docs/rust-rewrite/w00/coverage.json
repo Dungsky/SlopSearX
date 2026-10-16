@@ -98,13 +98,13 @@
       "source_test": "tests/test_saved_models.py::test_added_changed_and_not_observed_events_keep_source_values",
       "scope": "downstream",
       "native_tests": [],
-      "remaining_owner": "W03 comparison/report construction"
+      "remaining_owner": "W04 comparison/report construction"
     },
     {
       "source_test": "tests/test_saved_models.py::test_ranking_changes_are_not_source_changes",
       "scope": "downstream",
       "native_tests": [],
-      "remaining_owner": "W03 comparison/report construction"
+      "remaining_owner": "W04 comparison/report construction"
     },
     {
       "source_test": "tests/test_saved_models.py::test_incomparable_observation_never_replaces_good_baseline",
@@ -116,7 +116,7 @@
         "independent_nonobject_baseline_refuses_before_claim",
         "baseline_object_shape_matches_load_before_any_lease"
       ],
-      "remaining_owner": "W03 comparison/report construction"
+      "remaining_owner": "W04 comparison/report construction"
     },
     {
       "source_test": "tests/test_saved_models.py::test_expired_baseline_initializes_without_false_absence",
@@ -128,7 +128,7 @@
         "independent_nonobject_baseline_refuses_before_claim",
         "baseline_object_shape_matches_load_before_any_lease"
       ],
-      "remaining_owner": "W03 comparison/report construction"
+      "remaining_owner": "W04 comparison/report construction"
     },
     {
       "source_test": "tests/test_saved_valkey.py::test_atomic_quota_and_revision_conflict",
@@ -198,13 +198,13 @@
         "concurrent_quota_and_claim_have_one_owner_and_no_lost_definition",
         "server_time_expiry_future_preparation_and_stale_owner_fail_closed"
       ],
-      "remaining_owner": "W03/W04 report retention and result publication"
+      "remaining_owner": "W04 report retention and result publication"
     },
     {
       "source_test": "tests/test_saved_valkey.py::test_report_order_and_retention_use_completion_time_when_expiry_ties",
       "scope": "downstream",
       "native_tests": [],
-      "remaining_owner": "W03/W04 provider execution, comparison, metrics or result publication"
+      "remaining_owner": "W04 provider execution, comparison, metrics or result publication"
     },
     {
       "source_test": "tests/test_saved_valkey.py::test_mutation_during_claim_fences_late_commit",
@@ -238,7 +238,7 @@
         "independent_nonobject_baseline_refuses_before_claim",
         "baseline_object_shape_matches_load_before_any_lease"
       ],
-      "remaining_owner": "W03/W04 provider execution, comparison, metrics or result publication"
+      "remaining_owner": "W04 provider execution, comparison, metrics or result publication"
     },
     {
       "source_test": "tests/test_saved_valkey.py::test_reclaim_keeps_persisted_schedule_identity",
@@ -277,7 +277,7 @@
         "atomic_revision_claim_pause_delete_and_tombstone",
         "source_payload_window_schedule_and_rehydration"
       ],
-      "remaining_owner": "W03/W04 comparisons/execution and W09 transport tools"
+      "remaining_owner": "W04 comparisons/execution and W09 transport tools"
     },
     {
       "source_test": "tests/test_saved_searches.py::test_pause_rejects_non_positive_revision",
@@ -336,25 +336,25 @@
       "source_test": "tests/test_saved_searches.py::test_scheduled_run_bypasses_canonical_cache",
       "scope": "downstream",
       "native_tests": [],
-      "remaining_owner": "W03/W04 provider execution, comparison, metrics or result publication"
+      "remaining_owner": "W04 provider execution, comparison, metrics or result publication"
     },
     {
       "source_test": "tests/test_saved_searches.py::test_expired_lease_recovery_normalizes_running_gauge",
       "scope": "downstream",
       "native_tests": [],
-      "remaining_owner": "W03/W04 provider execution, comparison, metrics or result publication"
+      "remaining_owner": "W04 provider execution, comparison, metrics or result publication"
     },
     {
       "source_test": "tests/test_saved_searches.py::test_midflight_policy_revocation_blocks_evidence_commit",
       "scope": "downstream",
       "native_tests": [],
-      "remaining_owner": "W03/W04 provider execution, comparison, metrics or result publication"
+      "remaining_owner": "W04 provider execution, comparison, metrics or result publication"
     },
     {
       "source_test": "tests/test_saved_searches.py::test_current_scope_policy_applies_to_definition_and_report_reads",
       "scope": "downstream",
       "native_tests": [],
-      "remaining_owner": "W03/W09 retained report policy/read boundary"
+      "remaining_owner": "W04/W09 retained report policy/read boundary"
     },
     {
       "source_test": "tests/test_saved_searches.py::test_retained_old_scope_report_is_revalidated_after_scope_change",
@@ -364,7 +364,7 @@
         "probe_query_limit_does_not_revalidate_untouched_query",
         "supplied_query_bounds_and_unchanged_query_keep_engine_authority"
       ],
-      "remaining_owner": "W03/W09 retained report policy/read boundary"
+      "remaining_owner": "W04/W09 retained report policy/read boundary"
     },
     {
       "source_test": "tests/test_saved_searches.py::test_failed_run_retains_baseline_and_reports_missed_slots",
@@ -377,7 +377,7 @@
         "independent_nonobject_baseline_refuses_before_claim",
         "baseline_object_shape_matches_load_before_any_lease"
       ],
-      "remaining_owner": "W03/W04 failed-run evidence/baseline publication"
+      "remaining_owner": "W04 failed-run evidence/baseline publication"
     },
     {
       "source_test": "tests/test_saved_searches.py::test_start_immediately_uses_creation_slot_and_keeps_first_interval",
