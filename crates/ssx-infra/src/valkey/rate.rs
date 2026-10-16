@@ -14,6 +14,25 @@ use std::{
 };
 pub const QUOTA_SCRIPT: &str = include_str!("rate/quota.lua");
 pub const COOLDOWN_SCRIPT: &str = include_str!("rate/cooldown.lua");
+/// Client counters have a separate framed namespace. EngineKey cannot contain
+/// a colon, so even an engine named `client-<digest>` cannot share this key.
+pub struct ClientQuotaKey(String);
+impl ClientQuotaKey {
+    pub fn new(client: &str) -> Result<Self, RateFailure> {
+        use sha2::{Digest, Sha256};
+        if client.is_empty() {
+            return Err(RateFailure::InvalidInput);
+        }
+        let digest = Sha256::digest(client.as_bytes())
+            .iter()
+            .map(|b| format!("{b:02x}"))
+            .collect();
+        Ok(Self(digest))
+    }
+    pub fn digest(&self) -> &str {
+        &self.0
+    }
+}
 pub struct DistributedQuota {
     store: Option<Arc<Valkey>>,
     closed: AtomicBool,
@@ -66,13 +85,25 @@ impl DistributedQuota {
         engine: &EngineKey,
         cost: u64,
     ) -> Result<QuotaReceipt, RateFailure> {
+        self.acquire_prefix(format!("ratelimit:{}:", engine.as_str()), cost)
+            .await
+    }
+    pub async fn acquire_client(
+        &self,
+        client: &ClientQuotaKey,
+        cost: u64,
+    ) -> Result<QuotaReceipt, RateFailure> {
+        self.acquire_prefix(format!("ratelimit:client:{}:", client.0), cost)
+            .await
+    }
+    async fn acquire_prefix(&self, prefix: String, cost: u64) -> Result<QuotaReceipt, RateFailure> {
         if cost > 9_007_199_254_740_991 {
             return Err(RateFailure::InvalidInput);
         }
         let mut cmd = redis::cmd("EVAL");
         cmd.arg(QUOTA_SCRIPT)
             .arg(1)
-            .arg(format!("ratelimit:{}:", engine.as_str()))
+            .arg(&prefix)
             .arg(self.config.window_ms())
             .arg(self.config.rate())
             .arg(cost);
@@ -87,11 +118,7 @@ impl DistributedQuota {
         let ttl = values[4]
             .parse::<u64>()
             .map_err(|_| RateFailure::Malformed)?;
-        let expected_key = format!(
-            "ratelimit:{}:{}",
-            engine.as_str(),
-            now / self.config.window_ms()
-        );
+        let expected_key = format!("{prefix}{}", now / self.config.window_ms());
         if !["0", "1"].contains(&values[0].as_str())
             || ttl > self.config.retention_ms()
             || count > i64::MAX as u64
