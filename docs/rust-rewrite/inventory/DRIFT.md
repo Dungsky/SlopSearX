@@ -547,6 +547,14 @@ The reviewed A04 checkpoint is integrated with accepted F14 main `576d43b03c0378
 
 The fully qualified A04/F14 checkpoint `ca7c6209b4b5e67f5916297e632afbd93f09d758` is normally integrated with accepted W00 main `950071404c61eabc1201730362baccd01b3f2295`. The complete-record union is384 Python source paths and25 developer-oracle invocations. Both parent records and all raw captures remain exact. W00 adds saved modules, gate and evidence metadata; A04 runtime and its exact optional-subreddit cache/flight correction remain unchanged. This entry changes only combined documentary bindings; independent integration review and acceptance remain pending.
 
+## W11 staged-store source oracle
+
+At baseline `1e9dd82d62456fe6f511cc5ade88bae619fac027`, add the isolated developer oracle `docs/rust-rewrite/w11/oracle/export.py` and its documented invocation. It executes source AST functions and staged-store read/retry controls against private disposable Valkey only. Mandatory W11 checks consume immutable JSON and execute native Rust. G08 retires this executable Python before backend removal; the original source snapshot remains non-executable historical evidence. Existing inventory entries and runtime boundaries are unchanged.
+
 ## F15 bounded reranking and advisory source oracles
 
 The F15 source-bound gate adds exactly two temporary developer-only Python exporters, `f15/capture.py` and `f15/capture_headers.py`, with two corresponding invocation rows. The complete384 source records and25 invocation rows at accepted A04 main remain unchanged, including both W01 calls; the additive union is386/27. The independently recaptured150-case corpus preserves its original124 cases, and the separate12-case streamed-header corpus records actual body-read counts. Source baseline `4dfc0f5691b6a5a1c039a2837372b1977422ec27` and all13 historical blobs are immutable. No provider calls or native Python runtime dependency are introduced. G08 retires executable capture tools while retaining immutable observations. F15 package review and maintainer acceptance remain pending.
+
+## W11 integration with accepted F15
+
+The additive union preserves both original inventories and all historical source pins:387 Python source paths,264 backend-coupled tooling/test paths and28 developer oracle invocations. Both W11 and F15 native gates and retained artifacts remain enabled. This records integration preparation; merged-head validation remains required.
