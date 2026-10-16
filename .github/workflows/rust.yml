@@ -129,6 +129,9 @@ jobs:
       - name: Portable replay and differential evidence
         run: cargo xtask check F04 --output target/rust-evidence/F04.json
 
+      - name: Authoritative OAuth state and atomic token transitions
+        run: cargo xtask check T04 --output target/rust-evidence/T04.json
+
       - name: MCP transport and gateway qualification
         run: cargo xtask check T01 --output target/rust-evidence/T01.json
 
@@ -171,6 +174,7 @@ jobs:
             target/rust-evidence/F03.json
             target/rust-evidence/F04.json
             target/rust-evidence/T01.json
+            target/rust-evidence/T04.json
             target/rust-evidence/F05.json
             target/rust-evidence/F06.json
             target/rust-evidence/F09.json

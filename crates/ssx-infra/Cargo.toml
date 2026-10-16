@@ -21,6 +21,8 @@ scraper.workspace = true
 quick-xml.workspace = true
 flate2.workspace = true
 serde_json.workspace = true
+serde.workspace = true
+
 sha2.workspace = true
 ssx-json.workspace = true
 

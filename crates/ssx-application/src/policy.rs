@@ -52,6 +52,10 @@ struct ResearchPolicyContext {
 pub struct ScopeProposal {
     pub request: SearchRequest,
     pub intent: String,
+    /// Trusted transport selection supplied by server composition, never a wire
+    /// field. HTTP deliberately has different access policy from MCP. Callers
+    /// must not copy this from request or persisted-record data; recovered
+    /// research must use `from_research_query`.
     pub surface: SearchSurface,
     /// Security evidence types or science source types, in caller order.
     pub specialist_types: Vec<String>,
@@ -289,6 +293,28 @@ impl PolicyService {
                 return self.grant("research", "");
             }
             return Err(reject("research grant is disabled"));
+        }
+        let table = tables();
+        let profile = &table["intents"][p.intent.as_str()];
+        if profile.is_null() {
+            return Err(PolicyError::new(
+                "invalid_input",
+                "intent",
+                format!("unknown intent '{}'", p.intent),
+            ));
+        }
+        if profile["media_types"]
+            .as_array()
+            .is_some_and(|types| !types.is_empty())
+        {
+            return Err(PolicyError::new(
+                "invalid_intent",
+                "intent",
+                format!(
+                    "intent '{}' selects a media type; research subqueries do not support media searches",
+                    p.intent
+                ),
+            ));
         }
         if let Some(c) = &p.research {
             if c.planning_method.as_deref().is_some_and(|m| {

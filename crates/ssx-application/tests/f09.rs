@@ -188,6 +188,7 @@ fn denied_paths_never_dispatch_and_preview_has_no_authority() {
     s.policy.grants.insert("research".into());
     let mut p = proposal(&["alpha"]);
     p.surface = SearchSurface::Research;
+    p.intent = "web".into();
     let token = s.authorize(p).unwrap();
     s.policy.grants.clear();
     assert!(s.with_revalidated(&token, |_| calls += 1).is_err());
@@ -258,6 +259,9 @@ fn specialist_grants_remain_independent_of_sensitive_grant_and_origin() {
     ] {
         let mut p = proposal(&["alpha"]);
         p.surface = surface;
+        if surface == SearchSurface::Research {
+            p.intent = "web".into();
+        }
         assert!(s.authorize(p.clone()).is_err());
         let grant = match surface {
             SearchSurface::Jobs => "jobs",
@@ -565,4 +569,61 @@ fn explicit_inactive_members_reject_atomically_without_changing_http_or_preview_
         "selected native engine implementation is unavailable"
     );
     assert_eq!(strings(&unavailable.details["engines"]), ["beta"]);
+}
+
+#[test]
+fn recovered_research_rejects_unknown_and_media_intents_before_dispatch() {
+    let mut s = service();
+    s.policy.grants.insert("research".into());
+    let mut calls = 0;
+    for intent in [
+        "",
+        "auto",
+        "unknown",
+        "security ",
+        " Security",
+        "SECURITY",
+        "images",
+        "videos",
+    ] {
+        let q = ssx_domain::research::ResearchQuery {
+            query: "query".into(),
+            intent: intent.into(),
+            engines: vec!["alpha".into()],
+            ..Default::default()
+        };
+        let result = s.authorize(ScopeProposal::from_research_query(&q));
+        if let Ok(token) = &result {
+            let _ = s.with_revalidated(token, |_| calls += 1);
+        }
+        assert!(
+            result.is_err(),
+            "accepted invalid research intent {intent:?}"
+        );
+    }
+    assert_eq!(calls, 0);
+    let q = ssx_domain::research::ResearchQuery {
+        query: "query".into(),
+        intent: "web".into(),
+        engines: vec!["alpha".into()],
+        ..Default::default()
+    };
+    let token = s.authorize(ScopeProposal::from_research_query(&q)).unwrap();
+    s.with_revalidated(&token, |_| calls += 1).unwrap();
+    assert_eq!(calls, 1);
+    for intent in ["jobs", "security", "science"] {
+        let mut specialist = q.clone();
+        specialist.intent = intent.into();
+        assert!(
+            s.authorize(ScopeProposal::from_research_query(&specialist))
+                .is_err()
+        );
+        s.policy.grants.insert(intent.into());
+        let token = s
+            .authorize(ScopeProposal::from_research_query(&specialist))
+            .unwrap();
+        s.policy.grants.remove(intent);
+        assert!(s.with_revalidated(&token, |_| calls += 1).is_err());
+    }
+    assert_eq!(calls, 1);
 }

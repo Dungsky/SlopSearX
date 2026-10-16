@@ -101,3 +101,21 @@ including recovered research evidence and fresh revalidation. Alternatives inclu
 only active enabled members. This is intentional hardening, not source parity.
 HTTP retains dropping behavior; active unported factories remain previewable and
 fail only dispatch authorization through the existing availability error.
+
+Recovered research intent is validated against the known non-media profile set
+before specialist grant selection. Unknown, whitespace/case variants, `auto`,
+and media intents fail closed even with explicit engines. This closes a native
+validation gap and strengthens recovery to the public planner's intent boundary;
+legacy recovered records with invalid intents require correction or replacement,
+not normalization that could alter authority. Valid specialist records still
+require their current grant at admission and revalidation.
+
+`ScopeProposal.surface` is trusted transport provenance selected by composition,
+not untrusted request data. HTTP intentionally permits an explicit sensitive
+scope under its separate source policy. Endpoint code must never deserialize or
+copy a surface from wire or stored query fields. Recovered queries use
+`from_research_query`; its captured research context cannot be retagged as HTTP.
+F09 does not isolate malicious Rust callers inside the process. T02/T06/W02 must
+bind each public endpoint and worker path to its intended origin when composing
+this primitive. The independent review's public-field concern is therefore a
+composition obligation, not a claim of a direct wire exploit.
