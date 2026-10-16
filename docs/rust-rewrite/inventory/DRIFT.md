@@ -310,3 +310,62 @@ client-only), and twelve complete developer-oracle invocation rows. Both distinc
 W01 commands remain unchanged. F12 is accepted at
 `d8bcf5ede0cfa0b359f8bd25cdca89c23366b7e2`; earlier counts and statuses describe
 historical checkpoints. Runtime and reference-oracle bytes remain unchanged.
+
+## A04 temporary source-capture oracles
+
+A04 adds two temporary, offline-only Python 3.14.7 exporters under
+`docs/rust-rewrite/a04/oracle/`: `export_cases.py` reproduces all 37 original
+source captures and their per-record config/status/exception context, while
+`export_matrix.py` captures supplementary Brave, Wikipedia, and Reddit edge
+cases. Both use actual source adapter methods with `httpx.MockTransport`; no
+provider, DNS, or paid calls occur. Mandatory native A04 gates consume only the
+committed JSON packs and never execute either exporter. A04 owns the source
+observations; G08 owns executable retirement before backend removal.
+
+The current source-path manifest grows by two backend-coupled tooling files,
+and the developer-oracle invocation appendix grows by two rows. Historical F01
+baseline identities remain unchanged. F01 documentary source pins require the
+normal reviewed refresh; no runtime Python behavior or public client exception
+is added.
+
+## A04 corrected capture inventory
+
+The frozen A04 packet retains 37 original observations and their context, 104 supplementary source observations, and six tagged nonfinite observations documenting the accepted F05 finite-output boundary. The same two developer-only exporters now have three explicit invocation records. This checkpoint inventories 377 Python source paths and 15 developer-oracle invocations; historical example and py.txt counts remain unchanged. All earlier complete source and invocation records are preserved. Staged source paths are checked exactly before F01 documentary pins are refreshed.
+
+
+## A04 fourth-review source semantics and explicit representations
+
+The corrected packet preserves all 37 original source records/context, all 110
+previous ordinary records, and all six tagged nonfinite observations. The
+ordinary matrix now has 296 authentic source observations. A separate 14-record
+representation fixture retains source boolean/overrange media and non-string
+selftext outcomes alongside explicitly reviewed native whole-response refusals.
+The existing two source exporters have four separate commands; all previous 15
+full developer invocation rows are unchanged and the appendix now contains 16.
+Python source paths remain exactly 377; historical example count 49 and all
+historical py.txt counts/modes remain unchanged. This entry changes no accepted
+runtime Python source pin or historical reference capture.
+
+
+The final A04 fourth-review extension retains that 296/14 checkpoint as an exact
+record prefix. It now inventories 333 ordinary source observations and 126
+explicit representation observations, with source-error precedence controls.
+The same fourth exporter command captures approved String/Option<String>
+malformed-output refusals across all three adapters; the four commands and all
+16 invocation rows remain unchanged. Source-path and historical counts remain
+377 and 49 respectively. No runtime/reference source pin changes.
+
+
+## A04 fifth-review source JSON boundary observations
+
+The A04-owned offline exporter adds a separate `--source-json-output` invocation
+and source_json.json evidence for byte encoding, Python numeric decoding,
+Unicode scalar output boundaries, and bounded native JSON resources. Existing
+37/context/333/126/6 captures and all historical/runtime source pins remain
+unchanged. The existing exporter path is reused: projected Python source paths
+remain377, developer oracle invocation rows become17, and historical example
+reference count remains49. Source-success/native-refusal deltas and actual
+Python decoder exceptions are explicit in A04/PARITY.md and the new corpus;
+they do not establish arbitrary JSON or other-adapter parity. Public codec and
+storage remain unchanged. This entry requires narrow own-document/exporter
+anchor review; it does not authorize refreshing runtime source pins.

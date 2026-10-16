@@ -1,6 +1,10 @@
 //! Native provider adapters currently ported from the registry-search pilot.
+mod brave;
 mod crates_io;
 mod npm;
+mod reddit;
+pub mod source_json;
+mod wikipedia;
 
 use crate::http::AdapterHttp;
 use ssx_application::rate::RateLimiter;
@@ -11,8 +15,68 @@ use std::sync::Arc;
 use std::sync::OnceLock;
 use std::time::Instant;
 
+pub use brave::BraveConfig;
 pub use crates_io::CratesConfig;
 pub use npm::NpmConfig;
+pub use reddit::RedditConfig;
+pub use wikipedia::WikipediaConfig;
+
+#[derive(Clone, Debug, Default)]
+pub struct BroadApiConfig {
+    pub brave: BraveConfig,
+    pub wikipedia: WikipediaConfig,
+    pub reddit: RedditConfig,
+}
+
+/// Register the three broad API adapters owned by A04. Kept separate from
+/// `register_pilots` so A01's accepted factory contract remains unchanged.
+pub fn register_broad_api(
+    registry: &mut Registry,
+    http: Arc<AdapterHttp>,
+    admission: Arc<dyn SearchAdmission>,
+    config: BroadApiConfig,
+) -> Result<(), RegistryError> {
+    let engine_http = http.clone();
+    let engine_admission = admission.clone();
+    let engine_config = config.brave;
+    registry.register(
+        "brave",
+        Arc::new(move || {
+            Box::new(brave::BraveAdapter::new(
+                engine_http.clone(),
+                engine_admission.clone(),
+                engine_config.clone(),
+            )) as Box<dyn ssx_registry::Engine>
+        }) as EngineFactory,
+    )?;
+    let engine_http = http.clone();
+    let engine_admission = admission.clone();
+    let engine_config = config.wikipedia;
+    registry.register(
+        "wikipedia",
+        Arc::new(move || {
+            Box::new(wikipedia::WikipediaAdapter::new(
+                engine_http.clone(),
+                engine_admission.clone(),
+                engine_config.clone(),
+            )) as Box<dyn ssx_registry::Engine>
+        }) as EngineFactory,
+    )?;
+    let engine_http = http;
+    let engine_admission = admission;
+    let engine_config = config.reddit;
+    registry.register(
+        "reddit",
+        Arc::new(move || {
+            Box::new(reddit::RedditAdapter::new(
+                engine_http.clone(),
+                engine_admission.clone(),
+                engine_config.clone(),
+            )) as Box<dyn ssx_registry::Engine>
+        }) as EngineFactory,
+    )?;
+    Ok(())
+}
 
 /// Resolved source-compatible settings for the A01 pilot adapters.
 #[derive(Clone, Debug, Default)]
@@ -105,4 +169,113 @@ impl SearchAdmission for F10Admission {
 pub fn f10_monotonic_seconds() -> f64 {
     static ORIGIN: OnceLock<Instant> = OnceLock::new();
     ORIGIN.get_or_init(Instant::now).elapsed().as_secs_f64()
+}
+
+// Python semantics shared only by the A04 adapters. Keep wire encoding separate
+// from URL path handling and apply whitespace conversion only at source calls.
+fn broad_query(params: &[(&str, &str)]) -> String {
+    fn append(value: &str, out: &mut String) {
+        const HEX: &[u8; 16] = b"0123456789ABCDEF";
+        for b in value.bytes() {
+            if b.is_ascii_alphanumeric() || b"_.-~".contains(&b) {
+                out.push(char::from(b));
+            } else if b == b' ' {
+                out.push('+');
+            } else {
+                out.push('%');
+                out.push(char::from(HEX[(b >> 4) as usize]));
+                out.push(char::from(HEX[(b & 15) as usize]));
+            }
+        }
+    }
+    let mut out = String::new();
+    for (index, (key, value)) in params.iter().enumerate() {
+        if index != 0 {
+            out.push('&');
+        }
+        append(key, &mut out);
+        out.push('=');
+        append(value, &mut out);
+    }
+    out
+}
+fn broad_whitespace(ch: char) -> bool {
+    ch.is_whitespace() || ('\u{1c}'..='\u{1f}').contains(&ch)
+}
+fn broad_truthy(value: Option<&source_json::Value>) -> bool {
+    match value {
+        None | Some(source_json::Value::Null) => false,
+        Some(source_json::Value::Bool(v)) => *v,
+        Some(source_json::Value::Number(n)) => {
+            if n.is_f64() {
+                n.as_f64().is_some_and(|n| n != 0.0)
+            } else {
+                n.integer_text() != Some("0")
+            }
+        }
+        Some(source_json::Value::String(v)) => !v.is_empty(),
+        Some(source_json::Value::Array(v)) => !v.is_empty(),
+        Some(source_json::Value::Object(v)) => !v.is_empty(),
+    }
+}
+fn broad_type(value: &source_json::Value) -> &'static str {
+    match value {
+        source_json::Value::Null => "NoneType",
+        source_json::Value::Bool(_) => "bool",
+        source_json::Value::Number(n) => {
+            if n.is_f64() {
+                "float"
+            } else {
+                "int"
+            }
+        }
+        source_json::Value::String(_) => "str",
+        source_json::Value::Array(_) => "list",
+        source_json::Value::Object(_) => "dict",
+    }
+}
+
+fn broad_field_error(
+    value: Option<&source_json::Value>,
+    optional: bool,
+    engine: &str,
+    field: &str,
+) -> Option<String> {
+    match value {
+        None => None,
+        Some(source_json::Value::String(text)) => text
+            .as_str()
+            .is_none()
+            .then(|| format!("{engine} result {field} must contain only Unicode scalar values")),
+        Some(source_json::Value::Null) if optional => None,
+        _ => Some(format!(
+            "{engine} result {field} must be a string{}",
+            if optional { " or null" } else { "" }
+        )),
+    }
+}
+fn broad_record_refusal(refusal: &mut Option<String>, error: Option<String>) {
+    if refusal.is_none() {
+        *refusal = error;
+    }
+}
+
+fn broad_scalar_output(
+    text: &source_json::Text,
+    engine: &str,
+    field: &str,
+    refusal: &mut Option<String>,
+) -> String {
+    match text.scalar() {
+        Some(s) => s,
+        None => {
+            broad_record_refusal(
+                refusal,
+                Some(format!(
+                    "{engine} result {field} must contain only Unicode scalar values"
+                )),
+            );
+            String::new()
+        }
+    }
 }
