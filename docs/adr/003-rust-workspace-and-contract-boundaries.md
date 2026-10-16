@@ -80,3 +80,13 @@ The F05 legacy reader retains opaque object insertion order with pinned `indexma
 inside `ssx-json`: Python `str(dict)` makes that order observable. Canonical
 identity profiles still sort keys explicitly. Neither serde_json `preserve_order`
 nor `arbitrary_precision` is enabled globally.
+
+## F11 amendment: shared pure publication codecs
+
+F11 extracts the accepted F05 DOI normalizer and publication-field allowlist,
+without semantic changes, to `ssx-publication`. This leaf depends only on
+`ssx-json`. `ssx-wire` re-exports its existing public functions; application
+ranking consumes the same codec directly. Application does not depend on wire,
+and wire does not depend on domain. This avoids duplicating Unicode casefold,
+DOI validation or publication limits in scholarly grouping. F05 byte/DTO goldens
+remain required. The F11 native gate verifies this dependency boundary.

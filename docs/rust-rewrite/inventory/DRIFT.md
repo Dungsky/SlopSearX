@@ -144,3 +144,31 @@ and each parser bound. Existing opaque identifiers remain unchanged; this
 change migrates no durable identity namespace. Public numeric values retain
 integer-versus-float representation; comparator tolerance must not conceal
 changes in payload values, timing fields, or canonical identity bytes.
+
+## F11 temporary pure-algorithm oracle addition
+
+F11 adds `docs/rust-rewrite/f11/oracle/export.py` against accepted F05 revision
+`7cc420f7ffb61127750e77bf6130e225925f9186`. It captures only deterministic
+ranking, bounded scholarly grouping and structural URL classification from
+synthetic/public inputs. Native F11 CI replays committed JSON without Python,
+DNS, providers or shared stores. The exporter is backend-coupled developer
+tooling, owned by F11 for evidence and G08 for executable retirement; it is not
+a client exception or mandatory native runtime/gate dependency.
+
+The reviewed manifest grows from 365 to 366 Python paths and from 242 to 243
+backend-coupled tooling/test paths. Historical F01 baseline identities and
+validation reports remain unchanged. F01 source fixture updates cover this
+new temporary file and these reviewed inventory documents only; existing
+Python runtime source pins are preserved.
+
+
+## Accepted F11 integration into T01
+
+The merged F04, F05, F11 and T01 developer-oracle inventory contains four
+invocation rows. F11 adds one Python path to the integrated T01/F05 inventory:
+367 total paths, including 244 backend-coupled tooling/test paths. Both the
+F11 pure-algorithm exporter and T01 MCP exporter remain temporary developer
+oracles with native JSON-only acceptance gates and G08 retirement ownership.
+The integration refreshes only the three merged inventory-document hashes in
+F01 and adds the already accepted F11 exporter pin; Python runtime pins and
+historical F01 baseline evidence remain unchanged.

@@ -69,6 +69,19 @@
       "introduced_after_baseline": "16f03be656f34d90edd8285f9c81dfb1c4626b0a"
     },
     {
+      "path": "docs/rust-rewrite/f11/oracle/export.py",
+      "classification": "backend-coupled tooling/test",
+      "migration_owner": "F11",
+      "migration_owners": [
+        "F11",
+        "G08"
+      ],
+      "disposition": "temporary_developer_oracle_retire_before_backend_removal",
+      "evidence": "F11 developer-only exporter captures deterministic ranking, scholarly identity/version grouping and structural retrieval observations from accepted F05 source 7cc420f7; the native acceptance gate replays JSON only.",
+      "reason": "Temporary backend-coupled migration oracle, never a client-only exception or native runtime/CI requirement. F11 owns captured provenance and G08 owns executable retirement.",
+      "introduced_after_baseline": "7cc420f7ffb61127750e77bf6130e225925f9186"
+    },
+    {
       "path": "docs/rust-rewrite/replay/oracle/export.py",
       "classification": "backend-coupled tooling/test",
       "migration_owner": "F04",
