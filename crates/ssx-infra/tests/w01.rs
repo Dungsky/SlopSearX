@@ -594,6 +594,109 @@ async fn prepared_mutation_reloads_terminal_evidence_and_preserves_guards() {
         .unwrap();
     assert_eq!(preserved.job.state, "partial");
 }
+
+#[tokio::test]
+async fn prepared_claim_returns_fenced_terminal_state_without_mutation() {
+    let server = Server::start();
+    let s = scoped(&server);
+
+    // A regular worker claim treats terminal state as no work. A prepared claim
+    // instead returns the authoritative terminal record under a fresh lease so
+    // its caller can clear ownership/release without applying retry mutation.
+    s.create(&job()).await.unwrap();
+    assert_eq!(
+        s.request_cancel(&id(), now(20.0), &mut Tokens("cancel"), aid)
+            .await
+            .unwrap(),
+        "cancelled"
+    );
+    assert!(
+        s.claim(
+            &id(),
+            "worker",
+            ttl(10),
+            &mut Tokens("worker"),
+            now(21.0),
+            aid
+        )
+        .await
+        .unwrap()
+        .is_none()
+    );
+    let cancelled = s
+        .claim_prepared(
+            &id(),
+            "reader",
+            ttl(10),
+            &mut Tokens("prepared-cancelled"),
+            now(21.0),
+            aid,
+            false,
+            |_| panic!("terminal cancellation must not invoke prepared mutation"),
+        )
+        .await
+        .unwrap()
+        .expect("terminal state is returned under a lease");
+    assert_eq!(cancelled.job.state, "cancelled");
+    assert_eq!(cancelled.job.owner_id.as_deref(), Some("reader"));
+    assert_eq!(
+        cancelled.job.lease_token.as_deref(),
+        Some(cancelled.token.as_str())
+    );
+    s.clear_ownership(&id(), &cancelled.token).await.unwrap();
+    assert_eq!(
+        s.release(&id(), &cancelled.token).await.unwrap(),
+        Ownership::Applied
+    );
+
+    let mut expired_job = job();
+    expired_job.job_id = "expired-prepared".into();
+    expired_job.idempotency_key = None;
+    let (expired_job, _) = s.create(&expired_job).await.unwrap();
+    let expired_id = JobId::new("expired-prepared").unwrap();
+    assert!(
+        s.claim(
+            &expired_id,
+            "worker",
+            ttl(10),
+            &mut Tokens("expire"),
+            now(1000.0),
+            aid
+        )
+        .await
+        .unwrap()
+        .is_none()
+    );
+    let expired = s
+        .claim_prepared(
+            &expired_id,
+            "reader",
+            ttl(10),
+            &mut Tokens("prepared-expired"),
+            now(21.0),
+            aid,
+            false,
+            |_| panic!("terminal expiry must not invoke prepared mutation"),
+        )
+        .await
+        .unwrap()
+        .expect("terminal state is returned under a lease");
+    assert_eq!(expired.job.job_id, expired_job.job_id);
+    assert_eq!(expired.job.state, "expired");
+    assert_eq!(expired.job.owner_id.as_deref(), Some("reader"));
+    assert_eq!(
+        expired.job.lease_token.as_deref(),
+        Some(expired.token.as_str())
+    );
+    s.clear_ownership(&expired_id, &expired.token)
+        .await
+        .unwrap();
+    assert_eq!(
+        s.release(&expired_id, &expired.token).await.unwrap(),
+        Ownership::Applied
+    );
+}
+
 #[tokio::test]
 async fn authoritative_mutations_cannot_bypass_conservation_helpers() {
     let server = Server::start();

@@ -41,7 +41,14 @@ attempts before accounting; the oracle preserves that exact reconstruction rule.
 job/lease/cancel keys, typed leases and source-exact ready/recent assets. The F07 legacy idempotency asset remains unchanged; W01 adds a disjoint admission namespace. Its authority
 is Valkey alone. `create` is admission-only; `claim` recovers queued/orphaned work;
 `claim_prepared` reapplies retry/extension/metadata mutations to an authoritative
-record under a fresh lease. `mutate` reloads current state, merges cancellation,
+record under a fresh lease. A `Some(Claim)` means the caller acquired a fenced
+lease and received authoritative state; it is not permission to dispatch work.
+Prepared claims can return terminal `cancelled` or `expired` records without
+invoking the mutation callback, so callers must inspect state and execution
+intent (`execute` and `caller_completed`) before dispatch. They must clear
+ownership when appropriate and release the lease on every return path. The W02
+runner owns those dispatch and pre-dispatch revalidation decisions, following
+the source `run_direct` flow. `mutate` reloads current state, merges cancellation,
 validates evidence and accounting deltas, and atomically compares both the lease
 and original raw record bytes before writing. Stale owners and concurrent writers
 sharing one token cannot overwrite each other's history. The validation boundary
