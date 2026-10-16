@@ -214,3 +214,18 @@ and all historical baseline identities remain unchanged.
 Both temporary oracles remain inventoried exactly once. The combined inventory
 contains 372 Python sources: 122 backend/runtime, 249 backend-coupled tooling/test
 and one client-only source. Historical isolated-addition counts above are retained.
+
+## A02 isolated package adapter observations
+
+A02 adds two temporary developer-only exporters for independently source-bound
+package registry and supplemental redirect/detail/query observations. They use
+CPython 3.14.7 with httpx 0.28.1 and lxml 6.1.1 in the isolated migration lane;
+mandatory native tests and gates consume fixed JSON and never invoke Python or
+providers. A02 owns source comparison and G08 removes both executable exporters
+before backend retirement. This is not a client/runtime exception.
+
+The exact Python source union becomes 374 paths: 122 backend/runtime, 251
+backend-coupled tooling/test and one client-only source. The developer oracle
+invocation register becomes 11 rows. The F01 fixture adds the two exporter blobs
+and refreshes only these three inventory document blobs; existing source pins
+and all historical baseline evidence remain unchanged.

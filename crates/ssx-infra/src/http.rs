@@ -464,6 +464,13 @@ pub struct Session {
     requests: usize,
 }
 impl Session {
+    /// Set the caller-owned deadline for the next operation without replacing
+    /// this session's cookies, request budget, cancellation, stop state or pool.
+    /// Callers with an overall search budget must cap this at its remaining
+    /// deadline; this method does not grant a new end-to-end budget.
+    pub fn set_deadline(&mut self, deadline: tokio::time::Instant) {
+        self.deadline = deadline;
+    }
     pub async fn execute(&mut self, mut request: Request) -> Result<Response> {
         if *self.stop.0.borrow() {
             return Err(Error::Closed);
