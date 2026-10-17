@@ -1,4 +1,6 @@
 //! Actual factory/HTTP/SourceJSON/borrowed projection; no helper executable.
+#[path = "support/a06_case.rs"]
+mod a06_case;
 use base64::Engine as _;
 use ssx_application::{AdmissionDecision, PortFuture, SearchAdmission, SearchContext};
 use ssx_domain::{AdapterResponse, EngineStatus};
@@ -22,6 +24,96 @@ use std::{
 fn normalized(response: &AdapterResponse) -> Value {
     assert!(response.results.iter().all(|r| r.media.is_none()));
     json!({"results":response.results.iter().map(|r|json!({"url":r.url,"title":r.title,"content":r.content,"engine":r.engine,"engines":r.engines.iter().collect::<Vec<_>>(),"score":r.score,"position":r.position,"category":r.category,"published_date":r.published_date,"thumbnail":r.thumbnail,"img_src":r.img_src,"tier":r.tier,"media":null,"payload":r.payload,"work_group":r.work_group})).collect::<Vec<_>>(),"status":response.status,"error_message":response.error_message,"answers":response.answers,"corrections":response.corrections,"infoboxes":response.infoboxes,"synthetic":response.synthetic})
+}
+
+#[tokio::test]
+async fn actual_factory_replays_all_28_reachable_max_results_configurations() {
+    let corpus: Value = ssx_json::from_str(include_str!(
+        "../../../docs/rust-rewrite/a06/source-config.json"
+    ))
+    .unwrap();
+    let mut ids = std::collections::BTreeSet::new();
+    for row in corpus["records"].as_array().unwrap() {
+        let id = row["id"].as_str().unwrap();
+        if !id.starts_with("semanticscholar.config.max_results.")
+            || row["native_reachability"]
+                .as_str()
+                .unwrap()
+                .starts_with("direct-source-only")
+        {
+            continue;
+        }
+        assert!(ids.insert(id));
+        let pool = AtomPool::new(
+            PathBuf::from("/nonexistent-config-json-helper"),
+            NonZeroUsize::new(1).unwrap(),
+        )
+        .unwrap();
+        let script = Arc::new(Script {
+            row: row.clone(),
+            next: Mutex::new(0),
+            pool: pool.clone(),
+        });
+        let http = Arc::new(AdapterHttp::default());
+        http.set_transport(script.clone()).unwrap();
+        let mut registry = ssx_registry::Registry::builtins().unwrap();
+        semantic_runtime::register(
+            &mut registry,
+            http.clone(),
+            Arc::new(Admission::default()),
+            SemanticConfig {
+                max_results: scalar(&row["config"]["max_results"]).unwrap(),
+                ..Default::default()
+            },
+            pool.clone(),
+        )
+        .unwrap();
+        let request = ssx_domain::SearchRequest {
+            query: row["query"].as_str().unwrap().into(),
+            ..Default::default()
+        };
+        let response = registry
+            .instantiate("semanticscholar")
+            .unwrap()
+            .search_with_context(
+                &request,
+                SearchContext {
+                    deadline: Instant::now() + Duration::from_secs(30),
+                },
+            )
+            .await;
+        assert_eq!(normalized(&response), row["output"], "{id}");
+        assert_eq!(
+            *script.next.lock().unwrap(),
+            row["requests"].as_array().unwrap().len(),
+            "{id}"
+        );
+        assert_eq!(pool.available_operations(), 1);
+        assert_eq!(pool.available_slots(), 1);
+        pool.shutdown().await.unwrap();
+        http.shutdown_and_wait().await;
+        a06_case::completed(
+            "ssx-infra/a06_semantic_runtime/actual_factory_replays_all_28_reachable_max_results_configurations",
+            "docs/rust-rewrite/a06/source-config.json",
+            id,
+            "default",
+            "exact_outcome_request",
+        );
+    }
+    assert_eq!(ids.len(), 28);
+    let ledger: Value = ssx_json::from_str(include_str!(
+        "../../../docs/rust-rewrite/a06/timeout-config-classification.json"
+    ))
+    .unwrap();
+    assert_eq!(
+        ids,
+        ledger["semantic_max_ids"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|v| v.as_str().unwrap())
+            .collect()
+    );
 }
 #[derive(Default)]
 struct Admission {
@@ -113,6 +205,12 @@ fn scalar(v: &Value) -> Option<Scalar> {
         Value::String(v) => Scalar::Text(Arc::from(v.as_str())),
         Value::Number(v) if !v.is_f64() => Scalar::Integer(v.as_str().parse().ok()?),
         Value::Number(v) => Scalar::Float(v.as_str().parse().ok()?),
+        Value::Object(v) => Scalar::Float(match v.get("$source_nonfinite_float")?.as_str()? {
+            "nan" => f64::NAN,
+            "inf" => f64::INFINITY,
+            "-inf" => f64::NEG_INFINITY,
+            _ => return None,
+        }),
         _ => return None,
     })
 }
@@ -274,6 +372,19 @@ async fn actual_registered_factory_preserves_complete_original_outcomes_requests
                 assert!(admission.cooldowns.lock().unwrap().is_empty());
             }
             http.shutdown_and_wait().await;
+            a06_case::completed(
+                "ssx-infra/a06_semantic_runtime/actual_registered_factory_preserves_complete_original_outcomes_requests_and_cooldowns_without_helper",
+                selection["sources"][source_index]["path"].as_str().unwrap(),
+                id,
+                "default",
+                if typed.iter().any(|v| v == id) {
+                    "typed_refusal"
+                } else if transport.iter().any(|v| v == id) {
+                    "transport_difference"
+                } else {
+                    "exact_outcome_request"
+                },
+            );
         }
     }
     println!(

@@ -491,6 +491,10 @@ pub mod semantic_runtime;
 pub mod openalex_projection;
 
 pub mod openalex_runtime;
+pub mod scholarly_runtime;
+#[cfg(test)]
+#[path = "../../tests/support/a06_case.rs"]
+pub(crate) mod a06_case;
 // A07 native biomedical implementations; selection remains resolved policy.
 pub mod clinicaltrials;
 pub mod europepmc;

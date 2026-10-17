@@ -481,6 +481,13 @@ mod tests {
                 row["id"].as_str().unwrap()
             );
             assert_eq!(budget.snapshot().unwrap().used, 0);
+            crate::adapters::a06_case::completed(
+                "ssx-infra/lib/adapters::semantic_retry_after::tests::exact_pinned_original_retry_after_controls",
+                "docs/rust-rewrite/a06/source-retry-after-bounded.json",
+                row["id"].as_str().unwrap(),
+                "default",
+                "bounded_helper",
+            );
         }
         let table: ssx_json::Value = ssx_json::from_str(include_str!(
             "../../../../docs/rust-rewrite/f11/unicode.json"

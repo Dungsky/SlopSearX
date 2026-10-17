@@ -1,4 +1,6 @@
 //! Actual registered OpenAlex runtime: no helper process, explicit header gap.
+#[path = "support/a06_case.rs"]
+mod a06_case;
 use base64::Engine as _;
 use ssx_application::{AdmissionDecision, PortFuture, SearchAdmission, SearchContext};
 use ssx_domain::{AdapterResponse, EngineStatus};
@@ -252,6 +254,19 @@ async fn actual_factory_preserves_original_outcomes_urls_dates_and_reachable_max
                 exact.push(id.to_owned());
             }
             http.shutdown_and_wait().await;
+            a06_case::completed(
+                "ssx-infra/a06_openalex_runtime/actual_factory_preserves_original_outcomes_urls_dates_and_reachable_max_configs",
+                selection["sources"][source_index]["path"].as_str().unwrap(),
+                id,
+                "default",
+                if typed.iter().any(|(v, _)| v == id) {
+                    "typed_refusal"
+                } else if transport.iter().any(|v| v == id) {
+                    "transport_difference"
+                } else {
+                    "exact_outcome_request"
+                },
+            );
         }
     }
     println!(

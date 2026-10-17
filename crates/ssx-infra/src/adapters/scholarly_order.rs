@@ -590,6 +590,13 @@ mod bounded_numeric_controls {
             };
             assert_eq!(actual, expected, "{}", row["id"]);
             assert_eq!(budget.snapshot().unwrap().used, 0);
+            crate::adapters::a06_case::completed(
+                "ssx-infra/lib/adapters::scholarly_order::bounded_numeric_controls::exact_source_numeric_order_and_fixed_max_scratch",
+                "docs/rust-rewrite/a06/source-order-numeric.json",
+                row["id"].as_str().unwrap(),
+                "default",
+                "bounded_helper",
+            );
         }
         assert_eq!(ids.len(), 144);
         assert_eq!(budget.snapshot().unwrap().peak, 310);

@@ -879,6 +879,18 @@ mod tests {
                 );
             }
             checked.push(row["id"].as_str().unwrap().to_owned());
+            for corpus in [
+                "docs/rust-rewrite/a06/source-openalex-order.json",
+                "docs/rust-rewrite/a06/source-openalex-full-order.json",
+            ] {
+                crate::adapters::a06_case::completed(
+                    "ssx-infra/lib/adapters::scholarly_sort::tests::full_source_order_and_errors_not_only_adapter_prefix",
+                    corpus,
+                    row["id"].as_str().unwrap(),
+                    "default",
+                    "bounded_helper",
+                );
+            }
         }
         let trace = TRACE
             .each_ref()

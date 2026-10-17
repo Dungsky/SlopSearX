@@ -1,4 +1,6 @@
 //! Actual registered arXiv adapter + F08 injection + supervised native helper.
+#[path = "support/a06_case.rs"]
+mod a06_case;
 use base64::Engine as _;
 use ssx_application::SearchContext;
 use ssx_domain::AdapterResponse;
@@ -272,6 +274,21 @@ async fn actual_http_helper_path_preserves_source_outcomes_and_requests() {
                 selected.push(id.to_owned());
             }
             http.shutdown_and_wait().await;
+            assert_eq!(parser.available_operations(), 1);
+            assert_eq!(parser.available_slots(), 1);
+            a06_case::completed(
+                "ssx-infra/a06_arxiv_runtime/actual_http_helper_path_preserves_source_outcomes_and_requests",
+                selection["sources"][source_index]["path"].as_str().unwrap(),
+                id,
+                "default",
+                if id == "arxiv.connect" {
+                    "transport_difference"
+                } else if deltas.iter().any(|v| v == id) {
+                    "approved_expat_difference"
+                } else {
+                    "exact_outcome_request"
+                },
+            );
         }
     }
     assert_eq!(
