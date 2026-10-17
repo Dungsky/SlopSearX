@@ -3,7 +3,7 @@ use crate::{Result, command};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::{collections::BTreeSet, fs, path::Path};
-const COVERAGE_SHA256: &str = "9025ac57472a1fdd1c9b8179ba2bf848fc2199a9a5907ea43ac057b612a0a8e5";
+const COVERAGE_SHA256: &str = "92686ed70979a698b0dab3414cad813198b720fe586421062db8a4cef5102d9b";
 fn digest(bytes: &[u8]) -> String {
     Sha256::digest(bytes)
         .iter()
@@ -80,6 +80,38 @@ fn verify_artifact(root: &Path, row: &Value) -> Result<()> {
         return Err(format!("A06 artifact changed: {path}"));
     }
     Ok(())
+}
+fn expected_tests_for_platform(group: &Value, linux_enabled: bool) -> Result<BTreeSet<String>> {
+    let common = group["tests"]
+        .as_array()
+        .ok_or("A06 native tests missing")?;
+    let linux = match group.get("linux_tests") {
+        Some(value) => value
+            .as_array()
+            .ok_or("A06 Linux tests malformed")?
+            .as_slice(),
+        None => &[],
+    };
+    let mut all = BTreeSet::new();
+    let mut expected = BTreeSet::new();
+    for (include, tests) in [(true, common.as_slice()), (linux_enabled, linux)] {
+        for test in tests {
+            let name = test
+                .as_str()
+                .filter(|name| !name.is_empty())
+                .ok_or("A06 test identity malformed")?;
+            if !all.insert(name.to_owned()) {
+                return Err("A06 duplicate platform test identity".into());
+            }
+            if include {
+                expected.insert(name.to_owned());
+            }
+        }
+    }
+    if expected.is_empty() {
+        return Err("A06 native test inventory empty".into());
+    }
+    Ok(expected)
 }
 pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
     let bytes =
@@ -158,16 +190,7 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
     {
         let package = group["package"].as_str().ok_or("A06 package missing")?;
         let target = group["target"].as_str().ok_or("A06 target missing")?;
-        let expected: BTreeSet<String> = group["tests"]
-            .as_array()
-            .ok_or("A06 native tests missing")?
-            .iter()
-            .map(|v| {
-                v.as_str()
-                    .map(str::to_owned)
-                    .ok_or_else(|| "A06 test identity malformed".to_owned())
-            })
-            .collect::<Result<_>>()?;
+        let expected = expected_tests_for_platform(group, cfg!(target_os = "linux"))?;
         for name in &expected {
             if !bindings.insert(format!("{package}/{target}/{name}")) {
                 return Err("A06 duplicate native binding".into());
@@ -249,6 +272,28 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn platform_inventory_retains_common_and_only_adds_linux_cases() {
+        let group = json!({"tests":["common::case"],"linux_tests":["linux::case"]});
+        assert_eq!(
+            expected_tests_for_platform(&group, false).unwrap(),
+            BTreeSet::from(["common::case".to_owned()])
+        );
+        assert_eq!(
+            expected_tests_for_platform(&group, true).unwrap(),
+            BTreeSet::from(["common::case".to_owned(), "linux::case".to_owned()])
+        );
+        for group in [
+            json!({"tests":["common::case","common::case"]}),
+            json!({"tests":["common::case"],"linux_tests":["common::case"]}),
+            json!({"tests":["common::case"],"linux_tests":[null]}),
+            json!({"tests":[]}),
+        ] {
+            for linux in [false, true] {
+                assert!(expected_tests_for_platform(&group, linux).is_err());
+            }
+        }
+    }
     #[test]
     fn missing_ignored_duplicate_and_wrong_completed_identities_fail_closed() {
         let ids = BTreeSet::from(["real::case".to_owned()]);
