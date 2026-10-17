@@ -177,6 +177,10 @@ jobs:
         run: cargo xtask check W02 --output target/rust-evidence/W02.json
       - name: Saved execution observation and atomic publication evidence
         run: cargo xtask check W04 --output target/rust-evidence/W04.json
+      - name: Saved event atomic publication replay acknowledgement and retention evidence
+        run: cargo xtask check W05 --output target/rust-evidence/W05.json
+        env:
+          SLOPSEARX_TEST_VALKEY_SERVER: ${{ runner.temp }}/ssx-valkey/bin/valkey-server
 
       - name: Staged admission ownership and recovery evidence
         run: cargo xtask check W11 --output target/rust-evidence/W11.json
@@ -240,6 +244,7 @@ jobs:
             target/rust-evidence/W01.json
             target/rust-evidence/W02.json
             target/rust-evidence/W04.json
+            target/rust-evidence/W05.json
             target/rust-evidence/W11.json
             target/rust-evidence/W06.json
             target/rust-evidence/O03.json

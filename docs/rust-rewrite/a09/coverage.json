@@ -452,7 +452,7 @@
     },
     {
       "path": "crates/xtask/src/main.rs",
-      "sha256": "5265e58f40104170824bca903e6c5e48cd608c74cde24b4ffe1c475a7777fe81"
+      "sha256": "8fcc171a41f8eb8f25ec97e4a720ef942665c7c69d3eddac2d26c7d6475ea70d"
     },
     {
       "path": "docs/rust-rewrite/a09/header-profile-amendment.json",

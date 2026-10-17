@@ -9,6 +9,17 @@ use std::{
 };
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 pub type Catalogs = BTreeMap<String, Box<RawValue>>;
+/// Original admitted HTTP request, installed only inside the transport middleware.
+#[derive(Clone)]
+pub struct OriginalRequest(std::sync::Arc<str>);
+impl OriginalRequest {
+    pub(crate) fn new(json: String) -> Self {
+        Self(json.into())
+    }
+    pub fn json(&self) -> &str {
+        &self.0
+    }
+}
 /// JSON-lines framing removes only insignificant ASCII whitespace outside strings.
 /// Validation is performed by RawValue first; number and string tokens stay untouched.
 pub fn compact(raw: &str) -> Result<String> {
@@ -129,6 +140,7 @@ pub const INITIALIZED: &[u8] = b"{\"jsonrpc\":\"2.0\",\"method\":\"notifications
 #[derive(Default)]
 pub struct Overlay {
     pending: HashMap<String, String>,
+    native: HashSet<String>,
 }
 pub fn key(id: &RawValue) -> Result<String> {
     let raw = id.get();
@@ -164,12 +176,21 @@ pub fn sdk_validation(line: &str) -> Result<String> {
 pub struct Frames<R> {
     reader: BufReader<R>,
     partial: Vec<u8>,
+    limit: crate::output_limits::OutputLimits,
 }
 impl<R: tokio::io::AsyncRead + Unpin> Frames<R> {
     pub fn new(reader: R) -> Self {
         Self {
             reader: BufReader::new(reader),
             partial: Vec::new(),
+            limit: crate::output_limits::OutputLimits::HTTP,
+        }
+    }
+    pub fn with_limit(reader: R, limit: crate::output_limits::OutputLimits) -> Self {
+        Self {
+            reader: BufReader::new(reader),
+            partial: Vec::new(),
+            limit,
         }
     }
     pub async fn next(&mut self) -> Result<Option<String>> {
@@ -187,8 +208,8 @@ impl<R: tokio::io::AsyncRead + Unpin> Frames<R> {
                 .position(|b| *b == b'\n')
                 .map(|p| p + 1)
                 .unwrap_or(bytes.len());
-            if self.partial.len() + end > 4 * 1024 * 1024 {
-                return Err("MCP frame exceeds 4 MiB".into());
+            if self.partial.len() + end > self.limit.bytes() {
+                return Err(format!("MCP frame exceeds {} bytes", self.limit.bytes()).into());
             }
             let complete = bytes[end - 1] == b'\n';
             self.partial.extend_from_slice(&bytes[..end]);
@@ -306,6 +327,13 @@ fn synthetic_integer_call(line: &str) -> Result<Option<(String, String)>> {
     Ok(Some((compact(&serde_json::to_string(&fields)?)?, reply)))
 }
 impl WireState {
+    /// Read the actual admitted bytes by the SDK's private request identity.
+    /// Ownership stays in the existing 32-request map; reply/cancel/EOF cleanup
+    /// is unchanged. Clone before parsing so no mutex is held during validation.
+    pub fn original_request(&self, id: &rmcp::model::RequestId) -> Result<Option<String>> {
+        let raw = RawValue::from_string(serde_json::to_string(id)?)?;
+        Ok(self.requests.get(&key(&raw)?).cloned())
+    }
     pub fn request(&mut self, line: &str) -> Result<String> {
         let envelope: Envelope = serde_json::from_str(line)?;
         if envelope.method.as_deref() == Some("notifications/cancelled") {
@@ -406,10 +434,33 @@ impl WireState {
 }
 impl Overlay {
     pub fn has_pending(&self) -> bool {
-        !self.pending.is_empty()
+        !self.pending.is_empty() || !self.native.is_empty()
     }
     pub fn request(&mut self, catalogs: &Catalogs, request: &str) -> Result<()> {
         let envelope: Envelope = serde_json::from_str(request)?;
+        if envelope.method.as_deref() == Some("tools/call")
+            && let Some(id) = envelope.id.as_ref()
+            && let Some(names) = catalogs.get("ssx/native-tools")
+        {
+            // Inspect only the method name: arbitrary caller numbers elsewhere
+            // must not pass through an SDK floating-point Value before the
+            // native handler reads the admitted original request bytes.
+            let fields: BTreeMap<String, Box<RawValue>> = serde_json::from_str(request)?;
+            let name = fields
+                .get("params")
+                .and_then(|params| {
+                    serde_json::from_str::<BTreeMap<String, Box<RawValue>>>(params.get()).ok()
+                })
+                .and_then(|params| {
+                    params
+                        .get("name")
+                        .and_then(|name| serde_json::from_str::<String>(name.get()).ok())
+                });
+            let names: Vec<String> = serde_json::from_str(names.get())?;
+            if name.as_ref().is_some_and(|name| names.contains(name)) {
+                self.native.insert(key(id)?);
+            }
+        }
         if let (Some(id), Some(method)) = (envelope.id, envelope.method)
             && let Some(result) = catalogs.get(&method)
         {
@@ -425,7 +476,63 @@ impl Overlay {
         Ok(())
     }
     pub fn response(&mut self, response: &str) -> Result<String> {
-        let fields: BTreeMap<String, Box<RawValue>> = serde_json::from_str(response)?;
+        let mut fields: BTreeMap<String, Box<RawValue>> = serde_json::from_str(response)?;
+        let admitted = fields
+            .get("id")
+            .map(|id| key(id))
+            .transpose()?
+            .is_some_and(|id| self.native.remove(&id));
+        if let Some(raw) = fields.get("result")
+            && raw.get().trim_start().starts_with('{')
+        {
+            let mut result: BTreeMap<String, Box<RawValue>> = serde_json::from_str(raw.get())?;
+            let mut meta: BTreeMap<String, Box<RawValue>> = result
+                .get("_meta")
+                .and_then(|m| serde_json::from_str(m.get()).ok())
+                .unwrap_or_default();
+            let marker = meta.remove("ssx/native-structured-text");
+            if let Some(marker) = marker {
+                // An internal marker is scrubbed on every response, even when
+                // this request was not admitted or the handler returned an error.
+                let complete = result.get("isError").is_none_or(|v| v.get() != "true");
+                if admitted && marker.get() == "true" && complete && !fields.contains_key("error") {
+                    if !result.contains_key("structuredContent") {
+                        return Err("marked native output has no structured content".into());
+                    }
+                    let content: Vec<Value> = result
+                        .get("content")
+                        .map(|c| serde_json::from_str(c.get()))
+                        .transpose()?
+                        .unwrap_or_default();
+                    if content.len() != 1 || content[0]["type"] != "text" {
+                        return Err(
+                            "native structured output requires one text JSON document".into()
+                        );
+                    }
+                    let text = content[0]["text"]
+                        .as_str()
+                        .ok_or("missing native JSON text")?;
+                    let value: Box<RawValue> = serde_json::from_str(text)?;
+                    if !value.get().starts_with('{') {
+                        return Err("native structured output must be an object".into());
+                    }
+                    result.insert("structuredContent".into(), value);
+                }
+                if meta.is_empty() {
+                    result.remove("_meta");
+                } else {
+                    result.insert(
+                        "_meta".into(),
+                        RawValue::from_string(serde_json::to_string(&meta)?)?,
+                    );
+                }
+                fields.insert(
+                    "result".into(),
+                    RawValue::from_string(serde_json::to_string(&result)?)?,
+                );
+                return compact(&serde_json::to_string(&fields)?);
+            }
+        }
         if let Some(id) = fields.get("id")
             && let Some(replacement) = self.pending.remove(&key(id)?)
             && fields.contains_key("result")
@@ -469,12 +576,52 @@ fn rewrite_event(raw: &str, mut rewrite: impl FnMut(&str) -> Result<String>) -> 
 /// Stdio framing adapter around the same real rmcp service. Never interprets catalog numbers.
 pub async fn stdio(registry: Registry) -> Result<()> {
     let catalogs = registry.opaque.clone();
-    stdio_handler(registry, catalogs, Default::default()).await
+    stdio_handler(
+        registry,
+        catalogs,
+        Default::default(),
+        crate::output_limits::OutputLimits::HTTP,
+    )
+    .await
+}
+pub async fn stdio_with_factory<H: rmcp::ServerHandler>(
+    factory: impl FnOnce(std::sync::Arc<std::sync::Mutex<WireState>>) -> H,
+    catalogs: std::sync::Arc<Catalogs>,
+) -> Result<()> {
+    let wire = std::sync::Arc::new(std::sync::Mutex::new(WireState::default()));
+    stdio_handler(
+        factory(wire.clone()),
+        catalogs,
+        wire,
+        crate::output_limits::OutputLimits::HTTP,
+    )
+    .await
+}
+pub async fn stdio_for<H: rmcp::ServerHandler>(
+    handler: H,
+    catalogs: std::sync::Arc<Catalogs>,
+) -> Result<()> {
+    stdio_handler(
+        handler,
+        catalogs,
+        Default::default(),
+        crate::output_limits::OutputLimits::HTTP,
+    )
+    .await
+}
+pub async fn stdio_with_factory_and_limits<H: rmcp::ServerHandler>(
+    factory: impl FnOnce(std::sync::Arc<std::sync::Mutex<WireState>>) -> H,
+    catalogs: std::sync::Arc<Catalogs>,
+    limits: crate::output_limits::OutputLimits,
+) -> Result<()> {
+    let wire = std::sync::Arc::new(std::sync::Mutex::new(WireState::default()));
+    stdio_handler(factory(wire.clone()), catalogs, wire, limits).await
 }
 async fn stdio_handler<H: rmcp::ServerHandler>(
     handler: H,
     catalogs: std::sync::Arc<Catalogs>,
     wire: std::sync::Arc<std::sync::Mutex<WireState>>,
+    output_limits: crate::output_limits::OutputLimits,
 ) -> Result<()> {
     use rmcp::ServiceExt;
     let (server, io) = tokio::io::duplex(65536);
@@ -485,14 +632,14 @@ async fn stdio_handler<H: rmcp::ServerHandler>(
     };
     let pump = async {
         let mut input = Frames::new(tokio::io::stdin());
-        let mut output = Frames::new(read);
+        let mut output = Frames::with_limit(read, output_limits);
         let mut stdout = tokio::io::stdout();
         let mut overlay = Overlay::default();
         let mut lifecycle = Lifecycle::default();
         loop {
             tokio::select! {
                 line=input.next()=>{let Some(line)=line? else{break;};if let Some(reply)=lifecycle.request(&line)?{if let Some(reply)=reply{stdout.write_all(reply.as_bytes()).await?;stdout.write_all(b"\n").await?;stdout.flush().await?;}continue;}let rewritten=wire.lock().unwrap().request(&line)?;lifecycle.remap(&line,&rewritten)?;let line=rewritten;overlay.request(&catalogs,&line)?;write.write_all(line.as_bytes()).await?;write.write_all(b"\n").await?;},
-                line=output.next()=>{let Some(line)=line? else{break;};if lifecycle.response(&line)?{write.write_all(INITIALIZED).await?;}let line=overlay.response(&line)?;let line=wire.lock().unwrap().response(&line)?;stdout.write_all(compact(&line)?.as_bytes()).await?;stdout.write_all(b"\n").await?;stdout.flush().await?;}
+                line=output.next()=>{let Some(line)=line? else{break;};if lifecycle.response(&line)?{write.write_all(INITIALIZED).await?;}let line=overlay.response(&line)?;let line=wire.lock().unwrap().response(&line)?;let line=compact(&line)?;if line.len()>output_limits.bytes(){return Err("native output exceeds configured byte budget".into());}stdout.write_all(line.as_bytes()).await?;stdout.write_all(b"\n").await?;stdout.flush().await?;}
             }
         }
         Ok::<(), crate::Error>(())
@@ -732,7 +879,13 @@ impl RawGateway {
             gateway: self.clone(),
             wire: wire.clone(),
         };
-        let result = stdio_handler(handler, std::sync::Arc::new(self.catalogs.clone()), wire).await;
+        let result = stdio_handler(
+            handler,
+            std::sync::Arc::new(self.catalogs.clone()),
+            wire,
+            crate::output_limits::OutputLimits::HTTP,
+        )
+        .await;
         self.close().await?;
         result
     }

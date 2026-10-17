@@ -1911,7 +1911,19 @@
         "tests/test_saved_events_transport.py"
       ],
       "observable_distinctions": "No events differs from cursor too old/invalid; outbox full rejects coupled mutation rather than dropping event; redacted event keeps identity.",
-      "parity_evidence": "Pending: Rust fixture and native regression result on exact artifact; Python source observation only."
+      "parity_evidence": "Pending: Rust fixture and native regression result on exact artifact; Python source observation only.",
+      "native_successor": {
+        "status": "W05 candidate; full exact-artifact final qualification pending",
+        "acknowledgement_key": "mcp:saved:v2:event-ack:{tenant_utf8_byte_length}:{tenant}:{consumer}",
+        "unchanged_keys": "v1 tenant events stream, event-consumers index and event-expired marker",
+        "legacy_recovery": "Structural unique tenant/consumer partition permits read-only legacy fallback; next explicit retained ack migrates monotonically. Ambiguous present legacy default read is cursor_conflict; explicit replay reports acknowledgement_recovery and explicit retained ack establishes separate v2 ownership. Legacy bytes never change; v2 wins.",
+        "migration_requirement": "G04 drain legacy acknowledgement writers before migration; no mixed legacy/native writer correctness claim.",
+        "contracts": "docs/rust-rewrite/w05/README.md; differences.json W05-D04",
+        "regressions": [
+          "crates/ssx-infra/tests/w05.rs::acknowledgement_v2_migration_collision_quarantine_and_recovery",
+          "crates/ssx-mcp/tests/w05.rs::actual_native_transport_create_wait_repeat_ack_restart_resume_and_grant"
+        ]
+      }
     },
     {
       "id": "state.staged_record",

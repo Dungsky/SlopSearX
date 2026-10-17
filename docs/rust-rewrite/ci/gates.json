@@ -1779,6 +1779,13 @@
               "run": "cargo xtask check W04 --output target/rust-evidence/W04.json"
             },
             {
+              "name": "Saved event atomic publication replay acknowledgement and retention evidence",
+              "run": "cargo xtask check W05 --output target/rust-evidence/W05.json",
+              "env": {
+                "SLOPSEARX_TEST_VALKEY_SERVER": "${{ runner.temp }}/ssx-valkey/bin/valkey-server"
+              }
+            },
+            {
               "name": "Staged admission ownership and recovery evidence",
               "run": "cargo xtask check W11 --output target/rust-evidence/W11.json"
             },
@@ -1847,7 +1854,7 @@
               "uses": "actions/upload-artifact@v7",
               "with": {
                 "name": "rust-foundation-${{ matrix.target }}-${{ github.sha }}",
-                "path": "target/rust-evidence/F03.json\ntarget/rust-evidence/F04.json\ntarget/rust-evidence/T01.json\ntarget/rust-evidence/T04.json\ntarget/rust-evidence/T05.json\ntarget/rust-evidence/F05.json\ntarget/rust-evidence/F06.json\ntarget/rust-evidence/F09.json\ntarget/rust-evidence/F12.json\ntarget/rust-evidence/F07.json\ntarget/rust-evidence/W00.json\ntarget/rust-evidence/W01.json\ntarget/rust-evidence/W02.json\ntarget/rust-evidence/W04.json\ntarget/rust-evidence/W11.json\ntarget/rust-evidence/W06.json\ntarget/rust-evidence/O03.json\ntarget/rust-evidence/F08.json\ntarget/rust-evidence/F10.json\ntarget/rust-evidence/F11.json\ntarget/rust-evidence/F13.json\ntarget/rust-evidence/F14.json\ntarget/rust-evidence/F15.json\ntarget/rust-evidence/T09.json\ntarget/rust-evidence/A01.json\ntarget/rust-evidence/A02.json\ntarget/rust-evidence/A03.json\ntarget/rust-evidence/A04.json\ntarget/rust-evidence/A06.json\ntarget/rust-evidence/A05.json\ntarget/rust-evidence/A07.json\ntarget/rust-evidence/A08.json\ntarget/rust-evidence/A09.json\ntarget/rust-feature-graph.txt\n",
+                "path": "target/rust-evidence/F03.json\ntarget/rust-evidence/F04.json\ntarget/rust-evidence/T01.json\ntarget/rust-evidence/T04.json\ntarget/rust-evidence/T05.json\ntarget/rust-evidence/F05.json\ntarget/rust-evidence/F06.json\ntarget/rust-evidence/F09.json\ntarget/rust-evidence/F12.json\ntarget/rust-evidence/F07.json\ntarget/rust-evidence/W00.json\ntarget/rust-evidence/W01.json\ntarget/rust-evidence/W02.json\ntarget/rust-evidence/W04.json\ntarget/rust-evidence/W05.json\ntarget/rust-evidence/W11.json\ntarget/rust-evidence/W06.json\ntarget/rust-evidence/O03.json\ntarget/rust-evidence/F08.json\ntarget/rust-evidence/F10.json\ntarget/rust-evidence/F11.json\ntarget/rust-evidence/F13.json\ntarget/rust-evidence/F14.json\ntarget/rust-evidence/F15.json\ntarget/rust-evidence/T09.json\ntarget/rust-evidence/A01.json\ntarget/rust-evidence/A02.json\ntarget/rust-evidence/A03.json\ntarget/rust-evidence/A04.json\ntarget/rust-evidence/A06.json\ntarget/rust-evidence/A05.json\ntarget/rust-evidence/A07.json\ntarget/rust-evidence/A08.json\ntarget/rust-evidence/A09.json\ntarget/rust-feature-graph.txt\n",
                 "if-no-files-found": "warn"
               }
             }
