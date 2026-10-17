@@ -578,3 +578,208 @@ mod fingerprint_boundary_tests {
         assert!(std::panic::catch_unwind(|| p.fingerprint(&["brave".into()])).is_ok());
     }
 }
+
+/// Source facts only: ranking and transient metadata never enter a baseline.
+pub fn observe(
+    definition: &SavedDefinition,
+    response: &ssx_domain::SearchResponse,
+    observed_at: f64,
+) -> Result<Value, DomainError> {
+    use ssx_domain::{canonical::saved_identity, saved::IDENTITY_VERSION};
+    let mut reasons = BTreeSet::new();
+    let coverage = response
+        .engine_outcomes
+        .iter()
+        .map(|o| (o.engine.clone(), Value::String(o.status.clone())))
+        .collect::<ssx_json::Map<_, _>>();
+    if response.cached {
+        reasons.insert("cached_observation");
+    }
+    if response.partial || response.deadline_exceeded || response.all_unresponsive {
+        reasons.insert("incomplete_response");
+    }
+    if response
+        .scope
+        .selected_engines
+        .iter()
+        .collect::<BTreeSet<_>>()
+        != definition.engines.iter().collect::<BTreeSet<_>>()
+    {
+        reasons.insert("scope_changed");
+    }
+    if definition
+        .engines
+        .iter()
+        .any(|e| coverage.get(e).and_then(Value::as_str) != Some("ok"))
+    {
+        reasons.insert("incomplete_engine_coverage");
+    }
+    if response.results.len() as u64 > definition.max_results {
+        reasons.insert("observation_truncated");
+    }
+    let mut records = ssx_json::Map::new();
+    for result in response
+        .results
+        .iter()
+        .take(usize::try_from(definition.max_results).unwrap_or(usize::MAX))
+    {
+        if result.url.is_empty()
+            || [&result.url, &result.title, &result.content]
+                .into_iter()
+                .any(|s| s.len() > 8192)
+            || result
+                .published_date
+                .as_ref()
+                .is_some_and(|s| s.len() > 8192)
+        {
+            reasons.insert("unrepresentable_source_record");
+            continue;
+        }
+        let identity = saved_identity(&[
+            Value::String(IDENTITY_VERSION.into()),
+            Value::String(crate::normalise_url(&result.url)),
+        ])?;
+        let engines = if result.engines.is_empty() {
+            vec![result.engine.clone()]
+        } else {
+            result.engines.iter().cloned().collect()
+        };
+        let record = ssx_json::json!({"url":result.url,"engine":result.engine,"engines":engines,"fields":{"title":result.title,"content":result.content,"published_date":result.published_date}});
+        if records.get(&identity).is_some_and(|old| *old != record) {
+            reasons.insert("ambiguous_url_identity");
+        }
+        records.insert(identity, record);
+    }
+    Ok(
+        ssx_json::json!({"window":definition.window()?,"observed_at":observed_at,"query_id":response.query_id,"cached":response.cached,"coverage":coverage,"discovered_count":response.results.len(),"records":records,"incomparable_reasons":reasons.into_iter().collect::<Vec<_>>()}),
+    )
+}
+
+/// Compare a bounded search window; absence is never asserted to be deletion.
+pub fn compare_observations(
+    definition: &SavedDefinition,
+    observation: Value,
+    run_id: &str,
+    scheduled_at: f64,
+    started_at: f64,
+    finished_at: f64,
+    missed_slots: i64,
+) -> Result<(Value, Option<Value>), DomainError> {
+    use ssx_domain::canonical::{JsonProfile, canonical_json, saved_identity};
+    let invalid = || DomainError("malformed saved observation");
+    if [scheduled_at, started_at, finished_at]
+        .iter()
+        .any(|n| !n.is_finite())
+    {
+        return Err(invalid());
+    }
+    let mut reasons = observation["incomparable_reasons"]
+        .as_array()
+        .ok_or_else(invalid)?
+        .iter()
+        .map(|v| v.as_str().map(str::to_owned).ok_or_else(invalid))
+        .collect::<Result<BTreeSet<_>, _>>()?;
+    let mut baseline = definition.baseline.as_ref();
+    let mut baseline_reason = "first_observation";
+    if let Some(b) = baseline
+        && b["expires_at"].as_f64().ok_or_else(invalid)? <= finished_at
+    {
+        baseline = None;
+        baseline_reason = "baseline_expired";
+    }
+    if let Some(b) = baseline
+        && b["window"] != observation["window"]
+    {
+        baseline = None;
+        baseline_reason = "comparison_window_changed";
+    }
+    let current = observation["records"].as_object().ok_or_else(invalid)?;
+    let empty = ssx_json::Map::new();
+    let prior = match baseline {
+        Some(b) => b["records"].as_object().ok_or_else(invalid)?,
+        None => &empty,
+    };
+    if baseline.is_some()
+        && current.iter().any(|(id, row)| {
+            prior.get(id).is_some_and(|old| {
+                row["engine"] != old["engine"] || row["engines"] != old["engines"]
+            })
+        })
+    {
+        reasons.insert("source_provenance_changed".into());
+    }
+    let mut events = Vec::new();
+    if reasons.is_empty() && baseline.is_some() {
+        for id in current.keys().chain(prior.keys()).collect::<BTreeSet<_>>() {
+            let before = prior.get(id);
+            let after = current.get(id);
+            let kind = match (before, after) {
+                (None, _) => "added",
+                (_, None) => "not_observed_in_latest_run",
+                (Some(b), Some(a)) if b["fields"] != a["fields"] => "source_field_changed",
+                _ => continue,
+            };
+            events.push(ssx_json::json!({"event_id":saved_identity(&[Value::String(run_id.into()),Value::String(id.clone()),Value::String(kind.into())])?,"kind":kind,"identity":id,"before":before,"after":after}));
+        }
+    }
+    let expires_at = definition
+        .expires_at
+        .get()
+        .min(finished_at + definition.retention_seconds as f64);
+    let mut report = object([
+        ("run_id", Value::String(run_id.into())),
+        ("search_id", Value::String(definition.search_id.clone())),
+        ("revision", ssx_json::to_value(definition.revision)?),
+        ("scheduled_at", ssx_json::to_value(scheduled_at)?),
+        ("started_at", ssx_json::to_value(started_at)?),
+        ("finished_at", ssx_json::to_value(finished_at)?),
+        ("missed_slots", ssx_json::to_value(missed_slots)?),
+        (
+            "status",
+            Value::String(
+                if !reasons.is_empty() {
+                    "incomparable"
+                } else if baseline.is_some() {
+                    "compared"
+                } else {
+                    "baseline_initialized"
+                }
+                .into(),
+            ),
+        ),
+        ("incomparable_reasons", ssx_json::to_value(&reasons)?),
+        (
+            "baseline_reason",
+            if baseline.is_none() {
+                Value::String(baseline_reason.into())
+            } else {
+                Value::Null
+            },
+        ),
+        (
+            "baseline_observed_at",
+            baseline.map_or(Value::Null, |b| b["observed_at"].clone()),
+        ),
+        ("observation", observation),
+        ("events", Value::Array(events)),
+        ("expires_at", ssx_json::to_value(expires_at)?),
+    ]);
+    let oversized = ssx_json::to_vec(&report)?.len() > ssx_json::MAX_JSON_BYTES
+        || canonical_json(&report, JsonProfile::AsciiSpaced)?.len() > 4 * 1024 * 1024;
+    if oversized {
+        reasons.insert("report_size_exceeded".into());
+        report["status"] = Value::String("incomparable".into());
+        report["incomparable_reasons"] = ssx_json::to_value(reasons)?;
+        report["events"] = Value::Array(vec![]);
+        report["observation"]["records"] = Value::Object(ssx_json::Map::new());
+        return Ok((report, None));
+    }
+    let replacement = if reasons.is_empty() {
+        let mut value = report["observation"].clone();
+        value["expires_at"] = ssx_json::to_value(expires_at)?;
+        Some(value)
+    } else {
+        None
+    };
+    Ok((report, replacement))
+}

@@ -68,7 +68,7 @@
     },
     {
       "path": "docs/rust-rewrite/inventory/DRIFT.md",
-      "git_blob": "1a9dbaf13e765b96f17cd94f8478ff7f8de66449"
+      "git_blob": "179ad5ab20d0c7acda14953858bad94b86cd2a4f"
     },
     {
       "path": "docs/rust-rewrite/inventory/README.md",
@@ -92,11 +92,11 @@
     },
     {
       "path": "docs/rust-rewrite/inventory/python-disposition.json",
-      "git_blob": "2c261a1983f8edef720f90a340beab57aa3a2f31"
+      "git_blob": "1565a5ce006d96dc21afd249a2c4d2a46891b405"
     },
     {
       "path": "docs/rust-rewrite/inventory/python-invocations.json",
-      "git_blob": "2a07f7d5ad175bc9bfb17f50c4a3a33b1500e478"
+      "git_blob": "a6f7e4ada0daadac64f34aa7d225e2a850a974ab"
     },
     {
       "path": "docs/rust-rewrite/inventory/surface-contracts.md",
@@ -1657,6 +1657,10 @@
     {
       "path": "docs/rust-rewrite/a08/oracle/export_timeout.py",
       "git_blob": "21cbf680c3cf2355cf6e48a97db4a8305d8add10"
+    },
+    {
+      "path": "docs/rust-rewrite/w04/capture_source.py",
+      "git_blob": "3cfb4ce55c8d2bf81af4dd463f79e37922b3a0a5"
     }
   ]
 }

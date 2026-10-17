@@ -14,7 +14,7 @@
       "100644": 729
     },
     "configured_precommit_hook_rows": 15,
-    "developer_oracle_invocation_rows": 44
+    "developer_oracle_invocation_rows": 45
   },
   "interpreter_invocations": [
     {
@@ -8684,6 +8684,15 @@
       "disposition": "Actual completed invocation receipt docs/rust-rewrite/a08/oracle-runs.json; executable retires G08; preserve immutable captures.",
       "source_sha256": "8fb0ab865e80aeeece54a145e62d8d082f7dc7542103aba2c046530779d6e7e6",
       "execution_receipt": "docs/rust-rewrite/a08/oracle-runs.json"
+    },
+    {
+      "path": "docs/rust-rewrite/w04/README.md",
+      "example_path": "docs/rust-rewrite/w04/capture_source.py",
+      "evidence": "Reproduction guidance only (not an execution receipt): PYTHONPATH=. /private/tmp/slopsearx-rust-oracle-py314/bin/python docs/rust-rewrite/w04/capture_source.py",
+      "classification": "temporary backend-coupled developer oracle; never executed by native runtime or mandatory gates; source artifact hash-read by W04 gate",
+      "migration_owner": "W04",
+      "retirement_owner": "G08",
+      "disposition": "retire executable Python before backend removal; retain immutable JSON source observations and provenance"
     }
   ]
 }

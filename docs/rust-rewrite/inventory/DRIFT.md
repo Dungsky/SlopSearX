@@ -589,3 +589,21 @@ inputs and performs all five offline adapter calls; its updated exact hash and
 executed receipt remain bound here and in F01. No producer count or retirement
 owner changes. Genuine registration-only disposition is restricted to the five
 explicit original registration nodes.
+## W04 saved-runner source oracle inventory correction
+
+W04 adds the temporary offline synthetic `docs/rust-rewrite/w04/capture_source.py` producer. Its existing local oracle inventory did not update the global F01 source set; this correction adds its exact source binding, backend-coupled tooling/test classification, W04/G08 ownership and reproduction guidance. The guidance is not an execution receipt. Existing source/invocation records remain unchanged: the additive union is388 Python source paths,265 backend-coupled tooling/test paths and29 developer-oracle invocation rows. Native runtime and mandatory gates never execute the exporter; the W04 gate hash-reads it as a temporary source artifact. G08 retires executable Python before backend removal and retains immutable JSON observations/provenance.
+
+## W04 integration with accepted A07
+
+Normal integration of accepted A07 main `2f78b9d02cfe62c9829fcfb38b85cd632a889de0` preserves every complete parent record, yielding400 tracked Python source paths,277 backend-coupled tooling/test paths and41 developer-oracle invocation rows. Both A07 and W04 native gates and artifact uploads remain enabled. Historical observations and source pins are unchanged. This records integration; final combined-source validation and review remain required.
+
+## A08 union with accepted W04/main
+
+The normal merge preserves the accepted A08 history through `f3ef8910` and
+main/W04 `9b7d888d`. Both complete source inventories and developer-oracle
+records are retained: 404 tracked Python sources and 45 developer-oracle
+invocation rows. Existing source observations, captures and producer hashes
+remain unchanged. The descriptive A08 regression-producer evidence SHA now
+matches its already-enforced current hash. CI snapshot and evidence paths
+retain both W04 and A08 gates. Main integration does not adopt pending A05/A06
+shared seams; their future union remains a separate reviewed operation.
