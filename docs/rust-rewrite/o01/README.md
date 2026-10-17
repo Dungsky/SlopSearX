@@ -28,10 +28,11 @@ Passive engine health remains F14's observed state: unknown, stale and synthetic
 results do not become successful probes. Request/job RAII spans and finite task
 state callbacks expose lifecycle outcomes without identifier labels.
 
-Audit is enabled by default and retains the original query/client fields in the
-configured private Valkey authority. `QueryPrivacy::Redacted` is an explicit
-optional mode. Logs and metrics do not receive raw query/client values. Audit
-stream and per-engine stats retain90days; audit stream trimming uses approximate
+Audit is enabled by default and redacts query and client identifiers before
+writing to the configured private Valkey authority. `QueryPrivacy::RetainRaw`
+is an explicit opt-in for operators who require source-compatible raw audit
+fields. Logs and metrics do not receive raw query/client values. Audit stream
+and per-engine stats retain90days; audit stream trimming uses approximate
 MAXLEN10000. Stats keys use the local calendar day. Queue capacity defaults256
 and is validated1..65536; operations default1second and shutdown2seconds.
 Delivery failures are nonfatal and are not retried. Missing authority is a no-op;
