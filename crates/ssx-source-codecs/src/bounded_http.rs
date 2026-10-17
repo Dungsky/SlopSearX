@@ -229,6 +229,21 @@ mod tests {
                     Ok(row["canonical"].as_str()),
                     "{label:?}"
                 );
+                let lookup = crate::lookup_http_encoding_bounded(label, &budget, &|| Ok(()));
+                if label.contains('\0') {
+                    assert_eq!(
+                        lookup,
+                        Err(crate::BoundedParameterError::ValueError(
+                            "embedded null character"
+                        ))
+                    );
+                } else {
+                    assert_eq!(
+                        lookup,
+                        Ok(row["canonical"].as_str()),
+                        "bounded final lookup {label:?}"
+                    );
+                }
                 assert_eq!(budget.snapshot().unwrap().used, 0);
             }
         }

@@ -76,7 +76,9 @@ impl ArxivAdapter {
     ) -> AdapterResponse {
         let start = Instant::now();
         let admission = if let Some(context) = context {
-            match tokio::time::timeout_at(context.deadline.into(), self.admission.admit("arxiv"))
+            match self
+                .http
+                .admission_timeout(context.deadline, self.admission.admit("arxiv"))
                 .await
             {
                 Ok(value) => value,
@@ -99,29 +101,39 @@ impl ArxivAdapter {
         if let Err(message) = self.config.timeout_ms.validate_timeout_operand(false) {
             return bare(EngineStatus::Error, Some(message), start);
         }
-        let network_deadline = match deadline(&self.config.timeout_ms, context, Instant::now()) {
-            Ok(value) => value,
-            Err((status, message)) => return bare(status, message, start),
-        };
+        let network_deadline =
+            match deadline(&self.config.timeout_ms, context, self.http.deadline_now()) {
+                Ok(value) => value,
+                Err((status, message)) => return bare(status, message, start),
+            };
         let deadline = context.map_or(network_deadline, |c| c.deadline);
-        let operation = match self.parser.begin_raw(budget.clone(), deadline.into()) {
-            Ok(value) => value,
-            Err(RawAdmissionError::Deadline) => return bare(EngineStatus::Timeout, None, start),
-            Err(RawAdmissionError::Shutdown) => {
-                return bare(
-                    EngineStatus::Error,
-                    Some("arXiv native XML parser shutdown"),
-                    start,
-                );
-            }
-            Err(RawAdmissionError::Saturated) => {
-                return bare(
-                    EngineStatus::Error,
-                    Some("arXiv native XML parser saturated"),
-                    start,
-                );
-            }
-        };
+        #[cfg(test)]
+        self.http
+            .record_scholarly_deadlines(network_deadline, deadline);
+        let operation =
+            match self
+                .parser
+                .begin_raw_for_http(budget.clone(), deadline.into(), &self.http)
+            {
+                Ok(value) => value,
+                Err(RawAdmissionError::Deadline) => {
+                    return bare(EngineStatus::Timeout, None, start);
+                }
+                Err(RawAdmissionError::Shutdown) => {
+                    return bare(
+                        EngineStatus::Error,
+                        Some("arXiv native XML parser shutdown"),
+                        start,
+                    );
+                }
+                Err(RawAdmissionError::Saturated) => {
+                    return bare(
+                        EngineStatus::Error,
+                        Some("arXiv native XML parser saturated"),
+                        start,
+                    );
+                }
+            };
         let fetched = operation
             .run_until_cancelled(self.fetch(request, budget, deadline, network_deadline))
             .await;
@@ -216,11 +228,12 @@ impl ArxivAdapter {
         deadline: Instant,
         network_deadline: Instant,
     ) -> Result<ChargedResponse, Failure> {
-        let parameters = scholarly_wire::arxiv_parameters_budgeted(
+        let parameters = scholarly_wire::arxiv_parameters_for_clock(
             budget,
             &request.query,
             &self.config.max_results,
             deadline,
+            &self.http.deadline_clock(),
         )
         .await
         .map_err(|e| match e {

@@ -82,11 +82,10 @@ impl SemanticAdapter {
     ) -> AdapterResponse {
         let start = Instant::now();
         let admitted = if let Some(c) = context {
-            match tokio::time::timeout_at(
-                c.deadline.into(),
-                self.admission.admit("semanticscholar"),
-            )
-            .await
+            match self
+                .http
+                .admission_timeout(c.deadline, self.admission.admit("semanticscholar"))
+                .await
             {
                 Ok(v) => v,
                 Err(_) => return bare(EngineStatus::Timeout, None, start),
@@ -108,29 +107,39 @@ impl SemanticAdapter {
         if let Err(m) = self.config.timeout_ms.validate_timeout_operand(false) {
             return bare(EngineStatus::Error, Some(m), start);
         }
-        let network_deadline = match deadline(&self.config.timeout_ms, context, Instant::now()) {
-            Ok(v) => v,
-            Err((s, m)) => return bare(s, m, start),
-        };
+        let network_deadline =
+            match deadline(&self.config.timeout_ms, context, self.http.deadline_now()) {
+                Ok(v) => v,
+                Err((s, m)) => return bare(s, m, start),
+            };
         let deadline = context.map_or(network_deadline, |c| c.deadline);
-        let operation = match self.lifecycle.begin_raw(budget.clone(), deadline.into()) {
-            Ok(v) => v,
-            Err(RawAdmissionError::Deadline) => return bare(EngineStatus::Timeout, None, start),
-            Err(RawAdmissionError::Shutdown) => {
-                return bare(
-                    EngineStatus::Error,
-                    Some("Semantic Scholar lifecycle shutdown"),
-                    start,
-                );
-            }
-            Err(RawAdmissionError::Saturated) => {
-                return bare(
-                    EngineStatus::Error,
-                    Some("Semantic Scholar lifecycle saturated"),
-                    start,
-                );
-            }
-        };
+        #[cfg(test)]
+        self.http
+            .record_scholarly_deadlines(network_deadline, deadline);
+        let operation =
+            match self
+                .lifecycle
+                .begin_raw_for_http(budget.clone(), deadline.into(), &self.http)
+            {
+                Ok(v) => v,
+                Err(RawAdmissionError::Deadline) => {
+                    return bare(EngineStatus::Timeout, None, start);
+                }
+                Err(RawAdmissionError::Shutdown) => {
+                    return bare(
+                        EngineStatus::Error,
+                        Some("Semantic Scholar lifecycle shutdown"),
+                        start,
+                    );
+                }
+                Err(RawAdmissionError::Saturated) => {
+                    return bare(
+                        EngineStatus::Error,
+                        Some("Semantic Scholar lifecycle saturated"),
+                        start,
+                    );
+                }
+            };
         let result = operation
             .run_until_cancelled(self.execute(request, budget, deadline, network_deadline, start))
             .await;
@@ -171,7 +180,14 @@ impl SemanticAdapter {
         network_deadline: Instant,
         start: Instant,
     ) -> Result<AdapterResponse, Failure> {
-        let params = parameters(&request.query, &self.config.max_results, budget, deadline).await?;
+        let params = parameters_for_clock(
+            &request.query,
+            &self.config.max_results,
+            budget,
+            deadline,
+            &self.http.deadline_clock(),
+        )
+        .await?;
         let mut url = url::Url::parse(&self.config.base_url)
             .map_err(|_| Failure::Transport(HttpError::InvalidRequest))?;
         url.set_query(Some(params.as_str()));
@@ -321,20 +337,26 @@ async fn outcome(
         .await
         .map_err(budget_error)
 }
-async fn parameters(
+async fn parameters_for_clock(
     query: &str,
     limit: &Scalar,
     budget: &Budget,
     deadline: Instant,
+    clock: &crate::http::DeadlineClock,
 ) -> Result<OwnedString, Failure> {
-    async fn encode(out: &mut OwnedString, raw: &str, deadline: Instant) -> Result<(), Failure> {
+    async fn encode(
+        out: &mut OwnedString,
+        raw: &str,
+        deadline: Instant,
+        clock: &crate::http::DeadlineClock,
+    ) -> Result<(), Failure> {
         const HEX: &[u8; 16] = b"0123456789ABCDEF";
         let cap = raw.len().checked_mul(3).ok_or(Failure::Resource)?;
         out.try_reserve_exact(cap).map_err(|_| Failure::Resource)?;
         for (i, b) in raw.bytes().enumerate() {
             if i % 1024 == 0 {
                 tokio::task::yield_now().await;
-                if Instant::now() >= deadline {
+                if clock.expired(deadline) {
                     return Err(Failure::Deadline);
                 }
             }
@@ -353,11 +375,11 @@ async fn parameters(
     let mut out = OwnedString::new(budget).map_err(|_| Failure::Resource)?;
     out.try_reserve_exact(256).map_err(|_| Failure::Resource)?;
     out.try_push_str("query=").map_err(|_| Failure::Resource)?;
-    encode(&mut out, query, deadline).await?;
+    encode(&mut out, query, deadline, clock).await?;
     out.try_push_str("&limit=").map_err(|_| Failure::Resource)?;
     let _numeric = budget.reserve(256).map_err(|_| Failure::Resource)?;
     let limit = limit.query_text();
-    encode(&mut out, &limit, deadline).await?;
+    encode(&mut out, &limit, deadline, clock).await?;
     out.try_push_str(
         "&fields=title%2Curl%2Cabstract%2CcitationCount%2CpublicationDate%2CexternalIds%2Cauthors",
     )

@@ -3,6 +3,7 @@ mod a01;
 mod a02;
 mod a03;
 mod a04;
+mod a05;
 mod a06;
 mod a06_resource;
 mod a07;
@@ -459,6 +460,7 @@ fn execute(root: &Path, id: &str, records: &mut Vec<Value>) -> Result<()> {
         "A08" => a08::check(root, records),
         "A03" => a03::check(root, records),
         "A02" => a02::check(root, records),
+        "A05" => a05::check(root, records),
         "O03" => o03::check(root, records),
         "O06" => o06::check(root, records),
         "F01" | "F02" => source_check(root, id, records),
@@ -614,7 +616,9 @@ fn main() {
         }
     }
     let a08_scope = a08::report_scope(&records);
-    let scope = if id == "A08" {
+    let scope = if id == "A05" {
+        "offline source-bound DuckDuckGo/Google HTML adapter replay and loopback sessions; explicit host-only cookie correction; no live provider or deployment claims"
+    } else if id == "A08" {
         a08_scope.as_str()
     } else if id == "A07" {
         "source-bound biomedical factories/config/scope,172 offline controls and charged runtime/context/compact regressions; no provider calls, global G02 or full HTML/MCP transport claim"

@@ -128,3 +128,27 @@ Primary APIs: [AWS-LC signature](https://docs.rs/aws-lc-rs/1.18.2/aws_lc_rs/sign
 AWS-LC license is ISC AND (Apache-2.0 OR ISC); base64 is MIT OR Apache-2.0.
 Only direct edges to existing locked packages are added; T09 records locked build,
 Clippy/deny and actual TLS/private-Valkey evidence before acceptance.
+
+
+## A05 amendment: exact offline vendored HTML parser
+
+A05 implements vendored libxml2 2.15.4 (official archive SHA256
+`98087fd181d9070724f3fbc65c7377db03038eb92bd882374daff44940138821`)
+and patched MIT `libxml =0.3.22` (baseline registry package SHA256
+`1157d8bc7a14d07445541827e7a9c80fc5939718b43a973cf7e666d3ab5035fb`).
+The reviewed safe-API patch adds unconditional context resource refusal; a
+separate strict vendor build patch verifies source hash/version and uses only
+the generated target prefix/headers/static archive. There is no host-library,
+default-binding or build-time network fallback. Workspace unsafe forbid stays.
+Exact patches/configuration and package license/MSRV evidence are retained by
+A05; vendored C security review extends beyond cargo-deny.
+
+CMake>=3.18,C11 compiler,pkg-config and libclang are build prerequisites; native
+builds per target initially reject cross/host fallback. Linux GNUx86_64/aarch64
+and macOS use identical pinned C source. MacOS candidate compilation/symbol
+matching is observed; other targets remain CI qualification, not inferred.
+The helper must be packaged alongside server/worker consumers and excluded from
+wire-only client artifacts. No runtime Python path is added. Release security,
+resource refusal, kill/reap shutdown and full lxml-wrapper/codec behavior remain
+mandatory before acceptance; the approved dependency direction alone is not
+proof of parity or release readiness.

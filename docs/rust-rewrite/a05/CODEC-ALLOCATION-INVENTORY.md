@@ -20,3 +20,13 @@ The current leaf has no lazy heap-backed mapping cache: single-byte, CJK, strict
 `Text::into_codepoints` transfers the Vec without copying. `Text::from(String)` currently collects a separate Vec; dropping the original raw input before later UTF8 conversion removes only that specific overlap. It does not erase intermediate allocations above.
 
 The common ProcessPool lease retains caller accounting until verified child cleanup and owns cancellation/deadline kill+reap. A lease is an ownership mechanism, not automatic allocation instrumentation. A06 must not assume a complete heap bound from the donor facade. A future budget hook must charge checked capacities before allocation/reallocation in these paths, or the backend must establish a conservative proven phase envelope plus process memory enforcement. No public allocator/budget API is adopted in this packet.
+
+## Post-v3 direct-output work
+
+The next working version removes body UTF8/16/32 intermediate String and units
+Vec allocations, emits singlebyte/ASCII/Latin1 directly into points, removes
+strict singlebyte/UTF16 String intermediates, replaces ISO action Vecs with stack
+records and compares Unicode names without an uppercase name Vec. UTF7 reserves
+its point capacity once. The original inventory above describes immutable v3;
+these family changes passed the full30 native codec tests. They do not yet make
+output buffers charge-owning or establish the remaining aggregate bound.

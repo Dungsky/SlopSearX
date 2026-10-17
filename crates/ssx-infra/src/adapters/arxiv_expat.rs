@@ -365,6 +365,8 @@ pub struct RawOperation {
     operation: std::sync::Arc<Operation>,
     budget: ssx_owned_budget::Budget,
     deadline: tokio::time::Instant,
+    #[cfg(test)]
+    clock: Option<crate::http::DeadlineClock>,
 }
 struct RawLease {
     _operation: std::sync::Arc<Operation>,
@@ -372,6 +374,21 @@ struct RawLease {
     _output: std::sync::Arc<ssx_owned_budget::Charge>,
 }
 impl RawOperation {
+    fn expired(&self) -> bool {
+        #[cfg(test)]
+        if let Some(clock) = &self.clock {
+            return clock.expired(self.deadline.into_std());
+        }
+        tokio::time::Instant::now() >= self.deadline
+    }
+    async fn wait_deadline(&self) {
+        #[cfg(test)]
+        if let Some(clock) = &self.clock {
+            clock.sleep_until(self.deadline.into_std()).await;
+            return;
+        }
+        tokio::time::sleep_until(self.deadline).await;
+    }
     /// Scope pre-helper work (including HTTP) to this operation's existing
     /// absolute deadline and pool lifetime. No additional admission is acquired.
     /// Already-closing pools are checked before the supplied future is polled.
@@ -383,14 +400,14 @@ impl RawOperation {
         if *closing.borrow() {
             return Err(RawAdmissionError::Shutdown);
         }
-        if tokio::time::Instant::now() >= self.deadline {
+        if self.expired() {
             return Err(RawAdmissionError::Deadline);
         }
         tokio::select! {
             biased;
             // Sender closure also means this owner can no longer authorize work.
             _ = closing.changed() => Err(RawAdmissionError::Shutdown),
-            _ = tokio::time::sleep_until(self.deadline) => Err(RawAdmissionError::Deadline),
+            _ = self.wait_deadline() => Err(RawAdmissionError::Deadline),
             result = future => Ok(result),
         }
     }
@@ -401,6 +418,11 @@ impl RawOperation {
     where
         I: Iterator<Item = super::scholarly_frame::Header<'a>> + Clone + Send,
     {
+        #[cfg(test)]
+        assert!(
+            !self.clock.as_ref().is_some_and(|clock| clock.is_manual()),
+            "pending Manual owner cannot enter a parser worker"
+        );
         let mut closing = self.pool.closing.subscribe();
         tokio::select! {
             result=self.parse_admitted(headers,body)=>result,
@@ -561,6 +583,13 @@ impl AtomPool {
         if tokio::time::Instant::now() >= deadline {
             return Err(RawAdmissionError::Deadline);
         }
+        self.begin_raw_admitted(budget, deadline)
+    }
+    fn begin_raw_admitted(
+        &self,
+        budget: ssx_owned_budget::Budget,
+        deadline: tokio::time::Instant,
+    ) -> Result<RawOperation, RawAdmissionError> {
         let permit = self.admission.clone().try_acquire_owned().map_err(|_| {
             if self.admission.is_closed() {
                 RawAdmissionError::Shutdown
@@ -576,7 +605,35 @@ impl AtomPool {
             }),
             budget,
             deadline,
+            #[cfg(test)]
+            clock: None,
         })
+    }
+    pub(crate) fn begin_raw_for_http(
+        &self,
+        budget: ssx_owned_budget::Budget,
+        deadline: tokio::time::Instant,
+        http: &crate::http::AdapterHttp,
+    ) -> Result<RawOperation, RawAdmissionError> {
+        #[cfg(test)]
+        {
+            let clock = http.deadline_clock();
+            assert!(
+                !clock.is_manual() || clock.is_pending_only(),
+                "scholarly Manual owner is pending-only"
+            );
+            if clock.observed() {
+                if clock.expired(deadline.into_std()) {
+                    return Err(RawAdmissionError::Deadline);
+                }
+                let mut operation = self.begin_raw_admitted(budget, deadline)?;
+                operation.clock = Some(clock);
+                return Ok(operation);
+            }
+        }
+        #[cfg(not(test))]
+        let _ = http;
+        self.begin_raw(budget, deadline)
     }
     pub fn new(helper: PathBuf, capacity: NonZeroUsize) -> Result<Self, ProcessError> {
         // Initial reviewed operational policy is exactly one operation. Raising

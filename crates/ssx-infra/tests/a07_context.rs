@@ -13,7 +13,7 @@ use ssx_infra::{
         pubmed::PubMedAdapter,
         uniprot::UniProtAdapter,
     },
-    http::{AdapterHttp, ExchangeFuture, Request, Response, Transport},
+    http::{AdapterHttp, Cancellation, ExchangeFuture, Preparation, Request, Response, Transport},
 };
 use std::{
     collections::VecDeque,
@@ -50,6 +50,24 @@ fn request() -> SearchRequest {
         interactive_timeout_ms: Some(5000),
         ..Default::default()
     }
+}
+// Production startup is separate from these query-context assertions. This
+// constructor builds the ordinary default-profile client without an HTTP GET;
+// its existing five-second idle expiry and environment/proxy policy apply.
+async fn ready_http() -> Arc<AdapterHttp> {
+    let startup = Instant::now();
+    let (http, preparation) = AdapterHttp::new_ready(
+        tokio::time::Instant::now() + Duration::from_secs(5),
+        Cancellation::default(),
+    )
+    .await
+    .unwrap();
+    assert_eq!(preparation, Preparation::Prepared);
+    eprintln!(
+        "A07_CONTEXT_STARTUP preparation={preparation:?} elapsed_ns={}",
+        startup.elapsed().as_nanos()
+    );
+    http
 }
 struct Replay {
     seen: Mutex<Vec<Request>>,
@@ -238,7 +256,11 @@ async fn pubchem_second_request_renewal_and_pubmed_pipeline_cannot_extend_contex
             (second.into(), Duration::from_millis(100)),
         ])
         .await;
-        let http = Arc::new(AdapterHttp::default());
+        let http = ready_http().await;
+        assert!(
+            seen.lock().unwrap().is_empty(),
+            "startup sends no provider request"
+        );
         let mut c = BiomedicalConfig::defaults(&base);
         c.timeout_ms = ConfigScalar::Integer(500);
         let engine = adapter(name, http.clone(), Arc::new(AllowAllAdmission), c);
@@ -263,7 +285,11 @@ async fn queue_time_consumes_absolute_context_instead_of_original_request_timeou
         Duration::from_millis(100),
     )])
     .await;
-    let http = Arc::new(AdapterHttp::default());
+    let http = ready_http().await;
+    assert!(
+        seen.lock().unwrap().is_empty(),
+        "startup sends no provider request"
+    );
     let engine = adapter(
         "clinicaltrials",
         http.clone(),

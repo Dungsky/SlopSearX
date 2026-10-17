@@ -386,7 +386,6 @@ add(
 )
 
 
-
 # Original independent second-review inputs, retained without expected values.
 # Replay the actual whole-search source adapters, never a rewritten oracle.
 for line in (ROOT / "docs/rust-rewrite/a05/oracle/review-2-inputs.tsv").read_text().splitlines():

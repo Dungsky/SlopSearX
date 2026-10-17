@@ -12,7 +12,7 @@
     },
     {
       "path": "crates/ssx-infra/src/adapters/arxiv_expat.rs",
-      "sha256": "54d8e7c9632bb6c6d4295631e16f216ce8e3cca71bcfefc37cc0bc27bc088238"
+      "sha256": "776444101f2bc89f3b7d35854848c45f655468fcf644836468e9c8fe0a7c37a5"
     },
     {
       "path": "crates/ssx-infra/src/adapters/arxiv_expat_wire.rs",
@@ -28,7 +28,7 @@
     },
     {
       "path": "crates/ssx-infra/src/adapters/arxiv_runtime.rs",
-      "sha256": "7240c7d0d1933b536b278def120a44c63cbefacbf8ca0e2b9f62cd897740c737"
+      "sha256": "b7ddc92105cd9148ce1b1ad1b409296299575e8fa177f3fe08c60120498f2441"
     },
     {
       "path": "crates/ssx-infra/src/adapters/arxiv_runtime_tests.rs",
@@ -44,7 +44,7 @@
     },
     {
       "path": "crates/ssx-infra/src/adapters/clinicaltrials.rs",
-      "sha256": "d85151ac6399ee72cf0372840b648a7aa810ed2a1c1d1f46978f236448c6acc3"
+      "sha256": "95d06b3b7b2a57525cf21aef2f55121d08f4cf18f1d281b1f8a6e735062c7e7f"
     },
     {
       "path": "crates/ssx-infra/src/adapters/community.rs",
@@ -64,7 +64,7 @@
     },
     {
       "path": "crates/ssx-infra/src/adapters/europepmc.rs",
-      "sha256": "6f505270663e166eae1f25e6c082727a6690e68b936c6fe1d66bc2a16a2fc29f"
+      "sha256": "6335f2ed2f40e4f8e3d126cdc5aba16adf12ef0cf690410baed723fe7482c7ad"
     },
     {
       "path": "crates/ssx-infra/src/adapters/fda_case.rs",
@@ -104,7 +104,7 @@
     },
     {
       "path": "crates/ssx-infra/src/adapters/mod.rs",
-      "sha256": "25ec828a88e43b9f4e4404e19c7546e4cb710b0ac26bd403c71e6f6c5a6eae12"
+      "sha256": "285599db476e33af3048179c2961a06dd1897301e32c49bad81e73a7ee8626c1"
     },
     {
       "path": "crates/ssx-infra/src/adapters/npm.rs",
@@ -116,7 +116,7 @@
     },
     {
       "path": "crates/ssx-infra/src/adapters/openalex_runtime.rs",
-      "sha256": "9bdea8f71b6af4c3c40a495edb9c89d847f1402ed5164102130ffeabc54f4b9a"
+      "sha256": "e1a53bd992c9e12a29ab4bc31ccbd5070c85577554dfce81b0260268d3b90db1"
     },
     {
       "path": "crates/ssx-infra/src/adapters/openfda.rs",
@@ -128,7 +128,7 @@
     },
     {
       "path": "crates/ssx-infra/src/adapters/pubchem.rs",
-      "sha256": "0a2212107e75c18fe1de0a8f7d7b37e1eb6d9cfbc37b2dad897b09407cc5b35a"
+      "sha256": "65be1a90f6fc9cfd2c50f69c6b4a0b09129916d28ba1abd7d90877ffa920dbea"
     },
     {
       "path": "crates/ssx-infra/src/adapters/pubmed.rs",
@@ -184,7 +184,7 @@
     },
     {
       "path": "crates/ssx-infra/src/adapters/scholarly_wire.rs",
-      "sha256": "8574fadd6878d7238c7e5c61de3765e7a62ba16febf17108296e09b762e4dd5f"
+      "sha256": "2ac732425d0caa431d32b5f192d0603b1d986c2dde4d84e74855ba97f548a419"
     },
     {
       "path": "crates/ssx-infra/src/adapters/scholarly_word.rs",
@@ -200,7 +200,7 @@
     },
     {
       "path": "crates/ssx-infra/src/adapters/semantic_runtime.rs",
-      "sha256": "9fc4aa78c9a074cb94d97c12ec268b5be05161525df818094db50f80108b21a7"
+      "sha256": "c31a75f51b6ddea8c7a880d788c9ebebd553a550024c2a8299a192c9f7089fc2"
     },
     {
       "path": "crates/ssx-infra/src/adapters/semantic_scholar.rs",
@@ -236,7 +236,7 @@
     },
     {
       "path": "crates/ssx-infra/src/adapters/uniprot.rs",
-      "sha256": "20c875a7d28d3102ca8e8d645f4b611672f2a4f3180e4a7549a0cd892ac7f620"
+      "sha256": "1b4d19cdbd60683e8faeb96c99ca92e22b03293292a6b0965f525ffa38cba355"
     },
     {
       "path": "crates/ssx-infra/src/adapters/wikipedia.rs",
@@ -244,7 +244,7 @@
     },
     {
       "path": "crates/ssx-infra/src/http.rs",
-      "sha256": "6f6a9e6755474f3287682674f6b84dd699ddede5756bdc55daf83ff9cfee9221"
+      "sha256": "108d989729e7a38ef849639f5d09caa826ac8c8e4c89ca689dc3d8671f6f796c"
     },
     {
       "path": "crates/ssx-infra/src/jev.rs",
@@ -284,7 +284,7 @@
     },
     {
       "path": "crates/ssx-infra/tests/a06_process_pool.rs",
-      "sha256": "9c8262642b30d1f68a378d22873682141766bb6a07a96802553ec18f82d454c9"
+      "sha256": "0840ac19366685ad6671b4e3bf94f896d99bee35311b8b674638961bff29c3eb"
     },
     {
       "path": "crates/ssx-infra/tests/a06_raw_atom.rs",
@@ -308,7 +308,7 @@
     },
     {
       "path": "crates/ssx-infra/tests/a06_timeout_config.rs",
-      "sha256": "90992db66e89bbe8ee1952a71d3327c13b734ee8c6091ebe932bbfe044c228d9"
+      "sha256": "f10e286b06144f5b9e6e170cea10f61d2231bcd3c43b8a63fe7df3e390e48fc0"
     },
     {
       "path": "crates/ssx-infra/tests/a08_factories.rs",
@@ -348,7 +348,7 @@
     },
     {
       "path": "docs/rust-rewrite/a06/completed-source-cases.json",
-      "sha256": "1f5def084250572933ec6ccf84f09d18c4dfd84f6b630a22d4032e07aba619ad"
+      "sha256": "3398b99b5497ece83f171d0da278e2dbb4c032e34e0c2d85a32b843afafc8563"
     },
     {
       "path": "docs/rust-rewrite/a06/openalex-runtime-selected-ids.json",
@@ -713,6 +713,42 @@
     {
       "path": "vendor/expat/wrapper.c",
       "sha256": "e13f272ea3d3eeac3c21302cb9bc6a1e78aed5f1f9ad9909ae0af99bf9bbf860"
+    },
+    {
+      "path": "crates/ssx-infra/src/http/monotonic.rs",
+      "sha256": "6ea309356076a9dda8f7a313f2dd5f476c624ff28663c91b104bbf86bde63ec6"
+    },
+    {
+      "path": "crates/ssx-infra/src/http/pending_replay.rs",
+      "sha256": "b544244e15e646ed392e158f63bee825233e4e8b291b7d7d29654e64226807e9"
+    },
+    {
+      "path": "crates/ssx-infra/tests/a07_biomedical.rs",
+      "sha256": "01b40a80fe473a3ce88ffcdc8356b0e3ab637a970cfdb87c724da9b0298ae260"
+    },
+    {
+      "path": "crates/ssx-infra/tests/support/a06_timeout_clock.rs",
+      "sha256": "26cb13397f21daba9f2335c439d978bc718139b3546011dd386595783c8bde8c"
+    },
+    {
+      "path": "crates/ssx-infra/tests/support/a07_http_clock.rs",
+      "sha256": "df1b65b18a25f65586e3cc453061b9a78a9a5ce0c1bad9d20885b4df5c99866a"
+    },
+    {
+      "path": "crates/ssx-infra/tests/support/a07_owner_clock.rs",
+      "sha256": "a3b1f31b273d82e527f587a86e27f7e1d7d972f1bbc9255767a24c632c1f9f4a"
+    },
+    {
+      "path": "crates/ssx-infra/tests/support/a07_source_replay.rs",
+      "sha256": "f44fa9e3ac288e63bedfad3f41e6f3bc40a0182e35024a45ce3fa3c4311da04a"
+    },
+    {
+      "path": "crates/ssx-infra/tests/a07_context.rs",
+      "sha256": "55fe233592166d061d2373484ab5a5b7a735aebaf52222db6c4afa408e0f75e0"
+    },
+    {
+      "path": "crates/ssx-infra/tests/support/a07_cold_context.rs",
+      "sha256": "b5011c67e1d464327e98e55c60b91da54db5bdbc71249709e2a5918e431fad6d"
     }
   ],
   "native_groups": [
@@ -735,6 +771,12 @@
         "adapters::arxiv_runtime::tests::redirect_raw_copy_cancellation_and_real_deadline_restore_shared_budget",
         "adapters::arxiv_runtime::tests::source_invalid_base_url_is_transport_not_resource_before_http_or_parser",
         "adapters::clinicaltrials::deadline_tests::only_pubmed_aggregate_budget_applies_to_source_decode",
+        "adapters::clinicaltrials::owner_clock_tests::all_four_boolean_timers_expire_at_one_ms_after_one_confirmed_pending_exchange",
+        "adapters::clinicaltrials::owner_clock_tests::clinicaltrials_bool_true_full_source_replay",
+        "adapters::clinicaltrials::owner_clock_tests::europepmc_bool_true_full_source_replay",
+        "adapters::clinicaltrials::owner_clock_tests::owner_get_precheck_rejects_expiry_before_any_exchange",
+        "adapters::clinicaltrials::owner_clock_tests::pubchem_bool_true_full_source_replay",
+        "adapters::clinicaltrials::owner_clock_tests::uniprot_bool_true_full_source_replay",
         "adapters::clinicaltrials::resource_tests::actual_adapter_payload_controls_preserve_full_results_and_later_source_error_precedence",
         "adapters::clinicaltrials::resource_tests::actual_payload_projection_obeys_absolute_context_after_source_rows_finish",
         "adapters::clinicaltrials::resource_tests::actual_pubchem_cid_reference_parts_yield_and_release_before_second_dispatch",
@@ -758,6 +800,14 @@
         "adapters::hostname_lower::tests::charged_copy_repeated_pending_then_drop_or_real_deadline",
         "adapters::hostname_lower::tests::complete_pinned_mapping_and_context_controls",
         "adapters::hostname_lower::tests::refused_output_and_expired_deadline_release",
+        "adapters::html_helper_tests::actual_bounded_child_quota_and_non_emitting_codec_deadline_cancel_reap",
+        "adapters::html_helper_tests::actual_raw_header_selector_cancellation_retains_lease_until_reap",
+        "adapters::html_helper_tests::actual_rows_worker_quota_deadline_cancel_and_reap",
+        "adapters::html_helper_tests::held_decoder_handoff_deadline_retains_ownership_until_verified_reap",
+        "adapters::html_helper_tests::loopback_cookie_isolation_bootstrap_fallback_and_exact_order",
+        "adapters::html_helper_tests::registered_factories_share_owned_pool_and_await_teardown_after_caller_drop",
+        "adapters::html_helper_tests::typed_helper_terminal_outcomes_preserve_request_counts_feedback_and_reap",
+        "adapters::html_timeout::tests::scalar_arithmetic_and_absolute_context_are_preserved_without_coercion",
         "adapters::http_charset::tests::actual_httpx_charset_corpus",
         "adapters::http_charset::tests::actual_source_boundaries_preserve_success_and_exact_errors",
         "adapters::http_charset::tests::empty_precedes_headers_checkpoint_and_nul",
@@ -845,12 +895,62 @@
         "browser_identity::oidc::tests::bounded_json_rejects_nested_escaped_duplicates_depth_and_oversize",
         "browser_identity::oidc::tests::forged_ambiguous_unsupported_or_oversized_jwt_and_jwk_are_denied",
         "browser_identity::sessions::tests::previous_key_deadline_is_exclusive_and_new_keys_use_only_current",
+        "html::bounded_decode::parent_phase_tests::actual_header_worker_composes_all_source_selector_boundaries",
+        "html::bounded_decode::parent_phase_tests::cancellation_during_actual_header_sizing_keeps_owner_until_drop",
+        "html::bounded_decode::parent_phase_tests::cancellation_during_validation_and_projection_releases_owned_phase",
+        "html::charged_flatten::tests::charged_lossy_conversion_matches_all_byte_pairs_and_releases_capacity",
+        "html::charged_flatten::tests::flat_backing_refusal_retains_existing_storage_until_owner_drop",
+        "html::child_rows::tests::charged_redirect_decoder_matches_previous_full_form_semantics",
+        "html::child_rows::tests::charged_text_trims_across_segments_with_python_whitespace_only",
+        "html::child_rows::tests::google_row_and_borrowed_key_capacity_sweep_keeps_full_output_or_resource",
+        "html::child_rows::tests::redirect_resource_failure_is_typed_and_releases_temporary_bytes",
+        "html::decode_wire::tests::asynchronous_validation_preserves_closed_frame_errors_and_deadline",
+        "html::decode_wire::tests::closed_source_diagnostics_resource_deadline_and_validation_expiry_stay_distinct",
+        "html::decode_wire::tests::complete_frame_preserves_surrogates_and_rejects_every_truncation_and_trailing_byte",
+        "html::decode_wire::tests::selector_stage_codes_are_closed_and_tied_to_header_envelope",
+        "html::http_headers::tests::preserves_order_empty_bytes_and_rejects_every_truncation_and_trailing_byte",
+        "html::row_wire::tests::cancellation_checks_cover_encode_full_validation_and_projection",
+        "html::row_wire::tests::complete_rows_roundtrip_preserves_raw_fields_and_explicit_fallback",
+        "html::row_wire::tests::full_frame_validation_rejects_truncation_trailing_tags_counts_and_utf8",
+        "html::row_wire::tests::size_counting_checks_deadline_and_whole_field_work_has_a_frame_bound",
+        "html::row_wire::tests::streaming_legacy_rows_are_byte_identical_to_checked_buffer_encoder",
+        "html::rows_borrowed::tests::cooperative_fields_preserve_split_utf8_and_reject_malformed_complete_frames",
+        "html::rows_borrowed::tests::image_raw_sanitized_and_optional_empty_fields_are_distinct_and_closed",
+        "html::rows_projection::tests::cancellation_during_private_result_projection_releases_frame_and_batch",
+        "html::rows_projection::tests::produced_batch_retains_fields_until_named_handoff_and_refusal_drops_partial_copy",
+        "html::rows_worker::tests::actual_affine_tree_resource_refusal_and_next_worker_success",
+        "html::rows_worker::tests::closed_row_request_preserves_raw_limit_bits_and_rejects_malformed_fields",
+        "html::rows_worker::tests::hostile_sanitizer_workload_cancel_and_deadline_reap_owned_child",
+        "html_budget::tests::overlap_is_charged_until_owner_drop_and_invalid_limits_fail_closed",
+        "http::client_initialization_tests::aborted_unpublished_constructor_guardian_joins_blocked_builder_without_external_owner",
+        "http::client_initialization_tests::builder_error_releases_both_leases_and_reserved_slot_without_idle_client",
+        "http::client_initialization_tests::deadline_keeps_builder_permits_and_slot_until_actual_completion_without_dispatch",
+        "http::client_initialization_tests::injected_and_ephemeral_profiles_never_start_preparation_workers",
+        "http::client_initialization_tests::owner_close_cancels_waiter_but_retains_build_ownership_until_drain",
+        "http::client_initialization_tests::prepared_default_client_is_moved_once_and_reuses_existing_retention_and_expiry",
+        "http::client_initialization_tests::unread_publication_cancelled_before_final_poll_is_rejected_and_drained",
+        "http::client_initialization_tests::unread_publication_expired_before_final_poll_is_rejected_and_drained",
+        "http::client_initialization_tests::unread_successful_publication_still_requires_ack_and_drains_on_receiver_drop",
+        "http::client_initialization_tests::waiter_abort_does_not_release_blocking_builder_ownership_or_retain_late_client",
+        "http::cold_context_tests::cold_default_context_expiry_retains_real_builder_until_owned_drain",
         "http::decode_tests::decoder_budget_remains_charged_after_waiter_abort_and_drain_joins_workers",
         "http::decode_tests::decoding_observes_cancel_shutdown_and_expired_budget",
         "http::decode_tests::decoding_raw_zlib_stacked_and_unknown_encodings",
         "http::decode_tests::drop_closes_decode_admission_without_claiming_thread_join",
         "http::f15_header_tests::actual_source_streamed_header_cases_replay_early_admission",
         "http::f15_header_tests::opt_in_identity_length_limit_preserves_encoding_and_python_integer_rules",
+        "http::owner_clock_tests::abandoned_decoder_waiter_keeps_owner_until_shutdown_joins_real_worker",
+        "http::owner_clock_tests::blocking_decoder_uses_same_owner_before_and_at_exact_boundary",
+        "http::owner_clock_tests::close_then_cancel_then_deadline_precedence_is_preserved",
+        "http::owner_clock_tests::elapsed_owner_deadline_rejects_before_dispatch_and_wins_ready_response_tie",
+        "http::owner_clock_tests::pending_execute_resolves_simultaneous_close_cancel_deadline_in_original_order",
+        "http::scholarly_timeout_clock::controlled_all_42_timeout_scalars_full_factory_pending_exchange",
+        "http::scholarly_timeout_clock::manual_owner_preparation_survives_real_expiry_for_all_three_factories",
+        "http::scholarly_timeout_clock::pending_owner_early_tick_isolation_and_caller_drop_are_bounded",
+        "http::scholarly_timeout_clock::real_system_all_42_timeout_scalars_full_factory_observed_expiry",
+        "http::scholarly_timeout_clock::real_system_one_ms_preparation_expiry_does_not_promise_dispatch",
+        "http::scholarly_timeout_clock::sealed_pending_owner_rejects_replacement_context_and_worker_entry",
+        "jev::ready_constructor_tests::actual_production_ready_router_constructor_prepares_without_dispatch",
         "process_pool::cleanup_tests::both_shutdown_waiters_observe_injected_supervisor_panic",
         "process_pool::cleanup_tests::cancelled_caller_lease_survives_blocked_cleanup_until_real_reap",
         "process_pool::cleanup_tests::charged_payload_releases_after_write_and_read_failures",
@@ -873,18 +973,7 @@
         "search::tests::cooperative_completion_collection_preserves_real_health_origin",
         "search::tests::zero_remaining_budget_never_polls_engine",
         "tests::injected_sinks_observe_real_readiness",
-        "tests::unavailable_is_not_missing_or_ready",
-        "http::client_initialization_tests::aborted_unpublished_constructor_guardian_joins_blocked_builder_without_external_owner",
-        "http::client_initialization_tests::builder_error_releases_both_leases_and_reserved_slot_without_idle_client",
-        "http::client_initialization_tests::deadline_keeps_builder_permits_and_slot_until_actual_completion_without_dispatch",
-        "http::client_initialization_tests::injected_and_ephemeral_profiles_never_start_preparation_workers",
-        "http::client_initialization_tests::owner_close_cancels_waiter_but_retains_build_ownership_until_drain",
-        "http::client_initialization_tests::prepared_default_client_is_moved_once_and_reuses_existing_retention_and_expiry",
-        "http::client_initialization_tests::unread_publication_cancelled_before_final_poll_is_rejected_and_drained",
-        "http::client_initialization_tests::unread_publication_expired_before_final_poll_is_rejected_and_drained",
-        "http::client_initialization_tests::unread_successful_publication_still_requires_ack_and_drains_on_receiver_drop",
-        "http::client_initialization_tests::waiter_abort_does_not_release_blocking_builder_ownership_or_retain_late_client",
-        "jev::ready_constructor_tests::actual_production_ready_router_constructor_prepares_without_dispatch"
+        "tests::unavailable_is_not_missing_or_ready"
       ]
     },
     {
@@ -1023,13 +1112,6 @@
       "tests": [
         "quoted_long_decimal_uses_shared_exact_conversion",
         "whole_semantic_source_operations_and_later_errors_outrank_pending_refusals"
-      ]
-    },
-    {
-      "package": "ssx-infra",
-      "target": "a06_timeout_config",
-      "tests": [
-        "all_42_reachable_timeout_scalars_follow_reviewed_whole_operation_policy"
       ]
     },
     {
@@ -16544,591 +16626,1179 @@
       "kind": "exact_outcome_request"
     },
     {
-      "consumer": "ssx-infra/a06_timeout_config/all_42_reachable_timeout_scalars_follow_reviewed_whole_operation_policy",
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::real_system_all_42_timeout_scalars_full_factory_observed_expiry",
       "corpus": "docs/rust-rewrite/a06/source-config.json",
       "id": "arxiv.config.timeout_ms.false.valid",
       "variant": "direct",
       "kind": "deadline_policy"
     },
     {
-      "consumer": "ssx-infra/a06_timeout_config/all_42_reachable_timeout_scalars_follow_reviewed_whole_operation_policy",
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::controlled_all_42_timeout_scalars_full_factory_pending_exchange",
+      "corpus": "docs/rust-rewrite/a06/source-config.json",
+      "id": "arxiv.config.timeout_ms.false.valid",
+      "variant": "controlled_direct",
+      "kind": "deadline_policy"
+    },
+    {
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::real_system_all_42_timeout_scalars_full_factory_observed_expiry",
       "corpus": "docs/rust-rewrite/a06/source-config.json",
       "id": "arxiv.config.timeout_ms.false.valid",
       "variant": "finite_context",
       "kind": "deadline_policy"
     },
     {
-      "consumer": "ssx-infra/a06_timeout_config/all_42_reachable_timeout_scalars_follow_reviewed_whole_operation_policy",
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::controlled_all_42_timeout_scalars_full_factory_pending_exchange",
+      "corpus": "docs/rust-rewrite/a06/source-config.json",
+      "id": "arxiv.config.timeout_ms.false.valid",
+      "variant": "controlled_finite_context",
+      "kind": "deadline_policy"
+    },
+    {
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::real_system_all_42_timeout_scalars_full_factory_observed_expiry",
       "corpus": "docs/rust-rewrite/a06/source-config.json",
       "id": "arxiv.config.timeout_ms.true.valid",
       "variant": "direct",
       "kind": "deadline_policy"
     },
     {
-      "consumer": "ssx-infra/a06_timeout_config/all_42_reachable_timeout_scalars_follow_reviewed_whole_operation_policy",
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::controlled_all_42_timeout_scalars_full_factory_pending_exchange",
+      "corpus": "docs/rust-rewrite/a06/source-config.json",
+      "id": "arxiv.config.timeout_ms.true.valid",
+      "variant": "controlled_direct",
+      "kind": "deadline_policy"
+    },
+    {
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::real_system_all_42_timeout_scalars_full_factory_observed_expiry",
       "corpus": "docs/rust-rewrite/a06/source-config.json",
       "id": "arxiv.config.timeout_ms.true.valid",
       "variant": "finite_context",
       "kind": "deadline_policy"
     },
     {
-      "consumer": "ssx-infra/a06_timeout_config/all_42_reachable_timeout_scalars_follow_reviewed_whole_operation_policy",
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::controlled_all_42_timeout_scalars_full_factory_pending_exchange",
+      "corpus": "docs/rust-rewrite/a06/source-config.json",
+      "id": "arxiv.config.timeout_ms.true.valid",
+      "variant": "controlled_finite_context",
+      "kind": "deadline_policy"
+    },
+    {
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::real_system_all_42_timeout_scalars_full_factory_observed_expiry",
       "corpus": "docs/rust-rewrite/a06/source-config.json",
       "id": "arxiv.config.timeout_ms.zero.valid",
       "variant": "direct",
       "kind": "deadline_policy"
     },
     {
-      "consumer": "ssx-infra/a06_timeout_config/all_42_reachable_timeout_scalars_follow_reviewed_whole_operation_policy",
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::controlled_all_42_timeout_scalars_full_factory_pending_exchange",
+      "corpus": "docs/rust-rewrite/a06/source-config.json",
+      "id": "arxiv.config.timeout_ms.zero.valid",
+      "variant": "controlled_direct",
+      "kind": "deadline_policy"
+    },
+    {
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::real_system_all_42_timeout_scalars_full_factory_observed_expiry",
       "corpus": "docs/rust-rewrite/a06/source-config.json",
       "id": "arxiv.config.timeout_ms.zero.valid",
       "variant": "finite_context",
       "kind": "deadline_policy"
     },
     {
-      "consumer": "ssx-infra/a06_timeout_config/all_42_reachable_timeout_scalars_follow_reviewed_whole_operation_policy",
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::controlled_all_42_timeout_scalars_full_factory_pending_exchange",
+      "corpus": "docs/rust-rewrite/a06/source-config.json",
+      "id": "arxiv.config.timeout_ms.zero.valid",
+      "variant": "controlled_finite_context",
+      "kind": "deadline_policy"
+    },
+    {
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::real_system_all_42_timeout_scalars_full_factory_observed_expiry",
       "corpus": "docs/rust-rewrite/a06/source-config.json",
       "id": "arxiv.config.timeout_ms.one.valid",
       "variant": "direct",
       "kind": "deadline_policy"
     },
     {
-      "consumer": "ssx-infra/a06_timeout_config/all_42_reachable_timeout_scalars_follow_reviewed_whole_operation_policy",
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::controlled_all_42_timeout_scalars_full_factory_pending_exchange",
+      "corpus": "docs/rust-rewrite/a06/source-config.json",
+      "id": "arxiv.config.timeout_ms.one.valid",
+      "variant": "controlled_direct",
+      "kind": "deadline_policy"
+    },
+    {
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::real_system_all_42_timeout_scalars_full_factory_observed_expiry",
       "corpus": "docs/rust-rewrite/a06/source-config.json",
       "id": "arxiv.config.timeout_ms.one.valid",
       "variant": "finite_context",
       "kind": "deadline_policy"
     },
     {
-      "consumer": "ssx-infra/a06_timeout_config/all_42_reachable_timeout_scalars_follow_reviewed_whole_operation_policy",
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::controlled_all_42_timeout_scalars_full_factory_pending_exchange",
+      "corpus": "docs/rust-rewrite/a06/source-config.json",
+      "id": "arxiv.config.timeout_ms.one.valid",
+      "variant": "controlled_finite_context",
+      "kind": "deadline_policy"
+    },
+    {
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::real_system_all_42_timeout_scalars_full_factory_observed_expiry",
       "corpus": "docs/rust-rewrite/a06/source-config.json",
       "id": "arxiv.config.timeout_ms.negative.valid",
       "variant": "direct",
       "kind": "deadline_policy"
     },
     {
-      "consumer": "ssx-infra/a06_timeout_config/all_42_reachable_timeout_scalars_follow_reviewed_whole_operation_policy",
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::controlled_all_42_timeout_scalars_full_factory_pending_exchange",
+      "corpus": "docs/rust-rewrite/a06/source-config.json",
+      "id": "arxiv.config.timeout_ms.negative.valid",
+      "variant": "controlled_direct",
+      "kind": "deadline_policy"
+    },
+    {
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::real_system_all_42_timeout_scalars_full_factory_observed_expiry",
       "corpus": "docs/rust-rewrite/a06/source-config.json",
       "id": "arxiv.config.timeout_ms.negative.valid",
       "variant": "finite_context",
       "kind": "deadline_policy"
     },
     {
-      "consumer": "ssx-infra/a06_timeout_config/all_42_reachable_timeout_scalars_follow_reviewed_whole_operation_policy",
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::controlled_all_42_timeout_scalars_full_factory_pending_exchange",
+      "corpus": "docs/rust-rewrite/a06/source-config.json",
+      "id": "arxiv.config.timeout_ms.negative.valid",
+      "variant": "controlled_finite_context",
+      "kind": "deadline_policy"
+    },
+    {
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::real_system_all_42_timeout_scalars_full_factory_observed_expiry",
       "corpus": "docs/rust-rewrite/a06/source-config.json",
       "id": "arxiv.config.timeout_ms.integer.valid",
       "variant": "direct",
       "kind": "deadline_policy"
     },
     {
-      "consumer": "ssx-infra/a06_timeout_config/all_42_reachable_timeout_scalars_follow_reviewed_whole_operation_policy",
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::controlled_all_42_timeout_scalars_full_factory_pending_exchange",
+      "corpus": "docs/rust-rewrite/a06/source-config.json",
+      "id": "arxiv.config.timeout_ms.integer.valid",
+      "variant": "controlled_direct",
+      "kind": "deadline_policy"
+    },
+    {
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::real_system_all_42_timeout_scalars_full_factory_observed_expiry",
       "corpus": "docs/rust-rewrite/a06/source-config.json",
       "id": "arxiv.config.timeout_ms.integer.valid",
       "variant": "finite_context",
       "kind": "deadline_policy"
     },
     {
-      "consumer": "ssx-infra/a06_timeout_config/all_42_reachable_timeout_scalars_follow_reviewed_whole_operation_policy",
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::controlled_all_42_timeout_scalars_full_factory_pending_exchange",
+      "corpus": "docs/rust-rewrite/a06/source-config.json",
+      "id": "arxiv.config.timeout_ms.integer.valid",
+      "variant": "controlled_finite_context",
+      "kind": "deadline_policy"
+    },
+    {
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::real_system_all_42_timeout_scalars_full_factory_observed_expiry",
       "corpus": "docs/rust-rewrite/a06/source-config.json",
       "id": "arxiv.config.timeout_ms.float_zero.valid",
       "variant": "direct",
       "kind": "deadline_policy"
     },
     {
-      "consumer": "ssx-infra/a06_timeout_config/all_42_reachable_timeout_scalars_follow_reviewed_whole_operation_policy",
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::controlled_all_42_timeout_scalars_full_factory_pending_exchange",
+      "corpus": "docs/rust-rewrite/a06/source-config.json",
+      "id": "arxiv.config.timeout_ms.float_zero.valid",
+      "variant": "controlled_direct",
+      "kind": "deadline_policy"
+    },
+    {
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::real_system_all_42_timeout_scalars_full_factory_observed_expiry",
       "corpus": "docs/rust-rewrite/a06/source-config.json",
       "id": "arxiv.config.timeout_ms.float_zero.valid",
       "variant": "finite_context",
       "kind": "deadline_policy"
     },
     {
-      "consumer": "ssx-infra/a06_timeout_config/all_42_reachable_timeout_scalars_follow_reviewed_whole_operation_policy",
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::controlled_all_42_timeout_scalars_full_factory_pending_exchange",
+      "corpus": "docs/rust-rewrite/a06/source-config.json",
+      "id": "arxiv.config.timeout_ms.float_zero.valid",
+      "variant": "controlled_finite_context",
+      "kind": "deadline_policy"
+    },
+    {
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::real_system_all_42_timeout_scalars_full_factory_observed_expiry",
       "corpus": "docs/rust-rewrite/a06/source-config.json",
       "id": "arxiv.config.timeout_ms.fraction.valid",
       "variant": "direct",
       "kind": "deadline_policy"
     },
     {
-      "consumer": "ssx-infra/a06_timeout_config/all_42_reachable_timeout_scalars_follow_reviewed_whole_operation_policy",
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::controlled_all_42_timeout_scalars_full_factory_pending_exchange",
+      "corpus": "docs/rust-rewrite/a06/source-config.json",
+      "id": "arxiv.config.timeout_ms.fraction.valid",
+      "variant": "controlled_direct",
+      "kind": "deadline_policy"
+    },
+    {
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::real_system_all_42_timeout_scalars_full_factory_observed_expiry",
       "corpus": "docs/rust-rewrite/a06/source-config.json",
       "id": "arxiv.config.timeout_ms.fraction.valid",
       "variant": "finite_context",
       "kind": "deadline_policy"
     },
     {
-      "consumer": "ssx-infra/a06_timeout_config/all_42_reachable_timeout_scalars_follow_reviewed_whole_operation_policy",
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::controlled_all_42_timeout_scalars_full_factory_pending_exchange",
+      "corpus": "docs/rust-rewrite/a06/source-config.json",
+      "id": "arxiv.config.timeout_ms.fraction.valid",
+      "variant": "controlled_finite_context",
+      "kind": "deadline_policy"
+    },
+    {
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::real_system_all_42_timeout_scalars_full_factory_observed_expiry",
       "corpus": "docs/rust-rewrite/a06/source-config.json",
       "id": "arxiv.config.timeout_ms.text_number.valid",
       "variant": "direct",
       "kind": "exact_operand_error"
     },
     {
-      "consumer": "ssx-infra/a06_timeout_config/all_42_reachable_timeout_scalars_follow_reviewed_whole_operation_policy",
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::controlled_all_42_timeout_scalars_full_factory_pending_exchange",
+      "corpus": "docs/rust-rewrite/a06/source-config.json",
+      "id": "arxiv.config.timeout_ms.text_number.valid",
+      "variant": "controlled_direct",
+      "kind": "exact_operand_error"
+    },
+    {
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::real_system_all_42_timeout_scalars_full_factory_observed_expiry",
       "corpus": "docs/rust-rewrite/a06/source-config.json",
       "id": "arxiv.config.timeout_ms.text_number.valid",
       "variant": "finite_context",
       "kind": "exact_operand_error"
     },
     {
-      "consumer": "ssx-infra/a06_timeout_config/all_42_reachable_timeout_scalars_follow_reviewed_whole_operation_policy",
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::controlled_all_42_timeout_scalars_full_factory_pending_exchange",
+      "corpus": "docs/rust-rewrite/a06/source-config.json",
+      "id": "arxiv.config.timeout_ms.text_number.valid",
+      "variant": "controlled_finite_context",
+      "kind": "exact_operand_error"
+    },
+    {
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::real_system_all_42_timeout_scalars_full_factory_observed_expiry",
       "corpus": "docs/rust-rewrite/a06/source-config.json",
       "id": "arxiv.config.timeout_ms.text_empty.valid",
       "variant": "direct",
       "kind": "exact_operand_error"
     },
     {
-      "consumer": "ssx-infra/a06_timeout_config/all_42_reachable_timeout_scalars_follow_reviewed_whole_operation_policy",
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::controlled_all_42_timeout_scalars_full_factory_pending_exchange",
+      "corpus": "docs/rust-rewrite/a06/source-config.json",
+      "id": "arxiv.config.timeout_ms.text_empty.valid",
+      "variant": "controlled_direct",
+      "kind": "exact_operand_error"
+    },
+    {
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::real_system_all_42_timeout_scalars_full_factory_observed_expiry",
       "corpus": "docs/rust-rewrite/a06/source-config.json",
       "id": "arxiv.config.timeout_ms.text_empty.valid",
       "variant": "finite_context",
       "kind": "exact_operand_error"
     },
     {
-      "consumer": "ssx-infra/a06_timeout_config/all_42_reachable_timeout_scalars_follow_reviewed_whole_operation_policy",
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::controlled_all_42_timeout_scalars_full_factory_pending_exchange",
+      "corpus": "docs/rust-rewrite/a06/source-config.json",
+      "id": "arxiv.config.timeout_ms.text_empty.valid",
+      "variant": "controlled_finite_context",
+      "kind": "exact_operand_error"
+    },
+    {
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::real_system_all_42_timeout_scalars_full_factory_observed_expiry",
       "corpus": "docs/rust-rewrite/a06/source-config.json",
       "id": "arxiv.config.timeout_ms.text_bad.valid",
       "variant": "direct",
       "kind": "exact_operand_error"
     },
     {
-      "consumer": "ssx-infra/a06_timeout_config/all_42_reachable_timeout_scalars_follow_reviewed_whole_operation_policy",
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::controlled_all_42_timeout_scalars_full_factory_pending_exchange",
+      "corpus": "docs/rust-rewrite/a06/source-config.json",
+      "id": "arxiv.config.timeout_ms.text_bad.valid",
+      "variant": "controlled_direct",
+      "kind": "exact_operand_error"
+    },
+    {
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::real_system_all_42_timeout_scalars_full_factory_observed_expiry",
       "corpus": "docs/rust-rewrite/a06/source-config.json",
       "id": "arxiv.config.timeout_ms.text_bad.valid",
       "variant": "finite_context",
       "kind": "exact_operand_error"
     },
     {
-      "consumer": "ssx-infra/a06_timeout_config/all_42_reachable_timeout_scalars_follow_reviewed_whole_operation_policy",
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::controlled_all_42_timeout_scalars_full_factory_pending_exchange",
+      "corpus": "docs/rust-rewrite/a06/source-config.json",
+      "id": "arxiv.config.timeout_ms.text_bad.valid",
+      "variant": "controlled_finite_context",
+      "kind": "exact_operand_error"
+    },
+    {
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::real_system_all_42_timeout_scalars_full_factory_observed_expiry",
       "corpus": "docs/rust-rewrite/a06/source-config.json",
       "id": "arxiv.config.timeout_ms.nan.valid",
       "variant": "direct",
       "kind": "finite_policy_refusal"
     },
     {
-      "consumer": "ssx-infra/a06_timeout_config/all_42_reachable_timeout_scalars_follow_reviewed_whole_operation_policy",
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::controlled_all_42_timeout_scalars_full_factory_pending_exchange",
+      "corpus": "docs/rust-rewrite/a06/source-config.json",
+      "id": "arxiv.config.timeout_ms.nan.valid",
+      "variant": "controlled_direct",
+      "kind": "finite_policy_refusal"
+    },
+    {
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::real_system_all_42_timeout_scalars_full_factory_observed_expiry",
       "corpus": "docs/rust-rewrite/a06/source-config.json",
       "id": "arxiv.config.timeout_ms.nan.valid",
       "variant": "finite_context",
       "kind": "deadline_policy"
     },
     {
-      "consumer": "ssx-infra/a06_timeout_config/all_42_reachable_timeout_scalars_follow_reviewed_whole_operation_policy",
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::controlled_all_42_timeout_scalars_full_factory_pending_exchange",
+      "corpus": "docs/rust-rewrite/a06/source-config.json",
+      "id": "arxiv.config.timeout_ms.nan.valid",
+      "variant": "controlled_finite_context",
+      "kind": "deadline_policy"
+    },
+    {
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::real_system_all_42_timeout_scalars_full_factory_observed_expiry",
       "corpus": "docs/rust-rewrite/a06/source-config.json",
       "id": "arxiv.config.timeout_ms.inf.valid",
       "variant": "direct",
       "kind": "finite_policy_refusal"
     },
     {
-      "consumer": "ssx-infra/a06_timeout_config/all_42_reachable_timeout_scalars_follow_reviewed_whole_operation_policy",
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::controlled_all_42_timeout_scalars_full_factory_pending_exchange",
+      "corpus": "docs/rust-rewrite/a06/source-config.json",
+      "id": "arxiv.config.timeout_ms.inf.valid",
+      "variant": "controlled_direct",
+      "kind": "finite_policy_refusal"
+    },
+    {
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::real_system_all_42_timeout_scalars_full_factory_observed_expiry",
       "corpus": "docs/rust-rewrite/a06/source-config.json",
       "id": "arxiv.config.timeout_ms.inf.valid",
       "variant": "finite_context",
       "kind": "deadline_policy"
     },
     {
-      "consumer": "ssx-infra/a06_timeout_config/all_42_reachable_timeout_scalars_follow_reviewed_whole_operation_policy",
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::controlled_all_42_timeout_scalars_full_factory_pending_exchange",
+      "corpus": "docs/rust-rewrite/a06/source-config.json",
+      "id": "arxiv.config.timeout_ms.inf.valid",
+      "variant": "controlled_finite_context",
+      "kind": "deadline_policy"
+    },
+    {
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::real_system_all_42_timeout_scalars_full_factory_observed_expiry",
       "corpus": "docs/rust-rewrite/a06/source-config.json",
       "id": "arxiv.config.timeout_ms.negative_inf.valid",
       "variant": "direct",
       "kind": "deadline_policy"
     },
     {
-      "consumer": "ssx-infra/a06_timeout_config/all_42_reachable_timeout_scalars_follow_reviewed_whole_operation_policy",
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::controlled_all_42_timeout_scalars_full_factory_pending_exchange",
+      "corpus": "docs/rust-rewrite/a06/source-config.json",
+      "id": "arxiv.config.timeout_ms.negative_inf.valid",
+      "variant": "controlled_direct",
+      "kind": "deadline_policy"
+    },
+    {
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::real_system_all_42_timeout_scalars_full_factory_observed_expiry",
       "corpus": "docs/rust-rewrite/a06/source-config.json",
       "id": "arxiv.config.timeout_ms.negative_inf.valid",
       "variant": "finite_context",
       "kind": "deadline_policy"
     },
     {
-      "consumer": "ssx-infra/a06_timeout_config/all_42_reachable_timeout_scalars_follow_reviewed_whole_operation_policy",
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::controlled_all_42_timeout_scalars_full_factory_pending_exchange",
+      "corpus": "docs/rust-rewrite/a06/source-config.json",
+      "id": "arxiv.config.timeout_ms.negative_inf.valid",
+      "variant": "controlled_finite_context",
+      "kind": "deadline_policy"
+    },
+    {
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::real_system_all_42_timeout_scalars_full_factory_observed_expiry",
       "corpus": "docs/rust-rewrite/a06/source-config.json",
       "id": "openalex.config.timeout_ms.false.valid",
       "variant": "direct",
       "kind": "deadline_policy"
     },
     {
-      "consumer": "ssx-infra/a06_timeout_config/all_42_reachable_timeout_scalars_follow_reviewed_whole_operation_policy",
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::controlled_all_42_timeout_scalars_full_factory_pending_exchange",
+      "corpus": "docs/rust-rewrite/a06/source-config.json",
+      "id": "openalex.config.timeout_ms.false.valid",
+      "variant": "controlled_direct",
+      "kind": "deadline_policy"
+    },
+    {
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::real_system_all_42_timeout_scalars_full_factory_observed_expiry",
       "corpus": "docs/rust-rewrite/a06/source-config.json",
       "id": "openalex.config.timeout_ms.false.valid",
       "variant": "finite_context",
       "kind": "deadline_policy"
     },
     {
-      "consumer": "ssx-infra/a06_timeout_config/all_42_reachable_timeout_scalars_follow_reviewed_whole_operation_policy",
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::controlled_all_42_timeout_scalars_full_factory_pending_exchange",
+      "corpus": "docs/rust-rewrite/a06/source-config.json",
+      "id": "openalex.config.timeout_ms.false.valid",
+      "variant": "controlled_finite_context",
+      "kind": "deadline_policy"
+    },
+    {
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::real_system_all_42_timeout_scalars_full_factory_observed_expiry",
       "corpus": "docs/rust-rewrite/a06/source-config.json",
       "id": "openalex.config.timeout_ms.true.valid",
       "variant": "direct",
       "kind": "deadline_policy"
     },
     {
-      "consumer": "ssx-infra/a06_timeout_config/all_42_reachable_timeout_scalars_follow_reviewed_whole_operation_policy",
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::controlled_all_42_timeout_scalars_full_factory_pending_exchange",
+      "corpus": "docs/rust-rewrite/a06/source-config.json",
+      "id": "openalex.config.timeout_ms.true.valid",
+      "variant": "controlled_direct",
+      "kind": "deadline_policy"
+    },
+    {
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::real_system_all_42_timeout_scalars_full_factory_observed_expiry",
       "corpus": "docs/rust-rewrite/a06/source-config.json",
       "id": "openalex.config.timeout_ms.true.valid",
       "variant": "finite_context",
       "kind": "deadline_policy"
     },
     {
-      "consumer": "ssx-infra/a06_timeout_config/all_42_reachable_timeout_scalars_follow_reviewed_whole_operation_policy",
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::controlled_all_42_timeout_scalars_full_factory_pending_exchange",
+      "corpus": "docs/rust-rewrite/a06/source-config.json",
+      "id": "openalex.config.timeout_ms.true.valid",
+      "variant": "controlled_finite_context",
+      "kind": "deadline_policy"
+    },
+    {
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::real_system_all_42_timeout_scalars_full_factory_observed_expiry",
       "corpus": "docs/rust-rewrite/a06/source-config.json",
       "id": "openalex.config.timeout_ms.zero.valid",
       "variant": "direct",
       "kind": "deadline_policy"
     },
     {
-      "consumer": "ssx-infra/a06_timeout_config/all_42_reachable_timeout_scalars_follow_reviewed_whole_operation_policy",
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::controlled_all_42_timeout_scalars_full_factory_pending_exchange",
+      "corpus": "docs/rust-rewrite/a06/source-config.json",
+      "id": "openalex.config.timeout_ms.zero.valid",
+      "variant": "controlled_direct",
+      "kind": "deadline_policy"
+    },
+    {
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::real_system_all_42_timeout_scalars_full_factory_observed_expiry",
       "corpus": "docs/rust-rewrite/a06/source-config.json",
       "id": "openalex.config.timeout_ms.zero.valid",
       "variant": "finite_context",
       "kind": "deadline_policy"
     },
     {
-      "consumer": "ssx-infra/a06_timeout_config/all_42_reachable_timeout_scalars_follow_reviewed_whole_operation_policy",
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::controlled_all_42_timeout_scalars_full_factory_pending_exchange",
+      "corpus": "docs/rust-rewrite/a06/source-config.json",
+      "id": "openalex.config.timeout_ms.zero.valid",
+      "variant": "controlled_finite_context",
+      "kind": "deadline_policy"
+    },
+    {
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::real_system_all_42_timeout_scalars_full_factory_observed_expiry",
       "corpus": "docs/rust-rewrite/a06/source-config.json",
       "id": "openalex.config.timeout_ms.one.valid",
       "variant": "direct",
       "kind": "deadline_policy"
     },
     {
-      "consumer": "ssx-infra/a06_timeout_config/all_42_reachable_timeout_scalars_follow_reviewed_whole_operation_policy",
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::controlled_all_42_timeout_scalars_full_factory_pending_exchange",
+      "corpus": "docs/rust-rewrite/a06/source-config.json",
+      "id": "openalex.config.timeout_ms.one.valid",
+      "variant": "controlled_direct",
+      "kind": "deadline_policy"
+    },
+    {
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::real_system_all_42_timeout_scalars_full_factory_observed_expiry",
       "corpus": "docs/rust-rewrite/a06/source-config.json",
       "id": "openalex.config.timeout_ms.one.valid",
       "variant": "finite_context",
       "kind": "deadline_policy"
     },
     {
-      "consumer": "ssx-infra/a06_timeout_config/all_42_reachable_timeout_scalars_follow_reviewed_whole_operation_policy",
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::controlled_all_42_timeout_scalars_full_factory_pending_exchange",
+      "corpus": "docs/rust-rewrite/a06/source-config.json",
+      "id": "openalex.config.timeout_ms.one.valid",
+      "variant": "controlled_finite_context",
+      "kind": "deadline_policy"
+    },
+    {
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::real_system_all_42_timeout_scalars_full_factory_observed_expiry",
       "corpus": "docs/rust-rewrite/a06/source-config.json",
       "id": "openalex.config.timeout_ms.negative.valid",
       "variant": "direct",
       "kind": "deadline_policy"
     },
     {
-      "consumer": "ssx-infra/a06_timeout_config/all_42_reachable_timeout_scalars_follow_reviewed_whole_operation_policy",
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::controlled_all_42_timeout_scalars_full_factory_pending_exchange",
+      "corpus": "docs/rust-rewrite/a06/source-config.json",
+      "id": "openalex.config.timeout_ms.negative.valid",
+      "variant": "controlled_direct",
+      "kind": "deadline_policy"
+    },
+    {
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::real_system_all_42_timeout_scalars_full_factory_observed_expiry",
       "corpus": "docs/rust-rewrite/a06/source-config.json",
       "id": "openalex.config.timeout_ms.negative.valid",
       "variant": "finite_context",
       "kind": "deadline_policy"
     },
     {
-      "consumer": "ssx-infra/a06_timeout_config/all_42_reachable_timeout_scalars_follow_reviewed_whole_operation_policy",
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::controlled_all_42_timeout_scalars_full_factory_pending_exchange",
+      "corpus": "docs/rust-rewrite/a06/source-config.json",
+      "id": "openalex.config.timeout_ms.negative.valid",
+      "variant": "controlled_finite_context",
+      "kind": "deadline_policy"
+    },
+    {
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::real_system_all_42_timeout_scalars_full_factory_observed_expiry",
       "corpus": "docs/rust-rewrite/a06/source-config.json",
       "id": "openalex.config.timeout_ms.integer.valid",
       "variant": "direct",
       "kind": "deadline_policy"
     },
     {
-      "consumer": "ssx-infra/a06_timeout_config/all_42_reachable_timeout_scalars_follow_reviewed_whole_operation_policy",
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::controlled_all_42_timeout_scalars_full_factory_pending_exchange",
+      "corpus": "docs/rust-rewrite/a06/source-config.json",
+      "id": "openalex.config.timeout_ms.integer.valid",
+      "variant": "controlled_direct",
+      "kind": "deadline_policy"
+    },
+    {
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::real_system_all_42_timeout_scalars_full_factory_observed_expiry",
       "corpus": "docs/rust-rewrite/a06/source-config.json",
       "id": "openalex.config.timeout_ms.integer.valid",
       "variant": "finite_context",
       "kind": "deadline_policy"
     },
     {
-      "consumer": "ssx-infra/a06_timeout_config/all_42_reachable_timeout_scalars_follow_reviewed_whole_operation_policy",
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::controlled_all_42_timeout_scalars_full_factory_pending_exchange",
+      "corpus": "docs/rust-rewrite/a06/source-config.json",
+      "id": "openalex.config.timeout_ms.integer.valid",
+      "variant": "controlled_finite_context",
+      "kind": "deadline_policy"
+    },
+    {
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::real_system_all_42_timeout_scalars_full_factory_observed_expiry",
       "corpus": "docs/rust-rewrite/a06/source-config.json",
       "id": "openalex.config.timeout_ms.float_zero.valid",
       "variant": "direct",
       "kind": "deadline_policy"
     },
     {
-      "consumer": "ssx-infra/a06_timeout_config/all_42_reachable_timeout_scalars_follow_reviewed_whole_operation_policy",
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::controlled_all_42_timeout_scalars_full_factory_pending_exchange",
+      "corpus": "docs/rust-rewrite/a06/source-config.json",
+      "id": "openalex.config.timeout_ms.float_zero.valid",
+      "variant": "controlled_direct",
+      "kind": "deadline_policy"
+    },
+    {
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::real_system_all_42_timeout_scalars_full_factory_observed_expiry",
       "corpus": "docs/rust-rewrite/a06/source-config.json",
       "id": "openalex.config.timeout_ms.float_zero.valid",
       "variant": "finite_context",
       "kind": "deadline_policy"
     },
     {
-      "consumer": "ssx-infra/a06_timeout_config/all_42_reachable_timeout_scalars_follow_reviewed_whole_operation_policy",
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::controlled_all_42_timeout_scalars_full_factory_pending_exchange",
+      "corpus": "docs/rust-rewrite/a06/source-config.json",
+      "id": "openalex.config.timeout_ms.float_zero.valid",
+      "variant": "controlled_finite_context",
+      "kind": "deadline_policy"
+    },
+    {
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::real_system_all_42_timeout_scalars_full_factory_observed_expiry",
       "corpus": "docs/rust-rewrite/a06/source-config.json",
       "id": "openalex.config.timeout_ms.fraction.valid",
       "variant": "direct",
       "kind": "deadline_policy"
     },
     {
-      "consumer": "ssx-infra/a06_timeout_config/all_42_reachable_timeout_scalars_follow_reviewed_whole_operation_policy",
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::controlled_all_42_timeout_scalars_full_factory_pending_exchange",
+      "corpus": "docs/rust-rewrite/a06/source-config.json",
+      "id": "openalex.config.timeout_ms.fraction.valid",
+      "variant": "controlled_direct",
+      "kind": "deadline_policy"
+    },
+    {
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::real_system_all_42_timeout_scalars_full_factory_observed_expiry",
       "corpus": "docs/rust-rewrite/a06/source-config.json",
       "id": "openalex.config.timeout_ms.fraction.valid",
       "variant": "finite_context",
       "kind": "deadline_policy"
     },
     {
-      "consumer": "ssx-infra/a06_timeout_config/all_42_reachable_timeout_scalars_follow_reviewed_whole_operation_policy",
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::controlled_all_42_timeout_scalars_full_factory_pending_exchange",
+      "corpus": "docs/rust-rewrite/a06/source-config.json",
+      "id": "openalex.config.timeout_ms.fraction.valid",
+      "variant": "controlled_finite_context",
+      "kind": "deadline_policy"
+    },
+    {
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::real_system_all_42_timeout_scalars_full_factory_observed_expiry",
       "corpus": "docs/rust-rewrite/a06/source-config.json",
       "id": "openalex.config.timeout_ms.text_number.valid",
       "variant": "direct",
       "kind": "exact_operand_error"
     },
     {
-      "consumer": "ssx-infra/a06_timeout_config/all_42_reachable_timeout_scalars_follow_reviewed_whole_operation_policy",
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::controlled_all_42_timeout_scalars_full_factory_pending_exchange",
+      "corpus": "docs/rust-rewrite/a06/source-config.json",
+      "id": "openalex.config.timeout_ms.text_number.valid",
+      "variant": "controlled_direct",
+      "kind": "exact_operand_error"
+    },
+    {
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::real_system_all_42_timeout_scalars_full_factory_observed_expiry",
       "corpus": "docs/rust-rewrite/a06/source-config.json",
       "id": "openalex.config.timeout_ms.text_number.valid",
       "variant": "finite_context",
       "kind": "exact_operand_error"
     },
     {
-      "consumer": "ssx-infra/a06_timeout_config/all_42_reachable_timeout_scalars_follow_reviewed_whole_operation_policy",
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::controlled_all_42_timeout_scalars_full_factory_pending_exchange",
+      "corpus": "docs/rust-rewrite/a06/source-config.json",
+      "id": "openalex.config.timeout_ms.text_number.valid",
+      "variant": "controlled_finite_context",
+      "kind": "exact_operand_error"
+    },
+    {
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::real_system_all_42_timeout_scalars_full_factory_observed_expiry",
       "corpus": "docs/rust-rewrite/a06/source-config.json",
       "id": "openalex.config.timeout_ms.text_empty.valid",
       "variant": "direct",
       "kind": "exact_operand_error"
     },
     {
-      "consumer": "ssx-infra/a06_timeout_config/all_42_reachable_timeout_scalars_follow_reviewed_whole_operation_policy",
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::controlled_all_42_timeout_scalars_full_factory_pending_exchange",
+      "corpus": "docs/rust-rewrite/a06/source-config.json",
+      "id": "openalex.config.timeout_ms.text_empty.valid",
+      "variant": "controlled_direct",
+      "kind": "exact_operand_error"
+    },
+    {
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::real_system_all_42_timeout_scalars_full_factory_observed_expiry",
       "corpus": "docs/rust-rewrite/a06/source-config.json",
       "id": "openalex.config.timeout_ms.text_empty.valid",
       "variant": "finite_context",
       "kind": "exact_operand_error"
     },
     {
-      "consumer": "ssx-infra/a06_timeout_config/all_42_reachable_timeout_scalars_follow_reviewed_whole_operation_policy",
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::controlled_all_42_timeout_scalars_full_factory_pending_exchange",
+      "corpus": "docs/rust-rewrite/a06/source-config.json",
+      "id": "openalex.config.timeout_ms.text_empty.valid",
+      "variant": "controlled_finite_context",
+      "kind": "exact_operand_error"
+    },
+    {
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::real_system_all_42_timeout_scalars_full_factory_observed_expiry",
       "corpus": "docs/rust-rewrite/a06/source-config.json",
       "id": "openalex.config.timeout_ms.text_bad.valid",
       "variant": "direct",
       "kind": "exact_operand_error"
     },
     {
-      "consumer": "ssx-infra/a06_timeout_config/all_42_reachable_timeout_scalars_follow_reviewed_whole_operation_policy",
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::controlled_all_42_timeout_scalars_full_factory_pending_exchange",
+      "corpus": "docs/rust-rewrite/a06/source-config.json",
+      "id": "openalex.config.timeout_ms.text_bad.valid",
+      "variant": "controlled_direct",
+      "kind": "exact_operand_error"
+    },
+    {
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::real_system_all_42_timeout_scalars_full_factory_observed_expiry",
       "corpus": "docs/rust-rewrite/a06/source-config.json",
       "id": "openalex.config.timeout_ms.text_bad.valid",
       "variant": "finite_context",
       "kind": "exact_operand_error"
     },
     {
-      "consumer": "ssx-infra/a06_timeout_config/all_42_reachable_timeout_scalars_follow_reviewed_whole_operation_policy",
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::controlled_all_42_timeout_scalars_full_factory_pending_exchange",
+      "corpus": "docs/rust-rewrite/a06/source-config.json",
+      "id": "openalex.config.timeout_ms.text_bad.valid",
+      "variant": "controlled_finite_context",
+      "kind": "exact_operand_error"
+    },
+    {
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::real_system_all_42_timeout_scalars_full_factory_observed_expiry",
       "corpus": "docs/rust-rewrite/a06/source-config.json",
       "id": "openalex.config.timeout_ms.nan.valid",
       "variant": "direct",
       "kind": "finite_policy_refusal"
     },
     {
-      "consumer": "ssx-infra/a06_timeout_config/all_42_reachable_timeout_scalars_follow_reviewed_whole_operation_policy",
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::controlled_all_42_timeout_scalars_full_factory_pending_exchange",
+      "corpus": "docs/rust-rewrite/a06/source-config.json",
+      "id": "openalex.config.timeout_ms.nan.valid",
+      "variant": "controlled_direct",
+      "kind": "finite_policy_refusal"
+    },
+    {
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::real_system_all_42_timeout_scalars_full_factory_observed_expiry",
       "corpus": "docs/rust-rewrite/a06/source-config.json",
       "id": "openalex.config.timeout_ms.nan.valid",
       "variant": "finite_context",
       "kind": "deadline_policy"
     },
     {
-      "consumer": "ssx-infra/a06_timeout_config/all_42_reachable_timeout_scalars_follow_reviewed_whole_operation_policy",
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::controlled_all_42_timeout_scalars_full_factory_pending_exchange",
+      "corpus": "docs/rust-rewrite/a06/source-config.json",
+      "id": "openalex.config.timeout_ms.nan.valid",
+      "variant": "controlled_finite_context",
+      "kind": "deadline_policy"
+    },
+    {
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::real_system_all_42_timeout_scalars_full_factory_observed_expiry",
       "corpus": "docs/rust-rewrite/a06/source-config.json",
       "id": "openalex.config.timeout_ms.inf.valid",
       "variant": "direct",
       "kind": "finite_policy_refusal"
     },
     {
-      "consumer": "ssx-infra/a06_timeout_config/all_42_reachable_timeout_scalars_follow_reviewed_whole_operation_policy",
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::controlled_all_42_timeout_scalars_full_factory_pending_exchange",
+      "corpus": "docs/rust-rewrite/a06/source-config.json",
+      "id": "openalex.config.timeout_ms.inf.valid",
+      "variant": "controlled_direct",
+      "kind": "finite_policy_refusal"
+    },
+    {
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::real_system_all_42_timeout_scalars_full_factory_observed_expiry",
       "corpus": "docs/rust-rewrite/a06/source-config.json",
       "id": "openalex.config.timeout_ms.inf.valid",
       "variant": "finite_context",
       "kind": "deadline_policy"
     },
     {
-      "consumer": "ssx-infra/a06_timeout_config/all_42_reachable_timeout_scalars_follow_reviewed_whole_operation_policy",
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::controlled_all_42_timeout_scalars_full_factory_pending_exchange",
+      "corpus": "docs/rust-rewrite/a06/source-config.json",
+      "id": "openalex.config.timeout_ms.inf.valid",
+      "variant": "controlled_finite_context",
+      "kind": "deadline_policy"
+    },
+    {
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::real_system_all_42_timeout_scalars_full_factory_observed_expiry",
       "corpus": "docs/rust-rewrite/a06/source-config.json",
       "id": "openalex.config.timeout_ms.negative_inf.valid",
       "variant": "direct",
       "kind": "deadline_policy"
     },
     {
-      "consumer": "ssx-infra/a06_timeout_config/all_42_reachable_timeout_scalars_follow_reviewed_whole_operation_policy",
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::controlled_all_42_timeout_scalars_full_factory_pending_exchange",
+      "corpus": "docs/rust-rewrite/a06/source-config.json",
+      "id": "openalex.config.timeout_ms.negative_inf.valid",
+      "variant": "controlled_direct",
+      "kind": "deadline_policy"
+    },
+    {
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::real_system_all_42_timeout_scalars_full_factory_observed_expiry",
       "corpus": "docs/rust-rewrite/a06/source-config.json",
       "id": "openalex.config.timeout_ms.negative_inf.valid",
       "variant": "finite_context",
       "kind": "deadline_policy"
     },
     {
-      "consumer": "ssx-infra/a06_timeout_config/all_42_reachable_timeout_scalars_follow_reviewed_whole_operation_policy",
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::controlled_all_42_timeout_scalars_full_factory_pending_exchange",
+      "corpus": "docs/rust-rewrite/a06/source-config.json",
+      "id": "openalex.config.timeout_ms.negative_inf.valid",
+      "variant": "controlled_finite_context",
+      "kind": "deadline_policy"
+    },
+    {
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::real_system_all_42_timeout_scalars_full_factory_observed_expiry",
       "corpus": "docs/rust-rewrite/a06/source-config.json",
       "id": "semanticscholar.config.timeout_ms.false.valid",
       "variant": "direct",
       "kind": "deadline_policy"
     },
     {
-      "consumer": "ssx-infra/a06_timeout_config/all_42_reachable_timeout_scalars_follow_reviewed_whole_operation_policy",
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::controlled_all_42_timeout_scalars_full_factory_pending_exchange",
+      "corpus": "docs/rust-rewrite/a06/source-config.json",
+      "id": "semanticscholar.config.timeout_ms.false.valid",
+      "variant": "controlled_direct",
+      "kind": "deadline_policy"
+    },
+    {
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::real_system_all_42_timeout_scalars_full_factory_observed_expiry",
       "corpus": "docs/rust-rewrite/a06/source-config.json",
       "id": "semanticscholar.config.timeout_ms.false.valid",
       "variant": "finite_context",
       "kind": "deadline_policy"
     },
     {
-      "consumer": "ssx-infra/a06_timeout_config/all_42_reachable_timeout_scalars_follow_reviewed_whole_operation_policy",
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::controlled_all_42_timeout_scalars_full_factory_pending_exchange",
+      "corpus": "docs/rust-rewrite/a06/source-config.json",
+      "id": "semanticscholar.config.timeout_ms.false.valid",
+      "variant": "controlled_finite_context",
+      "kind": "deadline_policy"
+    },
+    {
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::real_system_all_42_timeout_scalars_full_factory_observed_expiry",
       "corpus": "docs/rust-rewrite/a06/source-config.json",
       "id": "semanticscholar.config.timeout_ms.true.valid",
       "variant": "direct",
       "kind": "deadline_policy"
     },
     {
-      "consumer": "ssx-infra/a06_timeout_config/all_42_reachable_timeout_scalars_follow_reviewed_whole_operation_policy",
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::controlled_all_42_timeout_scalars_full_factory_pending_exchange",
+      "corpus": "docs/rust-rewrite/a06/source-config.json",
+      "id": "semanticscholar.config.timeout_ms.true.valid",
+      "variant": "controlled_direct",
+      "kind": "deadline_policy"
+    },
+    {
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::real_system_all_42_timeout_scalars_full_factory_observed_expiry",
       "corpus": "docs/rust-rewrite/a06/source-config.json",
       "id": "semanticscholar.config.timeout_ms.true.valid",
       "variant": "finite_context",
       "kind": "deadline_policy"
     },
     {
-      "consumer": "ssx-infra/a06_timeout_config/all_42_reachable_timeout_scalars_follow_reviewed_whole_operation_policy",
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::controlled_all_42_timeout_scalars_full_factory_pending_exchange",
+      "corpus": "docs/rust-rewrite/a06/source-config.json",
+      "id": "semanticscholar.config.timeout_ms.true.valid",
+      "variant": "controlled_finite_context",
+      "kind": "deadline_policy"
+    },
+    {
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::real_system_all_42_timeout_scalars_full_factory_observed_expiry",
       "corpus": "docs/rust-rewrite/a06/source-config.json",
       "id": "semanticscholar.config.timeout_ms.zero.valid",
       "variant": "direct",
       "kind": "deadline_policy"
     },
     {
-      "consumer": "ssx-infra/a06_timeout_config/all_42_reachable_timeout_scalars_follow_reviewed_whole_operation_policy",
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::controlled_all_42_timeout_scalars_full_factory_pending_exchange",
+      "corpus": "docs/rust-rewrite/a06/source-config.json",
+      "id": "semanticscholar.config.timeout_ms.zero.valid",
+      "variant": "controlled_direct",
+      "kind": "deadline_policy"
+    },
+    {
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::real_system_all_42_timeout_scalars_full_factory_observed_expiry",
       "corpus": "docs/rust-rewrite/a06/source-config.json",
       "id": "semanticscholar.config.timeout_ms.zero.valid",
       "variant": "finite_context",
       "kind": "deadline_policy"
     },
     {
-      "consumer": "ssx-infra/a06_timeout_config/all_42_reachable_timeout_scalars_follow_reviewed_whole_operation_policy",
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::controlled_all_42_timeout_scalars_full_factory_pending_exchange",
+      "corpus": "docs/rust-rewrite/a06/source-config.json",
+      "id": "semanticscholar.config.timeout_ms.zero.valid",
+      "variant": "controlled_finite_context",
+      "kind": "deadline_policy"
+    },
+    {
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::real_system_all_42_timeout_scalars_full_factory_observed_expiry",
       "corpus": "docs/rust-rewrite/a06/source-config.json",
       "id": "semanticscholar.config.timeout_ms.one.valid",
       "variant": "direct",
       "kind": "deadline_policy"
     },
     {
-      "consumer": "ssx-infra/a06_timeout_config/all_42_reachable_timeout_scalars_follow_reviewed_whole_operation_policy",
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::controlled_all_42_timeout_scalars_full_factory_pending_exchange",
+      "corpus": "docs/rust-rewrite/a06/source-config.json",
+      "id": "semanticscholar.config.timeout_ms.one.valid",
+      "variant": "controlled_direct",
+      "kind": "deadline_policy"
+    },
+    {
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::real_system_all_42_timeout_scalars_full_factory_observed_expiry",
       "corpus": "docs/rust-rewrite/a06/source-config.json",
       "id": "semanticscholar.config.timeout_ms.one.valid",
       "variant": "finite_context",
       "kind": "deadline_policy"
     },
     {
-      "consumer": "ssx-infra/a06_timeout_config/all_42_reachable_timeout_scalars_follow_reviewed_whole_operation_policy",
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::controlled_all_42_timeout_scalars_full_factory_pending_exchange",
+      "corpus": "docs/rust-rewrite/a06/source-config.json",
+      "id": "semanticscholar.config.timeout_ms.one.valid",
+      "variant": "controlled_finite_context",
+      "kind": "deadline_policy"
+    },
+    {
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::real_system_all_42_timeout_scalars_full_factory_observed_expiry",
       "corpus": "docs/rust-rewrite/a06/source-config.json",
       "id": "semanticscholar.config.timeout_ms.negative.valid",
       "variant": "direct",
       "kind": "deadline_policy"
     },
     {
-      "consumer": "ssx-infra/a06_timeout_config/all_42_reachable_timeout_scalars_follow_reviewed_whole_operation_policy",
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::controlled_all_42_timeout_scalars_full_factory_pending_exchange",
+      "corpus": "docs/rust-rewrite/a06/source-config.json",
+      "id": "semanticscholar.config.timeout_ms.negative.valid",
+      "variant": "controlled_direct",
+      "kind": "deadline_policy"
+    },
+    {
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::real_system_all_42_timeout_scalars_full_factory_observed_expiry",
       "corpus": "docs/rust-rewrite/a06/source-config.json",
       "id": "semanticscholar.config.timeout_ms.negative.valid",
       "variant": "finite_context",
       "kind": "deadline_policy"
     },
     {
-      "consumer": "ssx-infra/a06_timeout_config/all_42_reachable_timeout_scalars_follow_reviewed_whole_operation_policy",
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::controlled_all_42_timeout_scalars_full_factory_pending_exchange",
+      "corpus": "docs/rust-rewrite/a06/source-config.json",
+      "id": "semanticscholar.config.timeout_ms.negative.valid",
+      "variant": "controlled_finite_context",
+      "kind": "deadline_policy"
+    },
+    {
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::real_system_all_42_timeout_scalars_full_factory_observed_expiry",
       "corpus": "docs/rust-rewrite/a06/source-config.json",
       "id": "semanticscholar.config.timeout_ms.integer.valid",
       "variant": "direct",
       "kind": "deadline_policy"
     },
     {
-      "consumer": "ssx-infra/a06_timeout_config/all_42_reachable_timeout_scalars_follow_reviewed_whole_operation_policy",
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::controlled_all_42_timeout_scalars_full_factory_pending_exchange",
+      "corpus": "docs/rust-rewrite/a06/source-config.json",
+      "id": "semanticscholar.config.timeout_ms.integer.valid",
+      "variant": "controlled_direct",
+      "kind": "deadline_policy"
+    },
+    {
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::real_system_all_42_timeout_scalars_full_factory_observed_expiry",
       "corpus": "docs/rust-rewrite/a06/source-config.json",
       "id": "semanticscholar.config.timeout_ms.integer.valid",
       "variant": "finite_context",
       "kind": "deadline_policy"
     },
     {
-      "consumer": "ssx-infra/a06_timeout_config/all_42_reachable_timeout_scalars_follow_reviewed_whole_operation_policy",
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::controlled_all_42_timeout_scalars_full_factory_pending_exchange",
+      "corpus": "docs/rust-rewrite/a06/source-config.json",
+      "id": "semanticscholar.config.timeout_ms.integer.valid",
+      "variant": "controlled_finite_context",
+      "kind": "deadline_policy"
+    },
+    {
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::real_system_all_42_timeout_scalars_full_factory_observed_expiry",
       "corpus": "docs/rust-rewrite/a06/source-config.json",
       "id": "semanticscholar.config.timeout_ms.float_zero.valid",
       "variant": "direct",
       "kind": "deadline_policy"
     },
     {
-      "consumer": "ssx-infra/a06_timeout_config/all_42_reachable_timeout_scalars_follow_reviewed_whole_operation_policy",
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::controlled_all_42_timeout_scalars_full_factory_pending_exchange",
+      "corpus": "docs/rust-rewrite/a06/source-config.json",
+      "id": "semanticscholar.config.timeout_ms.float_zero.valid",
+      "variant": "controlled_direct",
+      "kind": "deadline_policy"
+    },
+    {
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::real_system_all_42_timeout_scalars_full_factory_observed_expiry",
       "corpus": "docs/rust-rewrite/a06/source-config.json",
       "id": "semanticscholar.config.timeout_ms.float_zero.valid",
       "variant": "finite_context",
       "kind": "deadline_policy"
     },
     {
-      "consumer": "ssx-infra/a06_timeout_config/all_42_reachable_timeout_scalars_follow_reviewed_whole_operation_policy",
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::controlled_all_42_timeout_scalars_full_factory_pending_exchange",
+      "corpus": "docs/rust-rewrite/a06/source-config.json",
+      "id": "semanticscholar.config.timeout_ms.float_zero.valid",
+      "variant": "controlled_finite_context",
+      "kind": "deadline_policy"
+    },
+    {
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::real_system_all_42_timeout_scalars_full_factory_observed_expiry",
       "corpus": "docs/rust-rewrite/a06/source-config.json",
       "id": "semanticscholar.config.timeout_ms.fraction.valid",
       "variant": "direct",
       "kind": "deadline_policy"
     },
     {
-      "consumer": "ssx-infra/a06_timeout_config/all_42_reachable_timeout_scalars_follow_reviewed_whole_operation_policy",
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::controlled_all_42_timeout_scalars_full_factory_pending_exchange",
+      "corpus": "docs/rust-rewrite/a06/source-config.json",
+      "id": "semanticscholar.config.timeout_ms.fraction.valid",
+      "variant": "controlled_direct",
+      "kind": "deadline_policy"
+    },
+    {
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::real_system_all_42_timeout_scalars_full_factory_observed_expiry",
       "corpus": "docs/rust-rewrite/a06/source-config.json",
       "id": "semanticscholar.config.timeout_ms.fraction.valid",
       "variant": "finite_context",
       "kind": "deadline_policy"
     },
     {
-      "consumer": "ssx-infra/a06_timeout_config/all_42_reachable_timeout_scalars_follow_reviewed_whole_operation_policy",
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::controlled_all_42_timeout_scalars_full_factory_pending_exchange",
+      "corpus": "docs/rust-rewrite/a06/source-config.json",
+      "id": "semanticscholar.config.timeout_ms.fraction.valid",
+      "variant": "controlled_finite_context",
+      "kind": "deadline_policy"
+    },
+    {
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::real_system_all_42_timeout_scalars_full_factory_observed_expiry",
       "corpus": "docs/rust-rewrite/a06/source-config.json",
       "id": "semanticscholar.config.timeout_ms.text_number.valid",
       "variant": "direct",
       "kind": "exact_operand_error"
     },
     {
-      "consumer": "ssx-infra/a06_timeout_config/all_42_reachable_timeout_scalars_follow_reviewed_whole_operation_policy",
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::controlled_all_42_timeout_scalars_full_factory_pending_exchange",
+      "corpus": "docs/rust-rewrite/a06/source-config.json",
+      "id": "semanticscholar.config.timeout_ms.text_number.valid",
+      "variant": "controlled_direct",
+      "kind": "exact_operand_error"
+    },
+    {
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::real_system_all_42_timeout_scalars_full_factory_observed_expiry",
       "corpus": "docs/rust-rewrite/a06/source-config.json",
       "id": "semanticscholar.config.timeout_ms.text_number.valid",
       "variant": "finite_context",
       "kind": "exact_operand_error"
     },
     {
-      "consumer": "ssx-infra/a06_timeout_config/all_42_reachable_timeout_scalars_follow_reviewed_whole_operation_policy",
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::controlled_all_42_timeout_scalars_full_factory_pending_exchange",
+      "corpus": "docs/rust-rewrite/a06/source-config.json",
+      "id": "semanticscholar.config.timeout_ms.text_number.valid",
+      "variant": "controlled_finite_context",
+      "kind": "exact_operand_error"
+    },
+    {
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::real_system_all_42_timeout_scalars_full_factory_observed_expiry",
       "corpus": "docs/rust-rewrite/a06/source-config.json",
       "id": "semanticscholar.config.timeout_ms.text_empty.valid",
       "variant": "direct",
       "kind": "exact_operand_error"
     },
     {
-      "consumer": "ssx-infra/a06_timeout_config/all_42_reachable_timeout_scalars_follow_reviewed_whole_operation_policy",
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::controlled_all_42_timeout_scalars_full_factory_pending_exchange",
+      "corpus": "docs/rust-rewrite/a06/source-config.json",
+      "id": "semanticscholar.config.timeout_ms.text_empty.valid",
+      "variant": "controlled_direct",
+      "kind": "exact_operand_error"
+    },
+    {
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::real_system_all_42_timeout_scalars_full_factory_observed_expiry",
       "corpus": "docs/rust-rewrite/a06/source-config.json",
       "id": "semanticscholar.config.timeout_ms.text_empty.valid",
       "variant": "finite_context",
       "kind": "exact_operand_error"
     },
     {
-      "consumer": "ssx-infra/a06_timeout_config/all_42_reachable_timeout_scalars_follow_reviewed_whole_operation_policy",
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::controlled_all_42_timeout_scalars_full_factory_pending_exchange",
+      "corpus": "docs/rust-rewrite/a06/source-config.json",
+      "id": "semanticscholar.config.timeout_ms.text_empty.valid",
+      "variant": "controlled_finite_context",
+      "kind": "exact_operand_error"
+    },
+    {
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::real_system_all_42_timeout_scalars_full_factory_observed_expiry",
       "corpus": "docs/rust-rewrite/a06/source-config.json",
       "id": "semanticscholar.config.timeout_ms.text_bad.valid",
       "variant": "direct",
       "kind": "exact_operand_error"
     },
     {
-      "consumer": "ssx-infra/a06_timeout_config/all_42_reachable_timeout_scalars_follow_reviewed_whole_operation_policy",
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::controlled_all_42_timeout_scalars_full_factory_pending_exchange",
+      "corpus": "docs/rust-rewrite/a06/source-config.json",
+      "id": "semanticscholar.config.timeout_ms.text_bad.valid",
+      "variant": "controlled_direct",
+      "kind": "exact_operand_error"
+    },
+    {
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::real_system_all_42_timeout_scalars_full_factory_observed_expiry",
       "corpus": "docs/rust-rewrite/a06/source-config.json",
       "id": "semanticscholar.config.timeout_ms.text_bad.valid",
       "variant": "finite_context",
       "kind": "exact_operand_error"
     },
     {
-      "consumer": "ssx-infra/a06_timeout_config/all_42_reachable_timeout_scalars_follow_reviewed_whole_operation_policy",
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::controlled_all_42_timeout_scalars_full_factory_pending_exchange",
+      "corpus": "docs/rust-rewrite/a06/source-config.json",
+      "id": "semanticscholar.config.timeout_ms.text_bad.valid",
+      "variant": "controlled_finite_context",
+      "kind": "exact_operand_error"
+    },
+    {
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::real_system_all_42_timeout_scalars_full_factory_observed_expiry",
       "corpus": "docs/rust-rewrite/a06/source-config.json",
       "id": "semanticscholar.config.timeout_ms.nan.valid",
       "variant": "direct",
       "kind": "finite_policy_refusal"
     },
     {
-      "consumer": "ssx-infra/a06_timeout_config/all_42_reachable_timeout_scalars_follow_reviewed_whole_operation_policy",
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::controlled_all_42_timeout_scalars_full_factory_pending_exchange",
+      "corpus": "docs/rust-rewrite/a06/source-config.json",
+      "id": "semanticscholar.config.timeout_ms.nan.valid",
+      "variant": "controlled_direct",
+      "kind": "finite_policy_refusal"
+    },
+    {
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::real_system_all_42_timeout_scalars_full_factory_observed_expiry",
       "corpus": "docs/rust-rewrite/a06/source-config.json",
       "id": "semanticscholar.config.timeout_ms.nan.valid",
       "variant": "finite_context",
       "kind": "deadline_policy"
     },
     {
-      "consumer": "ssx-infra/a06_timeout_config/all_42_reachable_timeout_scalars_follow_reviewed_whole_operation_policy",
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::controlled_all_42_timeout_scalars_full_factory_pending_exchange",
+      "corpus": "docs/rust-rewrite/a06/source-config.json",
+      "id": "semanticscholar.config.timeout_ms.nan.valid",
+      "variant": "controlled_finite_context",
+      "kind": "deadline_policy"
+    },
+    {
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::real_system_all_42_timeout_scalars_full_factory_observed_expiry",
       "corpus": "docs/rust-rewrite/a06/source-config.json",
       "id": "semanticscholar.config.timeout_ms.inf.valid",
       "variant": "direct",
       "kind": "finite_policy_refusal"
     },
     {
-      "consumer": "ssx-infra/a06_timeout_config/all_42_reachable_timeout_scalars_follow_reviewed_whole_operation_policy",
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::controlled_all_42_timeout_scalars_full_factory_pending_exchange",
+      "corpus": "docs/rust-rewrite/a06/source-config.json",
+      "id": "semanticscholar.config.timeout_ms.inf.valid",
+      "variant": "controlled_direct",
+      "kind": "finite_policy_refusal"
+    },
+    {
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::real_system_all_42_timeout_scalars_full_factory_observed_expiry",
       "corpus": "docs/rust-rewrite/a06/source-config.json",
       "id": "semanticscholar.config.timeout_ms.inf.valid",
       "variant": "finite_context",
       "kind": "deadline_policy"
     },
     {
-      "consumer": "ssx-infra/a06_timeout_config/all_42_reachable_timeout_scalars_follow_reviewed_whole_operation_policy",
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::controlled_all_42_timeout_scalars_full_factory_pending_exchange",
+      "corpus": "docs/rust-rewrite/a06/source-config.json",
+      "id": "semanticscholar.config.timeout_ms.inf.valid",
+      "variant": "controlled_finite_context",
+      "kind": "deadline_policy"
+    },
+    {
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::real_system_all_42_timeout_scalars_full_factory_observed_expiry",
       "corpus": "docs/rust-rewrite/a06/source-config.json",
       "id": "semanticscholar.config.timeout_ms.negative_inf.valid",
       "variant": "direct",
       "kind": "deadline_policy"
     },
     {
-      "consumer": "ssx-infra/a06_timeout_config/all_42_reachable_timeout_scalars_follow_reviewed_whole_operation_policy",
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::controlled_all_42_timeout_scalars_full_factory_pending_exchange",
+      "corpus": "docs/rust-rewrite/a06/source-config.json",
+      "id": "semanticscholar.config.timeout_ms.negative_inf.valid",
+      "variant": "controlled_direct",
+      "kind": "deadline_policy"
+    },
+    {
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::real_system_all_42_timeout_scalars_full_factory_observed_expiry",
       "corpus": "docs/rust-rewrite/a06/source-config.json",
       "id": "semanticscholar.config.timeout_ms.negative_inf.valid",
       "variant": "finite_context",
+      "kind": "deadline_policy"
+    },
+    {
+      "consumer": "ssx-infra/lib/http::scholarly_timeout_clock::controlled_all_42_timeout_scalars_full_factory_pending_exchange",
+      "corpus": "docs/rust-rewrite/a06/source-config.json",
+      "id": "semanticscholar.config.timeout_ms.negative_inf.valid",
+      "variant": "controlled_finite_context",
       "kind": "deadline_policy"
     },
     {
@@ -22102,12 +22772,13 @@
     },
     {
       "path": "docs/rust-rewrite/a06/source-config.json",
-      "completed_case_events": 168,
+      "completed_case_events": 252,
       "completed_consumers": [
         "ssx-infra/a06_arxiv_runtime/actual_http_helper_path_preserves_source_outcomes_and_requests",
         "ssx-infra/a06_openalex_runtime/actual_factory_preserves_original_outcomes_urls_dates_and_reachable_max_configs",
         "ssx-infra/a06_semantic_runtime/actual_factory_replays_all_28_reachable_max_results_configurations",
-        "ssx-infra/a06_timeout_config/all_42_reachable_timeout_scalars_follow_reviewed_whole_operation_policy"
+        "ssx-infra/lib/http::scholarly_timeout_clock::controlled_all_42_timeout_scalars_full_factory_pending_exchange",
+        "ssx-infra/lib/http::scholarly_timeout_clock::real_system_all_42_timeout_scalars_full_factory_observed_expiry"
       ],
       "classification": "Only listed completed case identities and kinds are claimed; not every artifact row"
     },
@@ -22769,6 +23440,78 @@
     },
     {
       "path": "vendor/expat/wrapper.c",
+      "completed_case_events": 0,
+      "completed_consumers": [
+
+      ],
+      "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
+    },
+    {
+      "path": "crates/ssx-infra/src/http/monotonic.rs",
+      "completed_case_events": 0,
+      "completed_consumers": [
+
+      ],
+      "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
+    },
+    {
+      "path": "crates/ssx-infra/src/http/pending_replay.rs",
+      "completed_case_events": 0,
+      "completed_consumers": [
+
+      ],
+      "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
+    },
+    {
+      "path": "crates/ssx-infra/tests/a07_biomedical.rs",
+      "completed_case_events": 0,
+      "completed_consumers": [
+
+      ],
+      "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
+    },
+    {
+      "path": "crates/ssx-infra/tests/support/a06_timeout_clock.rs",
+      "completed_case_events": 0,
+      "completed_consumers": [
+
+      ],
+      "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
+    },
+    {
+      "path": "crates/ssx-infra/tests/support/a07_http_clock.rs",
+      "completed_case_events": 0,
+      "completed_consumers": [
+
+      ],
+      "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
+    },
+    {
+      "path": "crates/ssx-infra/tests/support/a07_owner_clock.rs",
+      "completed_case_events": 0,
+      "completed_consumers": [
+
+      ],
+      "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
+    },
+    {
+      "path": "crates/ssx-infra/tests/support/a07_source_replay.rs",
+      "completed_case_events": 0,
+      "completed_consumers": [
+
+      ],
+      "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
+    },
+    {
+      "path": "crates/ssx-infra/tests/a07_context.rs",
+      "completed_case_events": 0,
+      "completed_consumers": [
+
+      ],
+      "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
+    },
+    {
+      "path": "crates/ssx-infra/tests/support/a07_cold_context.rs",
       "completed_case_events": 0,
       "completed_consumers": [
 

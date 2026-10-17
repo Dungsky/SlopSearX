@@ -96,7 +96,10 @@ impl OpenAlexAdapter {
             .await;
         }
         let admitted = if let Some(c) = context {
-            match tokio::time::timeout_at(c.deadline.into(), self.admission.admit("openalex")).await
+            match self
+                .http
+                .admission_timeout(c.deadline, self.admission.admit("openalex"))
+                .await
             {
                 Ok(v) => v,
                 Err(_) => return bare(EngineStatus::Timeout, None, start),
@@ -118,29 +121,39 @@ impl OpenAlexAdapter {
         if let Err(m) = self.config.timeout_ms.validate_timeout_operand(true) {
             return bare(EngineStatus::Error, Some(m), start);
         }
-        let network_deadline = match deadline(&self.config.timeout_ms, context, Instant::now()) {
-            Ok(v) => v,
-            Err((s, m)) => return bare(s, m, start),
-        };
+        let network_deadline =
+            match deadline(&self.config.timeout_ms, context, self.http.deadline_now()) {
+                Ok(v) => v,
+                Err((s, m)) => return bare(s, m, start),
+            };
         let deadline = context.map_or(network_deadline, |c| c.deadline);
-        let operation = match self.lifecycle.begin_raw(budget.clone(), deadline.into()) {
-            Ok(v) => v,
-            Err(RawAdmissionError::Deadline) => return bare(EngineStatus::Timeout, None, start),
-            Err(RawAdmissionError::Shutdown) => {
-                return bare(
-                    EngineStatus::Error,
-                    Some("OpenAlex lifecycle shutdown"),
-                    start,
-                );
-            }
-            Err(RawAdmissionError::Saturated) => {
-                return bare(
-                    EngineStatus::Error,
-                    Some("OpenAlex lifecycle saturated"),
-                    start,
-                );
-            }
-        };
+        #[cfg(test)]
+        self.http
+            .record_scholarly_deadlines(network_deadline, deadline);
+        let operation =
+            match self
+                .lifecycle
+                .begin_raw_for_http(budget.clone(), deadline.into(), &self.http)
+            {
+                Ok(v) => v,
+                Err(RawAdmissionError::Deadline) => {
+                    return bare(EngineStatus::Timeout, None, start);
+                }
+                Err(RawAdmissionError::Shutdown) => {
+                    return bare(
+                        EngineStatus::Error,
+                        Some("OpenAlex lifecycle shutdown"),
+                        start,
+                    );
+                }
+                Err(RawAdmissionError::Saturated) => {
+                    return bare(
+                        EngineStatus::Error,
+                        Some("OpenAlex lifecycle saturated"),
+                        start,
+                    );
+                }
+            };
         let result = operation
             .run_until_cancelled(self.execute(
                 request,
@@ -199,7 +212,7 @@ impl OpenAlexAdapter {
         network_deadline: Instant,
         start: Instant,
     ) -> Result<AdapterResponse, Failure> {
-        let url = outgoing_url(
+        let url = outgoing_url_for_clock(
             &self.config.base_url,
             &request.query,
             &self.config.max_results,
@@ -207,6 +220,7 @@ impl OpenAlexAdapter {
             request.date_to.as_deref(),
             budget,
             deadline,
+            &self.http.deadline_clock(),
         )
         .await?;
         let mut options = self.config.transport.clone();
@@ -284,7 +298,9 @@ impl OpenAlexAdapter {
             .map_err(budget_error)
     }
 }
-async fn outgoing_url(
+// Preserve the original request inputs and explicit owner clock as separate dependencies.
+#[allow(clippy::too_many_arguments)]
+async fn outgoing_url_for_clock(
     base: &str,
     query: &str,
     limit: &Scalar,
@@ -292,15 +308,21 @@ async fn outgoing_url(
     upper: Option<&str>,
     budget: &Budget,
     deadline: Instant,
+    clock: &crate::http::DeadlineClock,
 ) -> Result<OwnedString, Failure> {
-    async fn quote(out: &mut OwnedString, text: &str, deadline: Instant) -> Result<(), Failure> {
+    async fn quote(
+        out: &mut OwnedString,
+        text: &str,
+        deadline: Instant,
+        clock: &crate::http::DeadlineClock,
+    ) -> Result<(), Failure> {
         const HEX: &[u8; 16] = b"0123456789ABCDEF";
         out.try_reserve_exact(text.len().checked_mul(3).ok_or(Failure::Resource)?)
             .map_err(|_| Failure::Resource)?;
         for (i, b) in text.bytes().enumerate() {
             if i % 1024 == 0 {
                 tokio::task::yield_now().await;
-                if Instant::now() >= deadline {
+                if clock.expired(deadline) {
                     return Err(Failure::Deadline);
                 }
             }
@@ -315,24 +337,24 @@ async fn outgoing_url(
         Ok(())
     }
     let mut out = OwnedString::new(budget).map_err(|_| Failure::Resource)?;
-    append(&mut out, base, deadline).await?;
-    append(&mut out, "/works?search=", deadline).await?;
-    quote(&mut out, query, deadline).await?;
-    append(&mut out, "&per_page=", deadline).await?;
+    append_for_clock(&mut out, base, deadline, clock).await?;
+    append_for_clock(&mut out, "/works?search=", deadline, clock).await?;
+    quote(&mut out, query, deadline, clock).await?;
+    append_for_clock(&mut out, "&per_page=", deadline, clock).await?;
     let _numeric = budget.reserve(256).map_err(|_| Failure::Resource)?;
-    append(&mut out, &limit.python_text(), deadline).await?;
+    append_for_clock(&mut out, &limit.python_text(), deadline, clock).await?;
     if lower.is_some() || upper.is_some() {
-        append(&mut out, "&filter=", deadline).await?;
+        append_for_clock(&mut out, "&filter=", deadline, clock).await?;
         if let Some(lower) = lower {
-            append(&mut out, "from_publication_date%3A", deadline).await?;
-            quote(&mut out, lower, deadline).await?;
+            append_for_clock(&mut out, "from_publication_date%3A", deadline, clock).await?;
+            quote(&mut out, lower, deadline, clock).await?;
         }
         if let Some(upper) = upper {
             if lower.is_some() {
-                append(&mut out, "%2C", deadline).await?;
+                append_for_clock(&mut out, "%2C", deadline, clock).await?;
             }
-            append(&mut out, "to_publication_date%3A", deadline).await?;
-            quote(&mut out, upper, deadline).await?;
+            append_for_clock(&mut out, "to_publication_date%3A", deadline, clock).await?;
+            quote(&mut out, upper, deadline, clock).await?;
         }
     }
     Ok(out)
@@ -479,6 +501,25 @@ async fn append(out: &mut OwnedString, text: &str, deadline: Instant) -> Result<
         if i % 1024 == 0 {
             tokio::task::yield_now().await;
             if Instant::now() >= deadline {
+                return Err(Failure::Deadline);
+            }
+        }
+        out.try_push(c).map_err(|_| Failure::Resource)?;
+    }
+    Ok(())
+}
+async fn append_for_clock(
+    out: &mut OwnedString,
+    text: &str,
+    deadline: Instant,
+    clock: &crate::http::DeadlineClock,
+) -> Result<(), Failure> {
+    out.try_reserve_exact(text.len())
+        .map_err(|_| Failure::Resource)?;
+    for (i, c) in text.chars().enumerate() {
+        if i % 1024 == 0 {
+            tokio::task::yield_now().await;
+            if clock.expired(deadline) {
                 return Err(Failure::Deadline);
             }
         }

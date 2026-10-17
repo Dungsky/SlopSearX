@@ -87,7 +87,7 @@ mod unicode_escape;
 mod unicode_name_ranges;
 mod unicode_names;
 mod utf7;
-pub use text::Text;
+pub use text::{Text, contains_ascii_lower_with_scratch};
 /// Native source codec registry. None denotes an internal registry omission,
 /// never a runtime fallback to another backend.
 /// Empty bodies short-circuit before registry rejection, matching HTTPX.

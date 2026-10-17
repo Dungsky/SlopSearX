@@ -362,7 +362,197 @@ fn checkout_with(
         "trusted harness revision mismatch",
     )
 }
+// Exact reviewed A05 assets: binary formats are never treated as UTF8 source.
+const A05_ASSET_MANIFEST: &str = "docs/rust-rewrite/a05/source-assets.json";
+const A05_ASSET_MANIFEST_SHA256: &str =
+    "0b5ec029dd10c9ec225d40e67700b9993141272f07434d61291384fec04eeeef";
+const A05_MAX_ASSET_BYTES: u64 = 5_869_813;
+#[derive(Clone, Copy, Default, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct AssetTextRules {
+    preserve_cr: bool,
+    preserve_final_newline: bool,
+    preserve_trailing: bool,
+    license_separator: bool,
+}
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SourceAsset {
+    path: String,
+    bytes: u64,
+    sha256: String,
+    encoding: String,
+    kind: String,
+    provenance: String,
+    text_rules: AssetTextRules,
+}
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SourceAssetManifest {
+    schema_version: u64,
+    assets: Vec<SourceAsset>,
+}
+#[derive(Clone, Copy)]
+struct AssetPolicy<'a> {
+    path: &'a str,
+    digest: &'a str,
+    count: usize,
+}
+fn asset_digest(raw: &[u8]) -> String {
+    use sha2::{Digest as _, Sha256};
+    Sha256::digest(raw)
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
+}
+fn source_assets(
+    root: &Path,
+    policy: AssetPolicy<'_>,
+) -> Result<std::collections::BTreeMap<String, SourceAsset>> {
+    let raw = bounded(&root.join(policy.path))?;
+    ensure(
+        asset_digest(raw.as_bytes()) == policy.digest,
+        "source asset manifest digest drift",
+    )?;
+    let manifest: SourceAssetManifest = serde_json::from_str(&raw).map_err(|e| e.to_string())?;
+    ensure(
+        manifest.schema_version == 1 && manifest.assets.len() == policy.count,
+        "source asset manifest shape",
+    )?;
+    let mut assets = std::collections::BTreeMap::new();
+    for asset in manifest.assets {
+        ensure(
+            !asset
+                .path
+                .split('/')
+                .any(|part| matches!(part, "" | "." | ".."))
+                && (asset.path.starts_with("crates/ssx-source-codecs/")
+                    || asset.path
+                        == "crates/ssx-domain/tests/fixtures/a05_previous_media_sanitizer.rs"),
+            "invalid source asset path",
+        )?;
+        ensure(
+            asset.bytes > 0
+                && asset.bytes <= A05_MAX_ASSET_BYTES
+                && asset.sha256.len() == 64
+                && asset.sha256.bytes().all(|byte| byte.is_ascii_hexdigit()),
+            "invalid source asset size/digest",
+        )?;
+        ensure(
+            matches!(asset.encoding.as_str(), "binary" | "utf8"),
+            "unknown source asset encoding",
+        )?;
+        ensure(
+            (asset.encoding == "binary")
+                == matches!(
+                    asset.kind.as_str(),
+                    "compressed native source oracle" | "native mapping/validity bytes"
+                ),
+            "asset kind/encoding mismatch",
+        )?;
+        ensure(
+            matches!(
+                asset.kind.as_str(),
+                "compressed native source oracle"
+                    | "native mapping/validity bytes"
+                    | "generated Rust table"
+                    | "source JSON observation"
+                    | "frozen prior source fixture"
+                    | "licensed upstream source/notice"
+            ) && !asset.provenance.is_empty(),
+            "unknown source asset kind/provenance",
+        )?;
+        ensure(
+            asset.kind != "generated Rust table"
+                || asset.path == "crates/ssx-source-codecs/src/unicode_names.rs",
+            "unreviewed oversized generated source",
+        )?;
+        ensure(
+            !asset.path.ends_with(".rs")
+                || asset.bytes <= 500 * 1024
+                || (asset.kind == "generated Rust table"
+                    && asset.path == "crates/ssx-source-codecs/src/unicode_names.rs"),
+            "unreviewed oversized Rust source",
+        )?;
+        let rules = asset.text_rules;
+        ensure(
+            !rules.license_separator || asset.path == "crates/ssx-source-codecs/LICENSE-PYTHON",
+            "unreviewed license separator",
+        )?;
+        ensure(
+            asset.encoding != "binary"
+                || !(rules.preserve_cr
+                    || rules.preserve_final_newline
+                    || rules.preserve_trailing
+                    || rules.license_separator),
+            "binary asset has text waivers",
+        )?;
+        ensure(
+            assets.insert(asset.path.clone(), asset).is_none(),
+            "duplicate source asset path",
+        )?;
+    }
+    Ok(assets)
+}
+fn read_source_asset(root: &Path, asset: &SourceAsset) -> Result<Option<String>> {
+    use sha2::{Digest as _, Sha256};
+    let path = root.join(&asset.path);
+    let metadata = fs::symlink_metadata(&path).map_err(|e| e.to_string())?;
+    ensure(
+        metadata.file_type().is_file() && metadata.len() == asset.bytes,
+        "source asset file/length drift",
+    )?;
+    let maximum = asset
+        .bytes
+        .checked_add(1)
+        .ok_or("source asset size overflow")?;
+    let mut reader = fs::File::open(&path)
+        .map_err(|e| e.to_string())?
+        .take(maximum);
+    // Only UTF8 assets need retained storage for semantic validation. Binary
+    // mappings/oracles stream through fixed scratch. No read exceeds length+1.
+    let mut text = if asset.encoding == "utf8" {
+        Some(Vec::with_capacity(
+            usize::try_from(asset.bytes).map_err(|_| "source asset size")?,
+        ))
+    } else {
+        None
+    };
+    let mut scratch = [0u8; 16 * 1024];
+    let mut count = 0u64;
+    let mut digest = Sha256::new();
+    loop {
+        let n = reader.read(&mut scratch).map_err(|e| e.to_string())?;
+        if n == 0 {
+            break;
+        }
+        count = count
+            .checked_add(n as u64)
+            .ok_or("source asset read overflow")?;
+        ensure(count <= asset.bytes, "source asset grew while reading")?;
+        digest.update(&scratch[..n]);
+        if let Some(text) = &mut text {
+            text.extend_from_slice(&scratch[..n]);
+        }
+    }
+    ensure(
+        count == asset.bytes
+            && digest
+                .finalize()
+                .iter()
+                .map(|byte| format!("{byte:02x}"))
+                .collect::<String>()
+                == asset.sha256,
+        "source asset length/digest drift",
+    )?;
+    text.map(|bytes| String::from_utf8(bytes).map_err(|e| e.to_string()))
+        .transpose()
+}
+
 fn hygiene_text(path: &str, raw: &str) -> Result<()> {
+    hygiene_text_with_rules(path, raw, AssetTextRules::default())
+}
+fn hygiene_text_with_rules(path: &str, raw: &str, rules: AssetTextRules) -> Result<()> {
     use sha2::{Digest as _, Sha256};
     // Exact durable output intentionally has no text newline. Keep JSON and
     // all other hygiene validation; no other path/bytes receive this exception.
@@ -372,20 +562,27 @@ fn hygiene_text(path: &str, raw: &str) -> Result<()> {
             .map(|byte| format!("{byte:02x}"))
             .collect::<String>()
             == "fbf5c2b453e4c4e4fdd54b5c372be642d036e5cf2db788de0df963e24e0ba203";
-    ensure(!raw.contains('\r'), "mixed/CR line endings")?;
     ensure(
-        durable_fixture || raw.is_empty() || (raw.ends_with('\n') && !raw.ends_with("\n\n")),
+        rules.preserve_cr || !raw.contains('\r'),
+        "mixed/CR line endings",
+    )?;
+    ensure(
+        rules.preserve_final_newline
+            || durable_fixture
+            || raw.is_empty()
+            || (raw.ends_with('\n') && !raw.ends_with("\n\n")),
         "missing or repeated final newline",
     )?;
     for line in raw.lines() {
         ensure(
-            line.trim_end_matches([' ', '\t']) == line,
+            rules.preserve_trailing || line.trim_end_matches([' ', '\t']) == line,
             "trailing whitespace",
         )?;
         ensure(
             !["<<<<<<< ", "=======", ">>>>>>> "]
                 .iter()
-                .any(|m| line.starts_with(m)),
+                .any(|m| line.starts_with(m))
+                || (rules.license_separator && line.starts_with("=======")),
             "merge conflict marker",
         )?;
     }
@@ -398,6 +595,18 @@ fn hygiene_text(path: &str, raw: &str) -> Result<()> {
     Ok(())
 }
 fn hygiene(root: &Path) -> Result<()> {
+    hygiene_with_policy(
+        root,
+        AssetPolicy {
+            path: A05_ASSET_MANIFEST,
+            digest: A05_ASSET_MANIFEST_SHA256,
+            count: 200,
+        },
+    )
+}
+fn hygiene_with_policy(root: &Path, policy: AssetPolicy<'_>) -> Result<()> {
+    let assets = source_assets(root, policy)?;
+    let mut seen = BTreeSet::new();
     let files = command(
         root,
         "git",
@@ -419,14 +628,29 @@ fn hygiene(root: &Path) -> Result<()> {
                 "Cargo.toml" | "Cargo.lock" | "rust-toolchain.toml" | "deny.toml"
             )
     }) {
-        let raw = bounded(&root.join(file))?;
-        ensure(
-            raw.len() <= 500 * 1024,
-            "new native gate source exceeds 500 KiB",
-        )?;
-        hygiene_text(file, &raw).map_err(|e| format!("{file}: {e}"))?;
+        if let Some(asset) = assets.get(file) {
+            seen.insert(file.to_string());
+            if let Some(raw) = read_source_asset(root, asset).map_err(|e| format!("{file}: {e}"))? {
+                hygiene_text_with_rules(file, &raw, asset.text_rules)
+                    .map_err(|e| format!("{file}: {e}"))?;
+            }
+        } else {
+            ensure(
+                !file.ends_with(".bin") && !file.ends_with(".zlib") && !file.ends_with(".gz"),
+                "unlisted binary source asset",
+            )?;
+            let raw = bounded(&root.join(file))?;
+            ensure(
+                raw.len() <= 500 * 1024,
+                "new native gate source exceeds 500 KiB",
+            )?;
+            hygiene_text(file, &raw).map_err(|e| format!("{file}: {e}"))?;
+        }
     }
-    Ok(())
+    ensure(
+        seen.len() == assets.len(),
+        "declared source asset absent from source inventory",
+    )
 }
 pub fn helper(root: &Path, args: &[String]) -> Result<()> {
     match args.first().map(String::as_str) {
@@ -507,6 +731,233 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    struct AssetFixture(std::path::PathBuf);
+    impl AssetFixture {
+        fn new() -> Self {
+            use std::sync::atomic::{AtomicU64, Ordering};
+            static NEXT: AtomicU64 = AtomicU64::new(0);
+            for _ in 0..64 {
+                let root = std::env::temp_dir().join(format!(
+                    "ssx-o06-assets-{}-{}",
+                    std::process::id(),
+                    NEXT.fetch_add(1, Ordering::Relaxed)
+                ));
+                if fs::create_dir(&root).is_ok() {
+                    assert!(
+                        Command::new("git")
+                            .args(["init", "--quiet"])
+                            .current_dir(&root)
+                            .status()
+                            .unwrap()
+                            .success()
+                    );
+                    return Self(root);
+                }
+            }
+            panic!("cannot create exclusive owned source fixture")
+        }
+        fn write(&self, path: &str, raw: &[u8]) {
+            let path = self.0.join(path);
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            fs::write(path, raw).unwrap();
+        }
+        fn check(&self, assets: Vec<Value>) -> Result<()> {
+            let count = assets.len();
+            let raw = serde_json::to_string(&json!({"schema_version":1,"assets":assets})).unwrap();
+            self.write(A05_ASSET_MANIFEST, raw.as_bytes());
+            let digest = asset_digest(raw.as_bytes());
+            // Same real hygiene entry; only its private trusted manifest pin/count
+            // are supplied by this owned fixture. Production has no such option.
+            hygiene_with_policy(
+                &self.0,
+                AssetPolicy {
+                    path: A05_ASSET_MANIFEST,
+                    digest: &digest,
+                    count,
+                },
+            )
+        }
+    }
+    impl Drop for AssetFixture {
+        fn drop(&mut self) {
+            fs::remove_dir_all(&self.0).expect("only owned asset fixture");
+        }
+    }
+    fn test_asset(path: &str, raw: &[u8], binary: bool) -> Value {
+        json!({"path":path,"bytes":raw.len(),"sha256":asset_digest(raw),"encoding":if binary {"binary"} else {"utf8"},"kind":if binary {"native mapping/validity bytes"} else {"licensed upstream source/notice"},"provenance":"owned test data","text_rules":{"preserve_cr":false,"preserve_final_newline":false,"preserve_trailing":false,"license_separator":false}})
+    }
+    #[test]
+    fn pinned_source_assets_reject_unknown_duplicate_traversal_and_absent_declarations() {
+        let fixture = AssetFixture::new();
+        let path = "crates/ssx-source-codecs/tests/probe.bin";
+        let raw = [0xff, 0xfe];
+        fixture.write(path, &raw);
+        let asset = test_asset(path, &raw, true);
+        fixture.check(vec![asset.clone()]).unwrap();
+        assert!(
+            fixture
+                .check(vec![asset.clone(), asset.clone()])
+                .unwrap_err()
+                .contains("duplicate")
+        );
+        for (key, value) in [
+            ("kind", json!("unknown")),
+            ("encoding", json!("utf16")),
+            ("unknown_policy", json!(true)),
+            ("path", json!("crates/ssx-source-codecs/../escape.bin")),
+            ("path", json!("/crates/ssx-source-codecs/tests/probe.bin")),
+        ] {
+            let mut bad = asset.clone();
+            bad[key] = value;
+            assert!(fixture.check(vec![bad]).is_err(), "{key}");
+        }
+        let mut bad = asset.clone();
+        bad["text_rules"]["unreviewed"] = json!(true);
+        assert!(fixture.check(vec![bad]).is_err());
+        let mut bad = asset.clone();
+        bad["text_rules"]["preserve_trailing"] = json!(true);
+        assert!(fixture.check(vec![bad]).is_err());
+        let mut absent = asset;
+        absent["path"] = json!("crates/ssx-source-codecs/tests/absent.bin");
+        assert!(fixture.check(vec![absent]).is_err());
+    }
+    #[test]
+    fn actual_source_hygiene_rejects_changed_assets_and_unlisted_binary_or_oversized_source() {
+        let fixture = AssetFixture::new();
+        let path = "crates/ssx-source-codecs/tests/probe.bin";
+        let raw = [0xff, 0xfe];
+        fixture.write(path, &raw);
+        let asset = test_asset(path, &raw, true);
+        fixture.write(path, &[0xff, 0xfd]);
+        assert!(
+            fixture
+                .check(vec![asset.clone()])
+                .unwrap_err()
+                .contains("digest")
+        );
+        fixture.write(path, &[0xff]);
+        assert!(
+            fixture
+                .check(vec![asset.clone()])
+                .unwrap_err()
+                .contains("length")
+        );
+        fixture.write(path, &raw);
+        let ordinary = "crates/plain.rs";
+        for (raw, reason) in [
+            ("<<<<<<< branch\n", "merge conflict"),
+            ("value \n", "trailing"),
+            ("value\r\n", "line endings"),
+        ] {
+            fixture.write(ordinary, raw.as_bytes());
+            assert!(
+                fixture
+                    .check(vec![asset.clone()])
+                    .unwrap_err()
+                    .contains(reason)
+            );
+        }
+        fixture.write(ordinary, &vec![b'x'; 500 * 1024 + 1]);
+        assert!(
+            fixture
+                .check(vec![asset.clone()])
+                .unwrap_err()
+                .contains("500 KiB")
+        );
+        fs::remove_file(fixture.0.join(ordinary)).unwrap();
+        fixture.write("crates/new.bin", b"ASCII binary\n");
+        assert!(
+            fixture
+                .check(vec![asset])
+                .unwrap_err()
+                .contains("unlisted binary")
+        );
+    }
+    #[test]
+    fn pinned_text_keeps_semantic_validation_and_only_named_whitespace_waivers() {
+        let fixture = AssetFixture::new();
+        for (path, raw) in [
+            ("crates/ssx-source-codecs/tests/bad.json", "{\n"),
+            ("crates/ssx-source-codecs/tests/bad.yaml", "x: 1\nx: 2\n"),
+        ] {
+            fixture.write(path, raw.as_bytes());
+            assert!(
+                fixture
+                    .check(vec![test_asset(path, raw.as_bytes(), false)])
+                    .is_err()
+            );
+            fs::remove_file(fixture.0.join(path)).unwrap();
+        }
+        let path = "crates/ssx-source-codecs/LICENSE-PYTHON";
+        let raw = b"=======\n";
+        fixture.write(path, raw);
+        let mut asset = test_asset(path, raw, false);
+        assert!(fixture.check(vec![asset.clone()]).is_err());
+        asset["text_rules"]["license_separator"] = json!(true);
+        fixture.check(vec![asset]).unwrap();
+        let raw = b"<<<<<<< branch\n";
+        fixture.write(path, raw);
+        let mut asset = test_asset(path, raw, false);
+        asset["text_rules"]["license_separator"] = json!(true);
+        assert!(fixture.check(vec![asset]).is_err());
+        fs::remove_file(fixture.0.join(path)).unwrap();
+        let path = "crates/ssx-domain/tests/fixtures/a05_previous_media_sanitizer.rs";
+        let raw = b"source without newline";
+        fixture.write(path, raw);
+        let mut asset = test_asset(path, raw, false);
+        asset["text_rules"]["preserve_final_newline"] = json!(true);
+        fixture.check(vec![asset]).unwrap();
+        let raw = b"source with trailing ";
+        fixture.write(path, raw);
+        let mut asset = test_asset(path, raw, false);
+        asset["text_rules"]["preserve_final_newline"] = json!(true);
+        assert!(fixture.check(vec![asset]).is_err());
+    }
+    #[test]
+    fn only_reviewed_generated_rust_path_gets_size_allowance_with_full_hygiene() {
+        let fixture = AssetFixture::new();
+        let path = "crates/ssx-source-codecs/src/unicode_names.rs";
+        let raw = "//x\n".repeat(130_000);
+        fixture.write(path, raw.as_bytes());
+        let mut asset = test_asset(path, raw.as_bytes(), false);
+        asset["kind"] = json!("generated Rust table");
+        fixture.check(vec![asset]).unwrap();
+        let raw = raw + "trailing \n";
+        fixture.write(path, raw.as_bytes());
+        let mut asset = test_asset(path, raw.as_bytes(), false);
+        asset["kind"] = json!("generated Rust table");
+        assert!(fixture.check(vec![asset]).unwrap_err().contains("trailing"));
+        let mut asset = test_asset(
+            "crates/ssx-source-codecs/src/unreviewed.rs",
+            b"source\n",
+            false,
+        );
+        asset["kind"] = json!("generated Rust table");
+        assert!(fixture.check(vec![asset]).is_err());
+    }
+    #[test]
+    fn ordinary_f13_exact_byte_exception_and_manifest_digest_guard_remain() {
+        let fixture = AssetFixture::new();
+        let path = "crates/ssx-source-codecs/tests/probe.bin";
+        let raw = [0xff, 0xfe];
+        fixture.write(path, &raw);
+        let asset = test_asset(path, &raw, true);
+        fixture.write(
+            "crates/xtask/fixtures/f13/native-record.json",
+            include_bytes!("../fixtures/f13/native-record.json"),
+        );
+        fixture.check(vec![asset]).unwrap();
+        let bad = AssetPolicy {
+            path: A05_ASSET_MANIFEST,
+            digest: "0000000000000000000000000000000000000000000000000000000000000000",
+            count: 1,
+        };
+        assert!(
+            hygiene_with_policy(&fixture.0, bad)
+                .unwrap_err()
+                .contains("manifest digest")
+        );
+    }
     #[test]
     fn gate_ledger_rejects_failure_weakening_and_all_execution_control_drift() {
         let original = json!({"on":{"pull_request":{}},"permissions":{"contents":"read"},"concurrency":{"group":"gate"},"jobs":{"test":{"runs-on":"ubuntu-24.04","needs":["build"],"strategy":{"fail-fast":true},"timeout-minutes":10,"environment":"test","steps":[{"run":"cargo test --locked","timeout-minutes":5}]}}});

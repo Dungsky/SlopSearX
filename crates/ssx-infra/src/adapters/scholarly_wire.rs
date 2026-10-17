@@ -187,11 +187,30 @@ pub async fn arxiv_parameters_budgeted(
     limit: &super::scholarly_config::Scalar,
     deadline: std::time::Instant,
 ) -> Result<ssx_owned_budget::OwnedString, super::source_payload::BudgetError> {
+    arxiv_parameters_for_clock(
+        budget,
+        query,
+        limit,
+        deadline,
+        &crate::http::DeadlineClock::default(),
+    )
+    .await
+}
+pub(crate) async fn arxiv_parameters_for_clock(
+    budget: &ssx_owned_budget::Budget,
+    query: &str,
+    limit: &super::scholarly_config::Scalar,
+    deadline: std::time::Instant,
+    clock: &crate::http::DeadlineClock,
+) -> Result<ssx_owned_budget::OwnedString, super::source_payload::BudgetError> {
     use super::source_payload::BudgetError;
     use ssx_owned_budget::OwnedString;
-    async fn check(deadline: std::time::Instant) -> Result<(), BudgetError> {
+    async fn check(
+        deadline: std::time::Instant,
+        clock: &crate::http::DeadlineClock,
+    ) -> Result<(), BudgetError> {
         tokio::task::yield_now().await;
-        if std::time::Instant::now() >= deadline {
+        if clock.expired(deadline) {
             Err(BudgetError::Deadline)
         } else {
             Ok(())
@@ -201,11 +220,12 @@ pub async fn arxiv_parameters_budgeted(
         out: &mut OwnedString,
         text: &str,
         deadline: std::time::Instant,
+        clock: &crate::http::DeadlineClock,
     ) -> Result<(), BudgetError> {
         const HEX: &[u8] = b"0123456789ABCDEF";
         for (index, byte) in text.bytes().enumerate() {
             if index % 4096 == 0 {
-                check(deadline).await?;
+                check(deadline, clock).await?;
             }
             // OwnedString's exact-capacity append must not turn this bounded
             // byte loop into a fresh old-buffer copy for every encoded byte.
@@ -237,11 +257,11 @@ pub async fn arxiv_parameters_budgeted(
         }
         Ok(())
     }
-    check(deadline).await?;
+    check(deadline, clock).await?;
     let (mut first, mut last) = (None, 0);
     for (index, (at, c)) in query.char_indices().enumerate() {
         if index % 1024 == 0 {
-            check(deadline).await?;
+            check(deadline, clock).await?;
         }
         if !whitespace(c) {
             first.get_or_insert(at);
@@ -256,7 +276,7 @@ pub async fn arxiv_parameters_budgeted(
         .enumerate()
     {
         if index % 1024 == 0 {
-            check(deadline).await?;
+            check(deadline, clock).await?;
         }
         if whitespace(c) {
             if let Some(start) = term_start.take() {
@@ -282,7 +302,13 @@ pub async fn arxiv_parameters_budgeted(
     if quoted {
         out.try_push_str("%22").map_err(|_| BudgetError::Resource)?;
     }
-    encode(&mut out, if quoted { stripped } else { query }, deadline).await?;
+    encode(
+        &mut out,
+        if quoted { stripped } else { query },
+        deadline,
+        clock,
+    )
+    .await?;
     if quoted {
         out.try_push_str("%22").map_err(|_| BudgetError::Resource)?;
     }
@@ -292,10 +318,10 @@ pub async fn arxiv_parameters_budgeted(
     // reservation through encoding so its tiny numeric temporary overlaps out.
     let _numeric = budget.reserve(256).map_err(|_| BudgetError::Resource)?;
     let limit = limit.query_text();
-    encode(&mut out, &limit, deadline).await?;
+    encode(&mut out, &limit, deadline, clock).await?;
     out.try_push_str("&sortBy=relevance&sortOrder=descending")
         .map_err(|_| BudgetError::Resource)?;
-    check(deadline).await?;
+    check(deadline, clock).await?;
     Ok(out)
 }
 

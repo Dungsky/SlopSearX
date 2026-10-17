@@ -1,6 +1,8 @@
-# Narrow RFC2231 strict selector capability (proposal)
+# Narrow RFC2231 strict selector capability
 
-Status: source investigation; no new Unicode table or dependency adopted. This is not a general Python strict-codec API. A06 owns the header/email parser, and A05 owns the codec implementation. The existing HTTP body replacement/incremental mode remains separate.
+Status: private native strict capability implemented and transferred in parent-reviewed development donor v3. The exact Unicode3.2 profile data, Unicode16 label classifier, independent ICU replacements and alias dictionary boundaries received scoped parent review; complete provenance/resource/package acceptance remains pending. A06 owns the shared header/email selector, and A05 owns codec implementation. Body replacement/incremental mode remains separate.
+
+The paragraphs below retain the original design investigation and source rationale. Their pre-adoption wording describes that historical decision point, not the current implementation status. Current types/ownership are in SHARED-HTTP-TEXT-PROPOSAL.md; immutable donor v3 retains the original proposal text. Native qualification at that freeze ran14 unit and16 integration tests with no ignored/filtered tests plus strict all-target Clippy. Actual whole HTTPX selector integration and charged allocation implementation remain open.
 
 The operation must return strict ASCII success, strict non-ASCII success, Unicode/lookup failure (email falls back to the original parameter text), or an exact propagated non-Unicode/non-lookup failure. It must stop at the first source error. U+FFFD is ordinary data, never an error marker. UTF16/32 BOMless native-endian nonincremental and UTF8SIG final-prefix handling need separate controls from body decoding.
 

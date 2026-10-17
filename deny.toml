@@ -27,3 +27,9 @@ allow-wildcard-paths = true
 unknown-registry = "deny"
 unknown-git = "deny"
 allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+
+# A05: exact PSF-derived codec mappings, complete notices retained in package.
+[[licenses.exceptions]]
+name = "ssx-source-codecs"
+version = "=0.1.0"
+allow = ["PSF-2.0"]

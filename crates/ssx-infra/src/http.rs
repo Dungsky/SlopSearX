@@ -1,4 +1,6 @@
 //! Adapter-owned sockets and search-owned identity. No provider retries or parsers.
+mod monotonic;
+pub(crate) use monotonic::Clock as DeadlineClock;
 use reqwest::{
     Client, Method, Url,
     cookie::{CookieStore, Jar},
@@ -502,6 +504,7 @@ impl State {
     }
 }
 pub struct AdapterHttp {
+    clock: DeadlineClock,
     idle: Arc<Semaphore>,
     connections: Arc<Semaphore>,
     decoder: Arc<Decoder>,
@@ -512,6 +515,7 @@ pub struct AdapterHttp {
 impl Default for AdapterHttp {
     fn default() -> Self {
         Self {
+            clock: DeadlineClock::default(),
             idle: Arc::new(Semaphore::new(10)),
             connections: Arc::new(Semaphore::new(20)),
             decoder: Arc::new(Decoder::default()),
@@ -528,6 +532,63 @@ impl Default for AdapterHttp {
     }
 }
 impl AdapterHttp {
+    pub(crate) fn deadline_now(&self) -> Instant {
+        self.clock.now()
+    }
+    pub(crate) fn deadline_clock(&self) -> DeadlineClock {
+        self.clock.clone()
+    }
+    #[cfg(test)]
+    pub(crate) fn pending_replay_owner(
+        manual: bool,
+    ) -> (Self, PendingObserver, Option<monotonic::Driver>) {
+        pending_replay::owner(manual)
+    }
+    pub(crate) async fn admission_timeout<F: std::future::Future>(
+        &self,
+        deadline: Instant,
+        future: F,
+    ) -> std::result::Result<F::Output, ()> {
+        #[cfg(test)]
+        if self.clock.is_manual() {
+            assert!(
+                self.clock.is_pending_only(),
+                "scholarly Manual owner must be sealed pending-only"
+            );
+            return tokio::select! { biased; value=future=>Ok(value), _=self.clock.sleep_until(deadline)=>Err(()) };
+        }
+        tokio::time::timeout_at(deadline.into(), future)
+            .await
+            .map_err(|_| ())
+    }
+    #[cfg(test)]
+    pub(crate) fn record_scholarly_deadlines(&self, network: Instant, operation: Instant) {
+        self.clock.record_deadlines(network, operation);
+    }
+    #[cfg(test)]
+    pub(crate) fn assert_direct_replay_context(&self, context: Option<Instant>) {
+        assert!(
+            !self.clock.is_manual() || context.is_none(),
+            "manual HTTP replay is direct-only; context parser/admission clocks remain System"
+        );
+    }
+    /// Sealed unit-test construction always installs an injected transport.
+    /// No production/config/feature entry point can select a Manual clock.
+    #[cfg(test)]
+    pub(crate) fn replay_owner(transport: Arc<dyn Transport>) -> (Self, monotonic::Driver) {
+        let (clock, driver) = DeadlineClock::replay();
+        let mut owner = Self::default();
+        owner.clock = clock;
+        owner.set_transport(transport).expect("unused replay owner");
+        (owner, driver)
+    }
+    #[cfg(test)]
+    pub(crate) fn replay_workers(&self) -> (usize, usize) {
+        (
+            self.decoder.state.lock().unwrap().active,
+            self.builders.state.lock().unwrap().jobs.len(),
+        )
+    }
     /// Production startup constructor. A single runtime-owned startup guardian
     /// retains the unpublished owner until receiver acknowledgment, or closes
     /// and drains it if the constructor future disappears. No global reaper or
@@ -622,6 +683,10 @@ impl AdapterHttp {
         Ok((owner, preparation))
     }
     pub fn set_transport(&self, t: Arc<dyn Transport>) -> Result<()> {
+        #[cfg(test)]
+        if self.clock.is_pending_only() {
+            return Err(Error::InvalidRequest);
+        }
         let mut s = self.state.lock().unwrap();
         if s.closed || s.used {
             return Err(Error::Closed);
@@ -702,6 +767,7 @@ impl AdapterHttp {
             s.all_pools.push(Arc::downgrade(&pool));
         }
         Ok(Session {
+            clock: self.clock.clone(),
             state: self.state.clone(),
             connections: self.connections.clone(),
             decoder: self.decoder.clone(),
@@ -854,6 +920,7 @@ impl Drop for AdapterHttp {
     }
 }
 pub struct Session {
+    clock: DeadlineClock,
     state: Arc<Mutex<State>>,
     connections: Arc<Semaphore>,
     decoder: Arc<Decoder>,
@@ -869,6 +936,9 @@ pub struct Session {
     requests: usize,
 }
 impl Session {
+    pub(crate) fn deadline_elapsed(&self, deadline: Instant) -> bool {
+        self.clock.now() >= deadline
+    }
     /// Set the caller-owned deadline for the next operation without replacing
     /// this session's cookies, request budget, cancellation, stop state or pool.
     /// Callers with an overall search budget must cap this at its remaining
@@ -886,6 +956,7 @@ impl Session {
         let cancel = self.cancel.clone();
         let stop = self.stop.clone();
         let deadline = self.deadline;
+        let clock = self.clock.clone();
         for (name, value) in &self.headers {
             if !request.headers.contains_key(name) {
                 request.headers.insert(name, value.clone());
@@ -894,7 +965,7 @@ impl Session {
         tokio::select! { biased;
             _=stop.cancelled()=>Err(Error::Closed),
             _=cancel.cancelled()=>Err(Error::Cancelled),
-            _=tokio::time::sleep_until(deadline)=>Err(Error::Deadline),
+            _=clock.sleep_until(deadline.into_std())=>Err(Error::Deadline),
             result=self.execute_inner(request)=>result,
         }
     }
@@ -939,6 +1010,7 @@ impl Session {
                     self.cancel.clone(),
                     self.stop.clone(),
                     self.deadline,
+                    self.clock.clone(),
                 )
                 .await?;
             if self.options.follow_redirects
@@ -1091,6 +1163,8 @@ impl Decoder {
         .await
         .map_err(|_| Error::InvalidResponse)
     }
+    // Keep decoding ownership and the same operation clock explicit at this boundary.
+    #[allow(clippy::too_many_arguments)]
     async fn decode(
         self: &Arc<Self>,
         headers: HeaderMap,
@@ -1099,9 +1173,20 @@ impl Decoder {
         cancel: Cancellation,
         stop: Cancellation,
         deadline: tokio::time::Instant,
+        clock: DeadlineClock,
     ) -> Result<Vec<u8>> {
-        self.run(move || decode(&headers, &body, bound, &cancel, &stop, deadline.into_std()))
-            .await?
+        self.run(move || {
+            decode_with_clock(
+                &headers,
+                &body,
+                bound,
+                &cancel,
+                &stop,
+                deadline.into_std(),
+                &clock,
+            )
+        })
+        .await?
     }
     fn close(&self) {
         self.state.lock().unwrap().closed = true;
@@ -1125,6 +1210,7 @@ fn bounded_read(
     cancel: &Cancellation,
     stop: &Cancellation,
     deadline: Instant,
+    clock: &DeadlineClock,
 ) -> Result<Vec<u8>> {
     let mut result = Vec::new();
     let mut chunk = [0; 64 * 1024];
@@ -1135,7 +1221,7 @@ fn bounded_read(
         if *cancel.0.borrow() {
             return Err(Error::Cancelled);
         }
-        if Instant::now() >= deadline {
+        if clock.now() >= deadline {
             return Err(Error::Deadline);
         }
         let size = reader
@@ -1151,13 +1237,14 @@ fn bounded_read(
     }
     Ok(result)
 }
-fn decode(
+fn decode_with_clock(
     headers: &HeaderMap,
     body: &[u8],
     bound: usize,
     cancel: &Cancellation,
     stop: &Cancellation,
     deadline: Instant,
+    clock: &DeadlineClock,
 ) -> Result<Vec<u8>> {
     let mut encodings = Vec::new();
     for value in headers.get_all(header::CONTENT_ENCODING) {
@@ -1174,13 +1261,16 @@ fn decode(
     let mut result = body.to_vec();
     for encoding in encodings.into_iter().rev() {
         result = match encoding.as_str() {
-            "identity" | "" => bounded_read(result.as_slice(), bound, cancel, stop, deadline)?,
+            "identity" | "" => {
+                bounded_read(result.as_slice(), bound, cancel, stop, deadline, clock)?
+            }
             "gzip" => bounded_read(
                 flate2::read::MultiGzDecoder::new(result.as_slice()),
                 bound,
                 cancel,
                 stop,
                 deadline,
+                clock,
             )?,
             "deflate" => match bounded_read(
                 flate2::read::ZlibDecoder::new(result.as_slice()),
@@ -1188,6 +1278,7 @@ fn decode(
                 cancel,
                 stop,
                 deadline,
+                clock,
             ) {
                 Err(Error::InvalidResponse) => bounded_read(
                     flate2::read::DeflateDecoder::new(result.as_slice()),
@@ -1195,6 +1286,7 @@ fn decode(
                     cancel,
                     stop,
                     deadline,
+                    clock,
                 )?,
                 other => other?,
             },
@@ -1202,6 +1294,25 @@ fn decode(
         };
     }
     Ok(result)
+}
+#[cfg(test)]
+fn decode(
+    headers: &HeaderMap,
+    body: &[u8],
+    bound: usize,
+    cancel: &Cancellation,
+    stop: &Cancellation,
+    deadline: Instant,
+) -> Result<Vec<u8>> {
+    decode_with_clock(
+        headers,
+        body,
+        bound,
+        cancel,
+        stop,
+        deadline,
+        &DeadlineClock::default(),
+    )
 }
 /// Offline exchange replay exercises the exact session policy without parsing bodies.
 /// Adapters own HTML/XML/JSON parsing and provider-specific status classification.
@@ -2047,3 +2158,20 @@ mod client_initialization_tests {
         reject_late_unread_publication(false).await;
     }
 }
+
+#[cfg(test)]
+#[path = "../tests/support/a07_http_clock.rs"]
+mod owner_clock_tests;
+
+#[cfg(test)]
+#[path = "http/pending_replay.rs"]
+mod pending_replay;
+#[cfg(test)]
+pub(crate) use pending_replay::PendingObserver;
+#[cfg(test)]
+#[path = "../tests/support/a06_timeout_clock.rs"]
+mod scholarly_timeout_clock;
+
+#[cfg(test)]
+#[path = "../tests/support/a07_cold_context.rs"]
+mod cold_context_tests;

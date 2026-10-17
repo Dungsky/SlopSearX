@@ -3,16 +3,16 @@
   "baseline_sha": "20109f9083babd014971951e8c02565ae51c2326",
   "source": "Pinned F01 baseline inventory plus reviewed post-baseline additions recorded in DRIFT.md; source-set validation refreshed at acceptance.",
   "summary": {
-    "tracked_python_source_count": 470,
+    "tracked_python_source_count": 476,
     "extensionless_python_entrypoints": 1,
-    "executable_config_python_invocation_lines": 64,
+    "executable_config_python_invocation_lines": 63,
     "interpreter_configuration_lines": 106,
     "documentation_shebang_script_count": 8,
     "documented_example_invocation_references": 49,
     "source_classifications": {
       "historical evidence": 4,
       "backend/runtime": 122,
-      "backend-coupled tooling/test": 343,
+      "backend-coupled tooling/test": 349,
       "client-only": 1
     },
     "documentation_file_modes": {
@@ -20,13 +20,13 @@
     },
     "source_path_set_validation": {
       "method": "sorted exact-set comparison between git ls-files paths ending .py/.pyw/.pyi plus ssx and files[].path",
-      "tracked_expected_count": 470,
-      "manifest_count": 470,
+      "tracked_expected_count": 476,
+      "manifest_count": 476,
       "exact_match": true,
       "extensionless_python_paths": [
         "ssx"
       ],
-      "validation_scope": "Prospective A06 normal union with accepted A08/main9fae; preserve all complete parent records; staged exact path set must pass F01 before acceptance"
+      "validation_scope": "Prospective normal A06/A05 accepted-main93db complete-record union; exact staged F01 qualification pending"
     },
     "historical_evidence_py_txt_path_count": 729,
     "non_runtime_historical_py_txt_path_count": 728,
@@ -3376,9 +3376,11 @@
         "G08"
       ],
       "disposition": "temporary_developer_oracle_retire_before_backend_removal",
-      "evidence": "Temporary native build/FD/resource qualification driver invoked by Rust CI; no runtime/backend Python or provider calls.",
+      "evidence": "Former temporary native build/FD/resource qualification driver; required Rust CI invocation replaced by native A06 gate. Original executable remains inventoried for G08 retirement, never backend/runtime or client exception.",
       "reason": "Not a client-only or runtime exception. G08 must retire executable Python; replace required qualification driver with a native successor before backend removal.",
-      "introduced_after_baseline": "730c37a5f48b9830088594582cefb4c2f10a35e8"
+      "introduced_after_baseline": "730c37a5f48b9830088594582cefb4c2f10a35e8",
+      "required_gate_python": false,
+      "native_successor": "cargo xtask check A06"
     },
     {
       "path": "scripts/upstream_contracts.py",
@@ -6495,9 +6497,210 @@
       "migration_owners": [
         "O05"
       ]
+    },
+    {
+      "path": "docs/rust-rewrite/a05/oracle/http_charset_pipeline.py",
+      "classification": "backend-coupled tooling/test",
+      "migration_owner": "A05",
+      "migration_owners": [
+        "A05",
+        "G08"
+      ],
+      "disposition": "temporary_developer_oracle_or_generator_retire_before_backend_removal",
+      "evidence": "Actual original HTML adapters, offline HTTPX header selection; temporary G08 oracle.; imports argparse,asyncio,hashlib,importlib.util,json,pathlib",
+      "reason": "temporary actual-source migration oracle; never runtime/client/required native gate.",
+      "sha256": "239a85e704b6a7299d99c304b63acc2e9f194a36f3df6925dba46ad74d77163a",
+      "bytes": 4254,
+      "retirement_owner": "G08",
+      "retirement": "Remove executable producer before final backend removal; retain immutable captures, licensed inputs and native successors.",
+      "source_inspection": {
+        "imports": [
+          "argparse",
+          "asyncio",
+          "hashlib",
+          "importlib.util",
+          "json",
+          "pathlib"
+        ],
+        "declared_output_expressions": [
+          "output"
+        ]
+      }
+    },
+    {
+      "path": "docs/rust-rewrite/a05/oracle/idna_allocation_bound.py",
+      "classification": "backend-coupled tooling/test",
+      "migration_owner": "A05",
+      "migration_owners": [
+        "A05",
+        "G08"
+      ],
+      "disposition": "temporary_developer_oracle_or_generator_retire_before_backend_removal",
+      "evidence": "Derive private IDNA scratch sequence bounds from the reviewed data only.; imports argparse,hashlib,json,pathlib",
+      "reason": "offline derivation generator; never runtime/client/required native gate.",
+      "sha256": "10e459ad6b5f5a1a08053dadf57578dd173656315f234fbc47b021ae424765da",
+      "bytes": 1655,
+      "retirement_owner": "G08",
+      "retirement": "Remove executable producer before final backend removal; retain immutable captures, licensed inputs and native successors.",
+      "source_inspection": {
+        "imports": [
+          "argparse",
+          "hashlib",
+          "json",
+          "pathlib"
+        ],
+        "declared_output_expressions": [
+          "args.output"
+        ]
+      }
+    },
+    {
+      "path": "docs/rust-rewrite/a05/oracle/media_nfkc_membership.py",
+      "classification": "backend-coupled tooling/test",
+      "migration_owner": "A05",
+      "migration_owners": [
+        "A05",
+        "G08"
+      ],
+      "disposition": "temporary_developer_oracle_or_generator_retire_before_backend_removal",
+      "evidence": "Temporary offline CPython oracle; retire from final backend at G08.; imports argparse,hashlib,json,sys,unicodedata,urllib.parse,pathlib",
+      "reason": "temporary actual-source migration oracle; never runtime/client/required native gate.",
+      "sha256": "8d88145aa7a761ace4d1ceafe1f23a26873e86a8bbe2b21b0fd4fb0aaeca5405",
+      "bytes": 2036,
+      "retirement_owner": "G08",
+      "retirement": "Remove executable producer before final backend removal; retain immutable captures, licensed inputs and native successors.",
+      "source_inspection": {
+        "imports": [
+          "argparse",
+          "hashlib",
+          "json",
+          "sys",
+          "unicodedata",
+          "urllib.parse",
+          "pathlib"
+        ],
+        "declared_output_expressions": [
+          "args.output"
+        ]
+      }
+    },
+    {
+      "path": "docs/rust-rewrite/a05/oracle/timeout_config_source.py",
+      "classification": "backend-coupled tooling/test",
+      "migration_owner": "A05",
+      "migration_owners": [
+        "A05",
+        "G08"
+      ],
+      "disposition": "temporary_developer_oracle_or_generator_retire_before_backend_removal",
+      "evidence": "Temporary layered-config/adapter timing oracle; MockTransport, no provider calls.; imports argparse,asyncio,dataclasses,hashlib,importlib.util,json,math,os,pathlib,struct,sys,tempfile,unittest.mock,httpx,yaml,engines,slopsearx.adapter,slopsearx.config,slopsearx.service",
+      "reason": "temporary actual-source migration oracle; never runtime/client/required native gate.",
+      "sha256": "808f07d72f446dd00363b9ed6abdd4128ce1d38f233ac75465dc0ae4d19928c5",
+      "bytes": 6794,
+      "retirement_owner": "G08",
+      "retirement": "Remove executable producer before final backend removal; retain immutable captures, licensed inputs and native successors.",
+      "source_inspection": {
+        "imports": [
+          "argparse",
+          "asyncio",
+          "dataclasses",
+          "hashlib",
+          "importlib.util",
+          "json",
+          "math",
+          "os",
+          "pathlib",
+          "struct",
+          "sys",
+          "tempfile",
+          "unittest.mock",
+          "httpx",
+          "yaml",
+          "engines",
+          "slopsearx.adapter",
+          "slopsearx.config",
+          "slopsearx.service"
+        ],
+        "declared_output_expressions": [
+          "output",
+          "path"
+        ]
+      }
+    },
+    {
+      "path": "docs/rust-rewrite/a05/oracle/timeout_loopback_source.py",
+      "classification": "backend-coupled tooling/test",
+      "migration_owner": "A05",
+      "migration_owners": [
+        "A05",
+        "G08"
+      ],
+      "disposition": "temporary_developer_oracle_or_generator_retire_before_backend_removal",
+      "evidence": "Temporary actual-HTTPX loopback timing evidence; no provider calls (G08).; imports argparse,asyncio,dataclasses,hashlib,importlib.util,json,os,pathlib,subprocess,sys,threading,time,http.server,engines,slopsearx.adapter",
+      "reason": "temporary actual-source migration oracle; never runtime/client/required native gate.",
+      "sha256": "d040fb37dcf47f8dcfdc0f31914bf68afb15e2477c061849c0f367a56e876035",
+      "bytes": 8115,
+      "retirement_owner": "G08",
+      "retirement": "Remove executable producer before final backend removal; retain immutable captures, licensed inputs and native successors.",
+      "source_inspection": {
+        "imports": [
+          "argparse",
+          "asyncio",
+          "dataclasses",
+          "hashlib",
+          "importlib.util",
+          "json",
+          "os",
+          "pathlib",
+          "subprocess",
+          "sys",
+          "threading",
+          "time",
+          "http.server",
+          "engines",
+          "slopsearx.adapter"
+        ],
+        "declared_output_expressions": [
+          "output"
+        ]
+      }
+    },
+    {
+      "path": "docs/rust-rewrite/a05/provenance/media_nfkc.py",
+      "classification": "backend-coupled tooling/test",
+      "migration_owner": "A05",
+      "migration_owners": [
+        "A05",
+        "G08"
+      ],
+      "disposition": "temporary_developer_oracle_or_generator_retire_before_backend_removal",
+      "evidence": "Offline developer generator; no provider/Python runtime backend dependency.; imports argparse,hashlib,json,textwrap,pathlib",
+      "reason": "offline derivation generator; never runtime/client/required native gate.",
+      "sha256": "7a6e620a642432e5409469203fc0446c92ffaca7297a7c427896c9a52cde8f89",
+      "bytes": 1453,
+      "retirement_owner": "G08",
+      "retirement": "Remove executable producer before final backend removal; retain immutable captures, licensed inputs and native successors.",
+      "source_inspection": {
+        "imports": [
+          "argparse",
+          "hashlib",
+          "json",
+          "textwrap",
+          "pathlib"
+        ],
+        "declared_output_expressions": [
+          "args.output"
+        ]
+      }
     }
   ],
   "documentation_examples": [
 
-  ]
+  ],
+  "current_producer_identity_amendment": {
+    "path": "docs/rust-rewrite/a05/producer-identity-amendments.json",
+    "sha256": "1ebe1ca20e3d7a76aacfa6e5e1a907c7d07047af6a4b14e22d91a73847a3ad62",
+    "producer_count": 53,
+    "semantics": "Existing complete classification records retain their original observed source SHA. This amendment supplies current AST-equivalent tooling identities without relabeling historical capture or generation producer hashes."
+  }
 }
