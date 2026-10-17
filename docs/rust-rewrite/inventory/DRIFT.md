@@ -576,3 +576,19 @@ W04 adds the temporary offline synthetic `docs/rust-rewrite/w04/capture_source.p
 ## W04 integration with accepted A07
 
 Normal integration of accepted A07 main `2f78b9d02cfe62c9829fcfb38b85cd632a889de0` preserves every complete parent record, yielding400 tracked Python source paths,277 backend-coupled tooling/test paths and41 developer-oracle invocation rows. Both A07 and W04 native gates and artifact uploads remain enabled. Historical observations and source pins are unchanged. This records integration; final combined-source validation and review remain required.
+
+## W06 manual staged source oracle registration
+
+W06 adds the manual offline `docs/rust-rewrite/w06/capture_source.py` producer, explicitly backend-coupled tooling with W06/G08 ownership. The exact set is401 classified Python sources (278 backend-coupled tooling/test) and42 developer-oracle rows. Actual normal and optimized CPython3.14.7 capture receipts bind85 complete source cases and identical output bytes; a wrong source guard under optimization exits nonzero before imports. Native runtime and required gates never execute the producer. This is migration evidence, not client-only Python or runtime parity. G08 retires executable Python while preserving immutable JSON/provenance. Existing inventory records remain unchanged; only the new source and three mutable global document pins are added/refreshed. Final W06 runtime/gate/mutation/platform acceptance remains open.
+
+### W06 supplemental source-language capture
+
+An isolated manual temporary producer `/private/tmp/w06-language-source-capture.py` captures five nonstring language inputs through the original staged runner and shared service. All five complete with a permissive fixture engine; no late failure or provider compatibility is inferred. Its exact executable hash, actual optimized-interpreter receipt and frozen non-executable `.source.txt` copy are recorded in the external temporary-oracle appendix. Developer-oracle rows become43; tracked Python sources remain401 and active interpreter invocations remain63. W06/G08 own removal of the temporary executable. Native typed-string rejection is an explicit reviewed difference. The source text copy is historical provenance, never executable runtime or a required gate.
+
+W06 retained-policy supplement records thirteen actual offline original policy outcomes using `/private/tmp/w06-retained-policy-source-capture.py`; frozen non-executable source and repeat-identical -O receipts are under `w06/evidence/`. This temporary manual backend-coupled oracle belongs to W06/G08 and is never a native runtime or mandatory gate dependency.
+
+W06 saved-report retained authorization supplement records thirteen actual original outcomes with source guards and identical normal/-O repeats; temporary manual producer `/private/tmp/w06-saved-source-authority-capture.py` is W06/G08-owned, never a native runtime or mandatory gate dependency. Frozen non-executable source/JSON/receipts are under `w06/evidence/`.
+
+W06 public/error/replay supplement adds125actualsource cases (121parity inputs plus4explicitrunner referencecontrols), with14preimport source guards, immutable original85guard, identical normal/optimized repeats and optimized wrong-source rejection. Temporary manual producer `/private/tmp/w06-review-public-source-capture.py` belongs to W06/G08 and is never executed by native runtime or required gates. Native reference-control differences remain explicit.
+
+W06 R04 truthiness supplement adds16actualoriginalPlan boundaries for hugeintegers/signedzero/finitefloats andconsent, withguardedidenticalnormal/optimized repeats. Temporary manual `/private/tmp/w06-huge-integer-truthiness-capture.py` belongs to W06/G08; frozen non-executable source and JSON evidence remain under w06/evidence, never a native runtime or mandatory gate dependency.

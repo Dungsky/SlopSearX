@@ -25,6 +25,7 @@ pub enum Script {
     StagedAdmit,
     StagedClaim,
     StagedInterrupt,
+    StagedInterruptAcknowledged,
     StagedOwnedSave,
     StagedRenew,
     StagedRetry,
@@ -55,6 +56,9 @@ impl Script {
             Self::StagedAdmit => include_str!("scripts/staged_admit_script.lua"),
             Self::StagedClaim => include_str!("scripts/staged_claim_script.lua"),
             Self::StagedInterrupt => include_str!("scripts/staged_interrupt_script.lua"),
+            Self::StagedInterruptAcknowledged => {
+                include_str!("scripts/staged_interrupt_acknowledged.lua")
+            }
             Self::StagedOwnedSave => include_str!("scripts/staged_owned_save_script.lua"),
             Self::StagedRenew => include_str!("scripts/staged_renew_script.lua"),
             Self::StagedRetry => include_str!("scripts/staged_retry_script.lua"),
@@ -82,7 +86,7 @@ impl Script {
             Self::SavedRenew => 1,
             Self::StagedAdmit => 5,
             Self::StagedClaim => 4,
-            Self::StagedInterrupt => 3,
+            Self::StagedInterrupt | Self::StagedInterruptAcknowledged => 3,
             Self::StagedOwnedSave => 4,
             Self::StagedRenew => 2,
             Self::StagedRetry => 2,
@@ -110,7 +114,7 @@ impl Script {
             Self::SavedRenew => 2,
             Self::StagedAdmit => 8,
             Self::StagedClaim => 6,
-            Self::StagedInterrupt => 2,
+            Self::StagedInterrupt | Self::StagedInterruptAcknowledged => 2,
             Self::StagedOwnedSave => 5,
             Self::StagedRenew => 4,
             Self::StagedRetry => 3,
@@ -119,6 +123,7 @@ impl Script {
 }
 #[derive(Debug, PartialEq)]
 pub enum Reply {
+    StagedInterrupted(Option<Json>),
     Flag(bool),
     ResearchCreated {
         created: bool,
@@ -341,6 +346,15 @@ impl Script {
                 Reply::SavedEvents {
                     first_cursor: first,
                     entries: result,
+                }
+            }
+            StagedInterruptAcknowledged => {
+                let (flag, raw) = pair(value)?;
+                let raw = string(raw)?;
+                match integer(flag)? {
+                    0 if raw.is_empty() => Reply::StagedInterrupted(None),
+                    1 if !raw.is_empty() => Reply::StagedInterrupted(Some(object(&raw)?)),
+                    _ => return Err(Failure::Malformed),
                 }
             }
             StagedAdmit | StagedClaim | StagedRetry => {
