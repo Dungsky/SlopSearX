@@ -661,6 +661,15 @@ async fn actual_stdio_eof_during_optional_prepare_and_preview_drains_owned_proce
                 .success(),
             "EOF drain process failed"
         );
+        // Process exit closes descriptors, but the independently scheduled
+        // provider task must still observe peer EOF before its exact count is ready.
+        tokio::time::timeout(Duration::from_secs(1), async {
+            while provider.closed.load(Ordering::SeqCst) == 0 {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .map_err(|_| "EOF retained owned provider connection")?;
         assert_eq!(
             provider.closed.load(Ordering::SeqCst),
             1,
