@@ -26,7 +26,7 @@
       "extensionless_python_paths": [
         "ssx"
       ],
-      "validation_scope": "Normal union of accepted T06 main8b48dc9e and A10 checkpoint597b7149; complete parent source records preserved, native F01 requalification required"
+      "validation_scope": "Normal A10/current main87af full-record union; exact tracked set and native requalification pending"
     },
     "historical_evidence_py_txt_path_count": 732,
     "non_runtime_historical_py_txt_path_count": 731,
@@ -3414,8 +3414,16 @@
       "evidence": "slopsearx/audit.py: backend package module participating in server, worker, MCP, portal, or shared-state behavior. Source markers: from __future__ import annotations; import logging; import time; from typing import Any; from slopsearx.adapter import EngineStatus.",
       "reason": "Implements backend service/state/protocol behavior; port its public and internal contracts to the assigned native owner.",
       "migration_owners": [
-        "O01"
-      ]
+        "O01",
+        "G08"
+      ],
+      "native_successor": {
+        "gate": "cargo xtask check O01",
+        "coverage": "docs/rust-rewrite/o01/coverage.json",
+        "qualification": "53 parameter cases across42ownedfunctions +39supplemental native API/private-backend cases",
+        "retirement": "retain original source/tests until G08 successor acceptance; exclude all runnable Python from final backend/helper packages",
+        "limits": "2HTTP routes belong to T02; W09/T02 bootstrap composition not claimed; reviewed typed-port/identity/privacy differences explicit"
+      }
     },
     {
       "path": "slopsearx/cache.py",
@@ -3517,8 +3525,16 @@
       "evidence": "slopsearx/logging.py: backend package module participating in server, worker, MCP, portal, or shared-state behavior. Source markers: from slopsearx.logging import get_logger, setup_logging; from __future__ import annotations; import logging; import os; import sys.",
       "reason": "Implements backend service/state/protocol behavior; port its public and internal contracts to the assigned native owner.",
       "migration_owners": [
-        "O01"
-      ]
+        "O01",
+        "G08"
+      ],
+      "native_successor": {
+        "gate": "cargo xtask check O01",
+        "coverage": "docs/rust-rewrite/o01/coverage.json",
+        "qualification": "53 parameter cases across42ownedfunctions +39supplemental native API/private-backend cases",
+        "retirement": "retain original source/tests until G08 successor acceptance; exclude all runnable Python from final backend/helper packages",
+        "limits": "2HTTP routes belong to T02; W09/T02 bootstrap composition not claimed; reviewed typed-port/identity/privacy differences explicit"
+      }
     },
     {
       "path": "slopsearx/mcp/__init__.py",
@@ -3808,8 +3824,16 @@
       "evidence": "slopsearx/metrics.py: backend package module participating in server, worker, MCP, portal, or shared-state behavior. Source markers: from __future__ import annotations; import math; import time; from collections import defaultdict; from dataclasses import dataclass.",
       "reason": "Implements backend service/state/protocol behavior; port its public and internal contracts to the assigned native owner.",
       "migration_owners": [
-        "O01"
-      ]
+        "O01",
+        "G08"
+      ],
+      "native_successor": {
+        "gate": "cargo xtask check O01",
+        "coverage": "docs/rust-rewrite/o01/coverage.json",
+        "qualification": "53 parameter cases across42ownedfunctions +39supplemental native API/private-backend cases",
+        "retirement": "retain original source/tests until G08 successor acceptance; exclude all runnable Python from final backend/helper packages",
+        "limits": "2HTTP routes belong to T02; W09/T02 bootstrap composition not claimed; reviewed typed-port/identity/privacy differences explicit"
+      }
     },
     {
       "path": "slopsearx/middleware.py",
@@ -4149,8 +4173,16 @@
       "evidence": "slopsearx/stats.py: backend package module participating in server, worker, MCP, portal, or shared-state behavior. Source markers: from __future__ import annotations; import logging; import time; from typing import Any; from slopsearx.adapter import EngineStatus.",
       "reason": "Implements backend service/state/protocol behavior; port its public and internal contracts to the assigned native owner.",
       "migration_owners": [
-        "O01"
-      ]
+        "O01",
+        "G08"
+      ],
+      "native_successor": {
+        "gate": "cargo xtask check O01",
+        "coverage": "docs/rust-rewrite/o01/coverage.json",
+        "qualification": "53 parameter cases across42ownedfunctions +39supplemental native API/private-backend cases",
+        "retirement": "retain original source/tests until G08 successor acceptance; exclude all runnable Python from final backend/helper packages",
+        "limits": "2HTTP routes belong to T02; W09/T02 bootstrap composition not claimed; reviewed typed-port/identity/privacy differences explicit"
+      }
     },
     {
       "path": "slopsearx/suggest.py",
@@ -4248,7 +4280,7 @@
       "classification": "backend-coupled tooling/test",
       "migration_owner": "O05",
       "disposition": "port_to_native_or_retire_after_successor_evidence",
-      "evidence": "tests/test_adapter.py: repository test module asserting backend behavior/contracts or using backend fixtures. Source markers: from __future__ import annotations; import pytest; import engines as _engines  # noqa: F401 — triggers @register_engine to populate registry; from slopsearx.adapter import (; class TestSearchResult:.",
+      "evidence": "tests/test_adapter.py: repository test module asserting backend behavior/contracts or using backend fixtures. Source markers: from __future__ import annotations; import pytest; import engines as _engines  # noqa: F401 \u2014 triggers @register_engine to populate registry; from slopsearx.adapter import (; class TestSearchResult:.",
       "reason": "Test suite depends on the behavior shown by its imports/declarations; preserve the regression contract in native qualification before retiring this Python test.",
       "migration_owners": [
         "O05"
@@ -4259,7 +4291,7 @@
       "classification": "backend-coupled tooling/test",
       "migration_owner": "O05",
       "disposition": "port_to_native_or_retire_after_successor_evidence",
-      "evidence": "tests/test_adapters.py: repository test module asserting backend behavior/contracts or using backend fixtures. Source markers: from __future__ import annotations; from unittest.mock import patch; import httpx; import pytest; import engines  # noqa: F401 — trigger @register_engine.",
+      "evidence": "tests/test_adapters.py: repository test module asserting backend behavior/contracts or using backend fixtures. Source markers: from __future__ import annotations; from unittest.mock import patch; import httpx; import pytest; import engines  # noqa: F401 \u2014 trigger @register_engine.",
       "reason": "Test suite depends on the behavior shown by its imports/declarations; preserve the regression contract in native qualification before retiring this Python test.",
       "migration_owners": [
         "A03",
@@ -4343,7 +4375,7 @@
       "classification": "backend-coupled tooling/test",
       "migration_owner": "O05",
       "disposition": "port_to_native_or_retire_after_successor_evidence",
-      "evidence": "tests/test_arxiv_relevance.py: repository test module asserting backend behavior/contracts or using backend fixtures. Source markers: from __future__ import annotations; from unittest.mock import patch; import httpx; import pytest; import engines  # noqa: F401 — trigger @register_engine.",
+      "evidence": "tests/test_arxiv_relevance.py: repository test module asserting backend behavior/contracts or using backend fixtures. Source markers: from __future__ import annotations; from unittest.mock import patch; import httpx; import pytest; import engines  # noqa: F401 \u2014 trigger @register_engine.",
       "reason": "Test suite depends on the behavior shown by its imports/declarations; preserve the regression contract in native qualification before retiring this Python test.",
       "migration_owners": [
         "A06",
@@ -4358,8 +4390,17 @@
       "evidence": "tests/test_audit.py: repository test module asserting backend behavior/contracts or using backend fixtures. Source markers: from __future__ import annotations; import inspect; from unittest.mock import AsyncMock, MagicMock; from slopsearx.adapter import AdapterResponse, EngineStatus, SearchResult; from slopsearx.audit import QueryAuditLogger.",
       "reason": "Test suite depends on the behavior shown by its imports/declarations; preserve the regression contract in native qualification before retiring this Python test.",
       "migration_owners": [
-        "O05"
-      ]
+        "O05",
+        "O01",
+        "G08"
+      ],
+      "native_successor": {
+        "gate": "cargo xtask check O01",
+        "coverage": "docs/rust-rewrite/o01/coverage.json",
+        "qualification": "53 parameter cases across42ownedfunctions +39supplemental native API/private-backend cases",
+        "retirement": "retain original source/tests until G08 successor acceptance; exclude all runnable Python from final backend/helper packages",
+        "limits": "2HTTP routes belong to T02; W09/T02 bootstrap composition not claimed; reviewed typed-port/identity/privacy differences explicit"
+      }
     },
     {
       "path": "tests/test_cache.py",
@@ -4390,7 +4431,7 @@
       "classification": "backend-coupled tooling/test",
       "migration_owner": "F06",
       "disposition": "port_to_native_or_retire_after_successor_evidence",
-      "evidence": "tests/test_capabilities.py: repository test module asserting backend behavior/contracts or using backend fixtures. Source markers: from __future__ import annotations; import engines  # noqa: F401 — triggers @register_engine to populate registry; from slopsearx.adapter import COST_CLASSES, EngineAdapter, list_engines; from slopsearx.capabilities import (; from slopsearx.config import EngineEntry, load_config.",
+      "evidence": "tests/test_capabilities.py: repository test module asserting backend behavior/contracts or using backend fixtures. Source markers: from __future__ import annotations; import engines  # noqa: F401 \u2014 triggers @register_engine to populate registry; from slopsearx.adapter import COST_CLASSES, EngineAdapter, list_engines; from slopsearx.capabilities import (; from slopsearx.config import EngineEntry, load_config.",
       "reason": "Test suite depends on the behavior shown by its imports/declarations; preserve the regression contract in native qualification before retiring this Python test.",
       "migration_owners": [
         "F06",
@@ -4402,7 +4443,7 @@
       "classification": "backend-coupled tooling/test",
       "migration_owner": "O05",
       "disposition": "port_to_native_or_retire_after_successor_evidence",
-      "evidence": "tests/test_capability_catalog.py: repository test module asserting backend behavior/contracts or using backend fixtures. Source markers: from __future__ import annotations; from typing import Any; import pytest; import engines  # noqa: F401 — triggers @register_engine to populate the registry; from slopsearx.adapter import AdapterResponse, EngineAdapter, EngineStatus, SearchResult, list_engines.",
+      "evidence": "tests/test_capability_catalog.py: repository test module asserting backend behavior/contracts or using backend fixtures. Source markers: from __future__ import annotations; from typing import Any; import pytest; import engines  # noqa: F401 \u2014 triggers @register_engine to populate the registry; from slopsearx.adapter import AdapterResponse, EngineAdapter, EngineStatus, SearchResult, list_engines.",
       "reason": "Test suite depends on the behavior shown by its imports/declarations; preserve the regression contract in native qualification before retiring this Python test.",
       "migration_owners": [
         "O05"
@@ -5046,7 +5087,7 @@
       "classification": "backend-coupled tooling/test",
       "migration_owner": "O05",
       "disposition": "port_to_native_or_retire_after_successor_evidence",
-      "evidence": "tests/test_cve.py: repository test module asserting backend behavior/contracts or using backend fixtures. Source markers: from __future__ import annotations; from unittest.mock import patch; import httpx; import pytest; import engines  # noqa: F401 — trigger @register_engine.",
+      "evidence": "tests/test_cve.py: repository test module asserting backend behavior/contracts or using backend fixtures. Source markers: from __future__ import annotations; from unittest.mock import patch; import httpx; import pytest; import engines  # noqa: F401 \u2014 trigger @register_engine.",
       "reason": "Test suite depends on the behavior shown by its imports/declarations; preserve the regression contract in native qualification before retiring this Python test.",
       "migration_owners": [
         "A10",
@@ -5105,7 +5146,7 @@
       "classification": "backend-coupled tooling/test",
       "migration_owner": "O05",
       "disposition": "port_to_native_or_retire_after_successor_evidence",
-      "evidence": "tests/test_dockerhub.py: repository test module asserting backend behavior/contracts or using backend fixtures. Source markers: from __future__ import annotations; import httpx; import pytest; import engines  # noqa: F401 — trigger @register_engine; from slopsearx.adapter import EngineStatus, discover_engines.",
+      "evidence": "tests/test_dockerhub.py: repository test module asserting backend behavior/contracts or using backend fixtures. Source markers: from __future__ import annotations; import httpx; import pytest; import engines  # noqa: F401 \u2014 trigger @register_engine; from slopsearx.adapter import EngineStatus, discover_engines.",
       "reason": "Test suite depends on the behavior shown by its imports/declarations; preserve the regression contract in native qualification before retiring this Python test.",
       "migration_owners": [
         "O05"
@@ -5116,7 +5157,7 @@
       "classification": "backend-coupled tooling/test",
       "migration_owner": "O05",
       "disposition": "port_to_native_or_retire_after_successor_evidence",
-      "evidence": "tests/test_duckduckgo_resilience.py: repository test module asserting backend behavior/contracts or using backend fixtures. Source markers: from __future__ import annotations; from unittest.mock import patch; import httpx; import pytest; import engines  # noqa: F401 — trigger @register_engine.",
+      "evidence": "tests/test_duckduckgo_resilience.py: repository test module asserting backend behavior/contracts or using backend fixtures. Source markers: from __future__ import annotations; from unittest.mock import patch; import httpx; import pytest; import engines  # noqa: F401 \u2014 trigger @register_engine.",
       "reason": "Test suite depends on the behavior shown by its imports/declarations; preserve the regression contract in native qualification before retiring this Python test.",
       "migration_owners": [
         "A05",
@@ -5129,7 +5170,7 @@
       "classification": "backend-coupled tooling/test",
       "migration_owner": "O05",
       "disposition": "port_to_native_or_retire_after_successor_evidence",
-      "evidence": "tests/test_edgar_url_contract.py: repository test module asserting backend behavior/contracts or using backend fixtures. Source markers: from __future__ import annotations; import httpx; import engines  # noqa: F401 — trigger @register_engine; from slopsearx.adapter import EngineStatus, discover_engines; from tests.test_adapters import MockHTTP.",
+      "evidence": "tests/test_edgar_url_contract.py: repository test module asserting backend behavior/contracts or using backend fixtures. Source markers: from __future__ import annotations; import httpx; import engines  # noqa: F401 \u2014 trigger @register_engine; from slopsearx.adapter import EngineStatus, discover_engines; from tests.test_adapters import MockHTTP.",
       "reason": "Test suite depends on the behavior shown by its imports/declarations; preserve the regression contract in native qualification before retiring this Python test.",
       "migration_owners": [
         "O05"
@@ -5244,7 +5285,7 @@
       "classification": "backend-coupled tooling/test",
       "migration_owner": "O05",
       "disposition": "port_to_native_or_retire_after_successor_evidence",
-      "evidence": "tests/test_github.py: repository test module asserting backend behavior/contracts or using backend fixtures. Source markers: from __future__ import annotations; import httpx; import pytest; import engines  # noqa: F401 — trigger @register_engine; from slopsearx.adapter import EngineStatus, discover_engines, list_engines.",
+      "evidence": "tests/test_github.py: repository test module asserting backend behavior/contracts or using backend fixtures. Source markers: from __future__ import annotations; import httpx; import pytest; import engines  # noqa: F401 \u2014 trigger @register_engine; from slopsearx.adapter import EngineStatus, discover_engines, list_engines.",
       "reason": "Test suite depends on the behavior shown by its imports/declarations; preserve the regression contract in native qualification before retiring this Python test.",
       "migration_owners": [
         "O05"
@@ -5410,7 +5451,7 @@
       "classification": "backend-coupled tooling/test",
       "migration_owner": "O05",
       "disposition": "port_to_native_or_retire_after_successor_evidence",
-      "evidence": "tests/test_jobs_adapters.py: repository test module asserting backend behavior/contracts or using backend fixtures. Source markers: from __future__ import annotations; from unittest.mock import patch; import httpx; import pytest; import engines  # noqa: F401 — trigger @register_engine.",
+      "evidence": "tests/test_jobs_adapters.py: repository test module asserting backend behavior/contracts or using backend fixtures. Source markers: from __future__ import annotations; from unittest.mock import patch; import httpx; import pytest; import engines  # noqa: F401 \u2014 trigger @register_engine.",
       "reason": "Test suite depends on the behavior shown by its imports/declarations; preserve the regression contract in native qualification before retiring this Python test.",
       "migration_owners": [
         "A14",
@@ -5422,7 +5463,7 @@
       "classification": "backend-coupled tooling/test",
       "migration_owner": "F09",
       "disposition": "port_to_native_or_retire_after_successor_evidence",
-      "evidence": "tests/test_mcp_enforcement.py: repository test module asserting backend behavior/contracts or using backend fixtures. Source markers: from __future__ import annotations; from typing import Any; import pytest; import engines  # noqa: F401 — triggers @register_engine to populate registry; from slopsearx.adapter import AdapterResponse, EngineAdapter, EngineStatus, SearchResult.",
+      "evidence": "tests/test_mcp_enforcement.py: repository test module asserting backend behavior/contracts or using backend fixtures. Source markers: from __future__ import annotations; from typing import Any; import pytest; import engines  # noqa: F401 \u2014 triggers @register_engine to populate registry; from slopsearx.adapter import AdapterResponse, EngineAdapter, EngineStatus, SearchResult.",
       "reason": "Test suite depends on the behavior shown by its imports/declarations; preserve the regression contract in native qualification before retiring this Python test.",
       "migration_owners": [
         "F09",
@@ -5558,7 +5599,7 @@
       "classification": "backend-coupled tooling/test",
       "migration_owner": "O05",
       "disposition": "port_to_native_or_retire_after_successor_evidence",
-      "evidence": "tests/test_mcp_tools.py: repository test module asserting backend behavior/contracts or using backend fixtures. Source markers: from __future__ import annotations; import datetime as _dt; from typing import Any; import pytest; import engines  # noqa: F401 — triggers @register_engine to populate registry.",
+      "evidence": "tests/test_mcp_tools.py: repository test module asserting backend behavior/contracts or using backend fixtures. Source markers: from __future__ import annotations; import datetime as _dt; from typing import Any; import pytest; import engines  # noqa: F401 \u2014 triggers @register_engine to populate registry.",
       "reason": "Test suite depends on the behavior shown by its imports/declarations; preserve the regression contract in native qualification before retiring this Python test.",
       "migration_owners": [
         "O05"
@@ -5597,8 +5638,16 @@
       "reason": "Test suite depends on the behavior shown by its imports/declarations; preserve the regression contract in native qualification before retiring this Python test.",
       "migration_owners": [
         "O01",
-        "O05"
-      ]
+        "O05",
+        "G08"
+      ],
+      "native_successor": {
+        "gate": "cargo xtask check O01",
+        "coverage": "docs/rust-rewrite/o01/coverage.json",
+        "qualification": "53 parameter cases across42ownedfunctions +39supplemental native API/private-backend cases",
+        "retirement": "retain original source/tests until G08 successor acceptance; exclude all runnable Python from final backend/helper packages",
+        "limits": "2HTTP routes belong to T02; W09/T02 bootstrap composition not claimed; reviewed typed-port/identity/privacy differences explicit"
+      }
     },
     {
       "path": "tests/test_misc_polish.py",
@@ -5628,7 +5677,7 @@
       "classification": "backend-coupled tooling/test",
       "migration_owner": "O05",
       "disposition": "port_to_native_or_retire_after_successor_evidence",
-      "evidence": "tests/test_new_engines.py: repository test module asserting backend behavior/contracts or using backend fixtures. Source markers: from __future__ import annotations; from unittest.mock import patch; import httpx; import pytest; import engines  # noqa: F401 — trigger @register_engine.",
+      "evidence": "tests/test_new_engines.py: repository test module asserting backend behavior/contracts or using backend fixtures. Source markers: from __future__ import annotations; from unittest.mock import patch; import httpx; import pytest; import engines  # noqa: F401 \u2014 trigger @register_engine.",
       "reason": "Test suite depends on the behavior shown by its imports/declarations; preserve the regression contract in native qualification before retiring this Python test.",
       "migration_owners": [
         "A01",
@@ -5642,7 +5691,7 @@
       "classification": "backend-coupled tooling/test",
       "migration_owner": "O05",
       "disposition": "port_to_native_or_retire_after_successor_evidence",
-      "evidence": "tests/test_nvd.py: repository test module asserting backend behavior/contracts or using backend fixtures. Source markers: from __future__ import annotations; from unittest.mock import patch; import httpx; import pytest; import engines  # noqa: F401 — trigger @register_engine.",
+      "evidence": "tests/test_nvd.py: repository test module asserting backend behavior/contracts or using backend fixtures. Source markers: from __future__ import annotations; from unittest.mock import patch; import httpx; import pytest; import engines  # noqa: F401 \u2014 trigger @register_engine.",
       "reason": "Test suite depends on the behavior shown by its imports/declarations; preserve the regression contract in native qualification before retiring this Python test.",
       "migration_owners": [
         "A10",
@@ -5736,7 +5785,7 @@
       "classification": "backend-coupled tooling/test",
       "migration_owner": "O05",
       "disposition": "port_to_native_or_retire_after_successor_evidence",
-      "evidence": "tests/test_payload.py: repository test module asserting backend behavior/contracts or using backend fixtures. Source markers: from __future__ import annotations; import json; from typing import Any; import httpx; import engines  # noqa: F401 — triggers @register_engine to populate registry.",
+      "evidence": "tests/test_payload.py: repository test module asserting backend behavior/contracts or using backend fixtures. Source markers: from __future__ import annotations; import json; from typing import Any; import httpx; import engines  # noqa: F401 \u2014 triggers @register_engine to populate registry.",
       "reason": "Test suite depends on the behavior shown by its imports/declarations; preserve the regression contract in native qualification before retiring this Python test.",
       "migration_owners": [
         "A08",
@@ -5748,7 +5797,7 @@
       "classification": "backend-coupled tooling/test",
       "migration_owner": "O05",
       "disposition": "port_to_native_or_retire_after_successor_evidence",
-      "evidence": "tests/test_policy_gate.py: repository test module asserting backend behavior/contracts or using backend fixtures. Source markers: from __future__ import annotations; from typing import Any; import pytest; import engines  # noqa: F401 — populates the engine registry; from slopsearx.adapter import AdapterResponse, EngineAdapter, EngineStatus, SearchResult.",
+      "evidence": "tests/test_policy_gate.py: repository test module asserting backend behavior/contracts or using backend fixtures. Source markers: from __future__ import annotations; from typing import Any; import pytest; import engines  # noqa: F401 \u2014 populates the engine registry; from slopsearx.adapter import AdapterResponse, EngineAdapter, EngineStatus, SearchResult.",
       "reason": "Test suite depends on the behavior shown by its imports/declarations; preserve the regression contract in native qualification before retiring this Python test.",
       "migration_owners": [
         "O05"
@@ -5874,7 +5923,7 @@
       "classification": "backend-coupled tooling/test",
       "migration_owner": "O05",
       "disposition": "port_to_native_or_retire_after_successor_evidence",
-      "evidence": "tests/test_reddit.py: repository test module asserting backend behavior/contracts or using backend fixtures. Source markers: from __future__ import annotations; import dataclasses; import httpx; import pytest; import engines  # noqa: F401 — trigger @register_engine.",
+      "evidence": "tests/test_reddit.py: repository test module asserting backend behavior/contracts or using backend fixtures. Source markers: from __future__ import annotations; import dataclasses; import httpx; import pytest; import engines  # noqa: F401 \u2014 trigger @register_engine.",
       "reason": "Test suite depends on the behavior shown by its imports/declarations; preserve the regression contract in native qualification before retiring this Python test.",
       "migration_owners": [
         "O05"
@@ -5897,7 +5946,7 @@
       "classification": "backend-coupled tooling/test",
       "migration_owner": "O05",
       "disposition": "port_to_native_or_retire_after_successor_evidence",
-      "evidence": "tests/test_research_coverage.py: repository test module asserting backend behavior/contracts or using backend fixtures. Source markers: from __future__ import annotations; import time; from typing import Any; import pytest; import engines  # noqa: F401 — triggers @register_engine to populate registry.",
+      "evidence": "tests/test_research_coverage.py: repository test module asserting backend behavior/contracts or using backend fixtures. Source markers: from __future__ import annotations; import time; from typing import Any; import pytest; import engines  # noqa: F401 \u2014 triggers @register_engine to populate registry.",
       "reason": "Test suite depends on the behavior shown by its imports/declarations; preserve the regression contract in native qualification before retiring this Python test.",
       "migration_owners": [
         "O05"
@@ -5935,7 +5984,7 @@
       "classification": "backend-coupled tooling/test",
       "migration_owner": "W02",
       "disposition": "port_to_native_or_retire_after_successor_evidence",
-      "evidence": "tests/test_research_retry_followup.py: repository test module asserting backend behavior/contracts or using backend fixtures. Source markers: from __future__ import annotations; import time; from typing import Any; import pytest; import engines  # noqa: F401 — populates the engine registry.",
+      "evidence": "tests/test_research_retry_followup.py: repository test module asserting backend behavior/contracts or using backend fixtures. Source markers: from __future__ import annotations; import time; from typing import Any; import pytest; import engines  # noqa: F401 \u2014 populates the engine registry.",
       "reason": "Test suite depends on the behavior shown by its imports/declarations; preserve the regression contract in native qualification before retiring this Python test.",
       "migration_owners": [
         "O05",
@@ -5947,7 +5996,7 @@
       "classification": "backend-coupled tooling/test",
       "migration_owner": "F05",
       "disposition": "port_to_native_or_retire_after_successor_evidence",
-      "evidence": "tests/test_result_contract.py: repository test module asserting backend behavior/contracts or using backend fixtures. Source markers: from __future__ import annotations; import time; from typing import Any; import pytest; import engines  # noqa: F401 — triggers @register_engine to populate registry.",
+      "evidence": "tests/test_result_contract.py: repository test module asserting backend behavior/contracts or using backend fixtures. Source markers: from __future__ import annotations; import time; from typing import Any; import pytest; import engines  # noqa: F401 \u2014 triggers @register_engine to populate registry.",
       "reason": "Test suite depends on the behavior shown by its imports/declarations; preserve the regression contract in native qualification before retiring this Python test.",
       "migration_owners": [
         "F05",
@@ -6027,7 +6076,7 @@
       "classification": "backend-coupled tooling/test",
       "migration_owner": "O05",
       "disposition": "port_to_native_or_retire_after_successor_evidence",
-      "evidence": "tests/test_routing_service.py: repository test module asserting backend behavior/contracts or using backend fixtures. Source markers: from __future__ import annotations; import time; from typing import Any; import pytest; import engines  # noqa: F401 — triggers @register_engine to populate the registry.",
+      "evidence": "tests/test_routing_service.py: repository test module asserting backend behavior/contracts or using backend fixtures. Source markers: from __future__ import annotations; import time; from typing import Any; import pytest; import engines  # noqa: F401 \u2014 triggers @register_engine to populate the registry.",
       "reason": "Test suite depends on the behavior shown by its imports/declarations; preserve the regression contract in native qualification before retiring this Python test.",
       "migration_owners": [
         "O05"
@@ -6042,8 +6091,16 @@
       "reason": "Test suite depends on the behavior shown by its imports/declarations; preserve the regression contract in native qualification before retiring this Python test.",
       "migration_owners": [
         "O01",
-        "O05"
-      ]
+        "O05",
+        "G08"
+      ],
+      "native_successor": {
+        "gate": "cargo xtask check O01",
+        "coverage": "docs/rust-rewrite/o01/coverage.json",
+        "qualification": "53 parameter cases across42ownedfunctions +39supplemental native API/private-backend cases",
+        "retirement": "retain original source/tests until G08 successor acceptance; exclude all runnable Python from final backend/helper packages",
+        "limits": "2HTTP routes belong to T02; W09/T02 bootstrap composition not claimed; reviewed typed-port/identity/privacy differences explicit"
+      }
     },
     {
       "path": "tests/test_saved_events.py",
@@ -6209,7 +6266,7 @@
       "classification": "backend-coupled tooling/test",
       "migration_owner": "O05",
       "disposition": "port_to_native_or_retire_after_successor_evidence",
-      "evidence": "tests/test_service_engine_config.py: repository test module asserting backend behavior/contracts or using backend fixtures. Source markers: from __future__ import annotations; import dataclasses; import httpx; import pytest; import engines  # noqa: F401 — trigger @register_engine.",
+      "evidence": "tests/test_service_engine_config.py: repository test module asserting backend behavior/contracts or using backend fixtures. Source markers: from __future__ import annotations; import dataclasses; import httpx; import pytest; import engines  # noqa: F401 \u2014 trigger @register_engine.",
       "reason": "Test suite depends on the behavior shown by its imports/declarations; preserve the regression contract in native qualification before retiring this Python test.",
       "migration_owners": [
         "O05"
@@ -6274,8 +6331,17 @@
       "evidence": "tests/test_stats.py: repository test module asserting backend behavior/contracts or using backend fixtures. Source markers: from __future__ import annotations; import inspect; from unittest.mock import AsyncMock, MagicMock; from slopsearx.adapter import EngineStatus; from slopsearx.stats import EngineStatsTracker.",
       "reason": "Test suite depends on the behavior shown by its imports/declarations; preserve the regression contract in native qualification before retiring this Python test.",
       "migration_owners": [
-        "O05"
-      ]
+        "O05",
+        "O01",
+        "G08"
+      ],
+      "native_successor": {
+        "gate": "cargo xtask check O01",
+        "coverage": "docs/rust-rewrite/o01/coverage.json",
+        "qualification": "53 parameter cases across42ownedfunctions +39supplemental native API/private-backend cases",
+        "retirement": "retain original source/tests until G08 successor acceptance; exclude all runnable Python from final backend/helper packages",
+        "limits": "2HTTP routes belong to T02; W09/T02 bootstrap composition not claimed; reviewed typed-port/identity/privacy differences explicit"
+      }
     },
     {
       "path": "tests/test_tier1_adapters.py",
@@ -6365,7 +6431,7 @@
       "classification": "backend-coupled tooling/test",
       "migration_owner": "O05",
       "disposition": "port_to_native_or_retire_after_successor_evidence",
-      "evidence": "tests/test_wikipedia.py: repository test module asserting backend behavior/contracts or using backend fixtures. Source markers: from __future__ import annotations; import dataclasses; import httpx; import engines  # noqa: F401 — trigger @register_engine; from slopsearx.adapter import EngineStatus, discover_engines.",
+      "evidence": "tests/test_wikipedia.py: repository test module asserting backend behavior/contracts or using backend fixtures. Source markers: from __future__ import annotations; import dataclasses; import httpx; import engines  # noqa: F401 \u2014 trigger @register_engine; from slopsearx.adapter import EngineStatus, discover_engines.",
       "reason": "Test suite depends on the behavior shown by its imports/declarations; preserve the regression contract in native qualification before retiring this Python test.",
       "migration_owners": [
         "O05"
@@ -6417,8 +6483,16 @@
       "reason": "Test suite depends on the behavior shown by its imports/declarations; preserve the regression contract in native qualification before retiring this Python test.",
       "migration_owners": [
         "O01",
-        "O05"
-      ]
+        "O05",
+        "G08"
+      ],
+      "native_successor": {
+        "gate": "cargo xtask check O01",
+        "coverage": "docs/rust-rewrite/o01/coverage.json",
+        "qualification": "53 parameter cases across42ownedfunctions +39supplemental native API/private-backend cases",
+        "retirement": "retain original source/tests until G08 successor acceptance; exclude all runnable Python from final backend/helper packages",
+        "limits": "2HTTP routes belong to T02; W09/T02 bootstrap composition not claimed; reviewed typed-port/identity/privacy differences explicit"
+      }
     },
     {
       "path": "tests/test_workflow_portal.py",
@@ -6743,6 +6817,6 @@
   "a10_current_producer_identity_amendment": {
     "path": "docs/rust-rewrite/a10/evidence/producer-format-and-failed-output-archive-v1.json",
     "sha256": "e69fcdd064b9034089a496fd8571aea0f50959ac57ba62257e98690d7bb83a30",
-    "semantics": "Current source classification hashes do not relabel executed producers0845/6224/8211/76ee. Historical invocation rows retain actual observed source_sha256; format-only76ee→5b7c has identical semantic AST."
+    "semantics": "Current source classification hashes do not relabel executed producers0845/6224/8211/76ee. Historical invocation rows retain actual observed source_sha256; format-only76ee\u21925b7c has identical semantic AST."
   }
 }

@@ -773,3 +773,22 @@ source paths and 58 manual developer oracle rows. No new Python runtime or
 mandatory native gate dependency is introduced. Native qualification is pending.
 
 A10 candidate adds native CVE/NVD/EPSS/ExploitDB/MITRE ATT&CK factory and storage-consumer proofs at the recorded0a source baseline. The five original adapter records retain every original field and add only a native-successor pointer; the Python runtime stays classified until W09/G08. Two optional guarded original-reference producers are recorded with actual executed hashes separately from current formatted bytes. Three completed captures (133/308/30 observations) and one failed original invocation remain distinct. Three immutable producer text archives are historical data, never native runtime or mandatory-gate inputs. Full A10/native F01/O06/exact-head CI qualification and the reviewed normal main union remain required.
+
+## O01 native observability source evidence
+
+The accepted T06/main8b48 composition retains all479 Python source paths. O01
+adds seven external temporary producer identities as non-executable historical
+source.txt copies and four receipt-backed actual invocation rows (58 to62).
+The original53 v1 runner's wrong49 collection check remains a failure alongside
+its53 passing source cases; v2 independently closes53 cases across42 functions.
+SDK/state/render captures without separate process receipts remain capture-only
+provenance, not invented invocation rows. Native O01 reads frozen JSON and
+executes no Python. G08 retires the external runnable producers and legacy
+backend/tests; immutable non-executable evidence may remain. Two actual HTTP
+route rows and production bootstrap composition remain downstream T02/W09.
+
+O01 also retains the inherited26-case exporter's co-staged historical identity
+as an eighth external, capture-only producer. The old checkout and staged bytes
+are untouched. No execution attestation or actual invocation row is invented;
+all62 actual rows and479 source paths remain unchanged. G08 owns retirement
+of that runnable old-checkout exporter as well as the seven current-goal tools.
