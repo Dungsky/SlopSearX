@@ -2,7 +2,7 @@
   "schema_version": 1,
   "python": "3.14.7 (main, Aug  5 2026, 10:29:49) [Clang 21.0.0 (clang-2100.1.1.101)]",
   "unicode": "16.0.0",
-  "producer_sha256": "44fff2186b2ad7fb855c009615dc2cf3723e2829ad371c8a0703c3c4a895ec1f",
+  "producer_sha256": "0a4467e3ed93d6fec08e00d36435d0328dd5e366c6e1044d47d2b6e321edbabe",
   "results": [
     {
       "node": "tests/test_openfda.py::test_exact_name_fields_rank_before_related_and_preserve_provenance",
@@ -191,6 +191,35 @@
     {
       "node": "tests/test_payload.py::TestBiomedicalPayload::test_openfda_absent_fields_stay_absent",
       "outcome": "passed"
+    }
+  ],
+  "original_adapter_invocations": 38,
+  "helper_derived_adapter_invocations": 5,
+  "helper_assertions": [
+    {
+      "node": "tests/test_oyez_relevance.py::test_case_url_rejects_untrusted_or_incomplete_identity[https://evil.example/cases/1954/1]",
+      "value": "https://evil.example/cases/1954/1",
+      "output": ""
+    },
+    {
+      "node": "tests/test_oyez_relevance.py::test_case_url_rejects_untrusted_or_incomplete_identity[https://api.oyez.org/not-cases/1954/1]",
+      "value": "https://api.oyez.org/not-cases/1954/1",
+      "output": ""
+    },
+    {
+      "node": "tests/test_oyez_relevance.py::test_case_url_rejects_untrusted_or_incomplete_identity[https://api.oyez.org/cases/1954]",
+      "value": "https://api.oyez.org/cases/1954",
+      "output": ""
+    },
+    {
+      "node": "tests/test_oyez_relevance.py::test_case_url_rejects_untrusted_or_incomplete_identity[cases/1954/1]",
+      "value": "cases/1954/1",
+      "output": ""
+    },
+    {
+      "node": "tests/test_oyez_relevance.py::test_case_url_does_not_infer_identity_without_provider_url",
+      "value": "",
+      "output": ""
     }
   ],
   "records": [
@@ -2252,6 +2281,196 @@
           }
         ]
       }
+    },
+    {
+      "id": "tests/test_oyez_relevance.py::test_case_url_rejects_untrusted_or_incomplete_identity[https://evil.example/cases/1954/1]#0",
+      "node": "tests/test_oyez_relevance.py::test_case_url_rejects_untrusted_or_incomplete_identity[https://evil.example/cases/1954/1]",
+      "engine": "oyez",
+      "query": "original Oyez URL helper regression",
+      "config": {
+        "enabled": true
+      },
+      "responses": [
+        {
+          "status": 200,
+          "wire_body": "[{\"title\":\"Original URL helper identity control\",\"term\":\"1954\",\"field_docket_number\":\"1\",\"search_api_url\":\"https://evil.example/cases/1954/1\"}]"
+        }
+      ],
+      "requests": [
+        {
+          "method": "POST",
+          "url": "https://beta-search.oyez.org/elasticsearch_index_scotus_nodes/_search",
+          "body": "{\"size\":10,\"query\":{\"multi_match\":{\"query\":\"original Oyez URL helper regression\",\"type\":\"cross_fields\",\"fields\":[\"field_docket_number^3\",\"field_additional_docket_numbers^3\",\"title^2\",\"field_court_term\",\"field_first_party\",\"field_second_party\",\"field_facts_of_the_case:value\",\"field_question:value\",\"field_conclusion:value\",\"field_biography:value\",\"field_citation:field_volume\",\"field_citation:field_page\",\"field_citation:field_year^0.2\"]}}}",
+          "headers": {
+            "accept": "*/*",
+            "user-agent": "python-httpx/0.28.1",
+            "content-type": "application/json"
+          }
+        }
+      ],
+      "output": {
+        "status": "ok",
+        "error_message": null,
+        "results": []
+      },
+      "helper_assertion": {
+        "node": "tests/test_oyez_relevance.py::test_case_url_rejects_untrusted_or_incomplete_identity[https://evil.example/cases/1954/1]",
+        "value": "https://evil.example/cases/1954/1",
+        "output": ""
+      },
+      "capture_kind": "whole-adapter replay of captured original helper assertion"
+    },
+    {
+      "id": "tests/test_oyez_relevance.py::test_case_url_rejects_untrusted_or_incomplete_identity[https://api.oyez.org/not-cases/1954/1]#0",
+      "node": "tests/test_oyez_relevance.py::test_case_url_rejects_untrusted_or_incomplete_identity[https://api.oyez.org/not-cases/1954/1]",
+      "engine": "oyez",
+      "query": "original Oyez URL helper regression",
+      "config": {
+        "enabled": true
+      },
+      "responses": [
+        {
+          "status": 200,
+          "wire_body": "[{\"title\":\"Original URL helper identity control\",\"term\":\"1954\",\"field_docket_number\":\"1\",\"search_api_url\":\"https://api.oyez.org/not-cases/1954/1\"}]"
+        }
+      ],
+      "requests": [
+        {
+          "method": "POST",
+          "url": "https://beta-search.oyez.org/elasticsearch_index_scotus_nodes/_search",
+          "body": "{\"size\":10,\"query\":{\"multi_match\":{\"query\":\"original Oyez URL helper regression\",\"type\":\"cross_fields\",\"fields\":[\"field_docket_number^3\",\"field_additional_docket_numbers^3\",\"title^2\",\"field_court_term\",\"field_first_party\",\"field_second_party\",\"field_facts_of_the_case:value\",\"field_question:value\",\"field_conclusion:value\",\"field_biography:value\",\"field_citation:field_volume\",\"field_citation:field_page\",\"field_citation:field_year^0.2\"]}}}",
+          "headers": {
+            "accept": "*/*",
+            "user-agent": "python-httpx/0.28.1",
+            "content-type": "application/json"
+          }
+        }
+      ],
+      "output": {
+        "status": "ok",
+        "error_message": null,
+        "results": []
+      },
+      "helper_assertion": {
+        "node": "tests/test_oyez_relevance.py::test_case_url_rejects_untrusted_or_incomplete_identity[https://api.oyez.org/not-cases/1954/1]",
+        "value": "https://api.oyez.org/not-cases/1954/1",
+        "output": ""
+      },
+      "capture_kind": "whole-adapter replay of captured original helper assertion"
+    },
+    {
+      "id": "tests/test_oyez_relevance.py::test_case_url_rejects_untrusted_or_incomplete_identity[https://api.oyez.org/cases/1954]#0",
+      "node": "tests/test_oyez_relevance.py::test_case_url_rejects_untrusted_or_incomplete_identity[https://api.oyez.org/cases/1954]",
+      "engine": "oyez",
+      "query": "original Oyez URL helper regression",
+      "config": {
+        "enabled": true
+      },
+      "responses": [
+        {
+          "status": 200,
+          "wire_body": "[{\"title\":\"Original URL helper identity control\",\"term\":\"1954\",\"field_docket_number\":\"1\",\"search_api_url\":\"https://api.oyez.org/cases/1954\"}]"
+        }
+      ],
+      "requests": [
+        {
+          "method": "POST",
+          "url": "https://beta-search.oyez.org/elasticsearch_index_scotus_nodes/_search",
+          "body": "{\"size\":10,\"query\":{\"multi_match\":{\"query\":\"original Oyez URL helper regression\",\"type\":\"cross_fields\",\"fields\":[\"field_docket_number^3\",\"field_additional_docket_numbers^3\",\"title^2\",\"field_court_term\",\"field_first_party\",\"field_second_party\",\"field_facts_of_the_case:value\",\"field_question:value\",\"field_conclusion:value\",\"field_biography:value\",\"field_citation:field_volume\",\"field_citation:field_page\",\"field_citation:field_year^0.2\"]}}}",
+          "headers": {
+            "accept": "*/*",
+            "user-agent": "python-httpx/0.28.1",
+            "content-type": "application/json"
+          }
+        }
+      ],
+      "output": {
+        "status": "ok",
+        "error_message": null,
+        "results": []
+      },
+      "helper_assertion": {
+        "node": "tests/test_oyez_relevance.py::test_case_url_rejects_untrusted_or_incomplete_identity[https://api.oyez.org/cases/1954]",
+        "value": "https://api.oyez.org/cases/1954",
+        "output": ""
+      },
+      "capture_kind": "whole-adapter replay of captured original helper assertion"
+    },
+    {
+      "id": "tests/test_oyez_relevance.py::test_case_url_rejects_untrusted_or_incomplete_identity[cases/1954/1]#0",
+      "node": "tests/test_oyez_relevance.py::test_case_url_rejects_untrusted_or_incomplete_identity[cases/1954/1]",
+      "engine": "oyez",
+      "query": "original Oyez URL helper regression",
+      "config": {
+        "enabled": true
+      },
+      "responses": [
+        {
+          "status": 200,
+          "wire_body": "[{\"title\":\"Original URL helper identity control\",\"term\":\"1954\",\"field_docket_number\":\"1\",\"search_api_url\":\"cases/1954/1\"}]"
+        }
+      ],
+      "requests": [
+        {
+          "method": "POST",
+          "url": "https://beta-search.oyez.org/elasticsearch_index_scotus_nodes/_search",
+          "body": "{\"size\":10,\"query\":{\"multi_match\":{\"query\":\"original Oyez URL helper regression\",\"type\":\"cross_fields\",\"fields\":[\"field_docket_number^3\",\"field_additional_docket_numbers^3\",\"title^2\",\"field_court_term\",\"field_first_party\",\"field_second_party\",\"field_facts_of_the_case:value\",\"field_question:value\",\"field_conclusion:value\",\"field_biography:value\",\"field_citation:field_volume\",\"field_citation:field_page\",\"field_citation:field_year^0.2\"]}}}",
+          "headers": {
+            "accept": "*/*",
+            "user-agent": "python-httpx/0.28.1",
+            "content-type": "application/json"
+          }
+        }
+      ],
+      "output": {
+        "status": "ok",
+        "error_message": null,
+        "results": []
+      },
+      "helper_assertion": {
+        "node": "tests/test_oyez_relevance.py::test_case_url_rejects_untrusted_or_incomplete_identity[cases/1954/1]",
+        "value": "cases/1954/1",
+        "output": ""
+      },
+      "capture_kind": "whole-adapter replay of captured original helper assertion"
+    },
+    {
+      "id": "tests/test_oyez_relevance.py::test_case_url_does_not_infer_identity_without_provider_url#0",
+      "node": "tests/test_oyez_relevance.py::test_case_url_does_not_infer_identity_without_provider_url",
+      "engine": "oyez",
+      "query": "original Oyez URL helper regression",
+      "config": {
+        "enabled": true
+      },
+      "responses": [
+        {
+          "status": 200,
+          "wire_body": "[{\"title\":\"Original URL helper identity control\",\"term\":\"1954\",\"field_docket_number\":\"1\",\"search_api_url\":\"\"}]"
+        }
+      ],
+      "requests": [
+        {
+          "method": "POST",
+          "url": "https://beta-search.oyez.org/elasticsearch_index_scotus_nodes/_search",
+          "body": "{\"size\":10,\"query\":{\"multi_match\":{\"query\":\"original Oyez URL helper regression\",\"type\":\"cross_fields\",\"fields\":[\"field_docket_number^3\",\"field_additional_docket_numbers^3\",\"title^2\",\"field_court_term\",\"field_first_party\",\"field_second_party\",\"field_facts_of_the_case:value\",\"field_question:value\",\"field_conclusion:value\",\"field_biography:value\",\"field_citation:field_volume\",\"field_citation:field_page\",\"field_citation:field_year^0.2\"]}}}",
+          "headers": {
+            "accept": "*/*",
+            "user-agent": "python-httpx/0.28.1",
+            "content-type": "application/json"
+          }
+        }
+      ],
+      "output": {
+        "status": "ok",
+        "error_message": null,
+        "results": []
+      },
+      "helper_assertion": {
+        "node": "tests/test_oyez_relevance.py::test_case_url_does_not_infer_identity_without_provider_url",
+        "value": "",
+        "output": ""
+      },
+      "capture_kind": "whole-adapter replay of captured original helper assertion"
     }
   ]
 }

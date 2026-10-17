@@ -2514,6 +2514,61 @@
         null
       ],
       "difference": "HTTPX library identity is not synthesized by native F08; adapter-owned Accept/content-type and exact request contract remain asserted; real loopback verifies header absence."
+    },
+    {
+      "id": "tests/test_oyez_relevance.py::test_case_url_rejects_untrusted_or_incomplete_identity[https://evil.example/cases/1954/1]#0",
+      "header": "user-agent",
+      "source_values": [
+        "python-httpx/0.28.1"
+      ],
+      "native_values": [
+        null
+      ],
+      "difference": "HTTPX library identity is not synthesized by native F08; adapter-owned Accept/content-type and exact request contract remain asserted; real loopback verifies header absence."
+    },
+    {
+      "id": "tests/test_oyez_relevance.py::test_case_url_rejects_untrusted_or_incomplete_identity[https://api.oyez.org/not-cases/1954/1]#0",
+      "header": "user-agent",
+      "source_values": [
+        "python-httpx/0.28.1"
+      ],
+      "native_values": [
+        null
+      ],
+      "difference": "HTTPX library identity is not synthesized by native F08; adapter-owned Accept/content-type and exact request contract remain asserted; real loopback verifies header absence."
+    },
+    {
+      "id": "tests/test_oyez_relevance.py::test_case_url_rejects_untrusted_or_incomplete_identity[https://api.oyez.org/cases/1954]#0",
+      "header": "user-agent",
+      "source_values": [
+        "python-httpx/0.28.1"
+      ],
+      "native_values": [
+        null
+      ],
+      "difference": "HTTPX library identity is not synthesized by native F08; adapter-owned Accept/content-type and exact request contract remain asserted; real loopback verifies header absence."
+    },
+    {
+      "id": "tests/test_oyez_relevance.py::test_case_url_rejects_untrusted_or_incomplete_identity[cases/1954/1]#0",
+      "header": "user-agent",
+      "source_values": [
+        "python-httpx/0.28.1"
+      ],
+      "native_values": [
+        null
+      ],
+      "difference": "HTTPX library identity is not synthesized by native F08; adapter-owned Accept/content-type and exact request contract remain asserted; real loopback verifies header absence."
+    },
+    {
+      "id": "tests/test_oyez_relevance.py::test_case_url_does_not_infer_identity_without_provider_url#0",
+      "header": "user-agent",
+      "source_values": [
+        "python-httpx/0.28.1"
+      ],
+      "native_values": [
+        null
+      ],
+      "difference": "HTTPX library identity is not synthesized by native F08; adapter-owned Accept/content-type and exact request contract remain asserted; real loopback verifies header absence."
     }
   ]
 }

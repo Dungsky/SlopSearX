@@ -54,19 +54,20 @@
         "docs/rust-rewrite/a08/oracle/export_regressions.py"
       ],
       "cwd": "/Users/magnus/.codex/worktrees/rust-a08-regulatory-adapters/SlopSearX",
-      "started_unix_ns": 1792194497421368000,
-      "finished_unix_ns": 1792194498525630000,
+      "started_unix_ns": 1792195238282183000,
+      "finished_unix_ns": 1792195239530854000,
       "exit_code": 0,
       "producer_path": "docs/rust-rewrite/a08/oracle/export_regressions.py",
-      "producer_sha256": "44fff2186b2ad7fb855c009615dc2cf3723e2829ad371c8a0703c3c4a895ec1f",
-      "log_path": "/Volumes/tank01/magnus/rust-builds/slopsearx/a08/export_regressions.py.log",
-      "log_sha256": "8e76e7a183adbb9efd02a5a6712c65fea8812d53a73feddcc395001ee29e39a0",
+      "producer_sha256": "0a4467e3ed93d6fec08e00d36435d0328dd5e366c6e1044d47d2b6e321edbabe",
+      "log_path": "/Volumes/tank01/magnus/rust-builds/slopsearx/a08/export_regressions-correction.py.log",
+      "log_sha256": "c9d26b6654bae58b9841d8d4190de45b8924247280f0eee1cbc03f4aba7edb26",
       "outputs": [
         {
           "path": "docs/rust-rewrite/a08/regressions.json",
-          "sha256": "543120dee47e37f8fb5509a17a42c5f8fbd2b0abddd64f01cb8a2a04514c829c"
+          "sha256": "d4fc84fd63b856a3a7f8559a8a8a6565e171383a79294788f72c660aa7fe2d15"
         }
-      ]
+      ],
+      "capture_head": "9e1b445321e23d176bc8e4d34294ef1634425c08"
     },
     {
       "argv": [
@@ -88,5 +89,6 @@
         }
       ]
     }
-  ]
+  ],
+  "capture_head_scope": "initial capture batch; later correction records carry an explicit capture_head"
 }

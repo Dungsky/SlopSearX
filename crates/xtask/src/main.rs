@@ -591,8 +591,9 @@ fn main() {
             }
         }
     }
+    let a08_scope = a08::report_scope(&records);
     let scope = if id == "A08" {
-        "source-bound EDGAR/FRED/openFDA/Oyez factories;285 adapter controls,2 typed configuration supersessions,44 original functions/47 parameters,real loopback deadlines/drop and compact JSON; no provider,full portal,global RSS or deployment claim"
+        a08_scope.as_str()
     } else if id == "A07" {
         "source-bound biomedical factories/config/scope,172 offline controls and charged runtime/context/compact regressions; no provider calls, global G02 or full HTML/MCP transport claim"
     } else if id == "A03" {

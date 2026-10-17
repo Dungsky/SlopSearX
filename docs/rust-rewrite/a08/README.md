@@ -19,8 +19,13 @@ provider-mandated query field and Secret Debug stays redacted.
 
 The frozen source corpus has 344 ordered controls. Instrumenting the actual
 original offline tests also produced 38 adapter invocations from 44 function
-nodes / 47 parameter instances, all passed. The native replay executes 380 actual
-adapter controls and explicitly supersedes two malformed bool/int FRED direct
+nodes / 47 parameter instances, all passed. Five exact original Oyez URL-helper
+assertion inputs are also captured during that run and replayed through the
+actual source adapter, retaining original parameter identities and provider
+term/docket metadata. Those helper nodes bind the actual native replay. Only
+the five exact original registration nodes may use registration-only mapping.
+The native replay executes 385 actual adapter controls and explicitly supersedes
+two malformed bool/int FRED direct
 keys with real F06 loader rejection before adapter instantiation. Each replay
 asserts ordered method/URL/query/body, adapter-owned headers, request count, and
 complete outcome/result fields. Measured latency and transport/library default

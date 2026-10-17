@@ -580,3 +580,12 @@ Every existing parent record and historical capture is preserved. Native A08
 runtime and mandatory gate read immutable JSON only and never execute Python.
 G08 retires all four executable producers; source captures/provenance remain.
 Initial exploratory/partial attempts are not these accepted capture receipts.
+
+A08 regression-mapping correction against candidate `9e1b4453` retains the
+original 47 passing parameter instances / 44 functions and 38 original adapter
+invocations, and adds five whole-adapter replays of the exact observed Oyez
+URL-helper assertion inputs. The existing inventoried producer captures those
+inputs and performs all five offline adapter calls; its updated exact hash and
+executed receipt remain bound here and in F01. No producer count or retirement
+owner changes. Genuine registration-only disposition is restricted to the five
+explicit original registration nodes.

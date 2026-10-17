@@ -137,7 +137,7 @@
     },
     {
       "path": "docs/rust-rewrite/a08/README.md",
-      "sha256": "dbeb016624b5096647171ae45fc8799ed811de6052d8a2934d87f64530f6df0d"
+      "sha256": "73452b2a6e66aa62958d5b7baa48b18136bca9b81b6e0330e76d482724b1ece7"
     },
     {
       "path": "docs/rust-rewrite/a08/case16-data.json",
@@ -157,7 +157,7 @@
     },
     {
       "path": "docs/rust-rewrite/a08/oracle/export_regressions.py",
-      "sha256": "44fff2186b2ad7fb855c009615dc2cf3723e2829ad371c8a0703c3c4a895ec1f"
+      "sha256": "0a4467e3ed93d6fec08e00d36435d0328dd5e366c6e1044d47d2b6e321edbabe"
     },
     {
       "path": "docs/rust-rewrite/a08/oracle/export_source.py",
@@ -169,11 +169,11 @@
     },
     {
       "path": "docs/rust-rewrite/a08/oracle-runs.json",
-      "sha256": "c87524c2813f321b40c501ca999747955ccaa2a8a725def723db1671f06a4839"
+      "sha256": "0fcabe5f2deea65ebbf537486ab21ca443fd39f2ad9dca8dace81b14c8f5fff6"
     },
     {
       "path": "docs/rust-rewrite/a08/regressions.json",
-      "sha256": "543120dee47e37f8fb5509a17a42c5f8fbd2b0abddd64f01cb8a2a04514c829c"
+      "sha256": "d4fc84fd63b856a3a7f8559a8a8a6565e171383a79294788f72c660aa7fe2d15"
     },
     {
       "path": "docs/rust-rewrite/a08/source.json",
@@ -185,7 +185,7 @@
     },
     {
       "path": "docs/rust-rewrite/a08/header-differences.json",
-      "sha256": "49c5059b279cd1ccbf157f1000ae65abd7c52f346cedd2da8190e0d5a8078f6f"
+      "sha256": "a1034125c9ff8047e85559537a29be85872d9c04a5ee057fa21739e1d71904f8"
     }
   ],
   "ordered_case_ids": [
@@ -570,7 +570,12 @@
     "tests/test_new_engines.py::TestOyezAdapter::test_search_returns_results#0",
     "tests/test_payload.py::TestFinancialPayload::test_fred_payload#0",
     "tests/test_payload.py::TestBiomedicalPayload::test_openfda_payload#0",
-    "tests/test_payload.py::TestBiomedicalPayload::test_openfda_absent_fields_stay_absent#0"
+    "tests/test_payload.py::TestBiomedicalPayload::test_openfda_absent_fields_stay_absent#0",
+    "tests/test_oyez_relevance.py::test_case_url_rejects_untrusted_or_incomplete_identity[https://evil.example/cases/1954/1]#0",
+    "tests/test_oyez_relevance.py::test_case_url_rejects_untrusted_or_incomplete_identity[https://api.oyez.org/not-cases/1954/1]#0",
+    "tests/test_oyez_relevance.py::test_case_url_rejects_untrusted_or_incomplete_identity[https://api.oyez.org/cases/1954]#0",
+    "tests/test_oyez_relevance.py::test_case_url_rejects_untrusted_or_incomplete_identity[cases/1954/1]#0",
+    "tests/test_oyez_relevance.py::test_case_url_does_not_infer_identity_without_provider_url#0"
   ],
   "regression_mapping": [
     {
@@ -982,24 +987,29 @@
         "tests/test_oyez_relevance.py::test_case_url_rejects_untrusted_or_incomplete_identity[https://api.oyez.org/cases/1954]",
         "tests/test_oyez_relevance.py::test_case_url_rejects_untrusted_or_incomplete_identity[cases/1954/1]"
       ],
-      "source_case_ids": [],
-      "native_cases": [
-        "factory",
-        "scope"
+      "source_case_ids": [
+        "tests/test_oyez_relevance.py::test_case_url_rejects_untrusted_or_incomplete_identity[https://evil.example/cases/1954/1]#0",
+        "tests/test_oyez_relevance.py::test_case_url_rejects_untrusted_or_incomplete_identity[https://api.oyez.org/not-cases/1954/1]#0",
+        "tests/test_oyez_relevance.py::test_case_url_rejects_untrusted_or_incomplete_identity[https://api.oyez.org/cases/1954]#0",
+        "tests/test_oyez_relevance.py::test_case_url_rejects_untrusted_or_incomplete_identity[cases/1954/1]#0"
       ],
-      "mapping_status": "registration-only source node mapped to actual native factories/catalog selection"
+      "native_cases": [
+        "replay"
+      ],
+      "mapping_status": "captured original URL-helper assertions replayed through actual source and native adapters"
     },
     {
       "node": "tests/test_oyez_relevance.py::test_case_url_does_not_infer_identity_without_provider_url",
       "parameter_instances": [
         "tests/test_oyez_relevance.py::test_case_url_does_not_infer_identity_without_provider_url"
       ],
-      "source_case_ids": [],
-      "native_cases": [
-        "factory",
-        "scope"
+      "source_case_ids": [
+        "tests/test_oyez_relevance.py::test_case_url_does_not_infer_identity_without_provider_url#0"
       ],
-      "mapping_status": "registration-only source node mapped to actual native factories/catalog selection"
+      "native_cases": [
+        "replay"
+      ],
+      "mapping_status": "captured original URL-helper assertions replayed through actual source and native adapters"
     },
     {
       "node": "tests/test_new_engines.py::TestOpenFDAAdapter::test_search_returns_results",
@@ -1224,8 +1234,9 @@
     "original_functions": 44,
     "parameter_instances": 47,
     "original_invocations": 38,
-    "native_adapter_controls": 380,
-    "F06_typed_config_supersessions": 2
+    "native_adapter_controls": 385,
+    "F06_typed_config_supersessions": 2,
+    "helper_derived_adapter_replays": 5
   },
   "downstream_handoffs": [
     {

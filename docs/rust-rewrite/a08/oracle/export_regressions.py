@@ -1,5 +1,6 @@
 """Offline instrumentation of the actual old regression tests; retired G08."""
 
+import asyncio
 import contextvars
 import hashlib
 import json
@@ -14,6 +15,7 @@ import pytest
 ROOT = pathlib.Path(__file__).resolve().parents[4]
 sys.path.insert(0, str(ROOT))
 assert sys.version_info[:3] == (3, 14, 7) and unicodedata.unidata_version == "16.0.0"
+import engines.oyez as oyez_module  # noqa: E402
 from engines.edgar import EdgarAdapter  # noqa: E402
 from engines.fred import FredAdapter  # noqa: E402
 from engines.openfda import OpenFDAAdapter  # noqa: E402
@@ -24,6 +26,23 @@ current = contextvars.ContextVar("capture", default=None)
 records = []
 current_node = None
 test_results = []
+helper_assertions = []
+capture_helpers = True
+helper_nodes = {
+    "tests/test_oyez_relevance.py::test_case_url_rejects_untrusted_or_incomplete_identity",
+    "tests/test_oyez_relevance.py::test_case_url_does_not_infer_identity_without_provider_url",
+}
+original_case_url = oyez_module._case_url
+
+
+def capture_case_url(value):
+    result = original_case_url(value)
+    if capture_helpers and current_node and current_node.split("[", 1)[0] in helper_nodes:
+        helper_assertions.append(dict(node=current_node, value=value, output=result))
+    return result
+
+
+oyez_module._case_url = capture_case_url
 
 
 def clean(s, keys):
@@ -161,6 +180,41 @@ args = [
 ]
 code = pytest.main(args, plugins=[Plugin()])
 assert code == 0
+capture_helpers = False
+original_adapter_invocations = len(records)
+assert original_adapter_invocations == 38 and len(helper_assertions) == 5
+assert all(row["output"] == "" for row in helper_assertions)
+
+
+async def replay_helper_assertions():
+    """Exercise the exact observed old helper inputs through the real adapter."""
+    global current_node
+    for assertion in helper_assertions:
+        current_node = assertion["node"]
+        # Provider identity metadata must not let an empty/incomplete/untrusted
+        # supplied URL infer a case URL. No fallback URL fields are supplied.
+        body = [
+            {
+                "title": "Original URL helper identity control",
+                "term": "1954",
+                "field_docket_number": "1",
+                "search_api_url": assertion["value"],
+            }
+        ]
+        adapter = OyezAdapter({"enabled": True})
+        adapter.set_http_transport(httpx.MockTransport(lambda request: httpx.Response(200, json=body)))
+        try:
+            result = await adapter.search("original Oyez URL helper regression")
+            assert result.status.value == "ok" and result.results == []
+        finally:
+            await adapter.shutdown()
+        records[-1]["helper_assertion"] = assertion
+        records[-1]["capture_kind"] = "whole-adapter replay of captured original helper assertion"
+        assert records[-1]["node"] == assertion["node"]
+        assert len(records[-1]["requests"]) == 1
+
+
+asyncio.run(replay_helper_assertions())
 p = ROOT / "docs/rust-rewrite/a08/regressions.json"
 p.write_text(
     json.dumps(
@@ -170,6 +224,9 @@ p.write_text(
             unicode=unicodedata.unidata_version,
             producer_sha256=hashlib.sha256(pathlib.Path(__file__).read_bytes()).hexdigest(),
             results=test_results,
+            original_adapter_invocations=original_adapter_invocations,
+            helper_derived_adapter_invocations=len(helper_assertions),
+            helper_assertions=helper_assertions,
             records=records,
         ),
         ensure_ascii=True,

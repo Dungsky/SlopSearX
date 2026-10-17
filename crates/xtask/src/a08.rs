@@ -7,7 +7,7 @@ use std::{
     fs,
     path::Path,
 };
-const COVERAGE_SHA: &str = "92d7bc5549dc6860fdb92da59ef880242ca630db639c5bd707f9f553e6bb436b";
+const COVERAGE_SHA: &str = "4bd65113eded80d605b3fede32f9cb5e97d12b47c4b1756314ed28757f653856";
 fn digest(bytes: &[u8]) -> String {
     Sha256::digest(bytes)
         .iter()
@@ -83,6 +83,144 @@ fn binding(value: &Value, available: &BTreeMap<(String, String), BTreeSet<String
             .is_some_and(|names| names.contains(test)),
         "A08 exact native package/target/test identity missing",
     )
+}
+const REGISTRATION_NODES: [&str; 5] = [
+    "tests/test_fred.py::TestFREDAdapterRegistration::test_adapter_registered",
+    "tests/test_new_engines.py::TestOpenFDAAdapter::test_adapter_registered",
+    "tests/test_new_engines.py::TestEdgarAdapter::test_adapter_registered",
+    "tests/test_new_engines.py::TestFredAdapter::test_adapter_registered",
+    "tests/test_new_engines.py::TestOyezAdapter::test_adapter_registered",
+];
+fn function_node(node: &str) -> &str {
+    node.split('[').next().unwrap_or("")
+}
+fn mapping_semantics(mappings: &[Value], regression: &Value) -> Result<()> {
+    let results = regression["results"]
+        .as_array()
+        .ok_or("A08 original parameter results missing")?;
+    let cases = regression["records"]
+        .as_array()
+        .ok_or("A08 source regression cases missing")?;
+    let mut registrations = BTreeSet::new();
+    for row in mappings {
+        let node = row["node"].as_str().ok_or("A08 mapping node missing")?;
+        let registration = REGISTRATION_NODES.contains(&node);
+        let registration_label = row["mapping_status"]
+            .as_str()
+            .unwrap_or("")
+            .starts_with("registration-only");
+        require(
+            !registration_label || registration,
+            "A08 registration-only mapping is not a real registration node",
+        )?;
+        require(
+            registration_label == registration,
+            "A08 real registration mapping disposition differs",
+        )?;
+        let parameters: Vec<_> = results
+            .iter()
+            .filter(|r| function_node(r["node"].as_str().unwrap_or("")) == node)
+            .map(|r| r["node"].clone())
+            .collect();
+        let source_cases: Vec<_> = cases
+            .iter()
+            .filter(|r| function_node(r["node"].as_str().unwrap_or("")) == node)
+            .map(|r| r["id"].clone())
+            .collect();
+        require(
+            !parameters.is_empty() && row["parameter_instances"] == json!(parameters),
+            "A08 exact original parameter mapping differs",
+        )?;
+        require(
+            row["source_case_ids"] == json!(source_cases),
+            "A08 regression source cases are missing or misbound",
+        )?;
+        if registration {
+            require(
+                registrations.insert(node)
+                    && source_cases.is_empty()
+                    && row["native_cases"] == json!(["factory", "scope"]),
+                "A08 registration-only binding differs",
+            )?;
+        } else {
+            require(
+                !source_cases.is_empty()
+                    && row["native_cases"]
+                        .as_array()
+                        .is_some_and(|rows| rows.iter().any(|v| v == "replay")),
+                "A08 behavioral regression must bind actual source adapter replay",
+            )?;
+        }
+    }
+    require(
+        registrations.len() == REGISTRATION_NODES.len(),
+        "A08 exact five genuine registration nodes missing",
+    )?;
+    let reject =
+        "tests/test_oyez_relevance.py::test_case_url_rejects_untrusted_or_incomplete_identity";
+    let empty =
+        "tests/test_oyez_relevance.py::test_case_url_does_not_infer_identity_without_provider_url";
+    let expected = [
+        (reject, "https://evil.example/cases/1954/1"),
+        (reject, "https://api.oyez.org/not-cases/1954/1"),
+        (reject, "https://api.oyez.org/cases/1954"),
+        (reject, "cases/1954/1"),
+        (empty, ""),
+    ];
+    let assertions = regression["helper_assertions"]
+        .as_array()
+        .ok_or("A08 actual helper assertions missing")?;
+    require(
+        assertions.len() == expected.len(),
+        "A08 exact five helper assertions missing",
+    )?;
+    for (assertion, (function, input)) in assertions.iter().zip(expected) {
+        let node = if function == empty {
+            function.to_owned()
+        } else {
+            format!("{function}[{input}]")
+        };
+        require(
+            *assertion == json!({"node":node,"value":input,"output":""}),
+            "A08 original helper input/parameter/result differs",
+        )?;
+        let case = cases
+            .iter()
+            .find(|r| r["id"] == format!("{node}#0"))
+            .ok_or("A08 helper whole-adapter case missing")?;
+        let body: Value = serde_json::from_str(
+            case["responses"][0]["wire_body"]
+                .as_str()
+                .ok_or("A08 helper provider body missing")?,
+        )
+        .map_err(|e| e.to_string())?;
+        require(
+            case["node"] == node
+                && case["engine"] == "oyez"
+                && case["helper_assertion"] == *assertion
+                && case["requests"]
+                    .as_array()
+                    .is_some_and(|rows| rows.len() == 1)
+                && case["output"] == json!({"status":"ok","error_message":null,"results":[]})
+                && body[0]["search_api_url"] == input
+                && body[0]["term"] == "1954"
+                && body[0]["field_docket_number"] == "1",
+            "A08 helper assertion is not bound to actual whole-adapter input/outcome",
+        )?;
+    }
+    Ok(())
+}
+pub fn report_scope(records: &[Value]) -> String {
+    let completed = records.iter().find_map(|row| {
+        Some((
+            row["A08"]["actual_adapter_replays"].as_u64()?,
+            row["A08"]["typed_loader_supersessions"].as_u64()?,
+        ))
+    });
+    match completed {
+        Some((adapters, loaders)) => format!("source-bound EDGAR/FRED/openFDA/Oyez factories;{adapters} adapter controls,{loaders} typed configuration supersessions,44 original functions/47 parameters,real loopback deadlines/drop and compact JSON; no provider,full portal,global RSS or deployment claim"),
+        None => "source-bound EDGAR/FRED/openFDA/Oyez factories; qualification incomplete; no completed case totals claimed; no provider,full portal,global RSS or deployment claim".into(),
+    }
 }
 pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
     let coverage_bytes =
@@ -191,7 +329,7 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
     ordered.extend(ids(&regression)?);
     let unique: BTreeSet<_> = ordered.iter().cloned().collect();
     require(
-        unique.len() == 382 && ordered.len() == 382,
+        unique.len() == 387 && ordered.len() == 387,
         "A08 missing/duplicate primary controls",
     )?;
     require(
@@ -228,6 +366,7 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
         mapped == functions,
         "A08 unmapped or invented original function",
     )?;
+    mapping_semantics(mappings, &regression)?;
     let differences = read(root, "docs/rust-rewrite/a08/differences.json")?;
     let mut difference_ids = BTreeSet::new();
     let mut superseded = 0;
@@ -314,6 +453,8 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
     execution(
         &rejection_output,
         &BTreeSet::from([
+            "a08::tests::behavioral_helper_cannot_be_misclassified_as_registration_only".into(),
+            "a08::tests::report_scope_uses_only_completed_case_totals".into(),
             "a08::tests::duplicate_missing_and_reordered_source_id_controls_reject".into(),
             "a08::tests::ignored_missing_and_wrong_exact_native_execution_reject".into(),
             "a08::tests::missing_duplicate_extra_reordered_or_wrong_kind_case_markers_reject"
@@ -348,12 +489,55 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
             }
         }
     }
-    records.push(json!({"A08":{"source_controls":344,"original_invocations":38,"actual_adapter_replays":completed_adapter,"typed_loader_supersessions":completed_loader,"original_functions":44,"original_parameter_instances":47,"whole_string_unicode_controls":11468,"network_timeout_controls":12,"python_executed_or_required":false,"boundaries":"caller-owned F08/admission; actual compact JSON only; T03/G01 full portal HTML and T02/T06 public transport remain separate; no global RSS or deployment claim"}}));
+    records.push(json!({"A08":{"source_controls":344,"original_invocations":38,"helper_derived_adapter_replays":5,"actual_adapter_replays":completed_adapter,"typed_loader_supersessions":completed_loader,"original_functions":44,"original_parameter_instances":47,"whole_string_unicode_controls":11468,"network_timeout_controls":12,"python_executed_or_required":false,"boundaries":"caller-owned F08/admission; actual compact JSON only; T03/G01 full portal HTML and T02/T06 public transport remain separate; no global RSS or deployment claim"}}));
     Ok(())
 }
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn behavioral_helper_cannot_be_misclassified_as_registration_only() {
+        let coverage: Value =
+            serde_json::from_str(include_str!("../../../docs/rust-rewrite/a08/coverage.json"))
+                .unwrap();
+        let regression: Value = serde_json::from_str(include_str!(
+            "../../../docs/rust-rewrite/a08/regressions.json"
+        ))
+        .unwrap();
+        let mappings = coverage["regression_mapping"].as_array().unwrap();
+        mapping_semantics(mappings, &regression).unwrap();
+        for helper in [
+            "tests/test_oyez_relevance.py::test_case_url_rejects_untrusted_or_incomplete_identity",
+            "tests/test_oyez_relevance.py::test_case_url_does_not_infer_identity_without_provider_url",
+        ] {
+            let mut wrong = mappings.clone();
+            let row = wrong.iter_mut().find(|r| r["node"] == helper).unwrap();
+            row["mapping_status"] = json!(
+                "registration-only source node mapped to actual native factories/catalog selection"
+            );
+            row["source_case_ids"] = json!([]);
+            row["native_cases"] = json!(["factory", "scope"]);
+            assert_eq!(
+                mapping_semantics(&wrong, &regression).unwrap_err(),
+                "A08 registration-only mapping is not a real registration node"
+            );
+        }
+        let mut wrong = mappings.clone();
+        wrong.iter_mut().find(|r| r["node"] == "tests/test_oyez_relevance.py::test_case_url_does_not_infer_identity_without_provider_url").unwrap()["source_case_ids"] = json!([]);
+        assert!(mapping_semantics(&wrong, &regression).is_err());
+        let mut missing = regression.clone();
+        missing["helper_assertions"].as_array_mut().unwrap().pop();
+        assert!(mapping_semantics(mappings, &missing).is_err());
+    }
+    #[test]
+    fn report_scope_uses_only_completed_case_totals() {
+        assert!(report_scope(&[]).contains("qualification incomplete"));
+        let scope = report_scope(&[
+            json!({"A08":{"actual_adapter_replays":385,"typed_loader_supersessions":2}}),
+        ]);
+        assert!(scope.contains("385 adapter controls,2 typed configuration supersessions"));
+        assert!(!scope.contains("285"));
+    }
     #[test]
     fn duplicate_missing_and_reordered_source_id_controls_reject() {
         let row = json!({"id":"one","responses":[],"requests":[],"output":{}});

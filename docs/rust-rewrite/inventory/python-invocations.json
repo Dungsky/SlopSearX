@@ -8671,7 +8671,7 @@
       "migration_owner": "A08",
       "retirement_owner": "G08",
       "disposition": "Actual completed invocation receipt docs/rust-rewrite/a08/oracle-runs.json; executable retires G08; preserve immutable captures.",
-      "source_sha256": "44fff2186b2ad7fb855c009615dc2cf3723e2829ad371c8a0703c3c4a895ec1f",
+      "source_sha256": "0a4467e3ed93d6fec08e00d36435d0328dd5e366c6e1044d47d2b6e321edbabe",
       "execution_receipt": "docs/rust-rewrite/a08/oracle-runs.json"
     },
     {
