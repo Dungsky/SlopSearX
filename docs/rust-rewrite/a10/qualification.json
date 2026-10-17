@@ -99,7 +99,7 @@
     },
     {
       "path": "crates/ssx-infra/src/adapters/vulnerability_ledger_tests.rs",
-      "sha256": "fb528f6ca570bd743c90fc37b4221072ea8cd2efc397825332d36516d1e4f9d0"
+      "sha256": "f609346f6f3d49d3732b48cd3b72cdc92b15fe1a4ddeba0e758c47af861eec8f"
     },
     {
       "path": "crates/ssx-infra/src/adapters/vulnerability_max.rs",
