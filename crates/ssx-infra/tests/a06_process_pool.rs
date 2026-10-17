@@ -10,6 +10,9 @@ use std::{
 };
 use tokio::time::Instant;
 static ID: AtomicU64 = AtomicU64::new(0);
+// Keep writable script-fixture setup separate from other tests' fork/exec.
+// Each test still exercises its own concurrent exchanges and shutdowns.
+static FIXTURE_EXECUTION: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 struct Helper {
     path: PathBuf,
     pid: PathBuf,
@@ -73,6 +76,7 @@ async fn slots(pool: &ProcessPool) {
 }
 #[tokio::test]
 async fn exact_frame_eof_and_nonzero_exit() {
+    let _fixture_execution = FIXTURE_EXECUTION.lock().await;
     for (body, expected) in [
         (
             "/bin/cat >/dev/null; printf '\\000\\000\\000\\000\\000\\000\\000\\002ok'",
@@ -113,6 +117,7 @@ async fn exact_frame_eof_and_nonzero_exit() {
 }
 #[tokio::test]
 async fn deadline_cancel_saturation_and_concurrent_shutdown_reap() {
+    let _fixture_execution = FIXTURE_EXECUTION.lock().await;
     let h = Helper::new("exec /bin/sleep 30");
     let p = h.pool();
     let p1 = p.clone();
@@ -186,6 +191,7 @@ async fn deadline_cancel_saturation_and_concurrent_shutdown_reap() {
 
 #[tokio::test]
 async fn impossible_allocation_is_typed_and_child_reaped() {
+    let _fixture_execution = FIXTURE_EXECUTION.lock().await;
     let h = Helper::new("/bin/cat >/dev/null; printf '\\377\\377\\377\\377\\377\\377\\377\\377'");
     let p = h.pool();
     assert_eq!(
@@ -205,6 +211,7 @@ async fn impossible_allocation_is_typed_and_child_reaped() {
 
 #[tokio::test]
 async fn delayed_supervisor_cannot_spawn_after_shutdown() {
+    let _fixture_execution = FIXTURE_EXECUTION.lock().await;
     use std::{
         future::{Future, poll_fn},
         task::Poll,
@@ -227,6 +234,7 @@ async fn delayed_supervisor_cannot_spawn_after_shutdown() {
 
 #[tokio::test]
 async fn duplex_backpressure_reads_output_before_input_is_consumed() {
+    let _fixture_execution = FIXTURE_EXECUTION.lock().await;
     let h = Helper::new(
         "printf '\\000\\000\\000\\000\\000\\004\\000\\000'; /bin/dd if=/dev/zero bs=65536 count=4 2>/dev/null; /bin/cat >/dev/null",
     );
