@@ -5,16 +5,16 @@
   "summary": {
     "active_python_invocation_rows": 63,
     "python_configuration_groups": 106,
-    "historical_py_txt_paths": 729,
-    "non_runtime_historical_py_txt_paths": 728,
+    "historical_py_txt_paths": 732,
+    "non_runtime_historical_py_txt_paths": 731,
     "active_dynamic_python_source_paths": 1,
     "documented_py_txt_command_references": 49,
     "shebang_py_txt_historical_paths": 8,
     "historical_py_txt_git_modes": {
-      "100644": 729
+      "100644": 732
     },
     "configured_precommit_hook_rows": 15,
-    "developer_oracle_invocation_rows": 56
+    "developer_oracle_invocation_rows": 60
   },
   "interpreter_invocations": [
     {
@@ -7493,6 +7493,36 @@
       "git_mode": "100644",
       "python_shebang": false,
       "documented_python_invocation_references": []
+    },
+    {
+      "path": "docs/rust-rewrite/a10/evidence/capture-boundaries-failed-622477.py.txt",
+      "classification": "historical evidence",
+      "git_mode": "100644",
+      "python_shebang": false,
+      "documented_python_invocation_references": [],
+      "migration_owner": "A10",
+      "retirement_owner": "G08",
+      "semantics": "Immutable observed source bytes only; no tracked Python consumer or native runtime/gate executes this historical text."
+    },
+    {
+      "path": "docs/rust-rewrite/a10/evidence/capture-boundaries-308-821193.py.txt",
+      "classification": "historical evidence",
+      "git_mode": "100644",
+      "python_shebang": false,
+      "documented_python_invocation_references": [],
+      "migration_owner": "A10",
+      "retirement_owner": "G08",
+      "semantics": "Immutable observed source bytes only; no tracked Python consumer or native runtime/gate executes this historical text."
+    },
+    {
+      "path": "docs/rust-rewrite/a10/evidence/capture-boundaries-30-76eeca.py.txt",
+      "classification": "historical evidence",
+      "git_mode": "100644",
+      "python_shebang": false,
+      "documented_python_invocation_references": [],
+      "migration_owner": "A10",
+      "retirement_owner": "G08",
+      "semantics": "Immutable observed source bytes only; no tracked Python consumer or native runtime/gate executes this historical text."
     }
   ],
   "documented_example_invocations": [
@@ -8822,6 +8852,78 @@
       "disposition": "Actual completed offline invocation. Retire executable producer at G08; retain JSON/provenance.",
       "source_sha256": "82e43ccfc759d769f9909a6267f06b675c8087d4e210765c46c18d177345c3ad",
       "execution_receipt": "docs/rust-rewrite/a09/oracle-runs.json"
+    },
+    {
+      "path": "docs/rust-rewrite/a10/oracle-inventory.json",
+      "example_path": "docs/rust-rewrite/a10/capture_regressions.py",
+      "evidence": "/private/tmp/slopsearx-rust-oracle-py314/bin/python /Volumes/tank01/magnus/git/slopsearx-a10/docs/rust-rewrite/a10/capture_regressions.py --allow-original-oracle --output /Volumes/tank01/magnus/git/slopsearx-a10/docs/rust-rewrite/a10/source-regressions-v1.json",
+      "classification": "temporary backend-coupled developer oracle; never mandatory native gate/runtime",
+      "migration_owner": "A10",
+      "retirement_owner": "G08",
+      "disposition": "Actual completed offline original-reference invocation; retire executable at G08, retain source/output evidence.",
+      "source_sha256": "0845f8b68a05999315f12d37e3b37b8059601f5bc8fb3b137840eaacf843ed92",
+      "executed_source_sha256": "0845f8b68a05999315f12d37e3b37b8059601f5bc8fb3b137840eaacf843ed92",
+      "current_producer_sha256": "0845f8b68a05999315f12d37e3b37b8059601f5bc8fb3b137840eaacf843ed92",
+      "observed_source_archive": "docs/rust-rewrite/a10/capture_regressions.py",
+      "execution_status": "completed-original-reference",
+      "execution_receipt": "docs/rust-rewrite/a10/evidence/original-regression-capture-v1/receipt.json",
+      "execution_receipt_sha256": "8680530ffcf4a49a98eeb6bd789e442739e97dfab1aa84e9d267fdd71f21f4f9",
+      "output": "docs/rust-rewrite/a10/source-regressions-v1.json",
+      "output_sha256": "d3a54d23dd3f22c22ef910e91c1f71f72b0b0284975c9cd0f7ece944b10ce1b3"
+    },
+    {
+      "path": "docs/rust-rewrite/a10/oracle-inventory.json",
+      "example_path": "docs/rust-rewrite/a10/capture_boundaries.py",
+      "evidence": "/private/tmp/slopsearx-rust-oracle-py314/bin/python /Volumes/tank01/magnus/git/slopsearx-a10/docs/rust-rewrite/a10/capture_boundaries.py --allow-original-oracle --output /Volumes/tank01/magnus/git/slopsearx-a10/docs/rust-rewrite/a10/source-boundaries-v1.json",
+      "classification": "temporary backend-coupled developer oracle; never mandatory native gate/runtime",
+      "migration_owner": "A10",
+      "retirement_owner": "G08",
+      "disposition": "Actual incomplete original-reference invocation; failed pre-try NVD TypeError and zero-byte output retained, not completed capture evidence.",
+      "source_sha256": "622477de5d1b90d93bb0d7cca683ccd9300c32c23f38a00ca033f1ff266ba838",
+      "executed_source_sha256": "622477de5d1b90d93bb0d7cca683ccd9300c32c23f38a00ca033f1ff266ba838",
+      "current_producer_sha256": "5b7c7ef8db04c273856573d1c197ca58bccc7fb4bd7e4b6120f61ddf1ad73240",
+      "observed_source_archive": "docs/rust-rewrite/a10/evidence/capture-boundaries-failed-622477.py.txt",
+      "execution_status": "incomplete-original-exception",
+      "execution_receipt": "docs/rust-rewrite/a10/evidence/original-boundary-capture-v1/receipt.json",
+      "execution_receipt_sha256": "a96edda6cb5c0abd5690766e5c92f1a08ab93af5dd1dbf50c3f96ed5f87cfec8",
+      "retained_failed_zero_output": "docs/rust-rewrite/a10/evidence/failed-boundaries-v1.empty",
+      "output_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "docs/rust-rewrite/a10/oracle-inventory.json",
+      "example_path": "docs/rust-rewrite/a10/capture_boundaries.py",
+      "evidence": "/private/tmp/slopsearx-rust-oracle-py314/bin/python /Volumes/tank01/magnus/git/slopsearx-a10/docs/rust-rewrite/a10/capture_boundaries.py --allow-original-oracle --output /Volumes/tank01/magnus/git/slopsearx-a10/docs/rust-rewrite/a10/source-boundaries-v2.json",
+      "classification": "temporary backend-coupled developer oracle; never mandatory native gate/runtime",
+      "migration_owner": "A10",
+      "retirement_owner": "G08",
+      "disposition": "Actual completed offline original-reference invocation; retire executable at G08, retain source/output evidence.",
+      "source_sha256": "82119317e6a9f7c20688e9cb7fdfdb5c0ad5ff4a8a94e94477c8aa9121cb6b88",
+      "executed_source_sha256": "82119317e6a9f7c20688e9cb7fdfdb5c0ad5ff4a8a94e94477c8aa9121cb6b88",
+      "current_producer_sha256": "5b7c7ef8db04c273856573d1c197ca58bccc7fb4bd7e4b6120f61ddf1ad73240",
+      "observed_source_archive": "docs/rust-rewrite/a10/evidence/capture-boundaries-308-821193.py.txt",
+      "execution_status": "completed-original-reference",
+      "execution_receipt": "docs/rust-rewrite/a10/evidence/original-boundary-capture-v2/receipt.json",
+      "execution_receipt_sha256": "1ca46152d868711ef01816bbbda837d3372f82040cbc9df2fd2186c8c55b1842",
+      "output": "docs/rust-rewrite/a10/source-boundaries-v2.json",
+      "output_sha256": "dad7065badf627e9feddf3e66d9ddb62e9b94a87cba3d7f0d356894a1dfe406d"
+    },
+    {
+      "path": "docs/rust-rewrite/a10/oracle-inventory.json",
+      "example_path": "docs/rust-rewrite/a10/capture_boundaries.py",
+      "evidence": "/private/tmp/slopsearx-rust-oracle-py314/bin/python /Volumes/tank01/magnus/git/slopsearx-a10/docs/rust-rewrite/a10/capture_boundaries.py --allow-original-oracle --inputs boundary-supplement-inputs-v1.json --output /Volumes/tank01/magnus/git/slopsearx-a10/docs/rust-rewrite/a10/source-supplement-v1.json",
+      "classification": "temporary backend-coupled developer oracle; never mandatory native gate/runtime",
+      "migration_owner": "A10",
+      "retirement_owner": "G08",
+      "disposition": "Actual completed offline original-reference invocation; retire executable at G08, retain source/output evidence.",
+      "source_sha256": "76eeca33481a704c54421c26cd1217097810c643433fe78e7a830246c099bcb1",
+      "executed_source_sha256": "76eeca33481a704c54421c26cd1217097810c643433fe78e7a830246c099bcb1",
+      "current_producer_sha256": "5b7c7ef8db04c273856573d1c197ca58bccc7fb4bd7e4b6120f61ddf1ad73240",
+      "observed_source_archive": "docs/rust-rewrite/a10/evidence/capture-boundaries-30-76eeca.py.txt",
+      "execution_status": "completed-original-reference",
+      "execution_receipt": "docs/rust-rewrite/a10/evidence/original-supplement-capture-v1/receipt.json",
+      "execution_receipt_sha256": "4893f00a2b381286e72726ce97e91dbaab6fd0397409903da4ce8e3214df0eb2",
+      "output": "docs/rust-rewrite/a10/source-supplement-v1.json",
+      "output_sha256": "9d75f2b5dc508a15c557027be8c70ec9fe8ec660d6ac613086e39561c9965353"
     }
   ],
   "external_temporary_oracle_sources": [

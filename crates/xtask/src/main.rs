@@ -7,6 +7,7 @@ mod a05;
 mod a07;
 mod a08;
 mod a09;
+mod a10;
 mod date_amendment;
 mod f05;
 mod f06;
@@ -458,6 +459,7 @@ fn execute(root: &Path, id: &str, records: &mut Vec<Value>) -> Result<()> {
         "A07" => a07::check(root, records),
         "A08" => a08::check(root, records),
         "A09" => a09::check(root, records),
+        "A10" => a10::check(root, records),
         "A03" => a03::check(root, records),
         "A02" => a02::check(root, records),
         "A05" => a05::check(root, records),
@@ -612,7 +614,9 @@ fn main() {
         }
     }
     let a08_scope = a08::report_scope(&records);
-    let scope = if id == "A09" {
+    let scope = if id == "A10" {
+        "source-bound five vulnerability adapters; full471 source observations/74 original test identities; exact reviewed differences and four correlated real-deadline IDs; private loopback/native helper; no production/W09/global RSS claim"
+    } else if id == "A09" {
         "source-bound catalog/media adapters; actual assertions plus guarded private loopback; qualification excludes incident calls and full portal/transport/global RSS"
     } else if id == "A05" {
         "offline source-bound DuckDuckGo/Google HTML adapter replay and loopback sessions; explicit host-only cookie correction; no live provider or deployment claims"

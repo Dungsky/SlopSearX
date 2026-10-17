@@ -428,7 +428,7 @@
     },
     {
       "path": "crates/ssx-infra/src/adapters/source_payload.rs",
-      "sha256": "19d7e3cb4a94c1e4f3445f7afa9d1b05ca56eaf02f55de38f6896acfd52493a0"
+      "sha256": "5bfdbd0eaac78c0b6a9b70b214fa59910ed749daf3c72ef88c00e8ec761b2596"
     },
     {
       "path": "crates/ssx-application/src/urls.rs",
@@ -440,7 +440,7 @@
     },
     {
       "path": "crates/ssx-infra/src/adapters/mod.rs",
-      "sha256": "5b5bbc7fcfa865ff959bdd6c9da1266ba303f783ceb9cd78f8550cda8bfdd752"
+      "sha256": "e9a5b50c7abc7f76039f714c120f31cf47ff0a091187b1c803a31e712dffd2a4"
     },
     {
       "path": "crates/ssx-application/src/lib.rs",
@@ -452,7 +452,7 @@
     },
     {
       "path": "crates/xtask/src/main.rs",
-      "sha256": "48da0376fd9cda2fae8ebfc387ae1ae449ae0debb7c3678821f2073c2566be43"
+      "sha256": "a760a705ea1172dae83fc406d99028cc9a06dec17e132e4364f280b705743c4d"
     }
   ],
   "ordered_case_ids": [

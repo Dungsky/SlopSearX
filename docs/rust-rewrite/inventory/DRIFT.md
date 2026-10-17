@@ -731,3 +731,5 @@ W06/A05 integration proposal preserves full-record parent multisets:462
 tracked Python source paths and52 actual developer-oracle rows, with63 active
 interpreter invocation rows unchanged. The pre-A05303-case qualification on
 4cc5858c remains historical evidence; integrated requalification is pending.
+
+A10 candidate adds native CVE/NVD/EPSS/ExploitDB/MITRE ATT&CK factory and storage-consumer proofs at the recorded0a source baseline. The five original adapter records retain every original field and add only a native-successor pointer; the Python runtime stays classified until W09/G08. Two optional guarded original-reference producers are recorded with actual executed hashes separately from current formatted bytes. Three completed captures (133/308/30 observations) and one failed original invocation remain distinct. Three immutable producer text archives are historical data, never native runtime or mandatory-gate inputs. Full A10/native F01/O06/exact-head CI qualification and the reviewed normal main union remain required.

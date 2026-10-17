@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "purpose": "Finite correlated completion variants for exactly four positive deadline identities; overrides historical strict-v1 exact dispatch count only for these identities",
+  "identities": [
+    "a10-boundary/exploitdb/timeout-0.25",
+    "a10-boundary/exploitdb/timeout-True",
+    "a10-boundary/mitreattack/timeout-True",
+    "a10-boundary/mitreattack/timeout-0.25"
+  ],
+  "branches": [
+    {
+      "outcome": "exact original full Success",
+      "dispatches": 1,
+      "unused_source_exchanges": 0,
+      "condition": "complete exact reviewed native request and native completion measured no later than the configured deadline floor created immediately before engine.search; floor <= actual owned operation deadline"
+    },
+    {
+      "outcome": "exact empty Timeout response",
+      "dispatches": 1,
+      "unused_source_exchanges": 0,
+      "condition": "complete exact reviewed native request"
+    },
+    {
+      "outcome": "exact empty Timeout response",
+      "dispatches": 0,
+      "unused_source_exchanges": 1,
+      "condition": "exact original source request remains unused; no dispatch observed"
+    }
+  ],
+  "strict_invariants": [
+    "All complete source/native values outside these four IDs remain exact",
+    "All fifteen nonpositive timeout cases still require zero dispatch",
+    "No arbitrary Error, partial result, changed request, additional dispatch or unmatched unused exchange",
+    "No artificial sleeps, slowdowns or clock changes used to force a corpus outcome"
+  ],
+  "retained_strict_failure": {
+    "receipt": "/private/tmp/a10-identity-bound-replay-v1/receipt.json",
+    "log_sha256": "1cdec891735d2c48435a0e4e6f6122c916a331ffc4d4740754c859301060fa0f",
+    "outer_exit_mismatch": "receipt aggregate101, final Clippy0 leaked as outer exit0; immutable runner preserved, future runners corrected"
+  },
+  "retained_fourth_identity_failure": {
+    "receipt": "/private/tmp/a10-tiny-deadline-qualification-v1/receipt.json",
+    "log_sha256": "ae88e8ff8b474cb71d678317d214d528699186a1014f7e8907c726b05f9209f9",
+    "difference": "Only new ExploitDB true/1ms output difference; all451 prior difference values exact; aggregate runner101"
+  }
+}

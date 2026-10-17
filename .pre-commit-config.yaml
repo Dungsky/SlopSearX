@@ -19,7 +19,7 @@ repos:
       - id: check-added-large-files
         args: [--maxkb=500]
         # Exact frozen W06 captures; JSON validation remains enabled.
-        exclude: ^docs/rust-rewrite/w06/(source\.json|evidence/source-before-(composite-id-correction|unique-snapshot-ids)\.json|evidence/review-public-source-outcomes\.json)$
+        exclude: ^docs/rust-rewrite/w06/(source\.json|evidence/source-before-(composite-id-correction|unique-snapshot-ids)\.json|evidence/review-public-source-outcomes\.json)$|^docs/rust-rewrite/a10/(source-boundaries-v2\.json|native-differences-v1\.json)$
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.15.17

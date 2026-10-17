@@ -3,7 +3,7 @@
   "baseline_sha": "20109f9083babd014971951e8c02565ae51c2326",
   "source": "Pinned F01 baseline inventory plus reviewed post-baseline additions recorded in DRIFT.md; source-set validation refreshed at acceptance.",
   "summary": {
-    "tracked_python_source_count": 466,
+    "tracked_python_source_count": 468,
     "extensionless_python_entrypoints": 1,
     "executable_config_python_invocation_lines": 63,
     "interpreter_configuration_lines": 106,
@@ -12,24 +12,24 @@
     "source_classifications": {
       "historical evidence": 4,
       "backend/runtime": 122,
-      "backend-coupled tooling/test": 339,
+      "backend-coupled tooling/test": 341,
       "client-only": 1
     },
     "documentation_file_modes": {
-      "100644": 729
+      "100644": 732
     },
     "source_path_set_validation": {
-      "method": "sorted exact-set comparison between git ls-files paths ending .py/.pyw/.pyi plus ssx and files[].path",
-      "tracked_expected_count": 466,
-      "manifest_count": 466,
+      "method": "prospective sorted exact-set comparison between git ls-files --cached --others --exclude-standard Python/ssx paths and files[].path; authorized staging/native F01 still required",
+      "tracked_expected_count": 468,
+      "manifest_count": 468,
       "exact_match": true,
       "extensionless_python_paths": [
         "ssx"
       ],
-      "validation_scope": "W06 normal union with accepted A09 main6c449764; complete parent source records preserved; final native qualification pending"
+      "validation_scope": "A10 candidate plus accepted0a main; all466 prior source records preserved; full native qualification/normal main union pending"
     },
-    "historical_evidence_py_txt_path_count": 729,
-    "non_runtime_historical_py_txt_path_count": 728,
+    "historical_evidence_py_txt_path_count": 732,
+    "non_runtime_historical_py_txt_path_count": 731,
     "active_dynamic_python_source_path_count": 1,
     "documented_py_txt_command_references": 49,
     "python_invocations_appendix": "python-invocations.json",
@@ -6509,6 +6509,34 @@
       "reason": "Temporary migration evidence only. Native runtime/mandatory gate never executes Python. Retire executable at G08, preserve JSON/provenance.",
       "introduced_after_baseline": "A09 from9fae1639a57b9e3497c04c3f5fe304651d077ad5",
       "sha256": "82e43ccfc759d769f9909a6267f06b675c8087d4e210765c46c18d177345c3ad"
+    },
+    {
+      "path": "docs/rust-rewrite/a10/capture_regressions.py",
+      "classification": "backend-coupled tooling/test",
+      "migration_owner": "A10",
+      "migration_owners": [
+        "A10",
+        "G08"
+      ],
+      "disposition": "temporary_developer_oracle_retire_before_backend_removal",
+      "evidence": "docs/rust-rewrite/a10/oracle-inventory.json and evidence/original-run-archive-v1.json bind actual observed producer bytes/outputs; current format identity is separate.",
+      "reason": "Optional guarded manual original MockTransport reference capture only. Real networking denied before backend imports; explicit admission RuntimeError works under python-O. Native runtime and mandatory cargo gate never invoke Python.",
+      "introduced_after_baseline": "A10 from0a0743904264b0054e14cb19cdd78af7d31eb60c",
+      "sha256": "0845f8b68a05999315f12d37e3b37b8059601f5bc8fb3b137840eaacf843ed92"
+    },
+    {
+      "path": "docs/rust-rewrite/a10/capture_boundaries.py",
+      "classification": "backend-coupled tooling/test",
+      "migration_owner": "A10",
+      "migration_owners": [
+        "A10",
+        "G08"
+      ],
+      "disposition": "temporary_developer_oracle_retire_before_backend_removal",
+      "evidence": "docs/rust-rewrite/a10/oracle-inventory.json and evidence/original-run-archive-v1.json bind actual observed producer bytes/outputs; current format identity is separate.",
+      "reason": "Optional guarded manual original MockTransport reference capture only. Real networking denied before backend imports; explicit admission RuntimeError works under python-O. Native runtime and mandatory cargo gate never invoke Python.",
+      "introduced_after_baseline": "A10 from0a0743904264b0054e14cb19cdd78af7d31eb60c",
+      "sha256": "5b7c7ef8db04c273856573d1c197ca58bccc7fb4bd7e4b6120f61ddf1ad73240"
     }
   ],
   "documentation_examples": [],
@@ -6517,5 +6545,10 @@
     "sha256": "1ebe1ca20e3d7a76aacfa6e5e1a907c7d07047af6a4b14e22d91a73847a3ad62",
     "producer_count": 53,
     "semantics": "Existing complete classification records retain their original observed source SHA. This amendment supplies current AST-equivalent tooling identities without relabeling historical capture or generation producer hashes."
+  },
+  "a10_current_producer_identity_amendment": {
+    "path": "docs/rust-rewrite/a10/evidence/producer-format-and-failed-output-archive-v1.json",
+    "sha256": "e69fcdd064b9034089a496fd8571aea0f50959ac57ba62257e98690d7bb83a30",
+    "semantics": "Current source classification hashes do not relabel executed producers0845/6224/8211/76ee. Historical invocation rows retain actual observed source_sha256; format-only76ee→5b7c has identical semantic AST."
   }
 }

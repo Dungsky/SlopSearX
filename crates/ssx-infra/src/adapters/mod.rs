@@ -547,6 +547,10 @@ pub(crate) enum RowLimit {
     Number(f64),
     Unlimited,
     Invalid(u8),
+    /// A10 slices selected rows before filtering and retains exact signed integers.
+    Slice(i64),
+    SliceAll,
+    InvalidSlice,
 }
 impl RowLimit {
     fn from_value(value: &ssx_json::Value) -> Self {
@@ -570,6 +574,9 @@ impl RowLimit {
             Self::Invalid(2) => Err("'>=' not supported between instances of 'int' and 'list'"),
             Self::Invalid(3) => Err("'>=' not supported between instances of 'int' and 'dict'"),
             Self::Invalid(_) => Err("invalid HTML row-limit tag"),
+            Self::Slice(_) | Self::SliceAll | Self::InvalidSlice => {
+                Err("A10 slice on A05 row layout")
+            }
         }
     }
 }
@@ -589,6 +596,9 @@ pub(crate) fn html_extract_rows(
     use crate::html::row_wire::Layout;
     match layout {
         Layout::Google => google::extract_tree(doc, limit, budget),
+        other if other.is_a10() => Err(crate::html::OperationFailure::Invariant(
+            "A10 layout requires typed child rows",
+        )),
         other => duckduckgo::extract_tree(
             doc,
             "",
@@ -862,3 +872,17 @@ pub fn register_catalog_media(
 }
 
 mod tmdb_case;
+
+// A10 named vulnerability and exploit-knowledge adapters; metadata stays F06-owned.
+pub mod cve;
+pub mod epss;
+pub mod exploitdb;
+pub mod mitreattack;
+pub mod nvd;
+mod vulnerability;
+pub use vulnerability::{
+    VulnerabilitySettings, register_vulnerability, register_vulnerability_with_parser,
+};
+
+pub(crate) mod vulnerability_html;
+pub(crate) mod vulnerability_wire;
