@@ -122,3 +122,5 @@ pub mod rerank;
 pub mod research_runner;
 
 pub mod saved_runner;
+
+pub mod saved_events;

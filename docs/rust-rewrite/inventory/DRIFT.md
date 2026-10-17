@@ -705,3 +705,7 @@ remain unchanged. The descriptive A08 regression-producer evidence SHA now
 matches its already-enforced current hash. CI snapshot and evidence paths
 retain both W04 and A08 gates. Main integration does not adopt pending A05/A06
 shared seams; their future union remains a separate reviewed operation.
+
+## W05 original pure event oracle
+
+The optional W05 manual capture producer is explicitly inventoried as backend-coupled tooling/test with W05/G08 ownership. It guards opt-in, pinned interpreter, immutable output and all network connections before backend imports. Actual success and the earlier failed socket-class guard attempt are retained in w05/oracle-runs.json. Native runtime and mandatory gates never invoke Python; G08 retires the executable while retaining frozen source observations. Existing parent records and historical producer identities remain intact.
