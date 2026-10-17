@@ -69,3 +69,10 @@ fail before adding a definition, and repeated close is idempotent. An actual
 expiry-capacity scheduler fixture waits for rejected expiry observations before
 asserting zero due-engine calls, frees only the private test stream, and proves
 the same runner publishes the expiry/report pair and joins explicit shutdown.
+
+Maximum-batch coverage also executes 100 retained events at exactly 65,536
+stored bytes each, including worst quote/backslash and control-heavy strings.
+Every delivered event is compared through a RawValue envelope and per-event
+lossless parser; no whole large payload is admitted to the default 4 MiB parser.
+The original complete-batch parser panic and explicit owned-fixture termination
+remain historical failure evidence.

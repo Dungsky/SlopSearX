@@ -50,6 +50,9 @@
     "legacy-unambiguous-read-no-ack",
     "malformed-native-ack-explicit-replay-fails",
     "malformed-unambiguous-legacy-fails",
+    "maximum-batch-100-exact-64k-control-heavy",
+    "maximum-batch-100-exact-64k-plain",
+    "maximum-batch-100-exact-64k-quote-backslash",
     "old-ms-max-sequence-valid-rollover",
     "opaque-event-id",
     "operational-precedence",
@@ -108,7 +111,8 @@
     ],
     "ssx-mcp": [
       "actual_native_transport_create_wait_repeat_ack_restart_resume_and_grant",
-      "actual_registry_close_fences_admitted_create_and_rejects_late_mutation"
+      "actual_registry_close_fences_admitted_create_and_rejects_late_mutation",
+      "actual_maximum_batches_preserve_100_exact_64k_events_and_escaping"
     ]
   },
   "limitations": "O01 exporter/rendering not qualified; injected trusted-principal MCP fixture does not qualify full production W09/T05 authentication; v2 acknowledgement recovery requires G04 mixed-writer drain."

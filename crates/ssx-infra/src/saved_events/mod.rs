@@ -235,7 +235,7 @@ impl EventService {
         value["consumer_id"] = json!(consumer);
         value["returned"] = json!(events.len());
         value["redacted"] = json!(redacted_count);
-        value["events"] = json!(events);
+        value["events"] = Value::Array(events);
         value["delivery"] = json!("at_least_once");
         Ok((value, outcome, oldest))
     }

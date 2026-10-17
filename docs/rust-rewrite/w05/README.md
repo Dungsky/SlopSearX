@@ -102,3 +102,19 @@ rounds adjacent integers above u64 in structuredContent while text stays exact.
 The reserved number-tag object remains literal in this fixture. This is an open
 correctness defect, not an accepted contract difference or final parity evidence.
 Shared trusted native-handler wire restoration is being coordinated with T06.
+
+## Maximum retained event batches
+
+A read may return 100 events of up to 64 KiB each. The service constructs the
+typed event array directly; reparsing this complete batch through the default
+4 MiB JSON parser panicked. The original panic, pending HTTP request, explicit
+owned-process cleanup and exact test-source restoration are preserved in
+[evidence](evidence/max-batch-initial-panic-v1.json).
+
+The permanent actual-HTTP regression reads all 100 exact-size events for plain,
+quote/backslash and control-heavy unknown fields. It compares every event and
+its original string through RawValue envelopes and per-event ssx_json parsing.
+Measured response sizes are 13,115,220, 19,656,020 and 16,385,620 bytes; the
+default whole-value parser remains bounded at 4 MiB. The focused helper passes
+these cases. The proposed shared transport still needs a scoped trusted output
+budget that preserves this complete batch without changing global input bounds.
