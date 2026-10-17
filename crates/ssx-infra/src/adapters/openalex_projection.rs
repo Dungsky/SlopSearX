@@ -13,43 +13,6 @@ pub enum Error {
     Defect,
 }
 
-#[cfg(test)]
-mod original_abstract_helper_tests {
-    use super::*;
-    #[tokio::test]
-    async fn actual_abstract_helper_preserves_original_empty_simple_and_multiple_positions() {
-        // Exact inputs/assertions from TestOpenAlexAdapter's three helper tests.
-        for (input, expected) in [
-            ("null", ""),
-            ("{}", ""),
-            (r#"{"hello":[0],"world":[1]}"#, "hello world"),
-            (r#"{"the":[0,3],"cat":[1],"sat":[2]}"#, "the cat sat the"),
-        ] {
-            let budget = Budget::new(1024 * 1024).unwrap();
-            let deadline = Instant::now() + std::time::Duration::from_secs(5);
-            let source = super::super::source_json::from_slice_budgeted(
-                input.as_bytes(),
-                Some(deadline),
-                &budget,
-            )
-            .await
-            .unwrap();
-            let text = abstract_text(Some(source.value()), &budget, deadline)
-                .await
-                .unwrap();
-            assert_eq!(
-                text.as_slice()
-                    .iter()
-                    .map(|p| char::from_u32(*p).unwrap())
-                    .collect::<String>(),
-                expected
-            );
-            drop(text);
-            drop(source);
-            assert_eq!(budget.snapshot().unwrap().used, 0);
-        }
-    }
-}
 impl From<ssx_owned_budget::Error> for Error {
     fn from(_: ssx_owned_budget::Error) -> Self {
         Self::Resource
@@ -630,6 +593,44 @@ impl std::fmt::Debug for Error {
             Self::Resource => f.write_str("Resource"),
             Self::Deadline => f.write_str("Deadline"),
             Self::Defect => f.write_str("Defect"),
+        }
+    }
+}
+
+#[cfg(test)]
+mod original_abstract_helper_tests {
+    use super::*;
+    #[tokio::test]
+    async fn actual_abstract_helper_preserves_original_empty_simple_and_multiple_positions() {
+        // Exact inputs/assertions from TestOpenAlexAdapter's three helper tests.
+        for (input, expected) in [
+            ("null", ""),
+            ("{}", ""),
+            (r#"{"hello":[0],"world":[1]}"#, "hello world"),
+            (r#"{"the":[0,3],"cat":[1],"sat":[2]}"#, "the cat sat the"),
+        ] {
+            let budget = Budget::new(1024 * 1024).unwrap();
+            let deadline = Instant::now() + std::time::Duration::from_secs(5);
+            let source = super::super::source_json::from_slice_budgeted(
+                input.as_bytes(),
+                Some(deadline),
+                &budget,
+            )
+            .await
+            .unwrap();
+            let text = abstract_text(Some(source.value()), &budget, deadline)
+                .await
+                .unwrap();
+            assert_eq!(
+                text.as_slice()
+                    .iter()
+                    .map(|p| char::from_u32(*p).unwrap())
+                    .collect::<String>(),
+                expected
+            );
+            drop(text);
+            drop(source);
+            assert_eq!(budget.snapshot().unwrap().used, 0);
         }
     }
 }

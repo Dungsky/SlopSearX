@@ -6,6 +6,7 @@ mod a04;
 mod a06;
 mod a06_resource;
 mod a07;
+mod a08;
 mod date_amendment;
 mod f05;
 mod f06;
@@ -455,6 +456,7 @@ fn execute(root: &Path, id: &str, records: &mut Vec<Value>) -> Result<()> {
         "A04" => a04::check(root, records),
         "A06" => a06::check(root, records),
         "A07" => a07::check(root, records),
+        "A08" => a08::check(root, records),
         "A03" => a03::check(root, records),
         "A02" => a02::check(root, records),
         "O03" => o03::check(root, records),
@@ -611,7 +613,10 @@ fn main() {
             }
         }
     }
-    let scope = if id == "A07" {
+    let a08_scope = a08::report_scope(&records);
+    let scope = if id == "A08" {
+        a08_scope.as_str()
+    } else if id == "A07" {
         "source-bound biomedical factories/config/scope,172 offline controls and charged runtime/context/compact regressions; no provider calls, global G02 or full HTML/MCP transport claim"
     } else if id == "A03" {
         "source-mapped GitHub, Hugging Face, Stack Exchange and Hacker News adapters through caller-owned F08/F10; offline loopback/private Valkey only, no provider or deployment claim"

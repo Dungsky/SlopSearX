@@ -596,6 +596,26 @@ A07 biomedical candidate adds12 exact-hash temporary offline source producers,39
 
 The DCO A07 checkpoint is normally merged with accepted main1bad48b (F15/W11/W02). All complete parent and A07 inventory records are retained:399 tracked Python source paths and40 temporary developer-oracle invocation rows. Existing source observations and source Git pins remain immutable. Historical native/CI baseline blobs are checked separately from current native implementations. Final integrated gates and exact-head CI remain required.
 
+
+## A08 actual source migration evidence
+
+A08 starts from fresh accepted-main `2f78b9d02cfe62c9829fcfb38b85cd632a889de0`.
+Four exact-hash temporary source producers have actual completed offline or
+private-loopback invocation receipts in `a08/oracle-runs.json`. The candidate
+union is403 tracked Python source paths and44 developer-oracle invocation rows.
+Every existing parent record and historical capture is preserved. Native A08
+runtime and mandatory gate read immutable JSON only and never execute Python.
+G08 retires all four executable producers; source captures/provenance remain.
+Initial exploratory/partial attempts are not these accepted capture receipts.
+
+A08 regression-mapping correction against candidate `9e1b4453` retains the
+original 47 passing parameter instances / 44 functions and 38 original adapter
+invocations, and adds five whole-adapter replays of the exact observed Oyez
+URL-helper assertion inputs. The existing inventoried producer captures those
+inputs and performs all five offline adapter calls; its updated exact hash and
+executed receipt remain bound here and in F01. No producer count or retirement
+owner changes. Genuine registration-only disposition is restricted to the five
+explicit original registration nodes.
 ## W04 saved-runner source oracle inventory correction
 
 W04 adds the temporary offline synthetic `docs/rust-rewrite/w04/capture_source.py` producer. Its existing local oracle inventory did not update the global F01 source set; this correction adds its exact source binding, backend-coupled tooling/test classification, W04/G08 ownership and reproduction guidance. The guidance is not an execution receipt. Existing source/invocation records remain unchanged: the additive union is388 Python source paths,265 backend-coupled tooling/test paths and29 developer-oracle invocation rows. Native runtime and mandatory gates never execute the exporter; the W04 gate hash-reads it as a temporary source artifact. G08 retires executable Python before backend removal and retains immutable JSON observations/provenance.
@@ -607,3 +627,18 @@ Normal integration of accepted A07 main `2f78b9d02cfe62c9829fcfb38b85cd632a889de
 ## A06 normal accepted-main source union
 
 The preserved A06 checkpoint9fc815c8 is normally integrated with accepted main9b7d888d. Complete source records and actual invocation rows from both parents remain unchanged:466 classified source paths,49 developer-oracle invocation rows and64 active interpreter invocation rows. The54 manual developer-tool guidance entries remain a separate appendix and are not execution evidence. Only the three current inventory-document F01 bindings are refreshed to merged bytes; historical source pins and observations remain immutable. G08 executable retirement, final merged-source qualification and parent review remain required.
+
+## A08 union with accepted W04/main
+
+The normal merge preserves the accepted A08 history through `f3ef8910` and
+main/W04 `9b7d888d`. Both complete source inventories and developer-oracle
+records are retained: 404 tracked Python sources and 45 developer-oracle
+invocation rows. Existing source observations, captures and producer hashes
+remain unchanged. The descriptive A08 regression-producer evidence SHA now
+matches its already-enforced current hash. CI snapshot and evidence paths
+retain both W04 and A08 gates. Main integration does not adopt pending A05/A06
+shared seams; their future union remains a separate reviewed operation.
+
+## A06 integration with accepted A08
+
+Preserve both complete parent histories and all source/invocation records:470 source dispositions,53 actual developer-oracle rows and54 separate manual guidance entries. Active interpreter rows remain64 here; the previously reviewed A06 native-driver retirement is a separate guarded update. Only the three conflicted current inventory-document F01 hashes are repinned; historical pins remain immutable. Global/platform and issue984 crosssurface closure remain open.

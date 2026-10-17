@@ -722,7 +722,7 @@ async fn actual_pubchem_cid_reference_parts_yield_and_release_before_second_disp
             Poll::Pending => {
                 let reached = phase.load(Ordering::SeqCst) == Phase::CidParts as usize + 1;
                 let used = budget.snapshot().unwrap().used;
-                if reached && used >= baseline.load(Ordering::SeqCst) + 1 {
+                if reached && used > baseline.load(Ordering::SeqCst) {
                     Poll::Ready(())
                 } else {
                     cx.waker().wake_by_ref();

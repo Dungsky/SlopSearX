@@ -490,11 +490,11 @@ pub mod semantic_runtime;
 
 pub mod openalex_projection;
 
-pub mod openalex_runtime;
-pub mod scholarly_runtime;
 #[cfg(test)]
 #[path = "../../tests/support/a06_case.rs"]
 pub(crate) mod a06_case;
+pub mod openalex_runtime;
+pub mod scholarly_runtime;
 // A07 native biomedical implementations; selection remains resolved policy.
 pub mod clinicaltrials;
 pub mod europepmc;
@@ -588,5 +588,86 @@ pub fn register_biomedical(
     attach!(pubmed, PubMedAdapter);
     attach!(pubchem, PubChemAdapter);
     attach!(uniprot, UniProtAdapter);
+    Ok(())
+}
+
+// A08 regulatory, financial and legal sources; independent factory attachment.
+pub mod edgar;
+mod fda_case;
+pub mod fred;
+pub mod openfda;
+pub mod oyez;
+mod regulatory;
+/// Resolved A08 settings. The composition root snapshots credentials; adapters
+/// never reread process environment or change shared selection policy.
+#[derive(Clone, Debug)]
+pub struct RegulatorySettings {
+    pub edgar: edgar::EdgarConfig,
+    pub fred: fred::FredConfig,
+    pub openfda: openfda::OpenFdaConfig,
+    pub oyez: oyez::OyezConfig,
+}
+impl RegulatorySettings {
+    pub fn from_resolved(config: &ssx_config::Config) -> Self {
+        fn resolve(
+            config: &ssx_config::Config,
+            name: &str,
+            endpoint: &str,
+        ) -> clinicaltrials::BiomedicalConfig {
+            let mut settings = config
+                .engines
+                .get(name)
+                .map(clinicaltrials::BiomedicalConfig::from_resolved)
+                .unwrap_or_else(|| clinicaltrials::BiomedicalConfig::defaults(endpoint));
+            if settings.base_url.chars().all(ssx_json::python_whitespace) {
+                settings.base_url = endpoint.into();
+            }
+            settings
+        }
+        Self {
+            edgar: resolve(config, "edgar", edgar::ENDPOINT),
+            fred: fred::FredConfig {
+                settings: resolve(config, "fred", fred::ENDPOINT),
+                api_key: config
+                    .engines
+                    .get("fred")
+                    .map(|c| c.api_key.clone())
+                    .unwrap_or_default(),
+            },
+            openfda: resolve(config, "openfda", openfda::ENDPOINT),
+            oyez: oyez::OyezConfig {
+                settings: resolve(config, "oyez", ""),
+                search_url: None,
+            },
+        }
+    }
+}
+pub fn register_regulatory(
+    registry: &mut Registry,
+    http: Arc<AdapterHttp>,
+    admission: Arc<dyn SearchAdmission>,
+    config: RegulatorySettings,
+) -> Result<(), RegistryError> {
+    macro_rules! attach {
+        ($module:ident, $adapter:ident) => {{
+            let http = http.clone();
+            let admission = admission.clone();
+            let settings = config.$module;
+            registry.register(
+                stringify!($module),
+                Arc::new(move || {
+                    Box::new($module::$adapter::new(
+                        http.clone(),
+                        admission.clone(),
+                        settings.clone(),
+                    )) as Box<dyn ssx_registry::Engine>
+                }) as EngineFactory,
+            )?;
+        }};
+    }
+    attach!(edgar, EdgarAdapter);
+    attach!(fred, FredAdapter);
+    attach!(openfda, OpenFdaAdapter);
+    attach!(oyez, OyezAdapter);
     Ok(())
 }

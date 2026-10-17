@@ -59,8 +59,20 @@
       "sha256": "f181aa119a1b1b50d2b435c381515ccc4e51e90aceb7f03064261b429bb9b7e6"
     },
     {
+      "path": "crates/ssx-infra/src/adapters/edgar.rs",
+      "sha256": "b5646b3433ff302293162fbf31f8f0ffa58570697d7f5f35e182df4efe597eb5"
+    },
+    {
       "path": "crates/ssx-infra/src/adapters/europepmc.rs",
       "sha256": "6f505270663e166eae1f25e6c082727a6690e68b936c6fe1d66bc2a16a2fc29f"
+    },
+    {
+      "path": "crates/ssx-infra/src/adapters/fda_case.rs",
+      "sha256": "fe39a2f4477eefea650734732d3d117bc1b2d8f4e378df965d20ef8999d41d78"
+    },
+    {
+      "path": "crates/ssx-infra/src/adapters/fred.rs",
+      "sha256": "da5a57c90628f074315237b2199076abdb4b74f5cceafabb68e6b3bed8ad6f02"
     },
     {
       "path": "crates/ssx-infra/src/adapters/github.rs",
@@ -92,7 +104,7 @@
     },
     {
       "path": "crates/ssx-infra/src/adapters/mod.rs",
-      "sha256": "690e03278c5887f9bf0d5ea3d0a18c448be6c1cf434cb8cf6be46b47bc5e6bf0"
+      "sha256": "25ec828a88e43b9f4e4404e19c7546e4cb710b0ac26bd403c71e6f6c5a6eae12"
     },
     {
       "path": "crates/ssx-infra/src/adapters/npm.rs",
@@ -100,11 +112,19 @@
     },
     {
       "path": "crates/ssx-infra/src/adapters/openalex_projection.rs",
-      "sha256": "81d5e4e26c4fafbc956907d1d0f4aaebd97788872ce84d3a340d2ad7fcd39119"
+      "sha256": "be8cba71566c946799d3318b7dd3bb6e388a6a52658c73780eeea644168e0c80"
     },
     {
       "path": "crates/ssx-infra/src/adapters/openalex_runtime.rs",
       "sha256": "9bdea8f71b6af4c3c40a495edb9c89d847f1402ed5164102130ffeabc54f4b9a"
+    },
+    {
+      "path": "crates/ssx-infra/src/adapters/openfda.rs",
+      "sha256": "abc16e543b44b164daa51b6ae94087465b1e878d9674505ce2d056e7512352a4"
+    },
+    {
+      "path": "crates/ssx-infra/src/adapters/oyez.rs",
+      "sha256": "fcfbb9b0a4e01f15c697482c1313b31be5fd4c6ba7f42107e09ac596c55c0914"
     },
     {
       "path": "crates/ssx-infra/src/adapters/pubchem.rs",
@@ -121,6 +141,10 @@
     {
       "path": "crates/ssx-infra/src/adapters/reddit.rs",
       "sha256": "400d5e6638f9821ff81fcbc29b7843b96ed9d9e9b89c36126e242a5f18d004a3"
+    },
+    {
+      "path": "crates/ssx-infra/src/adapters/regulatory.rs",
+      "sha256": "cb1d28b4449888a1fe536dd7a722c2149a3cdbf98f46a9fc8903d420af5ddbce"
     },
     {
       "path": "crates/ssx-infra/src/adapters/rubygems.rs",
@@ -200,7 +224,7 @@
     },
     {
       "path": "crates/ssx-infra/src/adapters/source_payload.rs",
-      "sha256": "1b6c262445a86e6804961df131647cc3c9d566f4dd81badc1c0e0d175d57af6e"
+      "sha256": "d81b8b85cb494f5c12ecd5c4310483c028db5ef727e48a3136454ef2cef1f783"
     },
     {
       "path": "crates/ssx-infra/src/adapters/source_repr.rs",
@@ -217,6 +241,14 @@
     {
       "path": "crates/ssx-infra/src/adapters/wikipedia.rs",
       "sha256": "c0dcbcf98bfad239717cf9ce3e26f92600b5de5b867c090ef19f204e6ce2158d"
+    },
+    {
+      "path": "crates/ssx-infra/src/http.rs",
+      "sha256": "6f6a9e6755474f3287682674f6b84dd699ddede5756bdc55daf83ff9cfee9221"
+    },
+    {
+      "path": "crates/ssx-infra/src/jev.rs",
+      "sha256": "9e70b7436f5e9fcb3e68f4e1fcec2958454632249ef7e9225a52a285ebd6d5c2"
     },
     {
       "path": "crates/ssx-infra/tests/a06_admission.rs",
@@ -260,7 +292,7 @@
     },
     {
       "path": "crates/ssx-infra/tests/a06_resolved_config.rs",
-      "sha256": "e7089b23f2133c9e96f1cc8dda9df19ef1d841c94ce7506a13d4321fc327348b"
+      "sha256": "dc998eb6dfbd3ce5d93db0b1bad6a331e4cc4e442952faab2363b3ad6ed9ad7e"
     },
     {
       "path": "crates/ssx-infra/tests/a06_semantic_bounded.rs",
@@ -279,16 +311,32 @@
       "sha256": "90992db66e89bbe8ee1952a71d3327c13b734ee8c6091ebe932bbfe044c228d9"
     },
     {
+      "path": "crates/ssx-infra/tests/a08_factories.rs",
+      "sha256": "d3d389ab768bdfcaf7acbec2cea1f8abb0e5a8ad4166d0c6be3a2c2b49662e75"
+    },
+    {
+      "path": "crates/ssx-infra/tests/http.rs",
+      "sha256": "df7664be092158f461decd98300907698ad67d240c4c4fe39eba8d00e4b126c1"
+    },
+    {
       "path": "crates/ssx-infra/tests/support/a06_case.rs",
       "sha256": "705db92b30a0aa4621d4c07cb7d0a5ed81101e98bd1d4b59d74365a0526fe36a"
     },
     {
       "path": "crates/ssx-infra/tests/support/a07_resources.rs",
-      "sha256": "2c2928b94ecba2429a23c7fbe947f98fb3774b5a36ad2bfed60deaf2fe18f98d"
+      "sha256": "38174d6e08b54d21e1227a6ebdbf9092c4e1f0e65af14b8c9c97eeebd05b60fb"
     },
     {
       "path": "crates/xtask/src/a06_resource.rs",
       "sha256": "3c26bdfb7a47db42945159129de701ea78b4f78ac1c2bcac2cea1a73358e545a"
+    },
+    {
+      "path": "docs/rust-rewrite/a06/HTTP_INITIALIZATION.md",
+      "sha256": "f0a9e1b96505b01d665a2ca344f7022264e94ab1ced7de071857a5230112423a"
+    },
+    {
+      "path": "docs/rust-rewrite/a06/NATIVE_QUALIFICATION.md",
+      "sha256": "9f30a1688c73d1d274f1a3e0deea6186cc678286e7554bb75f3e0e528702f9d0"
     },
     {
       "path": "docs/rust-rewrite/a06/arxiv-runtime-selected-ids.json",
@@ -305,6 +353,10 @@
     {
       "path": "docs/rust-rewrite/a06/openalex-runtime-selected-ids.json",
       "sha256": "ead9f31fa031a8b0fca3a251058062a106c489f78515ed1664f421f3e415fe7c"
+    },
+    {
+      "path": "docs/rust-rewrite/a06/oracle-runs.json",
+      "sha256": "06398310d6ab80f6f61ef513cde5f8ff5bab56336cfd9a07dbc7ab47479b2786"
     },
     {
       "path": "docs/rust-rewrite/a06/semantic-runtime-selected-ids.json",
@@ -702,6 +754,7 @@
         "adapters::clinicaltrials::resource_tests::tiny_quota_is_terminal_error_and_never_partial_success",
         "adapters::community::tests::fractional_timeout_and_zero_results_remain_representable",
         "adapters::dockerhub::tests::default_route_scope_and_percent_encoding_match_source",
+        "adapters::fda_case::tests::complete_source_whole_string_variants",
         "adapters::hostname_lower::tests::charged_copy_repeated_pending_then_drop_or_real_deadline",
         "adapters::hostname_lower::tests::complete_pinned_mapping_and_context_controls",
         "adapters::hostname_lower::tests::refused_output_and_expired_deadline_release",
@@ -765,6 +818,7 @@
         "adapters::source_payload::batch::tests::cancelled_push_drops_partial_storage_before_batch_charge",
         "adapters::source_payload::batch::tests::non_success_handoff_has_no_partial_rows_and_charges_error_copy",
         "adapters::source_payload::batch::tests::wrong_ledger_refusal_and_fixed_capacity_preserve_storage_ownership",
+        "adapters::source_payload::generic_envelope_tests::generic_science_wrapper_keeps_bytes_charges_and_declared_envelopes",
         "adapters::source_payload::scalar_borrow_tests::both_empty_author_paths_yield_after_array_charge_and_observe_deadline",
         "adapters::source_payload::scalar_borrow_tests::scalar_copy_cancellation_releases_observed_live_reservation",
         "adapters::source_payload::scalar_borrow_tests::scalar_fields_match_source_text_without_intermediate_source_copies",
@@ -819,7 +873,18 @@
         "search::tests::cooperative_completion_collection_preserves_real_health_origin",
         "search::tests::zero_remaining_budget_never_polls_engine",
         "tests::injected_sinks_observe_real_readiness",
-        "tests::unavailable_is_not_missing_or_ready"
+        "tests::unavailable_is_not_missing_or_ready",
+        "http::client_initialization_tests::aborted_unpublished_constructor_guardian_joins_blocked_builder_without_external_owner",
+        "http::client_initialization_tests::builder_error_releases_both_leases_and_reserved_slot_without_idle_client",
+        "http::client_initialization_tests::deadline_keeps_builder_permits_and_slot_until_actual_completion_without_dispatch",
+        "http::client_initialization_tests::injected_and_ephemeral_profiles_never_start_preparation_workers",
+        "http::client_initialization_tests::owner_close_cancels_waiter_but_retains_build_ownership_until_drain",
+        "http::client_initialization_tests::prepared_default_client_is_moved_once_and_reuses_existing_retention_and_expiry",
+        "http::client_initialization_tests::unread_publication_cancelled_before_final_poll_is_rejected_and_drained",
+        "http::client_initialization_tests::unread_publication_expired_before_final_poll_is_rejected_and_drained",
+        "http::client_initialization_tests::unread_successful_publication_still_requires_ack_and_drains_on_receiver_drop",
+        "http::client_initialization_tests::waiter_abort_does_not_release_blocking_builder_ownership_or_retain_late_client",
+        "jev::ready_constructor_tests::actual_production_ready_router_constructor_prepares_without_dispatch"
       ]
     },
     {
@@ -21388,7 +21453,31 @@
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
+      "path": "crates/ssx-infra/src/adapters/edgar.rs",
+      "completed_case_events": 0,
+      "completed_consumers": [
+
+      ],
+      "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
+    },
+    {
       "path": "crates/ssx-infra/src/adapters/europepmc.rs",
+      "completed_case_events": 0,
+      "completed_consumers": [
+
+      ],
+      "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
+    },
+    {
+      "path": "crates/ssx-infra/src/adapters/fda_case.rs",
+      "completed_case_events": 0,
+      "completed_consumers": [
+
+      ],
+      "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
+    },
+    {
+      "path": "crates/ssx-infra/src/adapters/fred.rs",
       "completed_case_events": 0,
       "completed_consumers": [
 
@@ -21484,6 +21573,22 @@
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
+      "path": "crates/ssx-infra/src/adapters/openfda.rs",
+      "completed_case_events": 0,
+      "completed_consumers": [
+
+      ],
+      "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
+    },
+    {
+      "path": "crates/ssx-infra/src/adapters/oyez.rs",
+      "completed_case_events": 0,
+      "completed_consumers": [
+
+      ],
+      "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
+    },
+    {
       "path": "crates/ssx-infra/src/adapters/pubchem.rs",
       "completed_case_events": 0,
       "completed_consumers": [
@@ -21509,6 +21614,14 @@
     },
     {
       "path": "crates/ssx-infra/src/adapters/reddit.rs",
+      "completed_case_events": 0,
+      "completed_consumers": [
+
+      ],
+      "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
+    },
+    {
+      "path": "crates/ssx-infra/src/adapters/regulatory.rs",
       "completed_case_events": 0,
       "completed_consumers": [
 
@@ -21708,6 +21821,22 @@
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
+      "path": "crates/ssx-infra/src/http.rs",
+      "completed_case_events": 0,
+      "completed_consumers": [
+
+      ],
+      "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
+    },
+    {
+      "path": "crates/ssx-infra/src/jev.rs",
+      "completed_case_events": 0,
+      "completed_consumers": [
+
+      ],
+      "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
+    },
+    {
       "path": "crates/ssx-infra/tests/a06_admission.rs",
       "completed_case_events": 0,
       "completed_consumers": [
@@ -21828,6 +21957,22 @@
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
+      "path": "crates/ssx-infra/tests/a08_factories.rs",
+      "completed_case_events": 0,
+      "completed_consumers": [
+
+      ],
+      "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
+    },
+    {
+      "path": "crates/ssx-infra/tests/http.rs",
+      "completed_case_events": 0,
+      "completed_consumers": [
+
+      ],
+      "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
+    },
+    {
       "path": "crates/ssx-infra/tests/support/a06_case.rs",
       "completed_case_events": 0,
       "completed_consumers": [
@@ -21845,6 +21990,22 @@
     },
     {
       "path": "crates/xtask/src/a06_resource.rs",
+      "completed_case_events": 0,
+      "completed_consumers": [
+
+      ],
+      "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
+    },
+    {
+      "path": "docs/rust-rewrite/a06/HTTP_INITIALIZATION.md",
+      "completed_case_events": 0,
+      "completed_consumers": [
+
+      ],
+      "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
+    },
+    {
+      "path": "docs/rust-rewrite/a06/NATIVE_QUALIFICATION.md",
       "completed_case_events": 0,
       "completed_consumers": [
 
@@ -21877,6 +22038,14 @@
     },
     {
       "path": "docs/rust-rewrite/a06/openalex-runtime-selected-ids.json",
+      "completed_case_events": 0,
+      "completed_consumers": [
+
+      ],
+      "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
+    },
+    {
+      "path": "docs/rust-rewrite/a06/oracle-runs.json",
       "completed_case_events": 0,
       "completed_consumers": [
 

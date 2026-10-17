@@ -14,7 +14,7 @@
       "100644": 729
     },
     "configured_precommit_hook_rows": 15,
-    "developer_oracle_invocation_rows": 49,
+    "developer_oracle_invocation_rows": 53,
     "manual_developer_tool_guidance_rows": 54
   },
   "interpreter_invocations": [
@@ -10131,6 +10131,50 @@
       "migration_owner": "W04",
       "retirement_owner": "G08",
       "disposition": "retire executable Python before backend removal; retain immutable JSON source observations and provenance"
+    },
+    {
+      "path": "docs/rust-rewrite/a08/README.md",
+      "example_path": "docs/rust-rewrite/a08/oracle/export_source.py",
+      "evidence": "/private/tmp/slopsearx-rust-oracle-py314/bin/python docs/rust-rewrite/a08/oracle/export_source.py",
+      "classification": "temporary backend-coupled developer oracle; never a mandatory native gate or runtime dependency",
+      "migration_owner": "A08",
+      "retirement_owner": "G08",
+      "disposition": "Actual completed invocation receipt docs/rust-rewrite/a08/oracle-runs.json; executable retires G08; preserve immutable captures.",
+      "source_sha256": "330be8e766e51dbed6482ff85c9a7a65fae10493784cd0603f80fa5eaacbd53a",
+      "execution_receipt": "docs/rust-rewrite/a08/oracle-runs.json"
+    },
+    {
+      "path": "docs/rust-rewrite/a08/README.md",
+      "example_path": "docs/rust-rewrite/a08/oracle/export_case.py",
+      "evidence": "/private/tmp/slopsearx-rust-oracle-py314/bin/python docs/rust-rewrite/a08/oracle/export_case.py",
+      "classification": "temporary backend-coupled developer oracle; never a mandatory native gate or runtime dependency",
+      "migration_owner": "A08",
+      "retirement_owner": "G08",
+      "disposition": "Actual completed invocation receipt docs/rust-rewrite/a08/oracle-runs.json; executable retires G08; preserve immutable captures.",
+      "source_sha256": "89e92611745664efea00c50a55287c71521c7bb3d9f204061d7e257b6b5c259d",
+      "execution_receipt": "docs/rust-rewrite/a08/oracle-runs.json"
+    },
+    {
+      "path": "docs/rust-rewrite/a08/README.md",
+      "example_path": "docs/rust-rewrite/a08/oracle/export_regressions.py",
+      "evidence": "/private/tmp/slopsearx-rust-oracle-py314/bin/python docs/rust-rewrite/a08/oracle/export_regressions.py",
+      "classification": "temporary backend-coupled developer oracle; never a mandatory native gate or runtime dependency",
+      "migration_owner": "A08",
+      "retirement_owner": "G08",
+      "disposition": "Actual completed invocation receipt docs/rust-rewrite/a08/oracle-runs.json; executable retires G08; preserve immutable captures.",
+      "source_sha256": "0a4467e3ed93d6fec08e00d36435d0328dd5e366c6e1044d47d2b6e321edbabe",
+      "execution_receipt": "docs/rust-rewrite/a08/oracle-runs.json"
+    },
+    {
+      "path": "docs/rust-rewrite/a08/README.md",
+      "example_path": "docs/rust-rewrite/a08/oracle/export_timeout.py",
+      "evidence": "/private/tmp/slopsearx-rust-oracle-py314/bin/python docs/rust-rewrite/a08/oracle/export_timeout.py",
+      "classification": "temporary backend-coupled developer oracle; never a mandatory native gate or runtime dependency",
+      "migration_owner": "A08",
+      "retirement_owner": "G08",
+      "disposition": "Actual completed invocation receipt docs/rust-rewrite/a08/oracle-runs.json; executable retires G08; preserve immutable captures.",
+      "source_sha256": "8fb0ab865e80aeeece54a145e62d8d082f7dc7542103aba2c046530779d6e7e6",
+      "execution_receipt": "docs/rust-rewrite/a08/oracle-runs.json"
     }
   ],
   "developer_tool_invocation_guidance": [

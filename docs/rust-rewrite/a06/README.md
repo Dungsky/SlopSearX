@@ -1,4 +1,15 @@
-# A06 scholarly adapters — initial source packet
+# A06 native scholarly adapters
+
+Current actual factories, F06 wiring and required native gate are documented in
+[NATIVE_QUALIFICATION.md](NATIVE_QUALIFICATION.md). See
+[PORTAL_IMPACT.md](PORTAL_IMPACT.md) for the separate issue984 integrated browser
+and shared-service obligations. Local component qualification does not establish
+final merged-source/platform acceptance or issue closure.
+
+## Historical initial source packet
+
+The following notes preserve the original source-packet stage and its then-open
+work; their pending-implementation statements are historical.
 
 Issue [#918](https://github.com/magnus919/SlopSearX/issues/918) covers OpenAlex,
 Semantic Scholar, and arXiv. This work starts from freshly fetched upstream

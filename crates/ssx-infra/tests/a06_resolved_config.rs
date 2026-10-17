@@ -109,16 +109,14 @@ async fn actual_source_yaml_env_precedence_raw_scalars_base_defaults_and_credent
         let id = row["id"].as_str().unwrap();
         assert!(ids.insert(id));
         let name = row["engine"].as_str().unwrap();
-        let temp = ConfigFile(
-            std::env::temp_dir().join(format!(
+        let temp = ConfigFile(std::env::temp_dir().join(format!(
                 "ssx-a06-config-{}-{}",
                 std::process::id(),
                 SystemTime::now()
                     .duration_since(UNIX_EPOCH)
                     .unwrap()
                     .as_nanos()
-            )),
-        );
+            )));
         std::fs::create_dir(&temp.0).unwrap();
         let file = temp.0.join("config.yaml");
         std::fs::write(&file, row["yaml"].as_str().unwrap()).unwrap();
