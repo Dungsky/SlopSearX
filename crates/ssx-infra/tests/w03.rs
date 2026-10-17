@@ -1420,8 +1420,101 @@ async fn complete_default_template_records_order_bounds_and_warnings_match_actua
         search.shutdown().await;
     }
 }
+// Captured naive timestamps belong to one source-host timezone. Run only the
+// pure capture assertions in an owned subprocess so parallel tests never mutate
+// process-global TZ, and keep normal cargo test independent of its host zone.
+fn capture_timezone_child(test: &str) -> bool {
+    const MARKER: &str = "SSX_W03_CAPTURE_TIMEZONE_CHILD";
+    if std::env::var(MARKER).as_deref() == Ok(test) {
+        assert_eq!(std::env::var("TZ").as_deref(), Ok("America/New_York"));
+        return false;
+    }
+    // Production parsing still follows the actual caller process's local zone.
+    let naive = chrono::NaiveDate::from_ymd_opt(2026, 10, 17)
+        .unwrap()
+        .and_hms_opt(14, 30, 12)
+        .unwrap();
+    let local = chrono::TimeZone::from_local_datetime(&chrono::Local, &naive)
+        .single()
+        .unwrap();
+    assert_eq!(
+        parse_iso_deadline("2026-10-17T14:30:12"),
+        Some(local.timestamp() as f64)
+    );
+    struct Owned {
+        child: Option<Child>,
+        dir: PathBuf,
+    }
+    impl Drop for Owned {
+        fn drop(&mut self) {
+            if let Some(child) = &mut self.child {
+                let _ = child.kill();
+                let _ = child.wait();
+            }
+            let _ = fs::remove_dir_all(&self.dir);
+        }
+    }
+    let mut bytes = [0; 16];
+    fs::File::open("/dev/urandom")
+        .unwrap()
+        .read_exact(&mut bytes)
+        .unwrap();
+    let nonce: String = bytes.iter().map(|b| format!("{b:02x}")).collect();
+    let dir = std::env::temp_dir().join(format!("ssx-w03-timezone-{nonce}"));
+    fs::create_dir(&dir).unwrap();
+    let mut owner = Owned { child: None, dir };
+    let output_path = owner.dir.join("child.log");
+    let output = fs::File::create(&output_path).unwrap();
+    owner.child = Some(
+        Command::new(std::env::current_exe().unwrap())
+            .args(["--exact", test, "--nocapture"])
+            .env(MARKER, test)
+            .env("TZ", "America/New_York")
+            .stdin(Stdio::null())
+            .stdout(output.try_clone().unwrap())
+            .stderr(output)
+            .spawn()
+            .unwrap(),
+    );
+    let deadline = Instant::now() + Duration::from_secs(10);
+    let status = loop {
+        if let Some(status) = owner.child.as_mut().unwrap().try_wait().unwrap() {
+            owner.child = None; // try_wait collected the terminal child.
+            break status;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "timezone fixture child exceeded deadline"
+        );
+        std::thread::sleep(Duration::from_millis(5));
+    };
+    let mut raw = String::new();
+    fs::File::open(output_path)
+        .unwrap()
+        .take(65536)
+        .read_to_string(&mut raw)
+        .unwrap();
+    assert!(
+        status.success(),
+        "timezone fixture {test} failed: {status}\n{raw}"
+    );
+    assert!(
+        raw.contains("test result: ok. 1 passed; 0 failed; 0 ignored"),
+        "timezone fixture did not execute exactly once: {raw}"
+    );
+    assert!(
+        raw.contains(&format!("test {test} ... ok")),
+        "timezone fixture name missing: {raw}"
+    );
+    true
+}
+
 #[test]
 fn complete_deadline_iso_formats_clamps_and_errors_match_actual_source() {
+    if capture_timezone_child("complete_deadline_iso_formats_clamps_and_errors_match_actual_source")
+    {
+        return;
+    }
     let source: Value = ssx_json::from_str(include_str!(
         "../../../docs/rust-rewrite/w03/deadline-observation-001.json"
     ))
@@ -2007,6 +2100,9 @@ async fn deadline_cancellation_and_completion_during_evidence_read_never_append_
 
 #[test]
 fn naive_deadline_gap_and_fold_match_actual_pinned_stdlib_primitives() {
+    if capture_timezone_child("naive_deadline_gap_and_fold_match_actual_pinned_stdlib_primitives") {
+        return;
+    }
     let source: Value = ssx_json::from_str(include_str!(
         "../../../docs/rust-rewrite/w03/deadline-local-stdlib-observation-001.json"
     ))
