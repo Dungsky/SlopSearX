@@ -1776,7 +1776,10 @@
             },
             {
               "name": "Saved event atomic publication replay acknowledgement and retention evidence",
-              "run": "cargo xtask check W05 --output target/rust-evidence/W05.json"
+              "run": "cargo xtask check W05 --output target/rust-evidence/W05.json",
+              "env": {
+                "SLOPSEARX_TEST_VALKEY_SERVER": "${{ runner.temp }}/ssx-valkey/bin/valkey-server"
+              }
             },
             {
               "name": "Staged admission ownership and recovery evidence",
