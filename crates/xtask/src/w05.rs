@@ -14,7 +14,7 @@ const BINDINGS: &[(&str, &str)] = &[
     ),
     (
         "case-manifest.json",
-        "b87237963bb192a75d5255f76c1646f46be349569e656e4fd6cb42323952be1a",
+        "b86a161a00e1cdf04b11d6dc532ab86644af1ed8a230a3df2e89f4f229091f96",
     ),
     (
         "capture_source.py",

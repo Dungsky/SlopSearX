@@ -1434,3 +1434,345 @@ async fn scheduler_expiry_capacity_rejects_poll_before_due_and_recovers_same_run
         "scheduler-explicit-joined-shutdown",
     ]);
 }
+
+#[derive(Default)]
+struct SharedCounters {
+    names: Mutex<Vec<&'static str>>,
+    probe: Option<CommittedMetricProbe>,
+}
+struct CommittedMetricProbe {
+    url: String,
+    definition: String,
+    report: String,
+    baseline: String,
+    stream: String,
+    ack: String,
+    run_id: String,
+    ack_cursor: Mutex<Option<String>>,
+}
+impl ssx_application::Metrics for SharedCounters {
+    fn increment(&self, name: &'static str) {
+        if let Some(probe) = &self.probe {
+            // The only network surface is this fixture's private Unix socket;
+            // validate it before creating the actual Redis connection.
+            let path = std::path::Path::new(probe.url.strip_prefix("unix://").unwrap());
+            assert!(path.is_absolute());
+            assert_eq!(path.file_name().unwrap(), "s.sock");
+            assert!(
+                path.parent()
+                    .unwrap()
+                    .file_name()
+                    .unwrap()
+                    .to_str()
+                    .unwrap()
+                    .starts_with("ssx-w05-")
+            );
+            let mut connection = redis::Client::open(probe.url.as_str())
+                .unwrap()
+                .get_connection()
+                .unwrap();
+            if name == "saved_event_published_report_created" {
+                let definition: Value =
+                    ssx_json::from_slice(&get(&mut connection, &probe.definition).unwrap())
+                        .unwrap();
+                assert_eq!(
+                    definition["latest_run_id"].as_str(),
+                    Some(probe.run_id.as_str()),
+                    "shared success counter preceded committed definition"
+                );
+                let exists: usize = redis::cmd("EXISTS")
+                    .arg(&probe.report)
+                    .arg(&probe.baseline)
+                    .query(&mut connection)
+                    .unwrap();
+                assert_eq!(
+                    exists, 2,
+                    "shared success counter preceded committed report/baseline"
+                );
+                let len: usize = redis::cmd("XLEN")
+                    .arg(&probe.stream)
+                    .query(&mut connection)
+                    .unwrap();
+                assert_eq!(
+                    len, 1,
+                    "shared success counter preceded atomic stream publication"
+                );
+            }
+            if matches!(
+                name,
+                "saved_event_ack_advanced" | "saved_event_ack_idempotent"
+            ) {
+                let stored: Option<String> = redis::cmd("GET")
+                    .arg(&probe.ack)
+                    .query(&mut connection)
+                    .unwrap();
+                assert_eq!(
+                    &stored,
+                    &*probe.ack_cursor.lock().unwrap(),
+                    "shared ack counter preceded atomic acknowledgement authority"
+                );
+                assert!(stored.is_some());
+            }
+        }
+        self.names.lock().unwrap().push(name);
+    }
+}
+#[tokio::test]
+async fn shared_metrics_bridge_observes_only_definite_commits_and_acknowledgements() {
+    let cases = vec![
+        (
+            EventObservation::Published(EventType::ReportCreated),
+            "saved_event_published_report_created",
+        ),
+        (
+            EventObservation::Published(EventType::RunIncomparable),
+            "saved_event_published_run_incomparable",
+        ),
+        (
+            EventObservation::Published(EventType::RunFailed),
+            "saved_event_published_run_failed",
+        ),
+        (
+            EventObservation::Published(EventType::DefinitionPaused),
+            "saved_event_published_definition_paused",
+        ),
+        (
+            EventObservation::Published(EventType::DefinitionExpired),
+            "saved_event_published_definition_expired",
+        ),
+        (
+            EventObservation::Read {
+                outcome: ReadOutcome::Delivered,
+                oldest_age_seconds: None,
+            },
+            "saved_event_read_delivered",
+        ),
+        (
+            EventObservation::Read {
+                outcome: ReadOutcome::Empty,
+                oldest_age_seconds: None,
+            },
+            "saved_event_read_empty",
+        ),
+        (
+            EventObservation::Read {
+                outcome: ReadOutcome::Gap,
+                oldest_age_seconds: Some(BacklogAge::new(12.5).unwrap()),
+            },
+            "saved_event_read_gap",
+        ),
+        (
+            EventObservation::Read {
+                outcome: ReadOutcome::Redacted,
+                oldest_age_seconds: None,
+            },
+            "saved_event_read_redacted",
+        ),
+        (
+            EventObservation::Read {
+                outcome: ReadOutcome::Rejected,
+                oldest_age_seconds: None,
+            },
+            "saved_event_read_rejected",
+        ),
+        (
+            EventObservation::Ack(AckOutcome::Advanced),
+            "saved_event_ack_advanced",
+        ),
+        (
+            EventObservation::Ack(AckOutcome::Idempotent),
+            "saved_event_ack_idempotent",
+        ),
+        (
+            EventObservation::Ack(AckOutcome::Rejected),
+            "saved_event_ack_rejected",
+        ),
+        (
+            EventObservation::Capacity(Capacity::Stream),
+            "saved_event_capacity_stream",
+        ),
+        (
+            EventObservation::Capacity(Capacity::Consumer),
+            "saved_event_capacity_consumer",
+        ),
+    ];
+    let finite = Arc::new(SharedCounters::default());
+    let forwarded = Arc::new(Recording::default());
+    let bridge = SharedEventObserver::new(finite.clone(), forwarded.clone());
+    for (event, _) in &cases {
+        bridge.observe(event.clone());
+    }
+    let names = cases.iter().map(|(_, name)| *name).collect::<Vec<_>>();
+    assert_eq!(*finite.names.lock().unwrap(), names);
+    assert_eq!(
+        names
+            .iter()
+            .collect::<std::collections::BTreeSet<_>>()
+            .len(),
+        15
+    );
+    assert_eq!(
+        *forwarded.0.lock().unwrap(),
+        cases
+            .iter()
+            .map(|(event, _)| event.clone())
+            .collect::<Vec<_>>()
+    );
+
+    let server = Server::start();
+    let store = SavedStore::new(
+        Arc::new(server.store()),
+        TenantId::new("tenant-private-metric").unwrap(),
+    );
+    let claim = create(&store, "saved-private-metric").await;
+    let (report, baseline, next) = publication(&claim, store.now().await.unwrap());
+    assert!(baseline.is_some());
+    let consumer = ConsumerId::new("consumer-private-metric").unwrap();
+    let metrics = Arc::new(SharedCounters {
+        probe: Some(CommittedMetricProbe {
+            url: server.url.clone(),
+            definition: keys::saved("definition", store.tenant(), Some("saved-private-metric"))
+                .unwrap(),
+            report: keys::saved(
+                "report",
+                store.tenant(),
+                Some(&format!(
+                    "saved-private-metric:{}",
+                    report["run_id"].as_str().unwrap()
+                )),
+            )
+            .unwrap(),
+            baseline: keys::saved("baseline", store.tenant(), Some("saved-private-metric"))
+                .unwrap(),
+            stream: event_key(store.tenant()),
+            ack: acknowledgement_key(store.tenant(), &consumer),
+            run_id: report["run_id"].as_str().unwrap().into(),
+            ack_cursor: Mutex::new(None),
+        }),
+        ..Default::default()
+    });
+    let typed = Arc::new(Recording::default());
+    let p = EventPublisher {
+        limits: EventLimits::new(1, 600, 1).unwrap(),
+        authority: Arc::new(Authority::default()),
+        observer: Arc::new(SharedEventObserver::new(metrics.clone(), typed.clone())),
+    };
+    assert!(metrics.names.lock().unwrap().is_empty());
+    assert!(
+        p.publish(
+            &store,
+            &claim,
+            &report,
+            baseline.as_ref(),
+            next,
+            &claim.definition().policy_fingerprint
+        )
+        .await
+        .unwrap()
+    );
+    assert_eq!(
+        *metrics.names.lock().unwrap(),
+        vec!["saved_event_published_report_created"]
+    );
+    assert!(
+        !p.publish(
+            &store,
+            &claim,
+            &report,
+            baseline.as_ref(),
+            next,
+            &claim.definition().policy_fingerprint
+        )
+        .await
+        .unwrap()
+    );
+    let api = service(store.clone(), p.clone());
+    let batch = api.read(consumer.as_str(), None, 1).await;
+    assert_eq!(batch["returned"], 1);
+    let cursor = batch["next_cursor"].as_str().unwrap();
+    *metrics.probe.as_ref().unwrap().ack_cursor.lock().unwrap() = Some(cursor.into());
+    assert_eq!(
+        api.ack(consumer.as_str(), cursor).await["acknowledged_cursor"],
+        cursor
+    );
+    assert_eq!(
+        api.ack(consumer.as_str(), cursor).await["acknowledged_cursor"],
+        cursor
+    );
+    assert_eq!(
+        api.ack(consumer.as_str(), "bad").await["error"]["code"],
+        "invalid_input"
+    );
+    assert_eq!(
+        api.ack("other-private-metric", cursor).await["error"]["code"],
+        "resource_limit"
+    );
+    let blocked = create(&store, "saved-capacity-metric").await;
+    let (report2, baseline2, next2) = publication(&blocked, store.now().await.unwrap());
+    assert_eq!(
+        p.publish(
+            &store,
+            &blocked,
+            &report2,
+            baseline2.as_ref(),
+            next2,
+            &blocked.definition().policy_fingerprint
+        )
+        .await
+        .unwrap_err(),
+        Error::OutboxCapacity
+    );
+    let closed = Arc::new(server.store());
+    let unavailable = SavedStore::new(closed.clone(), store.tenant().clone());
+    closed.close().await;
+    assert!(
+        p.publish(
+            &unavailable,
+            &blocked,
+            &report2,
+            baseline2.as_ref(),
+            next2,
+            &blocked.definition().policy_fingerprint
+        )
+        .await
+        .is_err()
+    );
+    let observed = metrics.names.lock().unwrap().clone();
+    let count = |name| observed.iter().filter(|n| **n == name).count();
+    assert_eq!(count("saved_event_published_report_created"), 1);
+    assert_eq!(count("saved_event_ack_advanced"), 1);
+    assert_eq!(count("saved_event_ack_idempotent"), 1);
+    assert_eq!(count("saved_event_ack_rejected"), 2);
+    assert_eq!(count("saved_event_capacity_consumer"), 1);
+    assert_eq!(count("saved_event_capacity_stream"), 1);
+    assert!(observed.iter().all(|name| names.contains(name)));
+    for secret in [
+        store.tenant().as_str(),
+        consumer.as_str(),
+        "saved-private-metric",
+        "fixture-subject",
+        "alpha",
+        report["run_id"].as_str().unwrap(),
+    ] {
+        assert!(observed.iter().all(|name| !name.contains(secret)));
+    }
+    let mut connection = server.connection();
+    assert_eq!(xlen(&mut connection, store.tenant()), 1);
+    assert_eq!(
+        get(&mut connection, &metrics.probe.as_ref().unwrap().ack),
+        Some(cursor.as_bytes().to_vec())
+    );
+    drop(connection);
+    drop(api);
+    drop(unavailable);
+    drop(store);
+    drop(server);
+    complete(&[
+        "shared-metrics-finite-counter-vocabulary",
+        "shared-metrics-validated-age-forwarded",
+        "shared-metrics-success-after-atomic-publication",
+        "shared-metrics-ack-after-atomic-authority",
+        "shared-metrics-errors-duplicate-capacity-no-success",
+        "shared-metrics-no-identifier-labels",
+    ]);
+}

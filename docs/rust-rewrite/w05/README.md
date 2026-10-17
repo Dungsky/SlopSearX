@@ -37,8 +37,14 @@ relabel the historical producer bytes.
 EventObservation is a closed typed observation port with validated finite,
 nonnegative backlog age. It emits publication success only after a definite
 accepted write and acknowledges advanced/idempotent outcomes from one atomic
-reply. NoopEventObserver explicitly means no exporter composition. O01 owns
-rendered/exported metrics; W09 owns complete authenticated workflow composition.
+reply. SharedEventObserver exposes fifteen fixed counters through the existing
+shared ssx_application::Metrics API and forwards the unchanged typed observation,
+including validated backlog age. Actual store callbacks prove publication and
+ack counters follow committed authority; rejected/duplicate operations cannot
+report publication success. NoopEventObserver explicitly means absent downstream
+composition. O01 owns rendered/exported metrics and the age gauge; W09 owns
+complete authenticated workflow composition. The explicit source metric mapping,
+composed W06 qualification and preserved failures are in [HANDOFF.md](HANDOFF.md).
 The focused native SavedEventRegistry binds create/read/ack to actual services
 and accepts a trusted typed principal from its caller. Its private-loopback
 fixture does not certify T05 auth integration or a deployed production surface.
@@ -107,7 +113,7 @@ at a time with ssx_json. All 300 exact-size retained events across three batches
 preserve distinct 18446744073709551617/18446744073709551618, a literal
 `$serde_json::private::Number` object, 98 nested arrays and every original public
 field. The typed SDK client is not the numeric oracle. The full W05 gate requires
-99 exact completed cases, preserving all prior 94.
+105 exact completed cases, preserving all prior 99.
 
 The focused HTTP helper requires an explicit NetworkAuth mount and retains its
 managed session cleanup. Missing and wrong bearer credentials return 401 before

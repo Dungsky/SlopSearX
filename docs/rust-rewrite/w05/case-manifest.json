@@ -100,7 +100,13 @@
     "actual-mcp-literal-reserved-number-tag-object",
     "actual-mcp-retained-depth98-per-event-lossless",
     "actual-mcp-trusted-structured-text-exact-public-fields",
-    "actual-mcp-static-auth-rejects-missing-and-wrong-token-without-mutation"
+    "actual-mcp-static-auth-rejects-missing-and-wrong-token-without-mutation",
+    "shared-metrics-finite-counter-vocabulary",
+    "shared-metrics-validated-age-forwarded",
+    "shared-metrics-success-after-atomic-publication",
+    "shared-metrics-ack-after-atomic-authority",
+    "shared-metrics-errors-duplicate-capacity-no-success",
+    "shared-metrics-no-identifier-labels"
   ],
   "native_tests": {
     "ssx-infra": [
@@ -112,7 +118,8 @@
       "invalid_inputs_and_wrong_types_preflight_without_partial_publication",
       "source_precision_clock_and_stream_rollover_boundaries",
       "acknowledgement_v2_migration_collision_quarantine_and_recovery",
-      "scheduler_expiry_capacity_rejects_poll_before_due_and_recovers_same_runner"
+      "scheduler_expiry_capacity_rejects_poll_before_due_and_recovers_same_runner",
+      "shared_metrics_bridge_observes_only_definite_commits_and_acknowledgements"
     ],
     "ssx-mcp": [
       "actual_native_transport_create_wait_repeat_ack_restart_resume_and_grant",

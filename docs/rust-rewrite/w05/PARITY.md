@@ -43,11 +43,17 @@ on a store error. Source and semantic manifests are immutable gate inputs.
 
 ## Explicit integration limits
 
-Source metric tests requiring rendered Counter/Gauge exporter output are not
-claimed covered by an injected recording observer. W05 proves typed primary
-read/ack outcome, gap-before-redaction priority, definite publication, capacity
-and finite nonnegative age observations. O01/W09 must bind the accepted concrete
-exporter and qualify rendering/production lifecycle. Static authority composition
+SharedEventObserver exposes all fifteen finite outcome counters through the
+existing shared Metrics API. Its actual private-Valkey recorder observes the
+committed report/baseline/definition/event and authoritative ack cursor inside
+increment; duplicate/error/capacity controls produce no publication success.
+The typed downstream receives the identical observation and validated age.
+Three actual causal mutants reject premature publication, premature ack and
+omitted downstream forwarding, then restore exact bytes. See [HANDOFF.md](HANDOFF.md)
+for every static counter's source metric/outcome mapping, including the extra
+retention-gap projection and absent-age empty/gap gauge reset. Source tests for
+rendered Counter/Gauge output remain O01 work; this bridge does not establish an
+exporter, scraping or production lifecycle. W09 must bind production composition. Static authority composition
 does not claim live production grant reload; the mutable native fixture proves
 boundary behavior only. The fixed trusted-principal transport fixture proves
 actual native handlers and serialization, not full T05 identity resolution or
@@ -81,8 +87,8 @@ The current focused HTTP mount composes the shared trusted native-handler wire
 restoration and typed 32 MiB output profile with an actual NetworkAuth gate. The
 permanent maximum batches preserve the original string oracle and independently
 check adjacent integers beyond u64, a literal reserved number-tag object and 98
-nested arrays, using RawValue envelopes and per-event lossless parsing. The 99
-case manifest retains all prior 94 identities. Missing/wrong credentials cause 401
+nested arrays, using RawValue envelopes and per-event lossless parsing. The 105
+case manifest retains all prior 99 identities. Missing/wrong credentials cause 401
 before mutation; separate event grant denial leaves all event/ack keys absent.
 The default HTTP 4 MiB input/output limits and 32 pending requests remain
 unchanged, as does the legacy 16 MiB output default. This W05 evidence applies to its actual HTTP mount; shared stdio/legacy mechanisms do
