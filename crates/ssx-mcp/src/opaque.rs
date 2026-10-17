@@ -9,6 +9,17 @@ use std::{
 };
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 pub type Catalogs = BTreeMap<String, Box<RawValue>>;
+/// Original admitted HTTP request, installed only inside the transport middleware.
+#[derive(Clone)]
+pub struct OriginalRequest(std::sync::Arc<str>);
+impl OriginalRequest {
+    pub(crate) fn new(json: String) -> Self {
+        Self(json.into())
+    }
+    pub fn json(&self) -> &str {
+        &self.0
+    }
+}
 /// JSON-lines framing removes only insignificant ASCII whitespace outside strings.
 /// Validation is performed by RawValue first; number and string tokens stay untouched.
 pub fn compact(raw: &str) -> Result<String> {
@@ -129,6 +140,7 @@ pub const INITIALIZED: &[u8] = b"{\"jsonrpc\":\"2.0\",\"method\":\"notifications
 #[derive(Default)]
 pub struct Overlay {
     pending: HashMap<String, String>,
+    native: HashSet<String>,
 }
 pub fn key(id: &RawValue) -> Result<String> {
     let raw = id.get();
@@ -140,6 +152,151 @@ pub fn key(id: &RawValue) -> Result<String> {
         return Err("MCP request id must be a string or integer".into());
     }
     Ok(format!("integer:{}", if raw == "-0" { "0" } else { raw }))
+}
+/// Independent trusted input catalogs select only native tool/prompt names.
+/// Output-only handlers (including W05) retain byte-for-byte input behavior.
+fn native_input_catalog<'a>(
+    catalogs: &'a Catalogs,
+    method: Option<&str>,
+) -> Option<(&'a RawValue, bool)> {
+    match method {
+        Some("tools/call") => catalogs
+            .get("ssx/native-raw-arguments")
+            .map(|v| (v.as_ref(), false)),
+        Some("prompts/get") => catalogs
+            .get("ssx/native-raw-prompts")
+            .map(|v| (v.as_ref(), true)),
+        _ => None,
+    }
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct NativePromptInputProfile {
+    names: Vec<String>,
+    validate_unknown_names: bool,
+    #[serde(default)]
+    validate_invalid_params: bool,
+}
+fn native_input_name_allowed(profile: &RawValue, prompt: bool, name: &str) -> Result<bool> {
+    if prompt {
+        let profile: NativePromptInputProfile = serde_json::from_str(profile.get())?;
+        Ok(profile.validate_unknown_names || profile.names.iter().any(|n| n == name))
+    } else {
+        let names: Vec<String> = serde_json::from_str(profile.get())?;
+        Ok(names.iter().any(|n| n == name))
+    }
+}
+/// A trusted prompt handler can validate semantic parameters on an otherwise
+/// valid JSONRPC request. Scalar/array params are invalid JSONRPC grammar and
+/// remain byte-for-byte under the transport SDK's existing rejection path.
+fn native_prompt_invalid_params(profile: &RawValue, params: Option<&RawValue>) -> Result<bool> {
+    let profile: NativePromptInputProfile = serde_json::from_str(profile.get())?;
+    if !profile.validate_invalid_params {
+        return Ok(false);
+    }
+    let Some(params) = params.filter(|p| p.get() != "null") else {
+        return Ok(true);
+    };
+    let Ok(params) = serde_json::from_str::<BTreeMap<String, Box<RawValue>>>(params.get()) else {
+        return Ok(false);
+    };
+    Ok(params
+        .get("name")
+        .and_then(|n| serde_json::from_str::<String>(n.get()).ok())
+        .is_none())
+}
+/// Replace only arguments on the SDK-facing copy of an admitted allowlisted
+/// native request. Original bytes remain in the existing bounded request record.
+/// Tools retain object-only replacement. Prompt handlers additionally validate
+/// raw null/scalar/array shapes, matching the source's RPC error envelope.
+pub fn native_arguments_for_sdk(catalogs: &Catalogs, request: &str) -> Result<String> {
+    if !catalogs.contains_key("ssx/native-raw-arguments")
+        && !catalogs.contains_key("ssx/native-raw-prompts")
+    {
+        return Ok(request.into());
+    }
+    let mut fields: BTreeMap<String, Box<RawValue>> = serde_json::from_str(request)?;
+    let method = fields
+        .get("method")
+        .and_then(|m| serde_json::from_str::<String>(m.get()).ok());
+    let Some((names, prompt)) = native_input_catalog(catalogs, method.as_deref()) else {
+        return Ok(request.into());
+    };
+    if !fields.get("id").is_some_and(|id| key(id).is_ok()) {
+        return Ok(request.into());
+    }
+    if prompt && native_prompt_invalid_params(names, fields.get("params").map(Box::as_ref))? {
+        let mut params = fields
+            .get("params")
+            .and_then(|p| serde_json::from_str::<BTreeMap<String, Box<RawValue>>>(p.get()).ok())
+            .unwrap_or_default();
+        // This is solely an SDK-facing placeholder. The native handler must
+        // reject the original missing/non-string name before identity checks.
+        params.insert("name".into(), RawValue::from_string("\"\"".into())?);
+        params.insert("arguments".into(), RawValue::from_string("{}".into())?);
+        fields.insert(
+            "params".into(),
+            RawValue::from_string(serde_json::to_string(&params)?)?,
+        );
+        return compact(&serde_json::to_string(&fields)?);
+    }
+    let Some(raw) = fields.get("params") else {
+        return Ok(request.into());
+    };
+    let Ok(mut params) = serde_json::from_str::<BTreeMap<String, Box<RawValue>>>(raw.get()) else {
+        return Ok(request.into());
+    };
+    let name = params
+        .get("name")
+        .and_then(|n| serde_json::from_str::<String>(n.get()).ok());
+    let Some(name) = name else {
+        return Ok(request.into());
+    };
+    if !native_input_name_allowed(names, prompt, &name)? {
+        return Ok(request.into());
+    }
+    let Some(arguments) = params.get("arguments") else {
+        return Ok(request.into());
+    };
+    if !prompt && !arguments.get().trim_start().starts_with('{') {
+        return Ok(request.into());
+    }
+    params.insert("arguments".into(), RawValue::from_string("{}".into())?);
+    fields.insert(
+        "params".into(),
+        RawValue::from_string(serde_json::to_string(&params)?)?,
+    );
+    compact(&serde_json::to_string(&fields)?)
+}
+fn native_input_enabled(catalogs: &Catalogs, request: &str) -> Result<bool> {
+    if !catalogs.contains_key("ssx/native-raw-arguments")
+        && !catalogs.contains_key("ssx/native-raw-prompts")
+    {
+        return Ok(false);
+    }
+    let fields: BTreeMap<String, Box<RawValue>> = serde_json::from_str(request)?;
+    let method = fields
+        .get("method")
+        .and_then(|m| serde_json::from_str::<String>(m.get()).ok());
+    let Some((names, prompt)) = native_input_catalog(catalogs, method.as_deref()) else {
+        return Ok(false);
+    };
+    if prompt && native_prompt_invalid_params(names, fields.get("params").map(Box::as_ref))? {
+        return Ok(true);
+    }
+    let Some(params) = fields
+        .get("params")
+        .and_then(|p| serde_json::from_str::<BTreeMap<String, Box<RawValue>>>(p.get()).ok())
+    else {
+        return Ok(false);
+    };
+    let Some(name) = params
+        .get("name")
+        .and_then(|n| serde_json::from_str::<String>(n.get()).ok())
+    else {
+        return Ok(false);
+    };
+    native_input_name_allowed(names, prompt, &name)
 }
 /// Validate SDK envelope shape using disposable aliases, including cancellation IDs.
 /// Real session alias ownership stays with WireState in the transport pump.
@@ -164,12 +321,21 @@ pub fn sdk_validation(line: &str) -> Result<String> {
 pub struct Frames<R> {
     reader: BufReader<R>,
     partial: Vec<u8>,
+    limit: crate::output_limits::OutputLimits,
 }
 impl<R: tokio::io::AsyncRead + Unpin> Frames<R> {
     pub fn new(reader: R) -> Self {
         Self {
             reader: BufReader::new(reader),
             partial: Vec::new(),
+            limit: crate::output_limits::OutputLimits::HTTP,
+        }
+    }
+    pub fn with_limit(reader: R, limit: crate::output_limits::OutputLimits) -> Self {
+        Self {
+            reader: BufReader::new(reader),
+            partial: Vec::new(),
+            limit,
         }
     }
     pub async fn next(&mut self) -> Result<Option<String>> {
@@ -187,8 +353,8 @@ impl<R: tokio::io::AsyncRead + Unpin> Frames<R> {
                 .position(|b| *b == b'\n')
                 .map(|p| p + 1)
                 .unwrap_or(bytes.len());
-            if self.partial.len() + end > 4 * 1024 * 1024 {
-                return Err("MCP frame exceeds 4 MiB".into());
+            if self.partial.len() + end > self.limit.bytes() {
+                return Err(format!("MCP frame exceeds {} bytes", self.limit.bytes()).into());
             }
             let complete = bytes[end - 1] == b'\n';
             self.partial.extend_from_slice(&bytes[..end]);
@@ -203,9 +369,18 @@ impl<R: tokio::io::AsyncRead + Unpin> Frames<R> {
         }
     }
 }
+struct PendingRequest {
+    original: String,
+    native: bool,
+    handler_complete: bool,
+    cancel_requested: bool,
+}
 #[derive(Default)]
 pub struct WireState {
-    requests: HashMap<String, String>,
+    requests: HashMap<String, PendingRequest>,
+    completed: std::sync::Arc<tokio::sync::Notify>,
+    native_namespace: Option<String>,
+    native_sequence: u64,
     replies: HashMap<String, String>,
     synthetic: HashMap<String, String>,
     aliases: HashMap<String, Box<RawValue>>,
@@ -306,13 +481,113 @@ fn synthetic_integer_call(line: &str) -> Result<Option<(String, String)>> {
     Ok(Some((compact(&serde_json::to_string(&fields)?)?, reply)))
 }
 impl WireState {
+    /// Read the actual admitted bytes by the SDK's private request identity.
+    /// Ownership stays in the existing 32-request map; reply/cancel/EOF cleanup
+    /// is unchanged. Clone before parsing so no mutex is held during validation.
+    pub fn original_request(&self, id: &rmcp::model::RequestId) -> Result<Option<String>> {
+        let raw = RawValue::from_string(serde_json::to_string(id)?)?;
+        Ok(self.requests.get(&key(&raw)?).map(|r| r.original.clone()))
+    }
+    pub fn completion_notification(&self) -> std::sync::Arc<tokio::sync::Notify> {
+        self.completed.clone()
+    }
+    /// Trusted native handler calls this only after all owned request work drains.
+    pub fn native_handler_complete(&mut self, id: &rmcp::model::RequestId) -> Result<()> {
+        let raw = RawValue::from_string(serde_json::to_string(id)?)?;
+        if let Some(request) = self.requests.get_mut(&key(&raw)?)
+            && request.native
+        {
+            request.handler_complete = true;
+            if request.cancel_requested {
+                self.completed.notify_one();
+            }
+        }
+        Ok(())
+    }
+    /// Drain only canceled native generations whose handler has actually finished.
+    /// Admission stays charged until this pump-owned cleanup; no second registry.
+    pub fn drain_cancelled_native(&mut self) -> Result<Vec<String>> {
+        let ids: Vec<_> = self
+            .requests
+            .iter()
+            .filter(|(_, r)| r.native && r.cancel_requested && r.handler_complete)
+            .map(|(key, _)| {
+                serde_json::to_string(
+                    key.strip_prefix("string:")
+                        .expect("native SDK aliases are strings"),
+                )
+            })
+            .collect::<std::result::Result<_, _>>()?;
+        for id in &ids {
+            self.abandon(&format!("{{\"id\":{id}}}"));
+        }
+        Ok(ids)
+    }
+    /// Native generations have a private per-connection namespace. A canceled
+    /// generation may already have buffered SDK output; discard that output
+    /// without a tombstone registry or affecting ordinary unmatched RPC replies.
+    pub fn stale_native_generation(&self, line: &str) -> Result<bool> {
+        let fields: BTreeMap<String, Box<RawValue>> = serde_json::from_str(line)?;
+        let Some(id) = fields.get("id") else {
+            return Ok(false);
+        };
+        let Some(namespace) = &self.native_namespace else {
+            return Ok(false);
+        };
+        let issued = serde_json::from_str::<String>(id.get())
+            .ok()
+            .is_some_and(|id| {
+                id.strip_prefix(namespace).is_some_and(|suffix| {
+                    suffix.parse::<u64>().ok().is_some_and(|n| {
+                        n > 0 && n <= self.native_sequence && n.to_string() == suffix
+                    })
+                })
+            });
+        if !issued {
+            return Ok(false);
+        }
+        Ok(self
+            .requests
+            .get(&key(id)?)
+            .is_none_or(|r| r.native && r.cancel_requested && r.handler_complete))
+    }
+    pub fn native_response(&mut self, line: &str) -> Result<Option<String>> {
+        if self.stale_native_generation(line)? {
+            return Ok(None);
+        }
+        self.response(line).map(Some)
+    }
+    pub fn request_for(&mut self, catalogs: &Catalogs, line: &str) -> Result<String> {
+        let native = native_input_enabled(catalogs, line)?;
+        self.request_inner(line, native)
+    }
     pub fn request(&mut self, line: &str) -> Result<String> {
+        self.request_inner(line, false)
+    }
+    fn request_inner(&mut self, line: &str, native: bool) -> Result<String> {
         let envelope: Envelope = serde_json::from_str(line)?;
         if envelope.method.as_deref() == Some("notifications/cancelled") {
             let mut fields: BTreeMap<String, Box<RawValue>> = serde_json::from_str(line)?;
             if let Some(params) = fields.get_mut("params") {
                 let mut values: BTreeMap<String, Box<RawValue>> =
                     serde_json::from_str(params.get())?;
+                if let Some(id) = values.get("requestId") {
+                    let original = key(id)?;
+                    let internal = self
+                        .reverse
+                        .get(&original)
+                        .map(|id| key(id))
+                        .transpose()?
+                        .unwrap_or(original);
+                    if let Some(request) = self.requests.get_mut(&internal)
+                        && request.native
+                    {
+                        request.cancel_requested = true;
+                        if request.handler_complete {
+                            self.completed.notify_one();
+                        }
+                    }
+                }
                 if let Some(id) = values.get("requestId")
                     && let Some(alias) = self.reverse.get(&key(id)?)
                 {
@@ -324,20 +599,42 @@ impl WireState {
         }
         if let (Some(id), Some(_)) = (envelope.id, envelope.method) {
             let original = key(&id)?;
-            if self.active.contains(&original) {
+            if self.active.contains(&original) || (!native && self.requests.contains_key(&original))
+            {
                 return Err("duplicate MCP request id".into());
             }
             if self.active.len() >= 32 {
                 return Err("MCP peer exceeds 32 concurrent requests".into());
             }
             let mut alias_binding = None;
+            let mut next_native_sequence = None;
             let mut rewritten = line.to_owned();
             let mut internal = original.clone();
-            if !id.get().starts_with('"') && id.get().parse::<i64>().is_err() {
-                let alias = RawValue::from_string(serde_json::to_string(&format!(
-                    "ssx-{}",
-                    uuid::Uuid::new_v4()
-                ))?)?;
+            if native || (!id.get().starts_with('"') && id.get().parse::<i64>().is_err()) {
+                let alias = if native {
+                    let namespace = self
+                        .native_namespace
+                        .get_or_insert_with(|| format!("ssx-native-{}-", uuid::Uuid::new_v4()))
+                        .clone();
+                    // Every committed sequence is issued. A collision fails this
+                    // admission without burning a sequence or creating a history gap.
+                    let next = self
+                        .native_sequence
+                        .checked_add(1)
+                        .ok_or("native SDK generation exhausted")?;
+                    let candidate = format!("{namespace}{next}");
+                    let candidate_key = format!("string:{candidate}");
+                    if self.active.contains(&candidate_key)
+                        || self.requests.contains_key(&candidate_key)
+                    {
+                        return Err("native SDK alias collides with active caller id".into());
+                    }
+                    next_native_sequence = Some(next);
+                    candidate
+                } else {
+                    format!("ssx-{}", uuid::Uuid::new_v4())
+                };
+                let alias = RawValue::from_string(serde_json::to_string(&alias)?)?;
                 internal = key(&alias)?;
                 alias_binding = Some((id, alias.clone()));
                 let mut fields: BTreeMap<String, Box<RawValue>> = serde_json::from_str(line)?;
@@ -345,7 +642,10 @@ impl WireState {
                 rewritten = compact(&serde_json::to_string(&fields)?)?;
             }
             let synthetic = synthetic_integer_call(&rewritten)?;
-            // Admission is transactional: nothing above mutates session bookkeeping.
+            // Admission maps and sequence are transactional.
+            if let Some(next) = next_native_sequence {
+                self.native_sequence = next;
+            }
             self.active.insert(original.clone());
             if let Some((id, alias)) = alias_binding {
                 self.aliases.insert(internal.clone(), id);
@@ -355,7 +655,15 @@ impl WireState {
                 self.synthetic.insert(internal.clone(), reply);
                 rewritten = safe;
             }
-            self.requests.insert(internal, line.into());
+            self.requests.insert(
+                internal,
+                PendingRequest {
+                    original: line.into(),
+                    native,
+                    handler_complete: false,
+                    cancel_requested: false,
+                },
+            );
             return Ok(rewritten);
         }
         Ok(line.into())
@@ -405,11 +713,41 @@ impl WireState {
     }
 }
 impl Overlay {
+    pub fn abandon(&mut self, raw_id: &str) -> Result<()> {
+        let id = RawValue::from_string(raw_id.into())?;
+        let id = key(&id)?;
+        self.pending.remove(&id);
+        self.native.remove(&id);
+        Ok(())
+    }
     pub fn has_pending(&self) -> bool {
-        !self.pending.is_empty()
+        !self.pending.is_empty() || !self.native.is_empty()
     }
     pub fn request(&mut self, catalogs: &Catalogs, request: &str) -> Result<()> {
         let envelope: Envelope = serde_json::from_str(request)?;
+        if envelope.method.as_deref() == Some("tools/call")
+            && let Some(id) = envelope.id.as_ref()
+            && let Some(names) = catalogs.get("ssx/native-tools")
+        {
+            // Inspect only the method name: arbitrary caller numbers elsewhere
+            // must not pass through an SDK floating-point Value before the
+            // native handler reads the admitted original request bytes.
+            let fields: BTreeMap<String, Box<RawValue>> = serde_json::from_str(request)?;
+            let name = fields
+                .get("params")
+                .and_then(|params| {
+                    serde_json::from_str::<BTreeMap<String, Box<RawValue>>>(params.get()).ok()
+                })
+                .and_then(|params| {
+                    params
+                        .get("name")
+                        .and_then(|name| serde_json::from_str::<String>(name.get()).ok())
+                });
+            let names: Vec<String> = serde_json::from_str(names.get())?;
+            if name.as_ref().is_some_and(|name| names.contains(name)) {
+                self.native.insert(key(id)?);
+            }
+        }
         if let (Some(id), Some(method)) = (envelope.id, envelope.method)
             && let Some(result) = catalogs.get(&method)
         {
@@ -425,7 +763,63 @@ impl Overlay {
         Ok(())
     }
     pub fn response(&mut self, response: &str) -> Result<String> {
-        let fields: BTreeMap<String, Box<RawValue>> = serde_json::from_str(response)?;
+        let mut fields: BTreeMap<String, Box<RawValue>> = serde_json::from_str(response)?;
+        let admitted = fields
+            .get("id")
+            .map(|id| key(id))
+            .transpose()?
+            .is_some_and(|id| self.native.remove(&id));
+        if let Some(raw) = fields.get("result")
+            && raw.get().trim_start().starts_with('{')
+        {
+            let mut result: BTreeMap<String, Box<RawValue>> = serde_json::from_str(raw.get())?;
+            let mut meta: BTreeMap<String, Box<RawValue>> = result
+                .get("_meta")
+                .and_then(|m| serde_json::from_str(m.get()).ok())
+                .unwrap_or_default();
+            let marker = meta.remove("ssx/native-structured-text");
+            if let Some(marker) = marker {
+                // An internal marker is scrubbed on every response, even when
+                // this request was not admitted or the handler returned an error.
+                let complete = result.get("isError").is_none_or(|v| v.get() != "true");
+                if admitted && marker.get() == "true" && complete && !fields.contains_key("error") {
+                    if !result.contains_key("structuredContent") {
+                        return Err("marked native output has no structured content".into());
+                    }
+                    let content: Vec<Value> = result
+                        .get("content")
+                        .map(|c| serde_json::from_str(c.get()))
+                        .transpose()?
+                        .unwrap_or_default();
+                    if content.len() != 1 || content[0]["type"] != "text" {
+                        return Err(
+                            "native structured output requires one text JSON document".into()
+                        );
+                    }
+                    let text = content[0]["text"]
+                        .as_str()
+                        .ok_or("missing native JSON text")?;
+                    let value: Box<RawValue> = serde_json::from_str(text)?;
+                    if !value.get().starts_with('{') {
+                        return Err("native structured output must be an object".into());
+                    }
+                    result.insert("structuredContent".into(), value);
+                }
+                if meta.is_empty() {
+                    result.remove("_meta");
+                } else {
+                    result.insert(
+                        "_meta".into(),
+                        RawValue::from_string(serde_json::to_string(&meta)?)?,
+                    );
+                }
+                fields.insert(
+                    "result".into(),
+                    RawValue::from_string(serde_json::to_string(&result)?)?,
+                );
+                return compact(&serde_json::to_string(&fields)?);
+            }
+        }
         if let Some(id) = fields.get("id")
             && let Some(replacement) = self.pending.remove(&key(id)?)
             && fields.contains_key("result")
@@ -469,12 +863,52 @@ fn rewrite_event(raw: &str, mut rewrite: impl FnMut(&str) -> Result<String>) -> 
 /// Stdio framing adapter around the same real rmcp service. Never interprets catalog numbers.
 pub async fn stdio(registry: Registry) -> Result<()> {
     let catalogs = registry.opaque.clone();
-    stdio_handler(registry, catalogs, Default::default()).await
+    stdio_handler(
+        registry,
+        catalogs,
+        Default::default(),
+        crate::output_limits::OutputLimits::HTTP,
+    )
+    .await
+}
+pub async fn stdio_with_factory<H: rmcp::ServerHandler>(
+    factory: impl FnOnce(std::sync::Arc<std::sync::Mutex<WireState>>) -> H,
+    catalogs: std::sync::Arc<Catalogs>,
+) -> Result<()> {
+    let wire = std::sync::Arc::new(std::sync::Mutex::new(WireState::default()));
+    stdio_handler(
+        factory(wire.clone()),
+        catalogs,
+        wire,
+        crate::output_limits::OutputLimits::HTTP,
+    )
+    .await
+}
+pub async fn stdio_for<H: rmcp::ServerHandler>(
+    handler: H,
+    catalogs: std::sync::Arc<Catalogs>,
+) -> Result<()> {
+    stdio_handler(
+        handler,
+        catalogs,
+        Default::default(),
+        crate::output_limits::OutputLimits::HTTP,
+    )
+    .await
+}
+pub async fn stdio_with_factory_and_limits<H: rmcp::ServerHandler>(
+    factory: impl FnOnce(std::sync::Arc<std::sync::Mutex<WireState>>) -> H,
+    catalogs: std::sync::Arc<Catalogs>,
+    limits: crate::output_limits::OutputLimits,
+) -> Result<()> {
+    let wire = std::sync::Arc::new(std::sync::Mutex::new(WireState::default()));
+    stdio_handler(factory(wire.clone()), catalogs, wire, limits).await
 }
 async fn stdio_handler<H: rmcp::ServerHandler>(
     handler: H,
     catalogs: std::sync::Arc<Catalogs>,
     wire: std::sync::Arc<std::sync::Mutex<WireState>>,
+    output_limits: crate::output_limits::OutputLimits,
 ) -> Result<()> {
     use rmcp::ServiceExt;
     let (server, io) = tokio::io::duplex(65536);
@@ -484,15 +918,18 @@ async fn stdio_handler<H: rmcp::ServerHandler>(
         Ok::<(), crate::Error>(())
     };
     let pump = async {
+        let completed = wire.lock().unwrap().completion_notification();
         let mut input = Frames::new(tokio::io::stdin());
-        let mut output = Frames::new(read);
+        let mut output = Frames::with_limit(read, output_limits);
         let mut stdout = tokio::io::stdout();
         let mut overlay = Overlay::default();
         let mut lifecycle = Lifecycle::default();
         loop {
             tokio::select! {
-                line=input.next()=>{let Some(line)=line? else{break;};if let Some(reply)=lifecycle.request(&line)?{if let Some(reply)=reply{stdout.write_all(reply.as_bytes()).await?;stdout.write_all(b"\n").await?;stdout.flush().await?;}continue;}let rewritten=wire.lock().unwrap().request(&line)?;lifecycle.remap(&line,&rewritten)?;let line=rewritten;overlay.request(&catalogs,&line)?;write.write_all(line.as_bytes()).await?;write.write_all(b"\n").await?;},
-                line=output.next()=>{let Some(line)=line? else{break;};if lifecycle.response(&line)?{write.write_all(INITIALIZED).await?;}let line=overlay.response(&line)?;let line=wire.lock().unwrap().response(&line)?;stdout.write_all(compact(&line)?.as_bytes()).await?;stdout.write_all(b"\n").await?;stdout.flush().await?;}
+                _=completed.notified()=>{let ids=wire.lock().unwrap().drain_cancelled_native()?;for id in ids{overlay.abandon(&id)?;}},
+                line=input.next()=>{let Some(line)=line? else{break;};if let Some(reply)=lifecycle.request(&line)?{if let Some(reply)=reply{stdout.write_all(reply.as_bytes()).await?;stdout.write_all(b"\n").await?;stdout.flush().await?;}continue;}let rewritten=wire.lock().unwrap().request_for(&catalogs,&line)?;lifecycle.remap(&line,&rewritten)?;let line=rewritten;overlay.request(&catalogs,&line)?;let line=native_arguments_for_sdk(&catalogs,&line)?;write.write_all(line.as_bytes()).await?;write.write_all(b"\n").await?;},
+                line=output.next()=>{let Some(line)=line? else{break;};if wire.lock().unwrap().stale_native_generation(&line)?{continue;}
+                    if lifecycle.response(&line)?{write.write_all(INITIALIZED).await?;}let line=overlay.response(&line)?;let Some(line)=wire.lock().unwrap().native_response(&line)? else{continue;};let line=compact(&line)?;if line.len()>output_limits.bytes(){return Err("native output exceeds configured byte budget".into());}stdout.write_all(line.as_bytes()).await?;stdout.write_all(b"\n").await?;stdout.flush().await?;}
             }
         }
         Ok::<(), crate::Error>(())
@@ -732,7 +1169,13 @@ impl RawGateway {
             gateway: self.clone(),
             wire: wire.clone(),
         };
-        let result = stdio_handler(handler, std::sync::Arc::new(self.catalogs.clone()), wire).await;
+        let result = stdio_handler(
+            handler,
+            std::sync::Arc::new(self.catalogs.clone()),
+            wire,
+            crate::output_limits::OutputLimits::HTTP,
+        )
+        .await;
         self.close().await?;
         result
     }
@@ -798,7 +1241,7 @@ impl RawForwarder {
             .unwrap()
             .requests
             .get(&id)
-            .cloned()
+            .map(|request| request.original.clone())
             .ok_or_else(|| {
                 rmcp::ErrorData::internal_error("original wire request missing", None)
             })?;
@@ -1228,6 +1671,58 @@ mod close_tests {
             }
             host.shutdown().await?;
         }
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod native_completion_tests {
+    use super::*;
+    #[test]
+    fn native_sequence_exhaustion_and_caller_alias_collision_are_atomic() -> Result<()> {
+        let catalogs = [(
+            "ssx/native-raw-arguments".into(),
+            RawValue::from_string("[\"native\"]".into())?,
+        )]
+        .into_iter()
+        .collect();
+        let request = r#"{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"native","arguments":{}}}"#;
+        let mut exhausted = WireState {
+            native_sequence: u64::MAX,
+            ..Default::default()
+        };
+        assert!(exhausted.request_for(&catalogs, request).is_err());
+        assert!(exhausted.requests.is_empty());
+        assert!(exhausted.active.is_empty());
+        assert!(exhausted.aliases.is_empty());
+        let mut wire = WireState {
+            native_namespace: Some("ssx-native-private-".into()),
+            ..Default::default()
+        };
+        let caller = r#"{"jsonrpc":"2.0","id":"ssx-native-private-1","method":"tools/list"}"#;
+        wire.request(caller)?;
+        assert!(wire.request_for(&catalogs, request).is_err());
+        assert_eq!(wire.native_sequence, 0);
+        assert_eq!(wire.requests.len(), 1);
+        assert_eq!(wire.active.len(), 1);
+        assert!(!wire.stale_native_generation(r#"{"id":"ssx-native-private-1","result":null}"#)?);
+        wire.response(r#"{"id":"ssx-native-private-1","result":null}"#)?;
+        let native = wire.request_for(&catalogs, request)?;
+        assert!(native.contains("ssx-native-private-1"));
+        assert_eq!(wire.requests.len(), 1);
+        assert_eq!(wire.active.len(), 1);
+        assert!(
+            wire.native_response(r#"{"id":"ssx-native-other-1","result":null}"#)?
+                .is_some()
+        );
+        assert!(
+            wire.native_response(r#"{"id":"ssx-native-private-3","result":null}"#)?
+                .is_some()
+        );
+        assert!(
+            wire.native_response(r#"{"id":"ssx-native-private-01","result":null}"#)?
+                .is_some()
+        );
         Ok(())
     }
 }

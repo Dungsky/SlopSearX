@@ -19,21 +19,42 @@ use tokio_util::sync::CancellationToken;
 struct SseFrames {
     bytes: std::collections::VecDeque<u8>,
     scanned: usize,
+    limit: Option<crate::output_limits::OutputLimits>,
     #[cfg(test)]
     inspected: usize,
 }
 impl SseFrames {
     fn push(&mut self, chunk: &[u8]) -> std::io::Result<()> {
-        if chunk.len() > (4 * 1024 * 1024usize).saturating_sub(self.bytes.len()) {
-            return Err(std::io::Error::other("MCP SSE frame exceeds 4 MiB"));
+        if chunk.len()
+            > self
+                .limit
+                .unwrap_or(crate::output_limits::OutputLimits::HTTP)
+                .bytes()
+                .saturating_sub(self.bytes.len())
+        {
+            return Err(std::io::Error::other(format!(
+                "MCP SSE frame exceeds {} bytes",
+                self.limit
+                    .unwrap_or(crate::output_limits::OutputLimits::HTTP)
+                    .bytes()
+            )));
         }
         self.bytes.extend(chunk);
         Ok(())
     }
     fn push_pending(&mut self, pending: &mut axum::body::Bytes) -> std::io::Result<()> {
-        let room = (4 * 1024 * 1024usize).saturating_sub(self.bytes.len());
+        let room = self
+            .limit
+            .unwrap_or(crate::output_limits::OutputLimits::HTTP)
+            .bytes()
+            .saturating_sub(self.bytes.len());
         if room == 0 {
-            return Err(std::io::Error::other("MCP SSE frame exceeds 4 MiB"));
+            return Err(std::io::Error::other(format!(
+                "MCP SSE frame exceeds {} bytes",
+                self.limit
+                    .unwrap_or(crate::output_limits::OutputLimits::HTTP)
+                    .bytes()
+            )));
         }
         let take = room.min(pending.len());
         self.push(&pending.split_to(take))
@@ -121,13 +142,68 @@ fn configured_router(
     stateful: bool,
     expiry: Duration,
 ) -> (ManagedRouter, SessionProbe) {
+    let catalogs = registry.opaque.clone();
+    configured_router_for(
+        registry,
+        catalogs,
+        token,
+        cancel,
+        stateful,
+        expiry,
+        crate::output_limits::OutputLimits::HTTP,
+    )
+}
+/// Mount a real injected handler using exactly the qualified lifecycle/opaque transport.
+pub fn http_router_for<H: rmcp::ServerHandler + Clone + 'static>(
+    handler: H,
+    catalogs: std::sync::Arc<crate::opaque::Catalogs>,
+    cancel: CancellationToken,
+) -> ManagedRouter {
+    configured_router_for(
+        handler,
+        catalogs,
+        None,
+        cancel,
+        false,
+        Duration::from_secs(300),
+        crate::output_limits::OutputLimits::HTTP,
+    )
+    .0
+}
+pub fn http_router_for_with_limits<H: rmcp::ServerHandler + Clone + 'static>(
+    handler: H,
+    catalogs: std::sync::Arc<crate::opaque::Catalogs>,
+    cancel: CancellationToken,
+    limits: crate::output_limits::OutputLimits,
+) -> ManagedRouter {
+    configured_router_for(
+        handler,
+        catalogs,
+        None,
+        cancel,
+        false,
+        Duration::from_secs(300),
+        limits,
+    )
+    .0
+}
+fn configured_router_for<H: rmcp::ServerHandler + Clone + 'static>(
+    registry: H,
+    catalogs: std::sync::Arc<crate::opaque::Catalogs>,
+    token: Option<String>,
+    cancel: CancellationToken,
+    stateful: bool,
+    expiry: Duration,
+    output_limits: crate::output_limits::OutputLimits,
+) -> (ManagedRouter, SessionProbe) {
     let mut manager = LocalSessionManager::default();
     // One owner governs idle expiry. The SDK timer counts time inside active
     // operations; stream/request leases below suspend idle expiry correctly.
     manager.session_config.keep_alive = None;
     let manager = std::sync::Arc::new(manager);
     let state = OpaqueState {
-        catalogs: registry.opaque.clone(),
+        catalogs,
+        output_limits,
         sessions: Default::default(),
         admission: stateful.then(|| std::sync::Arc::new(tokio::sync::Semaphore::new(128))),
     };
@@ -227,7 +303,7 @@ fn configured_router(
     let owner = std::sync::Arc::new(ExpiryOwner {
         control: control.clone(),
     });
-    let service: StreamableHttpService<Registry, LocalSessionManager> = StreamableHttpService::new(
+    let service: StreamableHttpService<H, LocalSessionManager> = StreamableHttpService::new(
         move || Ok(registry.clone()),
         manager,
         StreamableHttpServerConfig::default()
@@ -402,6 +478,7 @@ impl Drop for SessionActivity {
 struct OpaqueState {
     admission: Option<std::sync::Arc<tokio::sync::Semaphore>>,
     catalogs: std::sync::Arc<crate::opaque::Catalogs>,
+    output_limits: crate::output_limits::OutputLimits,
     sessions: std::sync::Arc<
         std::sync::Mutex<std::collections::HashMap<String, std::sync::Arc<SessionEntry>>>,
     >,
@@ -457,16 +534,28 @@ async fn opaque_catalog(
     if request.method() != axum::http::Method::POST {
         return hold_activity(next.run(request).await, activity);
     }
-    let (parts, body) = request.into_parts();
+    let (mut parts, body) = request.into_parts();
     let bytes = match axum::body::to_bytes(body, 4 * 1024 * 1024).await {
         Ok(bytes) => bytes,
         Err(_) => return StatusCode::PAYLOAD_TOO_LARGE.into_response(),
     };
+    if let Ok(original) = std::str::from_utf8(&bytes) {
+        parts
+            .extensions
+            .insert(crate::opaque::OriginalRequest::new(original.to_owned()));
+    }
     let mut overlay = crate::opaque::Overlay::default();
     let bytes = if let Ok(text) = std::str::from_utf8(&bytes) {
-        match wire.lock().unwrap().request(text) {
+        match wire.lock().unwrap().request_for(&state.catalogs, text) {
             Ok(rewritten) => {
-                let _ = overlay.request(&state.catalogs, &rewritten);
+                if overlay.request(&state.catalogs, &rewritten).is_err() {
+                    return StatusCode::BAD_REQUEST.into_response();
+                }
+                let rewritten =
+                    match crate::opaque::native_arguments_for_sdk(&state.catalogs, &rewritten) {
+                        Ok(request) => request,
+                        Err(_) => return StatusCode::BAD_REQUEST.into_response(),
+                    };
                 axum::body::Bytes::from(rewritten)
             }
             Err(_) => return StatusCode::BAD_REQUEST.into_response(),
@@ -539,13 +628,17 @@ async fn opaque_catalog(
         let stream = futures_util::stream::try_unfold(
             (
                 body.into_data_stream(),
-                SseFrames::default(),
+                SseFrames {
+                    limit: Some(state.output_limits),
+                    ..Default::default()
+                },
                 axum::body::Bytes::new(),
                 overlay,
                 wire,
                 lease,
+                state.output_limits,
             ),
-            |(mut stream, mut buffer, mut pending, mut overlay, wire, lease)| async move {
+            |(mut stream, mut buffer, mut pending, mut overlay, wire, lease, output_limits)| async move {
                 loop {
                     if let Some(frame) = buffer.next_frame() {
                         let text = String::from_utf8(frame).map_err(std::io::Error::other)?;
@@ -554,9 +647,14 @@ async fn opaque_catalog(
                         let rewritten =
                             crate::opaque::wire_event(&mut wire.lock().unwrap(), &rewritten)
                                 .map_err(|e| std::io::Error::other(e.to_string()))?;
+                        if rewritten.len() > output_limits.bytes() {
+                            return Err(std::io::Error::other(
+                                "native output exceeds configured byte budget",
+                            ));
+                        }
                         return Ok::<_, std::io::Error>(Some((
                             axum::body::Bytes::from(rewritten),
-                            (stream, buffer, pending, overlay, wire, lease),
+                            (stream, buffer, pending, overlay, wire, lease, output_limits),
                         )));
                     }
                     // Transport chunks can coalesce several standalone events.
@@ -580,15 +678,21 @@ async fn opaque_catalog(
         parts.headers.remove("content-length");
         return Response::from_parts(parts, Body::from_stream(stream));
     }
-    let bytes = match axum::body::to_bytes(body, 4 * 1024 * 1024).await {
+    let bytes = match axum::body::to_bytes(body, state.output_limits.bytes()).await {
         Ok(bytes) => bytes,
         Err(_) => return StatusCode::BAD_GATEWAY.into_response(),
     };
-    let replacement = std::str::from_utf8(&bytes)
-        .ok()
-        .and_then(|s| overlay.response(s).ok())
-        .and_then(|s| wire.lock().unwrap().response(&s).ok())
-        .unwrap_or_else(|| String::from_utf8_lossy(&bytes).into_owned());
+    let replacement = match std::str::from_utf8(&bytes)
+        .map_err(|e| e.to_string())
+        .and_then(|s| overlay.response(s).map_err(|e| e.to_string()))
+        .and_then(|s| wire.lock().unwrap().response(&s).map_err(|e| e.to_string()))
+    {
+        Ok(value) => value,
+        Err(_) => return StatusCode::BAD_GATEWAY.into_response(),
+    };
+    if replacement.len() > state.output_limits.bytes() {
+        return StatusCode::BAD_GATEWAY.into_response();
+    }
     parts.headers.remove("content-length");
     Response::from_parts(parts, Body::from(replacement))
 }

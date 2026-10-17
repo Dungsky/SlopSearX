@@ -227,7 +227,7 @@ impl PolicyService {
             .collect();
         let inactive: Vec<_> = names
             .iter()
-            .filter(|n| self.catalog.get(n).is_some_and(|e| !e.enabled || !e.active))
+            .filter(|n| self.catalog.get(n).is_some_and(|e| !e.enabled))
             .collect();
         if !unknown.is_empty() || !inactive.is_empty() {
             let problems = unknown
@@ -244,7 +244,7 @@ impl PolicyService {
                 .catalog
                 .engines()
                 .iter()
-                .filter(|e| e.enabled && e.active)
+                .filter(|e| e.enabled)
                 .map(|e| &e.name)
                 .collect();
             e.details = Box::new(json!({"valid_alternatives":valid}));
@@ -266,6 +266,37 @@ impl PolicyService {
             );
             e.details =
                 Box::new(json!({"engines":sensitive,"grant":"MCP_TARGETED_SENSITIVE_ALLOWED"}));
+            return Err(e);
+        }
+        // Authorization precedes runtime availability: an enabled sensitive
+        // engine remains sensitive even when no adapter instance is mounted.
+        // Authorized requests still fail closed atomically if any requested
+        // adapter is unavailable; never silently drop an explicit engine.
+        let unavailable: Vec<_> = names
+            .iter()
+            .filter(|n| self.catalog.get(n).is_some_and(|e| !e.active))
+            .collect();
+        if !unavailable.is_empty() {
+            let mut e = PolicyError::new(
+                "invalid_scope",
+                field,
+                format!(
+                    "unknown or inactive engines: {}",
+                    unavailable
+                        .iter()
+                        .map(|n| format!("{n} (inactive)"))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                ),
+            );
+            let valid: BTreeSet<_> = self
+                .catalog
+                .engines()
+                .iter()
+                .filter(|e| e.enabled && e.active)
+                .map(|e| &e.name)
+                .collect();
+            e.details = Box::new(json!({"valid_alternatives":valid}));
             return Err(e);
         }
         Ok(())

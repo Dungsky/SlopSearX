@@ -11,6 +11,10 @@ workspace = true
 
 [dependencies]
 ssx-application.workspace = true
+ssx-infra.workspace = true
+ssx-config.workspace = true
+ssx-registry.workspace = true
+unicode-normalization = "=0.1.24"
 ssx-wire.workspace = true
 rmcp = { workspace = true, features = ["client", "transport-io", "transport-child-process", "transport-streamable-http-server", "transport-streamable-http-client-reqwest"] }
 tokio.workspace = true
@@ -33,5 +37,4 @@ sha2.workspace = true
 rustls.workspace = true
 
 [dev-dependencies]
-ssx-infra.workspace = true
 redis.workspace = true
