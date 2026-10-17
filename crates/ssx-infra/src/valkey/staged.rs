@@ -42,6 +42,12 @@ pub struct Transition {
     pub status: Staged,
     pub record: Option<Record>,
 }
+/// Acknowledged claim result. Terminal transitions are returned from the atomic
+/// claim response; a reload must never be used to infer a transition event.
+pub enum ClaimOutcome {
+    Claimed(OwnedStage),
+    Transition(Transition),
+}
 /// An ownership observation, not permanent dispatch authorization. W06 must
 /// revalidate policy and renew immediately before execution and fence its commit.
 pub struct OwnedStage {
@@ -292,11 +298,11 @@ impl<'a> StagedStore<'a> {
             attempt_id: attempt_id.into(),
         }))
     }
-    pub async fn claim_prepared(
+    pub async fn claim_prepared_outcome(
         &self,
         prepared: PreparedClaim,
         now: WallClockTimestamp,
-    ) -> Result<Option<OwnedStage>, Failure> {
+    ) -> Result<ClaimOutcome, Failure> {
         let PreparedClaim {
             record,
             raw,
@@ -326,14 +332,29 @@ impl<'a> StagedStore<'a> {
             Reply::Staged {
                 status: Staged::Claimed,
                 record: Some(value),
-            } => Ok(Some(OwnedStage {
+            } => Ok(ClaimOutcome::Claimed(OwnedStage {
                 record: decode(value)?,
                 raw: stored,
                 token,
             })),
-            Reply::Staged { .. } => Ok(None),
+            Reply::Staged { status, record } => Ok(ClaimOutcome::Transition(Transition {
+                status,
+                record: record.map(decode).transpose()?,
+            })),
             _ => Err(Failure::Malformed),
         }
+    }
+    /// Compatibility wrapper. Runners needing terminal acknowledgment events use
+    /// `claim_prepared_outcome`; this retains the accepted W11 API.
+    pub async fn claim_prepared(
+        &self,
+        prepared: PreparedClaim,
+        now: WallClockTimestamp,
+    ) -> Result<Option<OwnedStage>, Failure> {
+        Ok(match self.claim_prepared_outcome(prepared, now).await? {
+            ClaimOutcome::Claimed(owned) => Some(owned),
+            ClaimOutcome::Transition(_) => None,
+        })
     }
     pub async fn claim(
         &self,
@@ -553,6 +574,104 @@ impl<'a> StagedStore<'a> {
                 let remaining: i64 = self.command(cmd, false).await?;
                 if remaining <= 0 {
                     self.interrupt(&rk, &r, now).await?;
+                    continue;
+                }
+                (RUNNING, now.seconds() + remaining as f64)
+            } else {
+                continue;
+            };
+            let mut cmd = redis::cmd("ZADD");
+            cmd.arg(index);
+            if index == READY {
+                cmd.arg("NX");
+            }
+            cmd.arg(score).arg(&rk);
+            let _: i64 = self.command(cmd, true).await?;
+        }
+        Ok(next)
+    }
+    /// New acknowledged interruption protocol, leaving legacy Lua/reply intact.
+    async fn interrupt_acknowledged(
+        &self,
+        rk: &str,
+        r: &Record,
+        now: WallClockTimestamp,
+    ) -> Result<Option<Record>, Failure> {
+        match self
+            .store
+            .run(
+                Script::StagedInterruptAcknowledged,
+                &[
+                    rk,
+                    &key("lease", &r.tenant(), Some(r.id().as_str())),
+                    RUNNING,
+                ],
+                &[now.seconds().to_string(), ttl(r, now)?],
+            )
+            .await?
+        {
+            Reply::StagedInterrupted(value) => {
+                let record = value.map(decode).transpose()?;
+                if record.as_ref().is_some_and(|v| {
+                    v.tenant() != r.tenant() || v.id() != r.id() || v.state() != "interrupted"
+                }) {
+                    return Err(Failure::Malformed);
+                }
+                Ok(record)
+            }
+            _ => Err(Failure::Malformed),
+        }
+    }
+    /// Only successful atomic acknowledgments are returned. An unknown write
+    /// produces an error, never a speculative event or a retry of that write.
+    pub async fn recover_orphans_acknowledged(
+        &self,
+        now: WallClockTimestamp,
+        mut acknowledged: impl FnMut(Record),
+    ) -> Result<usize, Failure> {
+        let mut count = 0;
+        for rk in self.candidates(RUNNING, now, 32).await? {
+            if let Some(r) = self.record_key(&rk).await? {
+                if let Some(interrupted) = self.interrupt_acknowledged(&rk, &r, now).await? {
+                    acknowledged(interrupted);
+                    count += 1;
+                }
+            } else {
+                self.remove_hint(RUNNING, &rk).await?;
+            }
+        }
+        Ok(count)
+    }
+    pub async fn reconcile_indexes_acknowledged(
+        &self,
+        cursor: u64,
+        now: WallClockTimestamp,
+        mut acknowledged: impl FnMut(Record),
+    ) -> Result<u64, Failure> {
+        let mut cmd = redis::cmd("SCAN");
+        cmd.arg(cursor)
+            .arg("MATCH")
+            .arg("mcp:staged:v1:record:*")
+            .arg("COUNT")
+            .arg(128);
+        let (next, keys): (u64, Vec<String>) = self.command(cmd, false).await?;
+        for rk in keys {
+            let Some(r) = self.record_key(&rk).await? else {
+                continue;
+            };
+            if r.expires_at() <= now.seconds() {
+                continue;
+            }
+            let (index, score) = if r.state() == "queued" {
+                (READY, now.seconds())
+            } else if r.state() == "running" {
+                let mut cmd = redis::cmd("TTL");
+                cmd.arg(key("lease", &r.tenant(), Some(r.id().as_str())));
+                let remaining: i64 = self.command(cmd, false).await?;
+                if remaining <= 0 {
+                    if let Some(interrupted) = self.interrupt_acknowledged(&rk, &r, now).await? {
+                        acknowledged(interrupted);
+                    }
                     continue;
                 }
                 (RUNNING, now.seconds() + remaining as f64)

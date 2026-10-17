@@ -1640,12 +1640,28 @@
     "rust.yml:foundation": {
       "source": {
         "job": {
+          "name": "Foundation (${{ matrix.runner }})",
+          "runs-on": "${{ matrix.runner }}",
+          "timeout-minutes": 45,
+          "strategy": {
+            "fail-fast": false,
+            "matrix": {
+              "include": [
+                {
+                  "runner": "ubuntu-24.04",
+                  "target": "x86_64-unknown-linux-gnu"
+                },
+                {
+                  "runner": "ubuntu-24.04-arm",
+                  "target": "aarch64-unknown-linux-gnu"
+                }
+              ]
+            }
+          },
           "env": {
             "CARGO_TERM_COLOR": "always",
             "RUST_BACKTRACE": 1
           },
-          "name": "Foundation (${{ matrix.runner }})",
-          "runs-on": "${{ matrix.runner }}",
           "steps": [
             {
               "uses": "actions/checkout@v7",
@@ -1663,8 +1679,8 @@
             },
             {
               "name": "Build pinned disposable native Valkey",
-              "run": "sh scripts/rust-valkey-build.sh \"$RUNNER_TEMP/ssx-valkey/bin\"\necho \"$RUNNER_TEMP/ssx-valkey/bin\" >> \"$GITHUB_PATH\"\n",
-              "timeout-minutes": 15
+              "timeout-minutes": 15,
+              "run": "sh scripts/rust-valkey-build.sh \"$RUNNER_TEMP/ssx-valkey/bin\"\necho \"$RUNNER_TEMP/ssx-valkey/bin\" >> \"$GITHUB_PATH\"\n"
             },
             {
               "name": "Formatting",
@@ -1767,6 +1783,10 @@
               "run": "cargo xtask check W11 --output target/rust-evidence/W11.json"
             },
             {
+              "name": "Staged execution and retained evidence authority",
+              "run": "cargo xtask check W06 --output target/rust-evidence/W06.json"
+            },
+            {
               "name": "Active experiment tooling inventory and native evidence contracts",
               "run": "cargo xtask check O03 --output target/rust-evidence/O03.json"
             },
@@ -1815,49 +1835,33 @@
               "run": "cargo xtask check A09 --output target/rust-evidence/A09.json"
             },
             {
+              "name": "Native readiness and Python bridge smoke",
               "env": {
                 "SSX_SERVER_BIN": "target/${{ matrix.target }}/debug/ssx-server"
               },
-              "name": "Native readiness and Python bridge smoke",
               "run": "sh scripts/rust-foundation-smoke.sh"
             },
             {
-              "if": "always()",
               "name": "Retain source-bound foundation evidence",
+              "if": "always()",
               "uses": "actions/upload-artifact@v7",
               "with": {
-                "if-no-files-found": "warn",
                 "name": "rust-foundation-${{ matrix.target }}-${{ github.sha }}",
-                "path": "target/rust-evidence/F03.json\ntarget/rust-evidence/F04.json\ntarget/rust-evidence/T01.json\ntarget/rust-evidence/T04.json\ntarget/rust-evidence/T05.json\ntarget/rust-evidence/F05.json\ntarget/rust-evidence/F06.json\ntarget/rust-evidence/F09.json\ntarget/rust-evidence/F12.json\ntarget/rust-evidence/F07.json\ntarget/rust-evidence/W00.json\ntarget/rust-evidence/W01.json\ntarget/rust-evidence/W02.json\ntarget/rust-evidence/W04.json\ntarget/rust-evidence/W05.json\ntarget/rust-evidence/W11.json\ntarget/rust-evidence/O03.json\ntarget/rust-evidence/F08.json\ntarget/rust-evidence/F10.json\ntarget/rust-evidence/F11.json\ntarget/rust-evidence/F13.json\ntarget/rust-evidence/F14.json\ntarget/rust-evidence/F15.json\ntarget/rust-evidence/T09.json\ntarget/rust-evidence/A01.json\ntarget/rust-evidence/A02.json\ntarget/rust-evidence/A03.json\ntarget/rust-evidence/A04.json\ntarget/rust-evidence/A05.json\ntarget/rust-evidence/A07.json\ntarget/rust-evidence/A08.json\ntarget/rust-evidence/A09.json\ntarget/rust-feature-graph.txt\n"
+                "path": "target/rust-evidence/F03.json\ntarget/rust-evidence/F04.json\ntarget/rust-evidence/T01.json\ntarget/rust-evidence/T04.json\ntarget/rust-evidence/T05.json\ntarget/rust-evidence/F05.json\ntarget/rust-evidence/F06.json\ntarget/rust-evidence/F09.json\ntarget/rust-evidence/F12.json\ntarget/rust-evidence/F07.json\ntarget/rust-evidence/W00.json\ntarget/rust-evidence/W01.json\ntarget/rust-evidence/W02.json\ntarget/rust-evidence/W04.json\ntarget/rust-evidence/W05.json\ntarget/rust-evidence/W11.json\ntarget/rust-evidence/W06.json\ntarget/rust-evidence/O03.json\ntarget/rust-evidence/F08.json\ntarget/rust-evidence/F10.json\ntarget/rust-evidence/F11.json\ntarget/rust-evidence/F13.json\ntarget/rust-evidence/F14.json\ntarget/rust-evidence/F15.json\ntarget/rust-evidence/T09.json\ntarget/rust-evidence/A01.json\ntarget/rust-evidence/A02.json\ntarget/rust-evidence/A03.json\ntarget/rust-evidence/A04.json\ntarget/rust-evidence/A05.json\ntarget/rust-evidence/A07.json\ntarget/rust-evidence/A08.json\ntarget/rust-evidence/A09.json\ntarget/rust-feature-graph.txt\n",
+                "if-no-files-found": "warn"
               }
             }
-          ],
-          "strategy": {
-            "fail-fast": false,
-            "matrix": {
-              "include": [
-                {
-                  "runner": "ubuntu-24.04",
-                  "target": "x86_64-unknown-linux-gnu"
-                },
-                {
-                  "runner": "ubuntu-24.04-arm",
-                  "target": "aarch64-unknown-linux-gnu"
-                }
-              ]
-            }
-          },
-          "timeout-minutes": 45
+          ]
         },
         "workflow": {
           "name": "Rust foundation",
           "on": {
-            "pull_request": {
+            "push": {
               "branches": [
                 "main"
               ]
             },
-            "push": {
+            "pull_request": {
               "branches": [
                 "main"
               ]
@@ -2011,7 +2015,8 @@
             "id": "check-added-large-files",
             "args": [
               "--maxkb=500"
-            ]
+            ],
+            "exclude": "^docs/rust-rewrite/w06/(source\\.json|evidence/source-before-(composite-id-correction|unique-snapshot-ids)\\.json|evidence/review-public-source-outcomes\\.json)$"
           }
         ]
       },

@@ -149,3 +149,5 @@ pub mod saved;
 pub mod rerank;
 
 pub mod advisories;
+
+pub mod staged;

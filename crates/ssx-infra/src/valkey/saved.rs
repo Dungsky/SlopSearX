@@ -46,6 +46,14 @@ impl From<DomainError> for Error {
         Self::Invalid(e)
     }
 }
+/// Bounded source classification, after current-definition authority and exact
+/// snapshot checks. Only Found promises a valid historical observation window.
+#[derive(Debug, Clone, PartialEq)]
+pub enum RecentReport {
+    Found(ssx_json::Value),
+    Incomparable(ssx_json::Value),
+    Truncated(ssx_json::Value),
+}
 /// Tokens and raw authority snapshots are deliberately absent from Debug output.
 /// ```compile_fail
 /// use ssx_infra::valkey::saved::Claim;
@@ -866,6 +874,113 @@ impl SavedStore {
         }
     }
     /// Retained evidence is still bound to the currently authorized live scope.
+    /// Resolve only membership in the current operator-bounded recent list.
+    /// Existing direct report readers retain their original API and behavior.
+    pub async fn recent_report(
+        &self,
+        id: &SavedSearchId,
+        run_id: &str,
+        policy: &SavedPolicy<'_>,
+    ) -> Result<Option<RecentReport>, Error> {
+        if !policy.saved_granted {
+            return Err(Error::Invalid(DomainError(
+                "saved-search grant is disabled",
+            )));
+        }
+        if validate_saved_id(id.as_str()).is_err() {
+            return Ok(None);
+        }
+        if policy.limits.reports == 0 || policy.limits.reports > 100 {
+            return Err(Error::Invalid(DomainError(
+                "invalid saved report list bound",
+            )));
+        }
+        let initial = match self.raw(id).await {
+            Ok((raw, _)) => raw,
+            Err(Error::Missing) => return Ok(None),
+            Err(error) => return Err(error),
+        };
+        let Some(d) = self.load(id).await? else {
+            return Ok(None);
+        };
+        policy
+            .search
+            .retained_engine_rejection(&d.engines, "engines")
+            .map_err(|_| Error::Invalid(DomainError("saved-search scope rejected")))?;
+        let mut cmd = redis::cmd("ZREVRANGE");
+        cmd.arg(self.key("reports", id.as_str()))
+            .arg(0)
+            .arg(policy.limits.reports - 1);
+        let members: Vec<String> = redis::from_redis_value(self.backend.execute(cmd, false).await?)
+            .map_err(|_| Error::Malformed)?;
+        if !members.iter().any(|r| r == run_id) || validate_saved_id(run_id).is_err() {
+            return Ok(None);
+        }
+        let value = match self
+            .backend
+            .get_object(&self.key("report", &format!("{}:{run_id}", id.as_str())))
+            .await
+        {
+            Read::Found(value) => value,
+            Read::Missing => return Ok(None),
+            Read::Malformed => return Err(Error::Malformed),
+            Read::Unavailable => return Err(Error::Store(Failure::Unavailable)),
+            Read::Closed => return Err(Error::Store(Failure::Closed)),
+        };
+        if value["search_id"].as_str() != Some(id.as_str())
+            || value["run_id"].as_str() != Some(run_id)
+        {
+            return Err(Error::Malformed);
+        }
+        if value["expires_at"].as_f64().ok_or(Error::Malformed)? <= self.now().await? {
+            return Ok(None);
+        }
+        if self.raw(id).await?.0 != initial {
+            return Err(Error::Conflict);
+        }
+        policy
+            .search
+            .retained_engine_rejection(&d.engines, "engines")
+            .map_err(|_| Error::Invalid(DomainError("saved-search scope rejected")))?;
+        let reasons = value["incomparable_reasons"].as_array();
+        if reasons.is_some_and(|a| {
+            a.iter().any(|v| {
+                matches!(
+                    v.as_str(),
+                    Some("observation_truncated" | "report_size_exceeded")
+                )
+            })
+        }) {
+            return Ok(Some(RecentReport::Truncated(value)));
+        }
+        if value["status"].as_str() == Some("incomparable")
+            || reasons.is_some_and(|a| !a.is_empty())
+        {
+            return Ok(Some(RecentReport::Incomparable(value)));
+        }
+        let window = &value["observation"]["window"];
+        let Some(_query) = window["query"]
+            .as_str()
+            .filter(|s| !s.trim_matches(ssx_json::python_whitespace).is_empty())
+        else {
+            return Ok(Some(RecentReport::Incomparable(value)));
+        };
+        let Some(engines) = window["engines"].as_array().filter(|a| !a.is_empty()) else {
+            return Ok(Some(RecentReport::Incomparable(value)));
+        };
+        let Some(engines) = engines
+            .iter()
+            .map(|v| v.as_str().map(str::to_owned))
+            .collect::<Option<Vec<_>>>()
+        else {
+            return Ok(Some(RecentReport::Incomparable(value)));
+        };
+        policy
+            .search
+            .retained_engine_rejection(&engines, "engines")
+            .map_err(|_| Error::Invalid(DomainError("saved-search scope rejected")))?;
+        Ok(Some(RecentReport::Found(value)))
+    }
     pub async fn report(
         &self,
         id: &SavedSearchId,
