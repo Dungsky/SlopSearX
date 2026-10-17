@@ -87,7 +87,7 @@
     },
     {
       "path": "crates/xtask/src/main.rs",
-      "sha256": "0ab426d18827611232a7e07f5e87b685cf1aa43abd204ba9049a20ec321297ec"
+      "sha256": "84e71cca58c9b9c021fe5674478ee3e2101a2e0fc598940c3857fa96eca4d252"
     },
     {
       "path": "docs/rust-rewrite/CASE_STUDY.md",
