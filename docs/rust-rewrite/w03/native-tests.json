@@ -65,7 +65,8 @@
         "actual_authenticated_legacy_sse_preview_has_exact_output_and_zero_dispatch",
         "actual_http_default_strategies_deadline_and_idempotent_admission",
         "budget_exhaustion_completion_and_exact_cap_replay_over_actual_http",
-        "real_native_stdio_process_preserves_complete_descriptors_preview_and_evidence_replay"
+        "real_native_stdio_process_preserves_complete_descriptors_preview_and_evidence_replay",
+        "bounded_workers::authenticated_multistart_uses_configured_durable_workers_and_joins_shutdown"
       ]
     },
     {

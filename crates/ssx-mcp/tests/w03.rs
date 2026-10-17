@@ -645,3 +645,483 @@ async fn actual_http_default_strategies_deadline_and_idempotent_admission() -> R
     fixture.service.shutdown().await;
     Ok(())
 }
+
+// Same appended test source must run against both the published per-start
+// runtime and the proposed runtime. No private production API is referenced.
+mod bounded_workers {
+    use super::*;
+    use ssx_application::{NoopSink, PortFuture, SearchEngine, cache::RoutingIdentity};
+    use ssx_domain::{
+        AdapterResponse, EngineStatus, JobId, SearchRequest, SearchResult, TenantId,
+        research::ResearchCeilings,
+    };
+    use ssx_infra::{
+        research_planning::AdaptiveResearch,
+        research_runner::RunnerConfig,
+        search::{
+            EngineBinding, SearchConfig, SearchDependencies, SearchService, SystemSearchClock,
+        },
+        valkey::research::{JobRead, ResearchStore},
+    };
+    use std::{
+        collections::BTreeMap,
+        num::NonZeroU64,
+        sync::{
+            Arc,
+            atomic::{AtomicUsize, Ordering},
+        },
+    };
+    use tokio::sync::{Notify, watch};
+    type Client = rmcp::service::RunningService<rmcp::RoleClient, ()>;
+    struct HeldEngine {
+        active: AtomicUsize,
+        peak: AtomicUsize,
+        started: AtomicUsize,
+        changed: Notify,
+        release: watch::Sender<bool>,
+    }
+    impl HeldEngine {
+        fn new() -> Arc<Self> {
+            Arc::new(Self {
+                active: AtomicUsize::new(0),
+                peak: AtomicUsize::new(0),
+                started: AtomicUsize::new(0),
+                changed: Notify::new(),
+                release: watch::channel(false).0,
+            })
+        }
+        async fn started_at_least(&self, expected: usize) {
+            loop {
+                let changed = self.changed.notified();
+                if self.started.load(Ordering::SeqCst) >= expected {
+                    return;
+                }
+                changed.await;
+            }
+        }
+    }
+    struct Active<'a>(&'a AtomicUsize);
+    impl Drop for Active<'_> {
+        fn drop(&mut self) {
+            self.0.fetch_sub(1, Ordering::SeqCst);
+        }
+    }
+    impl SearchEngine for HeldEngine {
+        fn search<'a>(&'a self, request: &'a SearchRequest) -> PortFuture<'a, AdapterResponse> {
+            Box::pin(async move {
+                let active = self.active.fetch_add(1, Ordering::SeqCst) + 1;
+                let _active = Active(&self.active);
+                self.peak.fetch_max(active, Ordering::SeqCst);
+                let number = self.started.fetch_add(1, Ordering::SeqCst) + 1;
+                self.changed.notify_waiters();
+                let mut release = self.release.subscribe();
+                while !*release.borrow() {
+                    if release.changed().await.is_err() {
+                        break;
+                    }
+                }
+                AdapterResponse {
+                    status: EngineStatus::Ok,
+                    results: vec![SearchResult {
+                        url: format!("https://example.test/bounded/{number}"),
+                        title: request.query.clone(),
+                        engine: "wikipedia".into(),
+                        engines: ["wikipedia".into()].into(),
+                        ..Default::default()
+                    }],
+                    ..Default::default()
+                }
+            })
+        }
+    }
+    fn args(number: usize) -> Value {
+        json!({"question":format!("bounded unique question {number}"),"initial_plan":[{"query":format!("bounded unique query {number}"),"engines":["wikipedia"]}],"max_queries":1,"max_attempts":1,"max_engine_attempts":1,"max_results":10,"idempotency_key":format!("bounded-{number}")})
+    }
+    async fn client(url: &str) -> Result<Client> {
+        let mut headers = reqwest::header::HeaderMap::new();
+        headers.insert(
+            reqwest::header::AUTHORIZATION,
+            "Bearer w03-bounded".parse()?,
+        );
+        let http = reqwest::Client::builder()
+            .no_proxy()
+            .default_headers(headers)
+            .build()?;
+        Ok(()
+            .serve(StreamableHttpClientTransport::with_client(
+                http,
+                StreamableHttpClientTransportConfig::with_uri(url.to_owned()),
+            ))
+            .await?)
+    }
+    async fn host(registry: &PlanningRegistry) -> Result<Host> {
+        let stop = CancellationToken::new();
+        let auth = NetworkAuth::Static(ssx_domain::oauth::Secret::new("w03-bounded".into())?);
+        Host::start(
+            http_router_for(registry.clone(), PlanningRegistry::catalogs(), stop.clone())
+                .map(|router| auth.mount(router)),
+            stop,
+        )
+        .await
+    }
+    async fn load(store: &ResearchStore, id: &str) -> ssx_domain::research::ResearchJob {
+        match store.load(&JobId::new(id).unwrap()).await {
+            JobRead::Found(job) => *job,
+            other => panic!("admitted job disappeared: {other:?}"),
+        }
+    }
+    async fn terminal(store: &ResearchStore, id: &str) -> ssx_domain::research::ResearchJob {
+        tokio::time::timeout(Duration::from_secs(10), async {
+            loop {
+                let job = load(store, id).await;
+                if !["queued", "running"].contains(&job.state.as_str()) {
+                    return job;
+                }
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .expect("durably admitted queued job did not eventually settle")
+    }
+    fn lease_count(server: &private_valkey::Server, ids: &[String]) -> usize {
+        ids.iter()
+            .filter(|id| {
+                redis::cmd("EXISTS")
+                    .arg(format!("mcp:joblease:default:{id}"))
+                    .query::<bool>(&mut server.connection())
+                    .unwrap()
+            })
+            .count()
+    }
+    fn service(fixture: &w03_support::fixture::Fixture, engine: Arc<HeldEngine>) -> SearchService {
+        SearchService::new(
+            SearchConfig::default(),
+            SearchDependencies {
+                policy: fixture.policy.clone(),
+                engines: BTreeMap::from([(
+                    "wikipedia".into(),
+                    EngineBinding {
+                        engine,
+                        generation: "w03-bounded-fixture".into(),
+                        timeout: Duration::from_secs(30),
+                        scrape: false,
+                    },
+                )]),
+                routing_identity: RoutingIdentity {
+                    catalog: None,
+                    sensitive: fixture.policy.policy.sensitive_engines.clone(),
+                    tier1: fixture.policy.resolver.tier1.clone(),
+                    budget: None,
+                    ranking_strategy: "presence".into(),
+                    work_group_version: "scholarly-work-v3".into(),
+                    rerank_identity: None,
+                    routing_extension: None,
+                },
+                cache: None,
+                client_admission: None,
+                suggestions: None,
+                jev: None,
+                routing_cache: None,
+                metrics: Arc::new(NoopSink),
+                supervisor: Arc::new(NoopSink),
+                audit: Arc::new(NoopSink),
+                cooldowns: None,
+                owned_http: vec![],
+                owned_stores: vec![],
+                clock: Arc::new(SystemSearchClock),
+                reranker: None,
+            },
+        )
+        .unwrap()
+    }
+    #[tokio::test]
+    async fn authenticated_multistart_uses_configured_durable_workers_and_joins_shutdown()
+    -> Result<()> {
+        // The existing five wire tests use default=1; exercise both configured
+        // cardinalities here through separate authenticated transport sessions.
+        for workers in [1usize, 2] {
+            let server = private_valkey::Server::start();
+            let (unused, fixture) = w03_support::setup(server.url()).await;
+            unused.close().await;
+            let engine = HeldEngine::new();
+            let search = service(&fixture, engine.clone());
+            let store = ResearchStore::new(fixture.store.clone(), TenantId::new("default")?);
+            let planning = AdaptiveResearch::new(
+                store.clone(),
+                search.clone(),
+                fixture.surface.state().snapshots.clone(),
+                RunnerConfig {
+                    owner: format!("w03-bounded-{workers}"),
+                    lease_seconds: NonZeroU64::new(2).unwrap(),
+                    poll_interval: Duration::from_millis(10),
+                    workers: NonZeroU64::new(workers as u64).unwrap(),
+                    ceilings: ResearchCeilings {
+                        queries: 20,
+                        engines_per_query: 10,
+                        results: 500,
+                    },
+                },
+                500,
+            )
+            .unwrap();
+            let registry = PlanningRegistry::new(planning.clone(), fixture.surface.clone());
+            let host = host(&registry).await?;
+            let url = format!("http://{}/mcp", host.address);
+            assert_eq!(
+                reqwest::Client::new()
+                    .post(&url)
+                    .json(&json!({"jsonrpc":"2.0","id":1,"method":"tools/list"}))
+                    .send()
+                    .await?
+                    .status(),
+                401
+            );
+            assert_eq!(engine.started.load(Ordering::SeqCst), 0);
+            let first = client(&url).await?;
+            let second = client(&url).await?;
+            let mut ids = Vec::new();
+            for number in 0..8 {
+                let client = if number % 2 == 0 { &first } else { &second };
+                let job = call(client, "slopsearx_start_research", args(number)).await;
+                ids.push(
+                    job["job_id"]
+                        .as_str()
+                        .expect("admitted start must return durable ID")
+                        .to_owned(),
+                );
+            }
+            tokio::time::timeout(Duration::from_secs(5), engine.started_at_least(workers))
+                .await
+                .expect("workers never reached controlled provider");
+            // A finite observation window is not the red oracle: old code must
+            // actually enter worker+1's provider future, then fail this bound.
+            let overflow = tokio::time::timeout(
+                Duration::from_millis(500),
+                engine.started_at_least(workers + 1),
+            )
+            .await
+            .is_ok();
+            if overflow {
+                let observed = engine.peak.load(Ordering::SeqCst);
+                engine.release.send_replace(true);
+                registry.close().await;
+                first.cancel().await?;
+                second.cancel().await?;
+                host.shutdown().await?;
+                search.shutdown().await;
+                fixture.service.shutdown().await;
+                assert!(
+                    observed <= workers,
+                    "W03 configured worker bound violated: observed provider peak {observed}, configured {workers}; admitted starts must queue durably"
+                );
+                return Err("overflow cleanup reached unexpected successful assertion".into());
+            }
+            assert_eq!(engine.active.load(Ordering::SeqCst), workers);
+            assert_eq!(lease_count(&server, &ids), workers);
+            let mut running = Vec::new();
+            let mut queued = Vec::new();
+            for id in &ids {
+                let job = load(&store, id).await;
+                if job.queries[0].attempts.is_empty() {
+                    assert_eq!(job.state, "queued");
+                    assert_eq!(job.budget_used.get("attempts").copied().unwrap_or(0), 0);
+                    queued.push(id.clone());
+                } else {
+                    assert_eq!(job.queries[0].attempts.len(), 1);
+                    assert_eq!(job.budget_used["attempts"], 1);
+                    assert_eq!(job.budget_used["engine_attempts"], 1);
+                    running.push(id.clone());
+                }
+            }
+            assert_eq!(running.len(), workers);
+            assert_eq!(queued.len(), 8 - workers);
+            // Idempotent admission while held neither grows durable identity nor
+            // gives the shared pool another supervisor's worth of claims.
+            let replay = call(&second, "slopsearx_start_research", args(0)).await;
+            assert_eq!(replay["job_id"], ids[0]);
+            assert_eq!(store.list_recent(None, 200).await.unwrap().len(), 8);
+            assert_eq!(engine.started.load(Ordering::SeqCst), workers);
+            // Cancel one queued and one active job; cancellation remains a
+            // durable intent, charged attempts are not refunded or duplicated.
+            call(&first, "slopsearx_cancel_job", json!({"job_id":queued[0]})).await;
+            call(
+                &second,
+                "slopsearx_cancel_job",
+                json!({"job_id":running[0]}),
+            )
+            .await;
+            let cancelled = terminal(&store, &running[0]).await;
+            assert_eq!(cancelled.state, "cancelled");
+            assert_eq!(cancelled.budget_used["attempts"], 1);
+            tokio::time::timeout(Duration::from_secs(5), engine.started_at_least(workers + 1))
+                .await
+                .unwrap();
+            assert!(engine.peak.load(Ordering::SeqCst) <= workers);
+            engine.release.send_replace(true);
+            for id in &ids {
+                let job = terminal(&store, id).await;
+                if id == &queued[0] {
+                    assert!(job.queries[0].attempts.is_empty());
+                } else {
+                    assert_eq!(job.queries[0].attempts.len(), 1);
+                    assert_eq!(job.budget_used["attempts"], 1);
+                    assert_eq!(job.budget_used["engine_attempts"], 1);
+                }
+                assert!(
+                    !job.caller_completed,
+                    "worker must not impersonate caller completion"
+                );
+            }
+            assert_eq!(engine.started.load(Ordering::SeqCst), 7);
+            registry.close().await;
+            assert_eq!(engine.active.load(Ordering::SeqCst), 0);
+            assert_eq!(lease_count(&server, &ids), 0);
+            first.cancel().await?;
+            second.cancel().await?;
+            host.shutdown().await?;
+            // Restart recovery: a durable job admitted outside this registry is
+            // found by successful idempotent replay, without creating a new job.
+            let before_recovery = engine.started.load(Ordering::SeqCst);
+            let recovery_args = args(100);
+            let (queued_job, created) = planning
+                .admit(
+                    TenantId::new("default")?,
+                    &ssx_json::from_str(&recovery_args.to_string())?,
+                )
+                .await
+                .unwrap();
+            assert!(created);
+            let registry = PlanningRegistry::new(planning.clone(), fixture.surface.clone());
+            let recovery_host = super::bounded_workers::host(&registry).await?;
+            let recovery_client = client(&format!("http://{}/mcp", recovery_host.address)).await?;
+            let replay = call(&recovery_client, "slopsearx_start_research", recovery_args).await;
+            assert_eq!(replay["job_id"], queued_job.job_id);
+            let recovered = terminal(&store, &queued_job.job_id).await;
+            assert_eq!(recovered.state, "succeeded");
+            assert_eq!(recovered.queries[0].state, "done");
+            assert_eq!(recovered.queries[0].result_count, 1);
+            assert!(
+                recovered.queries[0]
+                    .cursor
+                    .as_ref()
+                    .is_some_and(|cursor| !cursor.is_empty())
+            );
+            assert_eq!(recovered.queries[0].attempts.len(), 1);
+            assert_eq!(recovered.queries[0].attempts[0].state, "done");
+            assert_eq!(
+                recovered.queries[0].attempts[0].admitted_result_ids.len(),
+                1
+            );
+            assert_eq!(recovered.budget_used["attempts"], 1);
+            assert_eq!(recovered.budget_used["engine_attempts"], 1);
+            assert_eq!(recovered.budget_used["results"], 1);
+            assert_eq!(
+                engine.started.load(Ordering::SeqCst),
+                before_recovery + 1,
+                "cold replay must execute exactly one actual provider call"
+            );
+            assert_eq!(store.list_recent(None, 200).await.unwrap().len(), 9);
+            // Shutdown while all configured workers hold provider futures. The
+            // remaining queue must remain durable, not an in-memory task list.
+            engine.release.send_replace(false);
+            let before = engine.started.load(Ordering::SeqCst);
+            let mut shutdown_ids = Vec::new();
+            for number in 200..(200 + workers + 2) {
+                let job = call(&recovery_client, "slopsearx_start_research", args(number)).await;
+                shutdown_ids.push(job["job_id"].as_str().unwrap().to_owned());
+            }
+            tokio::time::timeout(
+                Duration::from_secs(5),
+                engine.started_at_least(before + workers),
+            )
+            .await
+            .unwrap();
+            tokio::time::timeout(Duration::from_secs(5), registry.close())
+                .await
+                .expect("registry close failed to join its pool and owned captures");
+            assert_eq!(engine.active.load(Ordering::SeqCst), 0);
+            assert_eq!(
+                lease_count(&server, &shutdown_ids),
+                0,
+                "no owned lease remains after joined shutdown"
+            );
+            let mut retained_queue = 0;
+            let mut queued_replays = Vec::new();
+            for id in &shutdown_ids {
+                let job = load(&store, id).await;
+                if job.queries[0].attempts.is_empty() {
+                    assert_eq!(job.state, "queued");
+                    retained_queue += 1;
+                    let number = job
+                        .question
+                        .split_whitespace()
+                        .last()
+                        .unwrap()
+                        .parse::<usize>()
+                        .unwrap();
+                    queued_replays.push((id.clone(), args(number)));
+                } else {
+                    assert_eq!(job.queries[0].attempts.len(), 1);
+                    assert_eq!(job.budget_used["attempts"], 1);
+                }
+            }
+            assert_eq!(retained_queue, 2);
+            let calls_after_close = engine.started.load(Ordering::SeqCst);
+            tokio::time::sleep(Duration::from_millis(50)).await;
+            assert_eq!(
+                engine.started.load(Ordering::SeqCst),
+                calls_after_close,
+                "closed pool must not dispatch queued work"
+            );
+            assert!(engine.peak.load(Ordering::SeqCst) <= workers);
+            recovery_client.cancel().await?;
+            recovery_host.shutdown().await?;
+            // Queued work survives joined shutdown and executes after replay in
+            // a replacement registry, using the same durable job identity.
+            engine.release.send_replace(true);
+            let registry = PlanningRegistry::new(planning.clone(), fixture.surface.clone());
+            let restart_host = super::bounded_workers::host(&registry).await?;
+            let restart_client = client(&format!("http://{}/mcp", restart_host.address)).await?;
+            let before_restart = engine.started.load(Ordering::SeqCst);
+            let (queued_id, queued_args) = queued_replays.last().unwrap().clone();
+            let replay = call(&restart_client, "slopsearx_start_research", queued_args).await;
+            assert_eq!(replay["job_id"], queued_id);
+            for (id, _) in &queued_replays {
+                let restored = terminal(&store, id).await;
+                assert_eq!(restored.state, "succeeded");
+                assert_eq!(restored.queries[0].state, "done");
+                assert_eq!(restored.queries[0].result_count, 1);
+                assert!(
+                    restored.queries[0]
+                        .cursor
+                        .as_ref()
+                        .is_some_and(|cursor| !cursor.is_empty())
+                );
+                assert_eq!(restored.queries[0].attempts.len(), 1);
+                assert_eq!(restored.queries[0].attempts[0].state, "done");
+                assert_eq!(restored.queries[0].attempts[0].admitted_result_ids.len(), 1);
+                assert_eq!(restored.budget_used["attempts"], 1);
+                assert_eq!(restored.budget_used["engine_attempts"], 1);
+                assert_eq!(restored.budget_used["results"], 1);
+            }
+            assert_eq!(
+                engine.started.load(Ordering::SeqCst),
+                before_restart + queued_replays.len(),
+                "restart must execute exactly the retained queued provider calls"
+            );
+            assert_eq!(
+                store.list_recent(None, 200).await.unwrap().len(),
+                9 + workers + 2
+            );
+            registry.close().await;
+            assert_eq!(engine.active.load(Ordering::SeqCst), 0);
+            assert_eq!(lease_count(&server, &shutdown_ids), 0);
+            assert!(engine.peak.load(Ordering::SeqCst) <= workers);
+            restart_client.cancel().await?;
+            restart_host.shutdown().await?;
+            search.shutdown().await;
+            fixture.service.shutdown().await;
+        }
+        Ok(())
+    }
+}

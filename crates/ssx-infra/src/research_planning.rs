@@ -1303,6 +1303,12 @@ impl AdaptiveResearch {
             .await
             .map_err(store_error)
     }
+    /// Run the existing fixed-size durable polling pool. The composition owner
+    /// must supervise exactly one pool per registry; the durable ready index,
+    /// claims and current policy remain authoritative across all tenants.
+    pub async fn run_workers(&self, stop: watch::Receiver<bool>) {
+        self.runner.run(stop).await;
+    }
     pub async fn run(
         &self,
         tenant: TenantId,
