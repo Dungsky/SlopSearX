@@ -416,7 +416,7 @@
     },
     {
       "path": "crates/ssx-infra/tests/a09_factories.rs",
-      "sha256": "c7eb4cb261ab85764d3ebe3e7bd1c6648469aadaa1e61fb9b6b51077f3faa8da"
+      "sha256": "9506583b4543a18dac576de520e5c3e3cf0993899956aebb0983809dce3072ae"
     },
     {
       "path": "crates/ssx-http/tests/a09_consumers.rs",
