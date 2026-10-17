@@ -94,6 +94,19 @@ pub(crate) fn parse(raw: &str) -> Option<Parsed> {
         userinfo,
     })
 }
+/// Six urllib-compatible components for the HTTP formatter boundary.
+/// The caller owns the returned strings and metadata/projection lifetime.
+pub fn parsed_url(raw: &str) -> Option<Vec<String>> {
+    let parsed = parse(raw)?;
+    Some(vec![
+        parsed.scheme,
+        parsed.authority,
+        parsed.path,
+        parsed.params,
+        parsed.query,
+        parsed.fragment,
+    ])
+}
 /// Exact lowercase tracking keys only. Repeated values are grouped at first key encounter.
 pub fn normalise_url(raw: &str) -> String {
     let Some(p) = parse(raw) else {

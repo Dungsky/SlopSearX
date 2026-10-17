@@ -104,7 +104,7 @@
     },
     {
       "path": "crates/ssx-infra/src/adapters/mod.rs",
-      "sha256": "285599db476e33af3048179c2961a06dd1897301e32c49bad81e73a7ee8626c1"
+      "sha256": "8c7b3a899a9eb0ed8ea27a5658c8f0b6b500beccc5d2452c371a617b0f0144da"
     },
     {
       "path": "crates/ssx-infra/src/adapters/npm.rs",
@@ -224,7 +224,7 @@
     },
     {
       "path": "crates/ssx-infra/src/adapters/source_payload.rs",
-      "sha256": "d81b8b85cb494f5c12ecd5c4310483c028db5ef727e48a3136454ef2cef1f783"
+      "sha256": "ebd1bdecb28d598b991529ac98dce9190f7c8a039d51473d6286250c26a16446"
     },
     {
       "path": "crates/ssx-infra/src/adapters/source_repr.rs",
@@ -336,7 +336,7 @@
     },
     {
       "path": "docs/rust-rewrite/a06/NATIVE_QUALIFICATION.md",
-      "sha256": "9f30a1688c73d1d274f1a3e0deea6186cc678286e7554bb75f3e0e528702f9d0"
+      "sha256": "375cc0db330f690bdc63225ef101c6c0ee9fefe7090446e1357f57e3ad674247"
     },
     {
       "path": "docs/rust-rewrite/a06/arxiv-runtime-selected-ids.json",
@@ -973,7 +973,24 @@
         "search::tests::cooperative_completion_collection_preserves_real_health_origin",
         "search::tests::zero_remaining_budget_never_polls_engine",
         "tests::injected_sinks_observe_real_readiness",
-        "tests::unavailable_is_not_missing_or_ready"
+        "tests::unavailable_is_not_missing_or_ready",
+        "adapters::openlibrary::owned_operation_tests::actual_engine_budget_rejects_and_releases_all_operation_storage",
+        "adapters::openlibrary::owned_operation_tests::dropping_actual_projection_future_releases_charged_scratch_and_rows",
+        "adapters::openlibrary::owned_operation_tests::valid_then_invalid_is_atomic_releases_and_next_call_succeeds",
+        "adapters::musicbrainz::owned_operation_tests::actual_engine_budget_rejects_and_releases_all_operation_storage",
+        "adapters::musicbrainz::owned_operation_tests::dropping_actual_projection_future_releases_charged_scratch_and_rows",
+        "adapters::musicbrainz::owned_operation_tests::valid_then_invalid_is_atomic_releases_and_next_call_succeeds",
+        "adapters::tmdb::owned_operation_tests::actual_engine_budget_rejects_and_releases_all_operation_storage",
+        "adapters::tmdb::owned_operation_tests::dropping_actual_projection_future_releases_charged_scratch_and_rows",
+        "adapters::tmdb::owned_operation_tests::valid_then_invalid_is_atomic_releases_and_next_call_succeeds",
+        "adapters::nominatim::owned_operation_tests::actual_engine_budget_rejects_and_releases_all_operation_storage",
+        "adapters::nominatim::owned_operation_tests::dropping_actual_projection_future_releases_charged_scratch_and_rows",
+        "adapters::nominatim::owned_operation_tests::valid_then_invalid_is_atomic_releases_and_next_call_succeeds",
+        "adapters::internetarchive::owned_operation_tests::actual_engine_budget_rejects_and_releases_all_operation_storage",
+        "adapters::internetarchive::owned_operation_tests::dropping_actual_projection_future_releases_charged_scratch_and_rows",
+        "adapters::internetarchive::owned_operation_tests::valid_then_invalid_is_atomic_releases_and_next_call_succeeds",
+        "adapters::source_payload::batch::tests::thumbnail_uses_same_budget_and_named_handoff_release",
+        "adapters::source_payload::batch::tests::thumbnail_capacity_refusal_and_cancel_release_projection_storage"
       ]
     },
     {

@@ -221,13 +221,35 @@ pub fn default_topics() -> Vec<Topic> {
 }
 impl PolicyService {
     pub fn engine_rejection(&self, names: &[String], field: &str) -> Result<(), PolicyError> {
+        self.engine_rejection_with_activity(names, field, true)
+    }
+    /// Authorize disclosure of retained workflow evidence under current engine
+    /// policy. Runtime activity/availability is not authorization to view history.
+    /// This returns no dispatch token: acquisition still requires full authorize.
+    pub fn retained_engine_rejection(
+        &self,
+        names: &[String],
+        field: &str,
+    ) -> Result<(), PolicyError> {
+        self.engine_rejection_with_activity(names, field, false)
+    }
+    fn engine_rejection_with_activity(
+        &self,
+        names: &[String],
+        field: &str,
+        require_active: bool,
+    ) -> Result<(), PolicyError> {
         let unknown: Vec<_> = names
             .iter()
             .filter(|n| self.catalog.get(n).is_none())
             .collect();
         let inactive: Vec<_> = names
             .iter()
-            .filter(|n| self.catalog.get(n).is_some_and(|e| !e.enabled || !e.active))
+            .filter(|n| {
+                self.catalog
+                    .get(n)
+                    .is_some_and(|e| !e.enabled || (require_active && !e.active))
+            })
             .collect();
         if !unknown.is_empty() || !inactive.is_empty() {
             let problems = unknown
@@ -244,7 +266,7 @@ impl PolicyService {
                 .catalog
                 .engines()
                 .iter()
-                .filter(|e| e.enabled && e.active)
+                .filter(|e| e.enabled && (!require_active || e.active))
                 .map(|e| &e.name)
                 .collect();
             e.details = Box::new(json!({"valid_alternatives":valid}));

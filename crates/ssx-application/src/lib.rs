@@ -129,7 +129,7 @@ pub mod ranking;
 pub mod retrieval;
 pub mod scholarly;
 mod urls;
-pub use urls::normalise_url;
+pub use urls::{normalise_url, parsed_url};
 
 mod text;
 /// Python str.isdigit character semantics, using the accepted Unicode16 properties.
@@ -158,3 +158,5 @@ pub mod saved;
 pub mod rerank;
 
 pub mod advisories;
+
+pub mod staged;

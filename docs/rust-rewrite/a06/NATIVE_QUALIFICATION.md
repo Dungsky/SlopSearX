@@ -24,9 +24,10 @@ that a passing Rust test cannot substitute for the missing source completion.
 `coverage.json` pins the relevant source bodies and immutable captures;
 `completed-source-cases.json` names the claimed executions and exceptions.
 
-The current local qualification inventory has 276 native test identities and
-1,619 completed source events. The earlier pre-A08-union packet had 211 native
-identities and 1,535 events. These are scoped identities, not a claim that every
+The current local qualification inventory has 293 native test identities and
+1,619 completed source events. The coherent-clock/readiness checkpoint before
+the A09/W06 main union had 276 native identities. The earlier pre-A08-union
+packet had 211 native identities and 1,535 events. These are scoped identities, not a claim that every
 artifact row executes. The 41 original local regression mappings remain distinct
 from conservative crosssurface discovery and unqualified handoffs. Source-only
 observations, F06-unreachable null/list/map configurations and the raw header
@@ -92,10 +93,11 @@ zero dispatch and retained ownership, then releases and drains the worker. This
 isolates context behavior without changing production cold-start deadlines.
 Original failing real-clock observations remain evidence, not discarded retries.
 
-All seven local A06/A07/F08/A05/A08/F01/O06 gates and the exact 182-consumer union
-passed on the coherent candidate. Subsequent reviewed lint-only corrections were
-checked with strict workspace Clippy, formatting, the affected timeout tests,
-F01/O06, scoped hooks and the AST graph update. Those supplements do not rewrite
-the earlier reports' source bindings. Final merged-source and architecture CI
-remain required before publication acceptance; issue984 remains open for its
-separate integrated obligations.
+The coherent-clock/readiness checkpoint passed seven local gates and the exact
+182-consumer union; its later lint-only corrections were qualified separately.
+The subsequent A09/W06 main union passed all nine local A09/W06/A06/A07/F08/A05/
+A08/F01/O06 gates, the same exact 182-consumer union and strict workspace Clippy.
+Historical reports retain their original source bindings; this final
+documentation-only count refresh does not relabel them. Final merged-source and
+architecture CI remain required before publication acceptance. Issue984 remains
+open for its separate integrated obligations.

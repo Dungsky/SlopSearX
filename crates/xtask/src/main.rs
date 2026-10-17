@@ -8,6 +8,7 @@ mod a06;
 mod a06_resource;
 mod a07;
 mod a08;
+mod a09;
 mod date_amendment;
 mod f05;
 mod f06;
@@ -31,6 +32,7 @@ mod w00;
 mod w01;
 mod w02;
 mod w04;
+mod w06;
 mod w11;
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -458,6 +460,7 @@ fn execute(root: &Path, id: &str, records: &mut Vec<Value>) -> Result<()> {
         "A06" => a06::check(root, records),
         "A07" => a07::check(root, records),
         "A08" => a08::check(root, records),
+        "A09" => a09::check(root, records),
         "A03" => a03::check(root, records),
         "A02" => a02::check(root, records),
         "A05" => a05::check(root, records),
@@ -476,6 +479,7 @@ fn execute(root: &Path, id: &str, records: &mut Vec<Value>) -> Result<()> {
         "W01" => w01::check(root, records),
         "W02" => w02::check(root, records),
         "W04" => w04::check(root, records),
+        "W06" => w06::check(root, records),
         "W11" => w11::check(root, records),
         "F08" => f08::check(root, records),
         "F09" => f09::check(root, records),
@@ -560,6 +564,18 @@ fn main() {
         }
         return;
     }
+    if args.first().is_some_and(|a| a == "verify-a09-transcript") {
+        let result = if args.len() == 2 {
+            a09::verify_transcript(&root, Path::new(&args[1]))
+        } else {
+            Err("usage: cargo xtask verify-a09-transcript PATH".into())
+        };
+        if let Err(error) = result {
+            eprintln!("{error}");
+            std::process::exit(1);
+        }
+        return;
+    }
     let mut records = Vec::new();
     let id = args.get(1).map(String::as_str).unwrap_or("");
     let mut head_records = Vec::new();
@@ -616,7 +632,9 @@ fn main() {
         }
     }
     let a08_scope = a08::report_scope(&records);
-    let scope = if id == "A05" {
+    let scope = if id == "A09" {
+        "source-bound catalog/media adapters; actual assertions plus guarded private loopback; qualification excludes incident calls and full portal/transport/global RSS"
+    } else if id == "A05" {
         "offline source-bound DuckDuckGo/Google HTML adapter replay and loopback sessions; explicit host-only cookie correction; no live provider or deployment claims"
     } else if id == "A08" {
         a08_scope.as_str()
@@ -632,6 +650,8 @@ fn main() {
         "saved definitions, optimistic revisions, tenant/index/quota authority and schedule ownership with private Valkey; no provider execution, comparison/report/outbox publication or public saved tools"
     } else if id == "W04" {
         "saved observations, comparisons and fenced atomic publication with private Valkey and native lifecycle qualification; no outbox, production dynamic grant reload or deployment claim"
+    } else if id == "W06" {
+        "staged planning, owned canonical search/snapshot execution and fenced recovery with private Valkey/loopback; source qualification required; no production cutover or exactly-once remote dispatch claim"
     } else if id == "O03" {
         "active tooling inventory and prospective evidence contracts only; no experiment, provider call, receipt issuance or historical evidence mutation"
     } else if id == "T01" {
