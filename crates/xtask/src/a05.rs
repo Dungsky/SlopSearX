@@ -440,7 +440,7 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
             "--lib",
             "html::",
             "--",
-            "--nocapture",
+            "--show-output",
         ],
         records,
     )?;

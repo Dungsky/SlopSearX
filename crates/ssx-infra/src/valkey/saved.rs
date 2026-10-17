@@ -722,3 +722,159 @@ pub struct ScanPage<T> {
     pub cursor: u64,
     pub values: Vec<T>,
 }
+
+impl SavedStore {
+    /// The claim is the only source of write authority. Transport failure is an
+    /// unknown write outcome; callers must not interpret it as rollback.
+    pub async fn commit(
+        &self,
+        claim: &Claim,
+        report: &ssx_json::Value,
+        replacement: Option<&ssx_json::Value>,
+        next_due: f64,
+        policy_fingerprint: &str,
+    ) -> Result<bool, Error> {
+        let d = claim.definition();
+        d.validate_binding(self.tenant.as_str(), &d.search_id)?;
+        if d.paused || d.deleted || d.policy_fingerprint != policy_fingerprint {
+            return Ok(false);
+        }
+        let run = report["run_id"].as_str().ok_or(Error::Malformed)?;
+        validate_saved_id(run)?;
+        let finished = report["finished_at"].as_f64().ok_or(Error::Malformed)?;
+        let expires = report["expires_at"].as_f64().ok_or(Error::Malformed)?;
+        let slot = d.slot(finished)?;
+        // Slot is captured when claiming, so delayed execution may publish an
+        // older slot. Its run identity always binds the original next_due.
+        let report_slot = report["slot"].as_i64().ok_or(Error::Malformed)?;
+        if report["search_id"].as_str() != Some(&d.search_id)
+            || report["revision"].as_u64() != Some(d.revision)
+            || run != slot.run_id
+            || report_slot < 0
+            || report_slot > slot.slot
+            || expires > d.expires_at.get()
+            || !expires.is_finite()
+            || expires <= finished
+            || next_due
+                != d.created_at.get() + (report_slot as f64 + 1.0) * d.interval_seconds as f64
+        {
+            return Err(Error::Malformed);
+        }
+        let mut next = d.clone();
+        next.latest_run_id = Some(run.into());
+        next.last_slot = report_slot;
+        next.next_due = FiniteF64::new(next_due)?;
+        next.lease_token = None;
+        next.lease_expires_at = FiniteF64::default();
+        let report_bytes = ssx_json::to_vec(report).map_err(|_| Error::Malformed)?;
+        let next_bytes = ssx_json::to_vec(&next.stored_payload()?).map_err(|_| Error::Malformed)?;
+        let baseline_expiry = replacement
+            .map(ssx_domain::saved::baseline_expiry)
+            .transpose()?
+            .unwrap_or(0.0);
+        if let Some(value) = replacement
+            && (value["window"] != d.window()? || baseline_expiry != expires)
+        {
+            return Err(Error::Malformed);
+        }
+        let baseline_bytes = replacement
+            .map(ssx_json::to_vec)
+            .transpose()
+            .map_err(|_| Error::Malformed)?
+            .unwrap_or_default();
+        let mut cmd = redis::cmd("EVAL");
+        cmd.arg(include_str!("saved_scripts/commit.lua"))
+            .arg(6)
+            .arg(self.key("definition", &d.search_id))
+            .arg(self.key("lease", &d.search_id))
+            .arg(self.key("report", &format!("{}:{run}", d.search_id)))
+            .arg(self.key("reports", &d.search_id))
+            .arg(self.index("due"))
+            .arg(self.key("baseline", &d.search_id))
+            .arg(&claim.raw)
+            .arg(claim.token.as_str())
+            .arg(policy_fingerprint)
+            .arg(next_bytes)
+            .arg(report_bytes)
+            .arg(baseline_bytes)
+            .arg(d.expires_at.get())
+            .arg(expires)
+            .arg(baseline_expiry)
+            .arg(finished)
+            .arg(run)
+            .arg(d.max_reports)
+            .arg(self.key("report", &format!("{}:", d.search_id)))
+            .arg(next_due)
+            .arg(&d.search_id);
+        let status: i64 = redis::from_redis_value(self.backend.execute(cmd, true).await?)
+            .map_err(|_| Error::Malformed)?;
+        match status {
+            1 => Ok(true),
+            0 => Ok(false),
+            _ => Err(Error::Malformed),
+        }
+    }
+    /// Retained evidence is still bound to the currently authorized live scope.
+    pub async fn report(
+        &self,
+        id: &SavedSearchId,
+        run_id: &str,
+        policy: &SavedPolicy<'_>,
+    ) -> Result<Option<ssx_json::Value>, Error> {
+        validate_saved_id(run_id)?;
+        let initial = match self.raw(id).await {
+            Ok((raw, _)) => raw,
+            Err(Error::Missing) => return Ok(None),
+            Err(error) => return Err(error),
+        };
+        let Some(d) = self.load(id).await? else {
+            return Ok(None);
+        };
+        policy.validate_scope(&d.query, &d.engines)?;
+        if policy.fingerprint(&d.engines)? != d.policy_fingerprint {
+            return Err(Error::Conflict);
+        }
+        match self
+            .backend
+            .get_object(&self.key("report", &format!("{}:{run_id}", id.as_str())))
+            .await
+        {
+            Read::Found(value) => {
+                let window = &value["observation"]["window"];
+                let engines = window["engines"]
+                    .as_array()
+                    .ok_or(Error::Malformed)?
+                    .iter()
+                    .map(|v| v.as_str().map(str::to_owned).ok_or(Error::Malformed))
+                    .collect::<Result<Vec<_>, _>>()?;
+                if engines.is_empty() {
+                    return Err(Error::Malformed);
+                }
+                policy
+                    .validate_scope(window["query"].as_str().ok_or(Error::Malformed)?, &engines)?;
+                if value["search_id"].as_str() != Some(id.as_str())
+                    || value["run_id"].as_str() != Some(run_id)
+                {
+                    return Err(Error::Malformed);
+                }
+                if value["expires_at"].as_f64().ok_or(Error::Malformed)? <= self.now().await? {
+                    return Ok(None);
+                }
+                // A concurrent pause/update/delete invalidates this read. The
+                // second exact snapshot is its authorization linearization point.
+                if self.raw(id).await?.0 != initial {
+                    return Err(Error::Conflict);
+                }
+                policy.validate_scope(&d.query, &d.engines)?;
+                if policy.fingerprint(&d.engines)? != d.policy_fingerprint {
+                    return Err(Error::Conflict);
+                }
+                Ok(Some(value))
+            }
+            Read::Missing => Ok(None),
+            Read::Malformed => Err(Error::Malformed),
+            Read::Unavailable => Err(Error::Store(Failure::Unavailable)),
+            Read::Closed => Err(Error::Store(Failure::Closed)),
+        }
+    }
+}

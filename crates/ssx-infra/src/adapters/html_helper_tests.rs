@@ -595,6 +595,7 @@ async fn actual_bounded_child_quota_and_non_emitting_codec_deadline_cancel_reap(
             drop(input);
             result
         });
+        let fixture_started = std::time::Instant::now();
         let mut active_before_cancel = true;
         let outcome = if kind == "cancel" {
             let ready = tokio::time::timeout(Duration::from_secs(2), async {
@@ -621,9 +622,52 @@ async fn actual_bounded_child_quota_and_non_emitting_codec_deadline_cancel_reap(
             match tokio::time::timeout(Duration::from_secs(4), &mut task).await {
                 Ok(joined) => Some(joined),
                 Err(_) => {
-                    pool.shutdown().await.unwrap();
+                    let spawned = fixture.spawns();
+                    let consumed = fixture.pids();
+                    let before_cleanup = ledger.snapshot().unwrap();
+                    let slots_before = pool.available_slots();
+                    let elapsed = fixture_started.elapsed();
+                    let shutdown = pool.shutdown().await;
                     task.abort();
-                    let _ = task.await;
+                    let joined = task.await;
+                    let joined_outcome = match &joined {
+                        Ok(Ok(_)) => "completed-success",
+                        Ok(Err(_)) => "completed-operation-error",
+                        Err(error) if error.is_cancelled() => "cancelled",
+                        Err(_) => "task-panic",
+                    };
+                    drop(joined);
+                    let after_cleanup = ledger.snapshot().unwrap();
+                    let slots_after = pool.available_slots();
+                    let live: Vec<_> = spawned
+                        .iter()
+                        .chain(&consumed)
+                        .copied()
+                        .filter(|pid| {
+                            std::process::Command::new("/bin/kill")
+                                .args(["-0", &pid.to_string()])
+                                .output()
+                                .unwrap()
+                                .status
+                                .success()
+                        })
+                        .collect();
+                    eprintln!(
+                        "A05_DECODE_WATCHDOG kind={kind} elapsed={elapsed:?} spawned={spawned:?} consumed={consumed:?} slots_before={slots_before} used_before={} shutdown={shutdown:?} joined={joined_outcome} slots_after={slots_after} used_after={} live_after={live:?} fixture={}",
+                        before_cleanup.used,
+                        after_cleanup.used,
+                        fixture.dir.display()
+                    );
+                    assert!(shutdown.is_ok(), "watchdog cleanup failed: {kind}");
+                    assert!(
+                        live.is_empty(),
+                        "watchdog retained live owned worker: {kind}"
+                    );
+                    assert_eq!(slots_after, 1, "watchdog retained worker permit: {kind}");
+                    assert_eq!(
+                        after_cleanup.used, 0,
+                        "watchdog retained operation charge: {kind}"
+                    );
                     panic!("bounded native worker exceeded fixture deadline: {kind}");
                 }
             }

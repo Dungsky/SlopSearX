@@ -658,3 +658,20 @@ modifying text hooks; four licensed upstream Python originals additionally
 avoid Ruff modification. Existing validators remain enabled. Authored producers
 retain lint/format checks; intentional bootstrap/import/API names use reviewed
 line-local annotations. The unrelated baseline saved-method test is preserved.
+## W04 saved-runner source oracle inventory correction
+
+W04 adds the temporary offline synthetic `docs/rust-rewrite/w04/capture_source.py` producer. Its existing local oracle inventory did not update the global F01 source set; this correction adds its exact source binding, backend-coupled tooling/test classification, W04/G08 ownership and reproduction guidance. The guidance is not an execution receipt. Existing source/invocation records remain unchanged: the additive union is388 Python source paths,265 backend-coupled tooling/test paths and29 developer-oracle invocation rows. Native runtime and mandatory gates never execute the exporter; the W04 gate hash-reads it as a temporary source artifact. G08 retires executable Python before backend removal and retains immutable JSON observations/provenance.
+
+## W04 integration with accepted A07
+
+Normal integration of accepted A07 main `2f78b9d02cfe62c9829fcfb38b85cd632a889de0` preserves every complete parent record, yielding400 tracked Python source paths,277 backend-coupled tooling/test paths and41 developer-oracle invocation rows. Both A07 and W04 native gates and artifact uploads remain enabled. Historical observations and source pins are unchanged. This records integration; final combined-source validation and review remain required.
+
+## A05 normal integration with accepted W04 main
+
+The qualified local A05 checkpoint `fac23a9c9cb54cfe03ed9e84f6eb0872a3b6ccc8`
+is normally merged with accepted W04 main `9b7d888da1ee3f7e2ed045c2185ea16f419381e9`.
+All complete parent records are preserved:457 classified Python paths and42
+historical developer-oracle recipes, with52 separate A05 manual guidance rows.
+Current AST-equivalent producer identity amendments remain separate from original
+capture/generation identities. Both A05 and W04 workflow steps/artifacts survive;
+final integrated native gates and exact-head platform qualification remain pending.
