@@ -815,13 +815,13 @@
     }
   ],
   "owned_sources": {
-    "Cargo.lock": "da352846b0c840c02493a135de5f9bb733907f702b1133cd56e0ee49fae8052e",
+    "Cargo.lock": "b7fd45a8e8a0bd28ffe0cc23f83acb3cc34363c8cb91f004395f9da2463ba579",
     "crates/ssx-application/src/lib.rs": "174408b7b238faf670d2877edf198ddeb14e1b5b0e638dee726adcc78db1e7a0",
     "crates/ssx-application/src/policy.rs": "d31cf1d643d4b5754d8da760a3c03b408958ca859dda97e8a9adf3e96bc107cd",
     "crates/ssx-application/src/staged.rs": "c153cb0f71c4ac661e7dcb26b429ad66285c4c3debba8178711bf8f7ae537a75",
     "crates/ssx-application/tests/w06.rs": "07353aca4fe7778a29daaf9282dc6254420480cd19dda8783975d84b0d56344c",
-    "crates/ssx-infra/Cargo.toml": "6523a44e34259bb656a4cd61983ac05f3b9269847b7f5014e7ec66bb823c5c23",
-    "crates/ssx-infra/src/lib.rs": "fb39989daa0d42f1922bb1facde3ec31f6bf5bd6a595d2db83d5ae72d8613b5e",
+    "crates/ssx-infra/Cargo.toml": "98ba70c193036e309e2f8f01a9bd96a75476bbb96bf53f2e2d47ebf8baeb6ac2",
+    "crates/ssx-infra/src/lib.rs": "8bc126d2f8f691ed5ed7f468a5eab80967f7bab5b87c3641ae7953edb5b4bec1",
     "crates/ssx-infra/src/staged_runner.rs": "b74c4b14c09205c213ce163fea702d58bbb8826144e87db6819a1b2c7516cb06",
     "crates/ssx-infra/src/staged_service.rs": "c9c279c9e34485650dad904aaf9c27586235aa9e215290c217fd02201a46746b",
     "crates/ssx-infra/src/valkey/saved.rs": "c01c9c23cad3f0db600641bff7d21f91ef6af6eea17df8d7c1b5570fab6aa88c",

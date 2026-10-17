@@ -56,6 +56,13 @@ include = ["slopsearx*", "engines*"]
 [tool.ruff]
 target-version = "py312"
 line-length = 120
+# Byte-exact upstream reference sources; validated by A05 provenance hashes.
+extend-exclude = [
+    "crates/ssx-source-codecs/provenance/idna/idna.py",
+    "crates/ssx-source-codecs/provenance/idna/inputs/aliases.py",
+    "crates/ssx-source-codecs/provenance/idna/inputs/stringprep.py",
+    "crates/ssx-source-codecs/provenance/idna/mkstringprep.py",
+]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W"]
