@@ -17,8 +17,8 @@ repos:
         args: [--fix=lf]
       - id: check-merge-conflict
       - id: check-added-large-files
-        # Frozen T06 source-wire corpora; native SHA256 drift gate checks every byte.
-        exclude: ^docs/rust-rewrite/t06/(entities|validation)\.json$
+        # Exact frozen T06/W06 captures; JSON and native hash validation remain enabled.
+        exclude: ^docs/rust-rewrite/t06/(entities|validation)\.json$|^docs/rust-rewrite/w06/(source\.json|evidence/source-before-(composite-id-correction|unique-snapshot-ids)\.json|evidence/review-public-source-outcomes\.json)$
         args: [--maxkb=500]
 
   - repo: https://github.com/astral-sh/ruff-pre-commit

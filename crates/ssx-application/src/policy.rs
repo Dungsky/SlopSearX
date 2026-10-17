@@ -221,6 +221,24 @@ pub fn default_topics() -> Vec<Topic> {
 }
 impl PolicyService {
     pub fn engine_rejection(&self, names: &[String], field: &str) -> Result<(), PolicyError> {
+        self.engine_rejection_with_activity(names, field, true)
+    }
+    /// Authorize disclosure of retained workflow evidence under current engine
+    /// policy. Runtime activity/availability is not authorization to view history.
+    /// This returns no dispatch token: acquisition still requires full authorize.
+    pub fn retained_engine_rejection(
+        &self,
+        names: &[String],
+        field: &str,
+    ) -> Result<(), PolicyError> {
+        self.engine_rejection_with_activity(names, field, false)
+    }
+    fn engine_rejection_with_activity(
+        &self,
+        names: &[String],
+        field: &str,
+        require_active: bool,
+    ) -> Result<(), PolicyError> {
         let unknown: Vec<_> = names
             .iter()
             .filter(|n| self.catalog.get(n).is_none())
@@ -274,7 +292,7 @@ impl PolicyService {
         // adapter is unavailable; never silently drop an explicit engine.
         let unavailable: Vec<_> = names
             .iter()
-            .filter(|n| self.catalog.get(n).is_some_and(|e| !e.active))
+            .filter(|n| require_active && self.catalog.get(n).is_some_and(|e| !e.active))
             .collect();
         if !unavailable.is_empty() {
             let mut e = PolicyError::new(

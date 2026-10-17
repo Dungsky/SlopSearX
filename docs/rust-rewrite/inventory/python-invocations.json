@@ -14,7 +14,7 @@
       "100644": 729
     },
     "configured_precommit_hook_rows": 15,
-    "developer_oracle_invocation_rows": 50
+    "developer_oracle_invocation_rows": 57
   },
   "interpreter_invocations": [
     {
@@ -8642,19 +8642,6 @@
       "disposition": "historical invocation recipe only; existing producers retain pinned original source/root and tmp outputs; no new run requested; retire executable Python before backend removal; retain JSON evidence"
     },
     {
-      "path": "docs/rust-rewrite/a05/README.md",
-      "example_path": "docs/rust-rewrite/a05/oracle/export.py",
-      "evidence": "/private/tmp/slopsearx-rust-oracle-py314/bin/python docs/rust-rewrite/a05/oracle/export.py /private/tmp/a05-independent.json /private/tmp/a05-independent-review.json",
-      "classification": "temporary backend-coupled developer oracle; never a mandatory native gate or runtime dependency",
-      "migration_owner": "A05",
-      "retirement_owner": "G08",
-      "migration_owners": [
-        "A05",
-        "G08"
-      ],
-      "disposition": "retain source-captured JSON; retire executable Python before backend removal"
-    },
-    {
       "path": "docs/rust-rewrite/w04/README.md",
       "example_path": "docs/rust-rewrite/w04/capture_source.py",
       "evidence": "Reproduction guidance only (not an execution receipt): PYTHONPATH=. /private/tmp/slopsearx-rust-oracle-py314/bin/python docs/rust-rewrite/w04/capture_source.py",
@@ -8662,6 +8649,78 @@
       "migration_owner": "W04",
       "retirement_owner": "G08",
       "disposition": "retire executable Python before backend removal; retain immutable JSON source observations and provenance"
+    },
+    {
+      "path": "docs/rust-rewrite/w06/evidence/capture-qualification.json",
+      "example_path": "docs/rust-rewrite/w06/capture_source.py",
+      "evidence": "Actual manual offline capture: /private/tmp/slopsearx-rust-oracle-py314/bin/python /private/tmp/slopsearx-w06/docs/rust-rewrite/w06/capture_source.py; optimized invocation also captured; each reports85 complete source cases/providers0, identical output hash. Wrong-source guard under -O exits1 before backend import.",
+      "classification": "temporary backend-coupled developer oracle; no native runtime or mandatory gate invocation",
+      "migration_owner": "W06",
+      "retirement_owner": "G08",
+      "disposition": "retire executable Python before backend removal; retain immutable JSON source observations and provenance",
+      "producer_sha256": "e7426b72d8a70a1668a9e5a123f3e821ab34b81c926b8f5f824dbf6be40f2594",
+      "execution_receipt": "docs/rust-rewrite/w06/evidence/capture-qualification.json",
+      "output_sha256": "98116bc1010da4390d2b4e48775d6b3c8e1df63a41568a344013f4746c2fcbd3"
+    },
+    {
+      "path": "docs/rust-rewrite/w06/evidence/language-capture-receipt.json",
+      "example_path": "/private/tmp/w06-language-source-capture.py",
+      "evidence": "Actual isolated CPython3.14.7 -O offline original staged runner plus SearchService capture: five nonstring language inputs complete with one permissive fixture-engine call each; repeated output identical, provider calls zero. No late failure is claimed.",
+      "classification": "temporary external backend-coupled manual oracle; never native runtime or mandatory gate",
+      "migration_owner": "W06",
+      "retirement_owner": "G08",
+      "disposition": "retire temporary executable at G08; retain frozen non-executable source text and JSON provenance",
+      "producer_sha256": "46cf840c30c1d36b0a69bcd20d71b96b693a54069cd721ef86f06ca59f179722",
+      "execution_receipt": "docs/rust-rewrite/w06/evidence/language-capture-receipt.json",
+      "output_sha256": "0f4931fb02c53f706b56bdcd6c4d9d76e28b72da63ecad9c42980aa001e3ccd4"
+    },
+    {
+      "path": "docs/rust-rewrite/w06/evidence/retained-policy-capture-receipt.json",
+      "example_path": "/private/tmp/w06-retained-policy-source-capture.py",
+      "evidence": "Actual isolated CPython3.14.7 -O original retained staged policy capture; thirteen full outcomes, repeated identical, zero provider/acquisition calls.",
+      "classification": "temporary external backend-coupled manual oracle; never native runtime or mandatory gate",
+      "migration_owner": "W06",
+      "retirement_owner": "G08",
+      "disposition": "retire temporary executable at G08; retain frozen non-executable source text and JSON provenance",
+      "producer_sha256": "301fcf030f0a582923ca15635894bd637f21481b942318a3809987d267800e3c",
+      "execution_receipt": "docs/rust-rewrite/w06/evidence/retained-policy-capture-receipt.json",
+      "output_sha256": "108ecf64651cf95adcdaab200577e88cdc662e5ebaaabc1dfdf9e35758a9bd61"
+    },
+    {
+      "path": "docs/rust-rewrite/w06/evidence/saved-source-authority-capture-receipt.json",
+      "example_path": "/private/tmp/w06-saved-source-authority-capture.py",
+      "evidence": "Actual original saved-report source authorization thirteen full outcomes; normal and repeated -O captures identical, wrong-source preimport guard rejects under -O, zero provider calls.",
+      "classification": "temporary external backend-coupled manual oracle; never native runtime or mandatory gate",
+      "migration_owner": "W06",
+      "retirement_owner": "G08",
+      "disposition": "retire temporary executable at G08; retain frozen non-executable source text and JSON provenance",
+      "producer_sha256": "b40e1f04bb1101b64d807721d1ae64c25cf99299595347e3d32d7a434cfe0794",
+      "execution_receipt": "docs/rust-rewrite/w06/evidence/saved-source-authority-capture-receipt.json",
+      "output_sha256": "7b3f1375ee478af9fbb7aaa8e975390ee5c5427e8beab976b41955a54922f079"
+    },
+    {
+      "path": "docs/rust-rewrite/w06/evidence/review-public-capture-receipt.json",
+      "example_path": "/private/tmp/w06-review-public-source-capture.py",
+      "evidence": "Actual original public/error/replay supplement125cases:121parity inputs plus4explicitrunner referencecontrols; normal/-O/-O identical, optimized wrong-source guard rejects before imports;14sourceguards and immutable85 bound. No providers.",
+      "classification": "temporary external backend-coupled manual oracle; never native runtime or mandatory gate",
+      "migration_owner": "W06",
+      "retirement_owner": "G08",
+      "disposition": "retire temporary executable at G08; retain frozen non-executable source text and JSON provenance",
+      "producer_sha256": "9a9e01b55290a741c6795b9eb1cfa09e0cf7b44c79d4156e0ececba71e887fce",
+      "execution_receipt": "docs/rust-rewrite/w06/evidence/review-public-capture-receipt.json",
+      "output_sha256": "0d43f086c5c98a9bee7bd5339dc80d1ea7801147d7fa6e4be4c71263a5c86a1e"
+    },
+    {
+      "path": "docs/rust-rewrite/w06/evidence/huge-integer-truthiness-capture-receipt.json",
+      "example_path": "/private/tmp/w06-huge-integer-truthiness-capture.py",
+      "evidence": "Actual original16Plan truthiness/consent boundary outcomes including +/-10^400,signedzero andfinitefloat controls; normal/-O/-O identical and optimizedwrong-source guard rejects beforeimports; noproviders.",
+      "classification": "temporary external backend-coupled manual oracle; never native runtime or mandatory gate",
+      "migration_owner": "W06",
+      "retirement_owner": "G08",
+      "disposition": "retire temporary executable at G08; retain frozen non-executable source text and JSON provenance",
+      "producer_sha256": "4b3a5e6fb340d3be8f71fab2b45904092482928c8daf6c81d102948aa68d5624",
+      "execution_receipt": "docs/rust-rewrite/w06/evidence/huge-integer-truthiness-capture-receipt.json",
+      "output_sha256": "4bce3df0415a2c49b3df348bf997462864af20efa984d5ca574650ee024c8487"
     },
     {
       "path": "docs/rust-rewrite/a08/README.md",
@@ -8708,6 +8767,19 @@
       "execution_receipt": "docs/rust-rewrite/a08/oracle-runs.json"
     },
     {
+      "path": "docs/rust-rewrite/a05/README.md",
+      "example_path": "docs/rust-rewrite/a05/oracle/export.py",
+      "evidence": "/private/tmp/slopsearx-rust-oracle-py314/bin/python docs/rust-rewrite/a05/oracle/export.py /private/tmp/a05-independent.json /private/tmp/a05-independent-review.json",
+      "classification": "temporary backend-coupled developer oracle; never a mandatory native gate or runtime dependency",
+      "migration_owner": "A05",
+      "retirement_owner": "G08",
+      "migration_owners": [
+        "A05",
+        "G08"
+      ],
+      "disposition": "retain source-captured JSON; retire executable Python before backend removal"
+    },
+    {
       "path": "docs/rust-rewrite/a09/README.md",
       "example_path": "docs/rust-rewrite/a09/oracle/export_source.py",
       "evidence": "/private/tmp/slopsearx-rust-oracle-py314/bin/python -O docs/rust-rewrite/a09/oracle/export_source.py",
@@ -8750,6 +8822,70 @@
       "disposition": "Actual completed offline invocation. Retire executable producer at G08; retain JSON/provenance.",
       "source_sha256": "82e43ccfc759d769f9909a6267f06b675c8087d4e210765c46c18d177345c3ad",
       "execution_receipt": "docs/rust-rewrite/a09/oracle-runs.json"
+    },
+    {
+      "path": "docs/rust-rewrite/t06/G08.md",
+      "example_path": "docs/rust-rewrite/t06/capture_guarded.py",
+      "evidence": "/private/tmp/slopsearx-rust-oracle-py314/bin/python docs/rust-rewrite/t06/capture_guarded.py PRODUCER NEW_OUTPUT",
+      "classification": "temporary backend-coupled developer oracle; never a mandatory native gate or runtime dependency",
+      "migration_owner": "T06",
+      "retirement_owner": "G08",
+      "disposition": "retire executable Python before backend removal; retain immutable JSON source evidence",
+      "source_sha256": "71b2550dc438b9fe75120fe60d8d5137f9e8e00eb159e2bad713502a61f01c79",
+      "mandatory_native_gate": false,
+      "provider_calls_authorized": false
+    }
+  ],
+  "external_temporary_oracle_sources": [
+    {
+      "path": "/private/tmp/w06-language-source-capture.py",
+      "sha256": "46cf840c30c1d36b0a69bcd20d71b96b693a54069cd721ef86f06ca59f179722",
+      "frozen_non_executable_copy": "docs/rust-rewrite/w06/evidence/language-source-producer.source.txt",
+      "migration_owner": "W06",
+      "retirement_owner": "G08",
+      "mandatory_gate_dependency": false,
+      "native_runtime_dependency": false,
+      "execution_receipt": "docs/rust-rewrite/w06/evidence/language-capture-receipt.json"
+    },
+    {
+      "path": "/private/tmp/w06-retained-policy-source-capture.py",
+      "sha256": "301fcf030f0a582923ca15635894bd637f21481b942318a3809987d267800e3c",
+      "frozen_non_executable_copy": "docs/rust-rewrite/w06/evidence/retained-policy-source-producer.source.txt",
+      "migration_owner": "W06",
+      "retirement_owner": "G08",
+      "mandatory_gate_dependency": false,
+      "native_runtime_dependency": false,
+      "execution_receipt": "docs/rust-rewrite/w06/evidence/retained-policy-capture-receipt.json"
+    },
+    {
+      "path": "/private/tmp/w06-saved-source-authority-capture.py",
+      "sha256": "b40e1f04bb1101b64d807721d1ae64c25cf99299595347e3d32d7a434cfe0794",
+      "frozen_non_executable_copy": "docs/rust-rewrite/w06/evidence/saved-source-authority-producer.source.txt",
+      "migration_owner": "W06",
+      "retirement_owner": "G08",
+      "mandatory_gate_dependency": false,
+      "native_runtime_dependency": false,
+      "execution_receipt": "docs/rust-rewrite/w06/evidence/saved-source-authority-capture-receipt.json"
+    },
+    {
+      "path": "/private/tmp/w06-review-public-source-capture.py",
+      "sha256": "9a9e01b55290a741c6795b9eb1cfa09e0cf7b44c79d4156e0ececba71e887fce",
+      "frozen_non_executable_copy": "docs/rust-rewrite/w06/evidence/review-public-source-producer.source.txt",
+      "migration_owner": "W06",
+      "retirement_owner": "G08",
+      "mandatory_gate_dependency": false,
+      "native_runtime_dependency": false,
+      "execution_receipt": "docs/rust-rewrite/w06/evidence/review-public-capture-receipt.json"
+    },
+    {
+      "path": "/private/tmp/w06-huge-integer-truthiness-capture.py",
+      "sha256": "4b3a5e6fb340d3be8f71fab2b45904092482928c8daf6c81d102948aa68d5624",
+      "frozen_non_executable_copy": "docs/rust-rewrite/w06/evidence/huge-integer-truthiness-producer.source.txt",
+      "migration_owner": "W06",
+      "retirement_owner": "G08",
+      "mandatory_gate_dependency": false,
+      "native_runtime_dependency": false,
+      "execution_receipt": "docs/rust-rewrite/w06/evidence/huge-integer-truthiness-capture-receipt.json"
     }
   ],
   "developer_tool_invocation_guidance": [

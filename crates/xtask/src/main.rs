@@ -25,11 +25,13 @@ mod replay;
 mod t01;
 mod t04;
 mod t05;
+mod t06;
 mod t09;
 mod w00;
 mod w01;
 mod w02;
 mod w04;
+mod w06;
 mod w11;
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -468,6 +470,7 @@ fn execute(root: &Path, id: &str, records: &mut Vec<Value>) -> Result<()> {
         "T09" => t09::check(root, records),
         "T04" => t04::check(root, records),
         "T05" => t05::check(root, records),
+        "T06" => t06::check(root, records),
         "F05" => f05::check(root, records),
         "F06" => f06::check(root, records),
         "F07" => f07::check(root, records),
@@ -475,6 +478,7 @@ fn execute(root: &Path, id: &str, records: &mut Vec<Value>) -> Result<()> {
         "W01" => w01::check(root, records),
         "W02" => w02::check(root, records),
         "W04" => w04::check(root, records),
+        "W06" => w06::check(root, records),
         "W11" => w11::check(root, records),
         "F08" => f08::check(root, records),
         "F09" => f09::check(root, records),
@@ -628,10 +632,14 @@ fn main() {
         "saved definitions, optimistic revisions, tenant/index/quota authority and schedule ownership with private Valkey; no provider execution, comparison/report/outbox publication or public saved tools"
     } else if id == "W04" {
         "saved observations, comparisons and fenced atomic publication with private Valkey and native lifecycle qualification; no outbox, production dynamic grant reload or deployment claim"
+    } else if id == "W06" {
+        "staged planning, owned canonical search/snapshot execution and fenced recovery with private Valkey/loopback; source qualification required; no production cutover or exactly-once remote dispatch claim"
     } else if id == "O03" {
         "active tooling inventory and prospective evidence contracts only; no experiment, provider call, receipt issuance or historical evidence mutation"
     } else if id == "T01" {
         "synthetic MCP registry, real stdio/streamable HTTP/legacy SSE and gateway SDK qualification; no production tool parity or OAuth authorization-server claim"
+    } else if id == "T06" {
+        "source-bound native search/discovery through shared authenticated HTTP, stdio and legacy with real service/snapshot authorities; exactly two accepted outer-params diagnostic differences; production startup T02/W09 separate"
     } else if id == "T05" {
         "OAuth wire endpoints and all-network transport authentication with real clients/private Valkey; no provider, production cutover or browser identity claim"
     } else if id == "T04" {
