@@ -6,6 +6,28 @@ use ssx_domain::{AdapterResponse, EngineStatus, FiniteF64, SearchResult};
 use ssx_owned_budget::Budget;
 use std::{collections::BTreeSet, time::Instant};
 
+// Test-only per-future causal phases; completely absent from production builds.
+#[cfg(test)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum BatchPhase {
+    Stored(usize),
+    FieldCopied {
+        retained_rows: usize,
+        field: &'static str,
+    },
+}
+#[cfg(test)]
+tokio::task_local! { pub(crate) static BATCH_PHASE: std::sync::Arc<dyn Fn(BatchPhase)->bool+Send+Sync>; }
+#[cfg(test)]
+async fn observe_phase(phase: BatchPhase) {
+    if BATCH_PHASE
+        .try_with(|observer| observer(phase))
+        .unwrap_or(false)
+    {
+        // A test can suspend this exact operation after an observed copy.
+        std::future::pending::<()>().await;
+    }
+}
 pub struct Skeleton<'a> {
     pub url: &'a str,
     pub title: &'a str,
@@ -71,7 +93,16 @@ impl<'a> ProducedBatch<'a> {
     pub async fn push(
         &mut self,
         row: Skeleton<'_>,
+        payload: Option<BudgetPayload>,
+    ) -> Result<(), BudgetError> {
+        self.push_with_thumbnail(row, payload, None).await
+    }
+    /// Add a source thumbnail through the same charged projection boundary.
+    pub async fn push_with_thumbnail(
+        &mut self,
+        row: Skeleton<'_>,
         mut payload: Option<BudgetPayload>,
+        thumbnail: Option<&str>,
     ) -> Result<(), BudgetError> {
         self.state.checkpoint().await?;
         if self.results.len() == self.results.capacity() {
@@ -87,7 +118,19 @@ impl<'a> ProducedBatch<'a> {
                 .map_err(|_| BudgetError::Resource)?;
         }
         let url = self.state.scalar(row.url).await?;
+        #[cfg(test)]
+        observe_phase(BatchPhase::FieldCopied {
+            retained_rows: self.results.len(),
+            field: "url",
+        })
+        .await;
         let title = self.state.scalar(row.title).await?;
+        #[cfg(test)]
+        observe_phase(BatchPhase::FieldCopied {
+            retained_rows: self.results.len(),
+            field: "title",
+        })
+        .await;
         let content = self.state.scalar(row.content).await?;
         let engine = self.state.scalar(row.engine).await?;
         let category = self.state.scalar(row.category).await?;
@@ -95,6 +138,18 @@ impl<'a> ProducedBatch<'a> {
             Some(value) => Some(self.state.scalar(value).await?),
             None => None,
         };
+        let thumbnail = match thumbnail {
+            Some(value) => Some(self.state.scalar(value).await?),
+            None => None,
+        };
+        #[cfg(test)]
+        if thumbnail.is_some() {
+            observe_phase(BatchPhase::FieldCopied {
+                retained_rows: self.results.len(),
+                field: "thumbnail",
+            })
+            .await;
+        }
         self.state.reserve(25)?;
         let score = FiniteF64::from_python_float(row.score).map_err(|_| BudgetError::Resource)?;
         let result = SearchResult {
@@ -107,7 +162,7 @@ impl<'a> ProducedBatch<'a> {
             position: row.position,
             category,
             published_date,
-            thumbnail: None,
+            thumbnail,
             img_src: None,
             tier: row.tier,
             media: None,
@@ -116,6 +171,8 @@ impl<'a> ProducedBatch<'a> {
         };
         self.state.checkpoint().await?;
         self.results.push(result);
+        #[cfg(test)]
+        observe_phase(BatchPhase::Stored(self.results.len())).await;
         Ok(())
     }
     /// Named final ownership boundary. Moves existing storage without clone or
@@ -177,6 +234,77 @@ mod tests {
             latency_ms: 0.0,
             synthetic: false,
         }
+    }
+    #[tokio::test]
+    async fn thumbnail_uses_same_budget_and_named_handoff_release() {
+        let b = Budget::new(8192).unwrap();
+        let mut batch = ProducedBatch::new(&b, 1, None).unwrap();
+        let original =
+            ssx_owned_budget::OwnedString::try_from_str(&b, "https://images.test/a.jpg").unwrap();
+        let before = b.snapshot().unwrap().used;
+        batch
+            .push_with_thumbnail(row("content"), None, Some(original.as_str()))
+            .await
+            .unwrap();
+        assert_eq!(
+            batch.results()[0].thumbnail.as_deref(),
+            Some(original.as_str())
+        );
+        assert!(b.snapshot().unwrap().used >= before + original.len());
+        assert!(batch.results()[0].img_src.is_none());
+        assert!(batch.results()[0].media.is_none());
+        drop(original);
+        let response = batch
+            .into_adapter_response(outcome(EngineStatus::Ok))
+            .await
+            .unwrap();
+        assert_eq!(
+            response.results[0].thumbnail.as_deref(),
+            Some("https://images.test/a.jpg")
+        );
+        assert_eq!(b.snapshot().unwrap().used, 0);
+    }
+    #[tokio::test]
+    async fn thumbnail_capacity_refusal_and_cancel_release_projection_storage() {
+        let b = Budget::new(4096).unwrap();
+        let mut batch = ProducedBatch::new(&b, 1, None).unwrap();
+        let huge = "x".repeat(8192);
+        assert!(matches!(
+            batch.push_with_thumbnail(row("x"), None, Some(&huge)).await,
+            Err(BudgetError::Resource)
+        ));
+        drop(batch);
+        assert_eq!(b.snapshot().unwrap().used, 0);
+        let b = Budget::new(4 * 1024 * 1024).unwrap();
+        let mut batch = ProducedBatch::new(&b, 1, None).unwrap();
+        let large = "x".repeat(100000);
+        let reached = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let observed = reached.clone();
+        let observer: std::sync::Arc<dyn Fn(BatchPhase) -> bool + Send + Sync> =
+            std::sync::Arc::new(move |phase| {
+                let stop = phase
+                    == BatchPhase::FieldCopied {
+                        retained_rows: 0,
+                        field: "thumbnail",
+                    };
+                if stop {
+                    observed.store(true, std::sync::atomic::Ordering::SeqCst);
+                }
+                stop
+            });
+        let mut pending = Box::pin(BATCH_PHASE.scope(
+            observer,
+            batch.push_with_thumbnail(row("x"), None, Some(&large)),
+        ));
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(3);
+        while !reached.load(std::sync::atomic::Ordering::SeqCst) {
+            tokio::select! {_= &mut pending=>panic!("thumbnail projection must suspend after actual copied field"),_=tokio::task::yield_now()=>{}}
+            assert!(std::time::Instant::now() < deadline);
+        }
+        assert!(reached.load(std::sync::atomic::Ordering::SeqCst));
+        drop(pending);
+        drop(batch);
+        assert_eq!(b.snapshot().unwrap().used, 0);
     }
     #[tokio::test]
     async fn batch_owns_projection_capacity_overlap_and_named_handoff() {

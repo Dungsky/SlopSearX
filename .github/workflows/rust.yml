@@ -209,6 +209,9 @@ jobs:
       - name: Native regulatory financial and legal adapters
         run: cargo xtask check A08 --output target/rust-evidence/A08.json
 
+      - name: Native catalog media geocoding and archive adapters
+        run: cargo xtask check A09 --output target/rust-evidence/A09.json
+
       - name: Native readiness and Python bridge smoke
         env:
           SSX_SERVER_BIN: target/${{ matrix.target }}/debug/ssx-server
@@ -251,6 +254,7 @@ jobs:
             target/rust-evidence/A05.json
             target/rust-evidence/A07.json
             target/rust-evidence/A08.json
+            target/rust-evidence/A09.json
             target/rust-feature-graph.txt
           if-no-files-found: warn
 
