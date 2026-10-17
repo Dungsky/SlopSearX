@@ -75,6 +75,22 @@
       "git_blob": "7e5001730daee31ff2eaf8d357875239822385d4"
     },
     {
+      "path": "docs/rust-rewrite/a08/oracle/export_case.py",
+      "git_blob": "51fe58f34557fa76934fff57e3aeb0d60fdc398b"
+    },
+    {
+      "path": "docs/rust-rewrite/a08/oracle/export_regressions.py",
+      "git_blob": "5e539bb9cc0b5049a4b5e1762f73f690bdb38a09"
+    },
+    {
+      "path": "docs/rust-rewrite/a08/oracle/export_source.py",
+      "git_blob": "6518e8be8be4f7f652387b403284ed7025575250"
+    },
+    {
+      "path": "docs/rust-rewrite/a08/oracle/export_timeout.py",
+      "git_blob": "21cbf680c3cf2355cf6e48a97db4a8305d8add10"
+    },
+    {
       "path": "docs/rust-rewrite/f05/oracle/export.py",
       "git_blob": "650a47a473f3f6e19118773dfc32fc54b0c5f586"
     },
@@ -116,7 +132,7 @@
     },
     {
       "path": "docs/rust-rewrite/inventory/DRIFT.md",
-      "git_blob": "3be4393e64bebf0c69113104b83f13440099e958"
+      "git_blob": "34e8b312d1b0c78a51fdf7f3b5ef9392e8efdc65"
     },
     {
       "path": "docs/rust-rewrite/inventory/README.md",
@@ -140,11 +156,11 @@
     },
     {
       "path": "docs/rust-rewrite/inventory/python-disposition.json",
-      "git_blob": "f03ac7d4a80bc7cb7aab32f350f9d25f3b10fb0d"
+      "git_blob": "df5b78465f39c4796f0a90374fcb5701ceb70629"
     },
     {
       "path": "docs/rust-rewrite/inventory/python-invocations.json",
-      "git_blob": "72e23784822a6cffd5b9f9aec787b2e339ee66fe"
+      "git_blob": "888c756948f94228c931cba79288f5f09e86e787"
     },
     {
       "path": "docs/rust-rewrite/inventory/surface-contracts.md",
@@ -193,6 +209,10 @@
     {
       "path": "docs/rust-rewrite/w04/capture_source.py",
       "git_blob": "3cfb4ce55c8d2bf81af4dd463f79e37922b3a0a5"
+    },
+    {
+      "path": "docs/rust-rewrite/w06/capture_source.py",
+      "git_blob": "4a3485e50d4abb979943cf40778828943ada66e5"
     },
     {
       "path": "docs/rust-rewrite/w11/oracle/export.py",
@@ -1645,10 +1665,6 @@
     {
       "path": "tests/test_workflow_recent_indexes.py",
       "git_blob": "0cd352d9c80cd52ca6aa41d929654dea714b4221"
-    },
-    {
-      "path": "docs/rust-rewrite/w06/capture_source.py",
-      "git_blob": "4a3485e50d4abb979943cf40778828943ada66e5"
     }
   ]
 }
