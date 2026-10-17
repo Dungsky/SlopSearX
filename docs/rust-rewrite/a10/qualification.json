@@ -91,7 +91,7 @@
     },
     {
       "path": "crates/ssx-infra/src/adapters/vulnerability_equal.rs",
-      "sha256": "863ac3be7c808e2b7a991332e8b9b306346119628fb3aa7b7a76279e193832a1"
+      "sha256": "77c33a637d2fd012d21f9a1e51e73676c3d3dfa6f45629591158d7a6aacc63f5"
     },
     {
       "path": "crates/ssx-infra/src/adapters/vulnerability_html.rs",
@@ -4217,6 +4217,87 @@
           "kind": "fixture_lifecycle",
           "prefix": "A10_ISOLATED_CHILD_COMPLETE",
           "value": "f06_yaml_and_environment_text_max_is_classified_before_http"
+        }
+      ]
+    },
+    {
+      "target": "lib",
+      "test": "adapters::vulnerability::equal::object_index_tests::charged_object_index_comparison_count_scales_n_log_n_and_keeps_exact_values",
+      "execution_multiplicity": 1,
+      "cases": [
+        {
+          "id": "object-index:scale:32",
+          "kind": "owned_object_index",
+          "prefix": "A10_OBJECT_INDEX_COMPLETE",
+          "value": "scale:32"
+        },
+        {
+          "id": "object-index:scale:64",
+          "kind": "owned_object_index",
+          "prefix": "A10_OBJECT_INDEX_COMPLETE",
+          "value": "scale:64"
+        },
+        {
+          "id": "object-index:scale:128",
+          "kind": "owned_object_index",
+          "prefix": "A10_OBJECT_INDEX_COMPLETE",
+          "value": "scale:128"
+        },
+        {
+          "id": "object-index:scale:256",
+          "kind": "owned_object_index",
+          "prefix": "A10_OBJECT_INDEX_COMPLETE",
+          "value": "scale:256"
+        },
+        {
+          "id": "object-index:scale:512",
+          "kind": "owned_object_index",
+          "prefix": "A10_OBJECT_INDEX_COMPLETE",
+          "value": "scale:512"
+        },
+        {
+          "id": "object-index:scale:1024",
+          "kind": "owned_object_index",
+          "prefix": "A10_OBJECT_INDEX_COMPLETE",
+          "value": "scale:1024"
+        },
+        {
+          "id": "object-index:exact-unicode-numeric-nan-refusal",
+          "kind": "owned_object_index",
+          "prefix": "A10_OBJECT_INDEX_COMPLETE",
+          "value": "exact-unicode-numeric-nan-refusal"
+        }
+      ]
+    },
+    {
+      "target": "lib",
+      "test": "adapters::vulnerability::equal::object_index_tests::actual_object_index_work_cancels_expires_and_releases_charged_borrows",
+      "execution_multiplicity": 1,
+      "cases": [
+        {
+          "id": "object-index:entered-cancel-expire:false",
+          "kind": "owned_object_index",
+          "prefix": "A10_OBJECT_INDEX_COMPLETE",
+          "value": "entered-cancel-expire:false"
+        },
+        {
+          "id": "object-index:entered-cancel-expire:true",
+          "kind": "owned_object_index",
+          "prefix": "A10_OBJECT_INDEX_COMPLETE",
+          "value": "entered-cancel-expire:true"
+        }
+      ]
+    },
+    {
+      "target": "lib",
+      "test": "adapters::vulnerability::equal::object_index_tests::actual_nvd_cwe_parse_path_enters_borrowed_object_index_then_retains_source_error",
+      "execution_multiplicity": 1,
+      "cases": [
+        {
+          "id": "object-index:actual-nvd-parsed-object-path",
+          "kind": "owned_object_index",
+          "prefix": "A10_OBJECT_INDEX_COMPLETE",
+          "value": "actual-nvd-parsed-object-path"
         }
       ]
     }
