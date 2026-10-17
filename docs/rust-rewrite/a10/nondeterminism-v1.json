@@ -12,7 +12,7 @@
       "outcome": "exact original full Success",
       "dispatches": 1,
       "unused_source_exchanges": 0,
-      "condition": "complete exact reviewed native request and native completion measured no later than the configured deadline floor created immediately before engine.search; floor <= actual owned operation deadline"
+      "condition": "complete exact reviewed native request; exactly one actual finite owned-operation deadline and one terminal projection handoff stamp captured by a per-future test observer; deadlines identical and the exact timestamp used by the real second terminal check strictly before that deadline; no second clock sample and no hard-preemption or caller-return-time claim"
     },
     {
       "outcome": "exact empty Timeout response",
@@ -42,5 +42,21 @@
     "receipt": "/private/tmp/a10-tiny-deadline-qualification-v1/receipt.json",
     "log_sha256": "ae88e8ff8b474cb71d678317d214d528699186a1014f7e8907c726b05f9209f9",
     "difference": "Only new ExploitDB true/1ms output difference; all451 prior difference values exact; aggregate runner101"
-  }
+  },
+  "retained_hosted_ci_failures": [
+    {
+      "architecture": "amd64",
+      "head": "cebd8973d0cd0fc47b0080dac6484e3185638753",
+      "raw_log": "/private/tmp/pr1000-cebd-amd-job.log",
+      "sha256": "83fa9cbb45dd3e03f22ed4e55ba645403d476c34612bc0ec376cce80aca5e24f",
+      "failure": "F03 rejected exact source success for exploitdb/timeout-True because the earlier caller-observed floor was false; actual operation deadline overrun unproven"
+    },
+    {
+      "architecture": "arm64",
+      "head": "cebd8973d0cd0fc47b0080dac6484e3185638753",
+      "raw_log": "/private/tmp/pr1000-cebd-arm-job.log",
+      "sha256": "ca72e646b269b10069cb4c833f7531c30bedf6fb856261404b2183de09713975",
+      "failure": "F09 infra lib exact success assertion received Spawn(Text file busy os error 26); inherited writable descriptor is a hypothesis, not an established cause"
+    }
+  ]
 }

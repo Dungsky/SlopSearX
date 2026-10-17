@@ -75,7 +75,11 @@
     },
     {
       "path": "crates/ssx-infra/src/adapters/source_payload.rs",
-      "sha256": "5bfdbd0eaac78c0b6a9b70b214fa59910ed749daf3c72ef88c00e8ec761b2596"
+      "sha256": "826006a11ef93c6c6127cdaa7f340d5f8aa1261941d388b38c2437d5ea7f89fb"
+    },
+    {
+      "path": "crates/ssx-infra/src/adapters/source_payload/batch.rs",
+      "sha256": "f75c77b3e43e307a758a6af685ab39cc3ccd6eec9c1eb4d8f68824114a789bf6"
     },
     {
       "path": "crates/ssx-infra/src/adapters/source_repr.rs",
@@ -83,7 +87,7 @@
     },
     {
       "path": "crates/ssx-infra/src/adapters/vulnerability.rs",
-      "sha256": "0551f68f0558385315da5eecce3caebe0633a609e5b25a67ee313885fe238a15"
+      "sha256": "06620fbe9f7bfdf8d3f945f75aba284fdcef9fa55ce0766d586f769c676d5992"
     },
     {
       "path": "crates/ssx-infra/src/adapters/vulnerability_child_tests.rs",
@@ -99,7 +103,7 @@
     },
     {
       "path": "crates/ssx-infra/src/adapters/vulnerability_ledger_tests.rs",
-      "sha256": "f609346f6f3d49d3732b48cd3b72cdc92b15fe1a4ddeba0e758c47af861eec8f"
+      "sha256": "08b0b1e0f1b5c1256f080c8d7bb2b0f2924e7aae382b8584af0a323019f53da5"
     },
     {
       "path": "crates/ssx-infra/src/adapters/vulnerability_max.rs",
@@ -111,7 +115,7 @@
     },
     {
       "path": "crates/ssx-infra/src/adapters/vulnerability_tests.rs",
-      "sha256": "91951e011aca062f2899b7c726ed2e854f3af067566d472adababb23d45fb327"
+      "sha256": "0220819632a46bbbd0721e21a68bbaa7f3f214dbf78face64b30a03d76a84a9d"
     },
     {
       "path": "crates/ssx-infra/src/adapters/vulnerability_wire.rs",
@@ -155,7 +159,7 @@
     },
     {
       "path": "crates/ssx-infra/src/process_pool.rs",
-      "sha256": "7fdbf94253258d0ad0267f4468e34852ed84deb11f2543962b58326e82dcd833"
+      "sha256": "55d9871a8f166ce8520b47aea6e7ca3e002ca630a90c812ff060d37a1a6b417d"
     },
     {
       "path": "crates/ssx-infra/tests/a10_factories.rs",
@@ -199,7 +203,7 @@
     },
     {
       "path": "docs/rust-rewrite/a10/nondeterminism-v1.json",
-      "sha256": "eb08058fb93c344f5cba10f03d7bcaca715ef381504fa025bec55928c41a1f7f"
+      "sha256": "4c0bd097b7a3b5650ee5cb55c9fdb5709dbd6cd81930671c34b32a963a95dd76"
     },
     {
       "path": "docs/rust-rewrite/a10/oracle-inventory.json",
@@ -4298,6 +4302,63 @@
           "kind": "owned_object_index",
           "prefix": "A10_OBJECT_INDEX_COMPLETE",
           "value": "actual-nvd-parsed-object-path"
+        }
+      ]
+    },
+    {
+      "target": "lib",
+      "test": "adapters::source_payload::batch::tests::expired_terminal_handoff_refuses_rows_and_drains_without_success_stamp",
+      "execution_multiplicity": 1,
+      "cases": [
+        {
+          "id": "native:A10_DEADLINE_COMPLETE:expired-terminal-handoff",
+          "kind": "native_contract",
+          "prefix": "A10_DEADLINE_COMPLETE",
+          "value": "expired-terminal-handoff"
+        }
+      ]
+    },
+    {
+      "target": "lib",
+      "test": "adapters::vulnerability::tests::html_adapters_retain_absolute_context_and_expired_context_never_dispatches",
+      "execution_multiplicity": 1,
+      "cases": [
+        {
+          "id": "native:A10_DEADLINE_COMPLETE:context-exploitdb-expired-false",
+          "kind": "native_contract",
+          "prefix": "A10_DEADLINE_COMPLETE",
+          "value": "context-exploitdb-expired-false"
+        },
+        {
+          "id": "native:A10_DEADLINE_COMPLETE:context-exploitdb-expired-true",
+          "kind": "native_contract",
+          "prefix": "A10_DEADLINE_COMPLETE",
+          "value": "context-exploitdb-expired-true"
+        },
+        {
+          "id": "native:A10_DEADLINE_COMPLETE:context-mitreattack-expired-false",
+          "kind": "native_contract",
+          "prefix": "A10_DEADLINE_COMPLETE",
+          "value": "context-mitreattack-expired-false"
+        },
+        {
+          "id": "native:A10_DEADLINE_COMPLETE:context-mitreattack-expired-true",
+          "kind": "native_contract",
+          "prefix": "A10_DEADLINE_COMPLETE",
+          "value": "context-mitreattack-expired-true"
+        }
+      ]
+    },
+    {
+      "target": "lib",
+      "test": "process_pool::cleanup_tests::missing_direct_helper_returns_spawn_error_and_releases_payload_and_lease",
+      "execution_multiplicity": 1,
+      "cases": [
+        {
+          "id": "native:A10_FIXTURE_COMPLETE:direct-spawn-error-released",
+          "kind": "native_contract",
+          "prefix": "A10_FIXTURE_COMPLETE",
+          "value": "direct-spawn-error-released"
         }
       ]
     }

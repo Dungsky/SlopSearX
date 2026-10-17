@@ -7,7 +7,9 @@
 use super::source_json::{ProjectionError, Text, Value};
 mod batch;
 #[cfg(test)]
-pub(crate) use batch::{BATCH_PHASE, BatchPhase};
+pub(crate) use batch::{
+    BATCH_PHASE, BatchPhase, DEADLINE_PHASE, DeadlinePhase, observe_deadline_phase,
+};
 pub use batch::{Outcome, ProducedBatch, Skeleton};
 
 #[derive(Debug, PartialEq, Eq)]
@@ -115,6 +117,13 @@ impl Projection<'_> {
             .map_err(|_| BudgetError::Resource)
     }
     async fn checkpoint(&self) -> Result<(), BudgetError> {
+        self.checkpoint_sample().await.map(|_| ())
+    }
+    // Retain the exact second finite-deadline check sample. Ordinary callers
+    // discard it; the final handoff can expose it to a test-only observer.
+    async fn checkpoint_sample(
+        &self,
+    ) -> Result<Option<(std::time::Instant, std::time::Instant)>, BudgetError> {
         if self
             .deadline
             .is_some_and(|deadline| std::time::Instant::now() >= deadline)
@@ -122,13 +131,13 @@ impl Projection<'_> {
             return Err(BudgetError::Deadline);
         }
         tokio::task::yield_now().await;
-        if self
+        let sample = self
             .deadline
-            .is_some_and(|deadline| std::time::Instant::now() >= deadline)
-        {
+            .map(|deadline| (deadline, std::time::Instant::now()));
+        if sample.is_some_and(|(deadline, checked_at)| checked_at >= deadline) {
             return Err(BudgetError::Deadline);
         }
-        Ok(())
+        Ok(sample)
     }
     async fn string(&mut self, text: &Text) -> Result<String, BudgetError> {
         if text.codepoints().len() > 4 * 1024 * 1024 {

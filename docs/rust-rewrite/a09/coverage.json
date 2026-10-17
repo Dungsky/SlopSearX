@@ -424,11 +424,11 @@
     },
     {
       "path": "crates/ssx-infra/src/adapters/source_payload/batch.rs",
-      "sha256": "864d4d9056a4a5f12d2a40001a501376ea2ec682ce21c32a40837bea4bb8ba21"
+      "sha256": "f75c77b3e43e307a758a6af685ab39cc3ccd6eec9c1eb4d8f68824114a789bf6"
     },
     {
       "path": "crates/ssx-infra/src/adapters/source_payload.rs",
-      "sha256": "5bfdbd0eaac78c0b6a9b70b214fa59910ed749daf3c72ef88c00e8ec761b2596"
+      "sha256": "826006a11ef93c6c6127cdaa7f340d5f8aa1261941d388b38c2437d5ea7f89fb"
     },
     {
       "path": "crates/ssx-application/src/urls.rs",
