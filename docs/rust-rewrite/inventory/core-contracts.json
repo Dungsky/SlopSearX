@@ -45,6 +45,19 @@
           "threat-intel"
         ],
         "cost_class": "freemium"
+      },
+      "native_successor": {
+        "status": "A11 candidate; exact419-case credential-corrected gate and final main integration qualification pending",
+        "implementation": "crates/ssx-infra/src/adapters/abuseipdb.rs",
+        "factory": "ssx_infra::adapters::register_threat_intelligence via actual Registry/F06/SearchAdmission/AdapterHttp",
+        "native_gate": "cargo xtask check A11",
+        "source_contracts": "docs/rust-rewrite/a11/qualification.json",
+        "explicit_differences": [
+          "docs/rust-rewrite/a11/native-differences-v1.json",
+          "docs/rust-rewrite/a11/config-entry-differences-v1.json",
+          "docs/rust-rewrite/a11/credential-refusal-bindings-v1.json"
+        ],
+        "limits": "Exact14 F05 whole-response representation refusals and4 accepted-F06 entry-layer config refusals are disclosed;13 named actual private-wire cases plus4 F06 Unicode-credential zero-HTTP refusal controls with fixed safe diagnostics only; full production/portal composition W09 and global resource/performance G03 remain."
       }
     },
     {
@@ -640,6 +653,19 @@
           "threat-intel"
         ],
         "cost_class": "free"
+      },
+      "native_successor": {
+        "status": "A11 candidate; exact419-case credential-corrected gate and final main integration qualification pending",
+        "implementation": "crates/ssx-infra/src/adapters/greynoise.rs",
+        "factory": "ssx_infra::adapters::register_threat_intelligence via actual Registry/F06/SearchAdmission/AdapterHttp",
+        "native_gate": "cargo xtask check A11",
+        "source_contracts": "docs/rust-rewrite/a11/qualification.json",
+        "explicit_differences": [
+          "docs/rust-rewrite/a11/native-differences-v1.json",
+          "docs/rust-rewrite/a11/config-entry-differences-v1.json",
+          "docs/rust-rewrite/a11/credential-refusal-bindings-v1.json"
+        ],
+        "limits": "Exact14 F05 whole-response representation refusals and4 accepted-F06 entry-layer config refusals are disclosed;13 named actual private-wire cases plus4 F06 Unicode-credential zero-HTTP refusal controls with fixed safe diagnostics only; full production/portal composition W09 and global resource/performance G03 remain."
       }
     },
     {
@@ -1087,6 +1113,19 @@
           "threat-intel"
         ],
         "cost_class": "freemium"
+      },
+      "native_successor": {
+        "status": "A11 candidate; exact419-case credential-corrected gate and final main integration qualification pending",
+        "implementation": "crates/ssx-infra/src/adapters/otx.rs",
+        "factory": "ssx_infra::adapters::register_threat_intelligence via actual Registry/F06/SearchAdmission/AdapterHttp",
+        "native_gate": "cargo xtask check A11",
+        "source_contracts": "docs/rust-rewrite/a11/qualification.json",
+        "explicit_differences": [
+          "docs/rust-rewrite/a11/native-differences-v1.json",
+          "docs/rust-rewrite/a11/config-entry-differences-v1.json",
+          "docs/rust-rewrite/a11/credential-refusal-bindings-v1.json"
+        ],
+        "limits": "Exact14 F05 whole-response representation refusals and4 accepted-F06 entry-layer config refusals are disclosed;13 named actual private-wire cases plus4 F06 Unicode-credential zero-HTTP refusal controls with fixed safe diagnostics only; full production/portal composition W09 and global resource/performance G03 remain."
       }
     },
     {
@@ -1442,6 +1481,19 @@
           "threat-intel"
         ],
         "cost_class": "free"
+      },
+      "native_successor": {
+        "status": "A11 candidate; exact419-case credential-corrected gate and final main integration qualification pending",
+        "implementation": "crates/ssx-infra/src/adapters/urlhaus.rs",
+        "factory": "ssx_infra::adapters::register_threat_intelligence via actual Registry/F06/SearchAdmission/AdapterHttp",
+        "native_gate": "cargo xtask check A11",
+        "source_contracts": "docs/rust-rewrite/a11/qualification.json",
+        "explicit_differences": [
+          "docs/rust-rewrite/a11/native-differences-v1.json",
+          "docs/rust-rewrite/a11/config-entry-differences-v1.json",
+          "docs/rust-rewrite/a11/credential-refusal-bindings-v1.json"
+        ],
+        "limits": "Exact14 F05 whole-response representation refusals and4 accepted-F06 entry-layer config refusals are disclosed;13 named actual private-wire cases plus4 F06 Unicode-credential zero-HTTP refusal controls with fixed safe diagnostics only; full production/portal composition W09 and global resource/performance G03 remain."
       }
     },
     {

@@ -7,6 +7,7 @@ mod a05;
 mod a07;
 mod a08;
 mod a09;
+mod a11;
 mod a14;
 mod date_amendment;
 mod f05;
@@ -462,6 +463,7 @@ fn execute(root: &Path, id: &str, records: &mut Vec<Value>) -> Result<()> {
         "A07" => a07::check(root, records),
         "A08" => a08::check(root, records),
         "A09" => a09::check(root, records),
+        "A11" => a11::check(root, records),
         "A14" => a14::check(root, records),
         "A03" => a03::check(root, records),
         "A02" => a02::check(root, records),
@@ -620,7 +622,9 @@ fn main() {
         }
     }
     let a08_scope = a08::report_scope(&records);
-    let scope = if id == "A09" {
+    let scope = if id == "A11" {
+        "source-bound threat-intelligence factories and full original tuples; actual private wire/ownership, closed F05/F06 differences; no providers/full production composition/global RSS"
+    } else if id == "A09" {
         "source-bound catalog/media adapters; actual assertions plus guarded private loopback; qualification excludes incident calls and full portal/transport/global RSS"
     } else if id == "A05" {
         "offline source-bound DuckDuckGo/Google HTML adapter replay and loopback sessions; explicit host-only cookie correction; no live provider or deployment claims"

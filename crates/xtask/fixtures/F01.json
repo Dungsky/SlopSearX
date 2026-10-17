@@ -335,6 +335,30 @@
       "git_blob": "f5ea351b8d7dfcb29c234d6394355302932a638a"
     },
     {
+      "path": "docs/rust-rewrite/a11/capture_boundaries.py",
+      "git_blob": "fe0da6a527731d838d05a791002b33a25e8f52df"
+    },
+    {
+      "path": "docs/rust-rewrite/a11/capture_config_reachability.py",
+      "git_blob": "f40093ece78156e930d25a2db53ee69cfba4fbd0"
+    },
+    {
+      "path": "docs/rust-rewrite/a11/capture_credential_ascii.py",
+      "git_blob": "d65af680931ddb426c9342ae70dad9e13bcc91f6"
+    },
+    {
+      "path": "docs/rust-rewrite/a11/capture_regressions.py",
+      "git_blob": "4657c6ab36027de42cd3d89deb5df2b4469bb683"
+    },
+    {
+      "path": "docs/rust-rewrite/a11/capture_representation.py",
+      "git_blob": "b79085d6cef67c21d6a09ca2f3b7c2ca40baa050"
+    },
+    {
+      "path": "docs/rust-rewrite/a11/capture_supplement.py",
+      "git_blob": "49626b85c67d49ca55bf6a1556e8ebceedd1b106"
+    },
+    {
       "path": "docs/rust-rewrite/f05/oracle/export.py",
       "git_blob": "650a47a473f3f6e19118773dfc32fc54b0c5f586"
     },
@@ -376,7 +400,7 @@
     },
     {
       "path": "docs/rust-rewrite/inventory/DRIFT.md",
-      "git_blob": "effe1481fe0c311ca66011b16cd7f2e59fa48192"
+      "git_blob": "9d3c581230b66a471007e86e38e3ddfa997388bd"
     },
     {
       "path": "docs/rust-rewrite/inventory/README.md",
@@ -384,7 +408,7 @@
     },
     {
       "path": "docs/rust-rewrite/inventory/core-contracts.json",
-      "git_blob": "ab16ba7085111393d0407e5efd54c36039a6181f"
+      "git_blob": "b9e1dceb024aae1ebadc9147680f47c9fd4f48ef"
     },
     {
       "path": "docs/rust-rewrite/inventory/core-contracts.md",
@@ -400,11 +424,11 @@
     },
     {
       "path": "docs/rust-rewrite/inventory/python-disposition.json",
-      "git_blob": "69eefa015c1c181d65190a630c1caf437afae2b7"
+      "git_blob": "194e740c657e939524a7e7003e14866954931ac1"
     },
     {
       "path": "docs/rust-rewrite/inventory/python-invocations.json",
-      "git_blob": "470447650eefb799c17760f11b9f286f54779580"
+      "git_blob": "988793eddb994d1bf46bbb8e34c65fdf6e9ad667"
     },
     {
       "path": "docs/rust-rewrite/inventory/surface-contracts.md",

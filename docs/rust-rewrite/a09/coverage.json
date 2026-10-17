@@ -440,7 +440,7 @@
     },
     {
       "path": "crates/ssx-infra/src/adapters/mod.rs",
-      "sha256": "5b5bbc7fcfa865ff959bdd6c9da1266ba303f783ceb9cd78f8550cda8bfdd752"
+      "sha256": "bdedd3934acf3c99239ce626b384b3671fd3431f54cd9acb9e2dec858d3cae6d"
     },
     {
       "path": "crates/ssx-application/src/lib.rs",
@@ -452,7 +452,7 @@
     },
     {
       "path": "crates/xtask/src/main.rs",
-      "sha256": "800b6328062834836cef1aab6f1eedc0810bcc02f727fda5740a345aa68e23ca"
+      "sha256": "67985c371e7436697b202984705d1e215628cdb9c3756000ea885a6cb3ba504c"
     }
   ],
   "ordered_case_ids": [
@@ -878,9 +878,7 @@
     {
       "node": "tests/test_internetarchive_adapter.py::TestInternetArchiveAdapterRegistration::test_adapter_categories_excludes_general",
       "kind": "registration-metadata-default",
-      "source_case_ids": [
-
-      ],
+      "source_case_ids": [],
       "native_cases": [
         "resolved_yaml_env_secret_defaults_and_metadata"
       ]
@@ -888,9 +886,7 @@
     {
       "node": "tests/test_internetarchive_adapter.py::TestInternetArchiveAdapterRegistration::test_adapter_registered",
       "kind": "registration-metadata-default",
-      "source_case_ids": [
-
-      ],
+      "source_case_ids": [],
       "native_cases": [
         "resolved_yaml_env_secret_defaults_and_metadata"
       ]
@@ -1060,9 +1056,7 @@
     {
       "node": "tests/test_new_engines.py::TestMusicBrainzAdapter::test_adapter_registered",
       "kind": "registration-metadata-default",
-      "source_case_ids": [
-
-      ],
+      "source_case_ids": [],
       "native_cases": [
         "resolved_yaml_env_secret_defaults_and_metadata"
       ]
@@ -1080,9 +1074,7 @@
     {
       "node": "tests/test_new_engines.py::TestNominatimAdapter::test_adapter_registered",
       "kind": "registration-metadata-default",
-      "source_case_ids": [
-
-      ],
+      "source_case_ids": [],
       "native_cases": [
         "resolved_yaml_env_secret_defaults_and_metadata"
       ]
@@ -1100,9 +1092,7 @@
     {
       "node": "tests/test_new_engines.py::TestOpenLibraryAdapter::test_adapter_registered",
       "kind": "registration-metadata-default",
-      "source_case_ids": [
-
-      ],
+      "source_case_ids": [],
       "native_cases": [
         "resolved_yaml_env_secret_defaults_and_metadata"
       ]
@@ -1130,9 +1120,7 @@
     {
       "node": "tests/test_new_engines.py::TestTMDBAdapter::test_adapter_registered",
       "kind": "registration-metadata-default",
-      "source_case_ids": [
-
-      ],
+      "source_case_ids": [],
       "native_cases": [
         "resolved_yaml_env_secret_defaults_and_metadata"
       ]
@@ -1226,9 +1214,7 @@
     {
       "node": "tests/test_tier1_adapters.py::TestInternetArchiveAdapter::test_adapter_categories_excludes_general",
       "kind": "registration-metadata-default",
-      "source_case_ids": [
-
-      ],
+      "source_case_ids": [],
       "native_cases": [
         "resolved_yaml_env_secret_defaults_and_metadata"
       ]
@@ -1236,9 +1222,7 @@
     {
       "node": "tests/test_tier1_adapters.py::TestInternetArchiveAdapter::test_adapter_default_disabled",
       "kind": "registration-metadata-default",
-      "source_case_ids": [
-
-      ],
+      "source_case_ids": [],
       "native_cases": [
         "resolved_yaml_env_secret_defaults_and_metadata"
       ]
@@ -1246,9 +1230,7 @@
     {
       "node": "tests/test_tier1_adapters.py::TestInternetArchiveAdapter::test_adapter_registered",
       "kind": "registration-metadata-default",
-      "source_case_ids": [
-
-      ],
+      "source_case_ids": [],
       "native_cases": [
         "resolved_yaml_env_secret_defaults_and_metadata"
       ]
@@ -1280,9 +1262,7 @@
     {
       "node": "tests/test_tmdb.py::TestTMDBAdapterRegistration::test_adapter_registered",
       "kind": "registration-metadata-default",
-      "source_case_ids": [
-
-      ],
+      "source_case_ids": [],
       "native_cases": [
         "resolved_yaml_env_secret_defaults_and_metadata"
       ]
