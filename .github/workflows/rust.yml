@@ -13,7 +13,7 @@ jobs:
   foundation:
     name: Foundation (${{ matrix.runner }})
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 45
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
@@ -227,6 +227,9 @@ jobs:
       - name: Native threat intelligence adapters
         run: cargo xtask check A11 --output target/rust-evidence/A11.json
 
+      - name: Native jobs adapters
+        run: cargo xtask check A14 --output target/rust-evidence/A14.json
+
       - name: Native readiness and Python bridge smoke
         env:
           SSX_SERVER_BIN: target/${{ matrix.target }}/debug/ssx-server
@@ -274,6 +277,7 @@ jobs:
             target/rust-evidence/A08.json
             target/rust-evidence/A09.json
             target/rust-evidence/A11.json
+            target/rust-evidence/A14.json
             target/rust-feature-graph.txt
           if-no-files-found: warn
 
