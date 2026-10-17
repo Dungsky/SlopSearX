@@ -13,7 +13,7 @@
     },
     {
       "path": "crates/ssx-infra/src/lib.rs",
-      "sha256": "ae3b0936975bb6a70bef3a698ab2d59fadd5ddeb01db045b07bd78b6b3544dfe"
+      "sha256": "eeb7f887e1075b6f8096d2d7538ed27b27b174ddafb3908b1fd81beb93ce2464"
     },
     {
       "path": "crates/ssx-infra/src/observability/event_metrics.rs",
@@ -41,7 +41,7 @@
     },
     {
       "path": "crates/ssx-infra/src/search.rs",
-      "sha256": "a3b278f87daab71e0f489a8fd188bec98cb97a74e942545d293518f18cefcba4"
+      "sha256": "b8de5748f945802d98cd5b36d6e4803f9459ad093e238e732314d6178e21f971"
     },
     {
       "path": "crates/ssx-infra/tests/o01.rs",

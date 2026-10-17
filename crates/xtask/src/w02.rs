@@ -35,6 +35,11 @@ const TESTS: &[&str] = &[
     "actual_runtime_circuit_change_preserves_authorized_explicit_capture",
     "invalid_delayed_authority_never_runs_guarded_publication",
 ];
+const COMPLETION_TESTS: &[&str] = &[
+    "research_runner::completion_tests::initial_completion_joins_actual_monitor_before_own_clear",
+    "research_runner::completion_tests::terminal_early_return_joins_actual_monitor_before_own_clear",
+    "research_runner::completion_tests::reclaimer_after_monitor_join_before_clear_preserves_replacement_lease_and_evidence",
+];
 fn digest(bytes: &[u8]) -> String {
     Sha256::digest(bytes)
         .iter()
@@ -124,6 +129,62 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
     }) {
         return Err("W02 tests missing, failed, or ignored".into());
     }
-    records.push(json!({"plan_id":"W02","status":"passed","baseline":BASELINE,"sources_sha256":SOURCES,"native_tests":TESTS.len(),"provider_calls":0,"authority":"private pinned Valkey plus killed native worker subprocess and joined loopback sockets","limitations":"No runtime grant reload; explicit-engine circuit semantics preserved; W09 wire mapping and production composition remain downstream"}));
+    let completion_listing = command(
+        root,
+        "cargo",
+        &[
+            "test",
+            "--locked",
+            "-p",
+            "ssx-infra",
+            "--lib",
+            "research_runner::completion_tests::",
+            "--",
+            "--list",
+        ],
+        records,
+    )?;
+    let listed: Vec<_> = completion_listing
+        .lines()
+        .filter_map(|line| line.strip_suffix(": test"))
+        .collect();
+    let actual: BTreeSet<_> = listed.iter().copied().collect();
+    let expected: BTreeSet<_> = COMPLETION_TESTS.iter().copied().collect();
+    if actual != expected || listed.len() != COMPLETION_TESTS.len() {
+        return Err("W02 completion-retirement test inventory changed".into());
+    }
+    let completion_output = command(
+        root,
+        "cargo",
+        &[
+            "test",
+            "--locked",
+            "-p",
+            "ssx-infra",
+            "--lib",
+            "research_runner::completion_tests::",
+            "--",
+            "--test-threads=1",
+        ],
+        records,
+    )?;
+    let executed: Vec<_> = completion_output
+        .lines()
+        .filter_map(|line| {
+            line.strip_prefix("test ")
+                .and_then(|line| line.strip_suffix(" ... ok"))
+        })
+        .collect();
+    if executed.len() != COMPLETION_TESTS.len()
+        || executed.iter().copied().collect::<BTreeSet<_>>() != expected
+        || !completion_output.lines().any(|line| {
+            line.starts_with("test result: ok.") && line.contains("3 passed; 0 failed; 0 ignored")
+        })
+    {
+        return Err(
+            "W02 completion-retirement tests missing, failed, duplicated or ignored".into(),
+        );
+    }
+    records.push(json!({"plan_id":"W02","status":"passed","baseline":BASELINE,"sources_sha256":SOURCES,"native_tests":TESTS.len()+COMPLETION_TESTS.len(),"source_replay_tests":TESTS.len(),"completion_retirement_tests":COMPLETION_TESTS.len(),"provider_calls":0,"authority":"private pinned Valkey plus killed native worker subprocess and joined loopback sockets","limitations":"No runtime grant reload; explicit-engine circuit semantics preserved; W09 wire mapping and production composition remain downstream"}));
     Ok(())
 }

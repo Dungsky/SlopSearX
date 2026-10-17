@@ -3192,7 +3192,7 @@
     },
     {
       "path": "crates/ssx-infra/src/search.rs",
-      "sha256": "a3b278f87daab71e0f489a8fd188bec98cb97a74e942545d293518f18cefcba4"
+      "sha256": "b8de5748f945802d98cd5b36d6e4803f9459ad093e238e732314d6178e21f971"
     },
     {
       "path": "Cargo.lock",
