@@ -12,7 +12,7 @@
     },
     {
       "path": "crates/ssx-infra/src/adapters/arxiv_expat.rs",
-      "sha256": "776444101f2bc89f3b7d35854848c45f655468fcf644836468e9c8fe0a7c37a5"
+      "sha256": "6114e8b298853470085193be17bcbf7b55583de4bf91608be7b539494a0ffd61"
     },
     {
       "path": "crates/ssx-infra/src/adapters/arxiv_expat_wire.rs",

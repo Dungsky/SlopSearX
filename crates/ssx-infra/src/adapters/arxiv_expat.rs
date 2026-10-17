@@ -842,31 +842,44 @@ pub fn helper_main() -> Result<(), String> {
 #[cfg(test)]
 mod allocation_tests {
     use super::*;
+    // A fast runner may finish a valid copy before a one-millisecond timer.
+    // Compete in the same poll instead: removing the projection's repeated
+    // checkpoints must let it finish before the cancellation probe can settle.
+    async fn drop_after_cooperative_yields<T>(
+        future: impl std::future::Future<Output = Result<T, ExtractFailure>>,
+        context: &str,
+    ) {
+        let mut future = Box::pin(future);
+        tokio::select! {
+            biased;
+            _ = future.as_mut() => panic!("{context} completed before cooperative cancellation"),
+            _ = async {
+                for _ in 0..32 {
+                    tokio::task::yield_now().await;
+                }
+            } => {}
+        }
+        // Cancel the actual pending future; its caller retains any borrowed input.
+        drop(future);
+    }
     #[tokio::test(flavor = "current_thread")]
     async fn large_projection_scans_and_copies_yield_to_cancellation() {
         for field in [0, 2, 3] {
             let mut e = Entry::default();
             e.fields[field] = Some(format!("{}X", " ".repeat(8 * 1024 * 1024)));
-            assert!(
-                tokio::time::timeout(
-                    std::time::Duration::from_millis(1),
-                    extract(vec![e], Instant::now() + std::time::Duration::from_secs(30))
-                )
-                .await
-                .is_err(),
-                "large field {field} monopolized runtime"
-            );
+            drop_after_cooperative_yields(
+                extract(vec![e], Instant::now() + std::time::Duration::from_secs(30)),
+                &format!("large field {field}"),
+            )
+            .await;
         }
         let mut e = Entry::default();
         e.authors.push("X".repeat(8 * 1024 * 1024));
-        assert!(
-            tokio::time::timeout(
-                std::time::Duration::from_millis(1),
-                extract(vec![e], Instant::now() + std::time::Duration::from_secs(30))
-            )
-            .await
-            .is_err()
-        );
+        drop_after_cooperative_yields(
+            extract(vec![e], Instant::now() + std::time::Duration::from_secs(30)),
+            "large author copy",
+        )
+        .await;
     }
     #[tokio::test(flavor = "current_thread")]
     async fn many_empty_author_slots_yield_during_projection_cost_preflight() {
@@ -874,15 +887,11 @@ mod allocation_tests {
             authors: vec![String::new(); 1_000_000],
             ..Entry::default()
         };
-        assert!(
-            tokio::time::timeout(
-                std::time::Duration::from_millis(1),
-                extract(vec![e], Instant::now() + std::time::Duration::from_secs(30))
-            )
-            .await
-            .is_err(),
-            "author-cost preflight monopolized runtime"
-        );
+        drop_after_cooperative_yields(
+            projection_cost(&e, Instant::now() + std::time::Duration::from_secs(30)),
+            "author-cost preflight",
+        )
+        .await;
     }
     #[tokio::test]
     async fn closed_schema_struct_and_map_reservations_fit_projection_formula() {
