@@ -6,13 +6,13 @@ W04 and F15 are accepted prerequisites. This packet uses synthetic offline
 inputs, loopback acquisition, and disposable private Valkey. No provider or
 production requests are authorized or represented by it.
 
-Independent source review accepts the corrected 14-file runtime/test identity
-map. Integrated W06 qualification passed on `4cc5858c` with 303 exact case
-receipts, alongside F01/O06/W04/W11/W02. The earlier 151-case mutation packet
-remains historical evidence. The compact
-[integrated receipt](evidence/integrated-qualification303.json) records exact
-artifacts and hook limits; parent final-head CI/review/delivery remains pending.
-Read [HANDOFF.md](HANDOFF.md) for identities and acceptance boundaries.
+Independent source review and the separately reviewed A05 dependency/module
+union cover the current 14-file identity map. Fresh W06 qualification passed on
+`54cabc79` with 303 exact case receipts; F01/O06/W04/W11/W02/A05/A08 also passed.
+The [post-A05 receipt](evidence/post-a05-qualification303.json) records exact
+artifacts and follow-up checks. The earlier `4cc5858c` receipt and 151-case
+mutation packet remain historical evidence. Fresh final-head CI/review and
+parent delivery acceptance remain pending. Read [HANDOFF.md](HANDOFF.md).
 
 `source.json` records complete source plan/error envelopes and identity bytes,
 claimed records, actual runner responses and dispatch requests, complete final

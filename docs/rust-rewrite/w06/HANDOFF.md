@@ -18,14 +18,28 @@ corrections and exact-integer truthiness correction. They establish source
 review acceptance for the listed hashes, not final combined gate or delivery
 acceptance. Parent owns exact-head CI/review and final delivery acceptance.
 
-Integrated local qualification now passes on merge `4cc5858c` (parents
-`aea0844f` and `9fae1639`). W06 executed all 37 semantic tests with zero ignored
-and checked 303 distinct post-assertion receipts against the exact manifest;
-F01/O06/W04/W11/W02 also passed. All 14 reviewed runtime/test hashes remain
-unchanged. See `evidence/integrated-qualification303.json` for compact artifact
-identities. The giant runtime reports stay outside Git. The earlier 151 packet
-and its actual mutation negatives remain immutable historical evidence;
-no 303-case mutation rerun is represented by that packet.
+Current local qualification passes on post-A05 merge `54cabc79` (parents
+`9de1abd3` and accepted main `93db215d`). W06 executed all 37 semantic tests
+with zero ignored and verified 303 distinct case/test receipts. Fresh
+F01/O06/W04/W11/W02/A05/A08 gates also passed. The parent-reviewed dependency
+and module union updates only Cargo.lock, ssx-infra/Cargo.toml and
+ssx-infra/src/lib.rs in the owned 14 map; the remaining 11 files are byte-exact,
+including the W06 planning, runner and service implementations. Full lock
+records preserve accepted dependency versions/checksums and both parents'
+required edges. See `evidence/post-a05-qualification303.json` for identities.
+
+Workspace strict Clippy, formatting, three gate unit checks, direct Ruff and
+scoped hooks passed after that merge. The AST graph was refreshed. The PR
+relative diff check passes; raw parent-merge diff whitespace warnings come
+from accepted immutable A05 source assets and were not normalized. Local
+checks do not establish fresh Linux ARM/AMD CI success; the earlier pre-A05
+ARM A07 tiny-timeout failure remains a separate receipt and is not retried
+or resolved by this packet.
+
+`evidence/integrated-qualification303.json` remains the exact pre-A05 proof
+on `4cc5858c`. The earlier 151 positives and mutation negatives also remain
+immutable historical evidence; neither is relabeled as current 303 negative
+qualification. Giant runtime reports stay outside Git.
 
 The approved `pyproject.toml` exception suppresses only E501 for the frozen
 exporter's long metadata string, preserving producer bytes. Direct Ruff and
@@ -67,7 +81,7 @@ global inventory registration.
 | saved-source-authority-outcomes.json | 7b3f1375ee478af9fbb7aaa8e975390ee5c5427e8beab976b41955a54922f079 |
 | review-public-source-outcomes.json | 0d43f086c5c98a9bee7bd5339dc80d1ea7801147d7fa6e4be4c71263a5c86a1e |
 | huge-integer-truthiness-source-outcomes.json | 4bce3df0415a2c49b3df348bf997462864af20efa984d5ca574650ee024c8487 |
-| qualification.json | 7481ffcf349c3561b47b97c99ab158ef42abaf941dc9ad8d7cad87e613c7d034 |
+| qualification.json (post-A05) | 18c907fcbe81cea06eef1cb94366059abae63d0baca791936c41449cb010c607 |
 | evidence/qualification-component151.json (historical) | 474b79b5c4430b743baf465450840816ddd9eb9188a46b4bf36af3c880ab8a0d |
 
 `crates/xtask/src/w06.rs` pins those bytes, checks the original source Git
