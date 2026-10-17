@@ -6,7 +6,9 @@
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
@@ -29,16 +31,19 @@ static long long monotonic_ms(void) {
 }
 
 int main(int argc, char **argv) {
-  if (argc != 3 && argc != 4)
+  if (argc != 3 && argc != 4 && argc != 5)
     return 40;
   unsigned long timeout = 10000;
-  if (argc == 4) {
+  if (argc >= 4) {
     char *end;
     errno = 0;
     timeout = strtoul(argv[3], &end, 10);
     if (errno || *end || timeout == 0 || timeout > 10000)
       return 40;
   }
+  int await_started = argc == 5;
+  if (await_started && strcmp(argv[4], "--await-started"))
+    return 40;
   int sentinel = open(argv[2], O_CREAT | O_EXCL | O_WRONLY, 0600);
   int sockets[2];
   if (sentinel < 0)
@@ -68,6 +73,9 @@ int main(int argc, char **argv) {
   close(sockets[0]);
   int status = 0;
   long long started = monotonic_ms();
+  long long startup_started = started;
+  long long startup_elapsed = 0;
+  int acknowledged = !await_started;
   for (;;) {
     pid_t reaped = waitpid(child, &status, WNOHANG);
     if (reaped == child)
@@ -83,7 +91,17 @@ int main(int argc, char **argv) {
       return cleaned ? 48 : 49;
     }
     long long now = monotonic_ms();
-    if (started < 0 || now < 0 || now - started >= (long long)timeout) {
+    if (await_started && !acknowledged && now >= 0 &&
+        now - startup_started < 5000) {
+      struct stat marker;
+      if (stat(argv[2], &marker) == 0 && marker.st_size > 0) {
+        acknowledged = 1;
+        startup_elapsed = now - startup_started;
+        started = now;
+      }
+    }
+    unsigned long phase_timeout = acknowledged ? timeout : 5000;
+    if (started < 0 || now < 0 || now - started >= (long long)phase_timeout) {
       int cleaned = kill_and_reap(child, &status);
       close(sockets[1]);
       if (!cleaned)
@@ -91,8 +109,17 @@ int main(int argc, char **argv) {
       if (started < 0 || now < 0 || !WIFSIGNALED(status) ||
           WTERMSIG(status) != SIGKILL)
         return 48;
-      printf("{\"owned_child\":%ld,\"reaped\":true,\"signal\":%d,\"reason\":\"deadline\"}\n",
-             (long)child, WTERMSIG(status));
+      if (await_started) {
+        printf("{\"owned_child\":%ld,\"reaped\":true,\"signal\":%d,"
+               "\"reason\":\"%s\",\"startup_acknowledged\":%s,"
+               "\"startup_elapsed_ms\":%lld}\n",
+               (long)child, WTERMSIG(status),
+               acknowledged ? "deadline" : "startup_deadline",
+               acknowledged ? "true" : "false", startup_elapsed);
+      } else {
+        printf("{\"owned_child\":%ld,\"reaped\":true,\"signal\":%d,\"reason\":\"deadline\"}\n",
+               (long)child, WTERMSIG(status));
+      }
       return 47;
     }
     struct timespec pause_time = {.tv_sec = 0, .tv_nsec = 1000000};

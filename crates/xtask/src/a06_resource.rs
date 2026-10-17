@@ -183,7 +183,7 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
     let cleanup = terminated(
         root,
         &launch,
-        &[&hang_text, &hang_sentinel, "50"],
+        &[&hang_text, &hang_sentinel, "50", "--await-started"],
         47,
         records,
     )?;
@@ -198,6 +198,10 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
         || cleanup["reaped"] != true
         || cleanup["signal"] != 9
         || cleanup["reason"] != "deadline"
+        || cleanup["startup_acknowledged"] != true
+        || cleanup["startup_elapsed_ms"]
+            .as_u64()
+            .is_none_or(|ms| ms >= 5000)
     {
         return Err("A06 hanging child was not explicitly killed and reaped".into());
     }

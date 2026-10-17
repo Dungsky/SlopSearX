@@ -3,7 +3,7 @@ use crate::{Result, command};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::{collections::BTreeSet, fs, path::Path};
-const COVERAGE_SHA256: &str = "daab49ae90ad2bd4b55e4637e6b186240a19b771b422c107b4c67a76f103fcb0";
+const COVERAGE_SHA256: &str = "6248276f36c6a2e2c94f56d1406622024a077da90943658278d07edd3e951f72";
 fn digest(bytes: &[u8]) -> String {
     Sha256::digest(bytes)
         .iter()

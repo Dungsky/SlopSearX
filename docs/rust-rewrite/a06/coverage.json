@@ -104,7 +104,7 @@
     },
     {
       "path": "crates/ssx-infra/src/adapters/mod.rs",
-      "sha256": "8c7b3a899a9eb0ed8ea27a5658c8f0b6b500beccc5d2452c371a617b0f0144da"
+      "sha256": "4e956c877bc1f44c0017f87f5439967e6f5b61c390c29a8396746bba1f079867"
     },
     {
       "path": "crates/ssx-infra/src/adapters/npm.rs",
@@ -328,7 +328,7 @@
     },
     {
       "path": "crates/xtask/src/a06_resource.rs",
-      "sha256": "3c26bdfb7a47db42945159129de701ea78b4f78ac1c2bcac2cea1a73358e545a"
+      "sha256": "848b5e68b5d2efa33b4191f6c28dfd17ae777b5b6255d63fba5fc89c6a1b3720"
     },
     {
       "path": "docs/rust-rewrite/a06/HTTP_INITIALIZATION.md",
@@ -704,7 +704,7 @@
     },
     {
       "path": "vendor/expat/tests/resource_launch.c",
-      "sha256": "558430d63969fe3fb4f096328797de12677e9db54bdc5a64041be9b8891e32ca"
+      "sha256": "3dc29ffc7a7c0e72ce740a9550e7bf929fc89e72265d31b56d339b4cfe6fb68b"
     },
     {
       "path": "vendor/expat/tests/resource_probe.c",
@@ -908,6 +908,10 @@
         "adapters::source_repr::tests::large_repr_uses_real_storage_envelope_instead_of_arbitrary_point_multiplier",
         "adapters::source_repr::tests::quota_failure_is_fallible_terminal_and_releases_stack_and_output",
         "adapters::stackexchange::tests::zero_string_slice_precedes_row_interpretation_without_accepting_unsliceable_values",
+        "adapters::threat_intel::tests::actual_four_factory_query_scans_cancel_expire_without_dispatch_and_release",
+        "adapters::threat_intel::tests::actual_four_post_source_parse_projection_cancels_expires_and_releases",
+        "adapters::threat_intel::tests::actual_four_projection_refusals_are_classified_after_parse_and_return_all_charges",
+        "adapters::threat_ioc::tests::native_unicode16_word_table_and_all_ioc_grammars_keep_source_boundaries",
         "adapters::tmdb::owned_operation_tests::actual_engine_budget_rejects_and_releases_all_operation_storage",
         "adapters::tmdb::owned_operation_tests::dropping_actual_projection_future_releases_charged_scratch_and_rows",
         "adapters::tmdb::owned_operation_tests::valid_then_invalid_is_atomic_releases_and_next_call_succeeds",

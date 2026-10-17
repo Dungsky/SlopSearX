@@ -2136,6 +2136,119 @@
         "-O",
         "/private/tmp/o01-original42-source-execution/run-v2.py"
       ]
+    },
+    {
+      "path": "docs/rust-rewrite/a11/oracle-runs-v1.json",
+      "example_path": "docs/rust-rewrite/a11/capture_regressions.py",
+      "evidence": "Actual completed original-only invocation on immutable executed bytes; capture/receipt/rawstdout hashes are archived in oracle-runs-v1.json. Current source style is not claimed executed.",
+      "classification": "temporary backend-coupled manual original reference; no native runtime or mandatory gate execution",
+      "migration_owner": "A11",
+      "retirement_owner": "G08",
+      "disposition": "retire executable G08; retain immutable original JSON, exact historical bytes and all invocation/failure/guard provenance",
+      "source_sha256": "f4b231dd531b705736ba388cf38393de50da16e53a45b70adc65b1cc4aecfc8a",
+      "executed_source_sha256": "f4b231dd531b705736ba388cf38393de50da16e53a45b70adc65b1cc4aecfc8a",
+      "current_producer_sha256": "f4b231dd531b705736ba388cf38393de50da16e53a45b70adc65b1cc4aecfc8a",
+      "executed_source_archive": "docs/rust-rewrite/a11/evidence/executed-capture_regressions-f4b231dd.py.txt",
+      "execution_receipt": "docs/rust-rewrite/a11/oracle-runs-v1.json",
+      "actual_exit_code": 0,
+      "current_producer_amendments": [
+        "docs/rust-rewrite/a11/evidence/producer-format-ast-v2.json",
+        "docs/rust-rewrite/a11/evidence/producer-style-amendment-v1.json"
+      ]
+    },
+    {
+      "path": "docs/rust-rewrite/a11/oracle-runs-v1.json",
+      "example_path": "docs/rust-rewrite/a11/capture_boundaries.py",
+      "evidence": "Actual completed original-only invocation on immutable executed bytes; capture/receipt/rawstdout hashes are archived in oracle-runs-v1.json. Current source style is not claimed executed.",
+      "classification": "temporary backend-coupled manual original reference; no native runtime or mandatory gate execution",
+      "migration_owner": "A11",
+      "retirement_owner": "G08",
+      "disposition": "retire executable G08; retain immutable original JSON, exact historical bytes and all invocation/failure/guard provenance",
+      "source_sha256": "542a67a3533fc6cab6e4cb43ca0f882ef0bc7049ad93cf26dd9459cedb758e7c",
+      "executed_source_sha256": "542a67a3533fc6cab6e4cb43ca0f882ef0bc7049ad93cf26dd9459cedb758e7c",
+      "current_producer_sha256": "a40b194073618a572307e610f9ce9092e8b947ccdcad3689ad31afec55dbdab2",
+      "executed_source_archive": "docs/rust-rewrite/a11/evidence/executed-capture_boundaries-542a67a3.py.txt",
+      "execution_receipt": "docs/rust-rewrite/a11/oracle-runs-v1.json",
+      "actual_exit_code": 0,
+      "current_producer_amendments": [
+        "docs/rust-rewrite/a11/evidence/producer-format-ast-v2.json",
+        "docs/rust-rewrite/a11/evidence/producer-style-amendment-v1.json"
+      ]
+    },
+    {
+      "path": "docs/rust-rewrite/a11/oracle-runs-v1.json",
+      "example_path": "docs/rust-rewrite/a11/capture_supplement.py",
+      "evidence": "Actual completed original-only invocation on immutable executed bytes; capture/receipt/rawstdout hashes are archived in oracle-runs-v1.json. Current source style is not claimed executed.",
+      "classification": "temporary backend-coupled manual original reference; no native runtime or mandatory gate execution",
+      "migration_owner": "A11",
+      "retirement_owner": "G08",
+      "disposition": "retire executable G08; retain immutable original JSON, exact historical bytes and all invocation/failure/guard provenance",
+      "source_sha256": "fe1117a0d180ae60b7a588d74788222c0ce8c680359c90d9f5f39247abd6268f",
+      "executed_source_sha256": "fe1117a0d180ae60b7a588d74788222c0ce8c680359c90d9f5f39247abd6268f",
+      "current_producer_sha256": "a26345d493374be83dc0aec8483d82a17cc710ef8eb6b2ffe527c8017b93bdc7",
+      "executed_source_archive": "docs/rust-rewrite/a11/evidence/executed-capture_supplement-fe1117a0.py.txt",
+      "execution_receipt": "docs/rust-rewrite/a11/oracle-runs-v1.json",
+      "actual_exit_code": 0,
+      "current_producer_amendments": [
+        "docs/rust-rewrite/a11/evidence/producer-format-ast-v2.json",
+        "docs/rust-rewrite/a11/evidence/producer-style-amendment-v1.json"
+      ]
+    },
+    {
+      "path": "docs/rust-rewrite/a11/oracle-runs-v1.json",
+      "example_path": "docs/rust-rewrite/a11/capture_representation.py",
+      "evidence": "Actual completed original-only invocation on immutable executed bytes; capture/receipt/rawstdout hashes are archived in oracle-runs-v1.json. Current source style is not claimed executed.",
+      "classification": "temporary backend-coupled manual original reference; no native runtime or mandatory gate execution",
+      "migration_owner": "A11",
+      "retirement_owner": "G08",
+      "disposition": "retire executable G08; retain immutable original JSON, exact historical bytes and all invocation/failure/guard provenance",
+      "source_sha256": "c648efd82a8ef107e9df0e18b69210193543173a6405c3a5eed3267653152e33",
+      "executed_source_sha256": "c648efd82a8ef107e9df0e18b69210193543173a6405c3a5eed3267653152e33",
+      "current_producer_sha256": "b58150d657e1d2da021a197131ef778a5916cf0331aaa11e1aab45f1a047ecb9",
+      "executed_source_archive": "docs/rust-rewrite/a11/evidence/executed-capture_representation-c648efd8.py.txt",
+      "execution_receipt": "docs/rust-rewrite/a11/oracle-runs-v1.json",
+      "actual_exit_code": 0,
+      "current_producer_amendments": [
+        "docs/rust-rewrite/a11/evidence/producer-format-ast-v2.json",
+        "docs/rust-rewrite/a11/evidence/producer-style-amendment-v1.json"
+      ]
+    },
+    {
+      "path": "docs/rust-rewrite/a11/oracle-runs-v1.json",
+      "example_path": "docs/rust-rewrite/a11/capture_config_reachability.py",
+      "evidence": "Actual completed original-only invocation on immutable executed bytes; capture/receipt/rawstdout hashes are archived in oracle-runs-v1.json. Current source style is not claimed executed.",
+      "classification": "temporary backend-coupled manual original reference; no native runtime or mandatory gate execution",
+      "migration_owner": "A11",
+      "retirement_owner": "G08",
+      "disposition": "retire executable G08; retain immutable original JSON, exact historical bytes and all invocation/failure/guard provenance",
+      "source_sha256": "668244f72859a2c2c29e689c3e24cbc15708cf3607e2322e687ea22877feb0a2",
+      "executed_source_sha256": "668244f72859a2c2c29e689c3e24cbc15708cf3607e2322e687ea22877feb0a2",
+      "current_producer_sha256": "e76ceedbd82f519fc3e974a885fe121f14ca403b3a36a0bb9f5ac17eb4c037df",
+      "executed_source_archive": "docs/rust-rewrite/a11/evidence/executed-capture_config_reachability-668244f7.py.txt",
+      "execution_receipt": "docs/rust-rewrite/a11/oracle-runs-v1.json",
+      "actual_exit_code": 0,
+      "current_producer_amendments": [
+        "docs/rust-rewrite/a11/evidence/producer-format-ast-v2.json",
+        "docs/rust-rewrite/a11/evidence/producer-style-amendment-v1.json"
+      ]
+    },
+    {
+      "path": "docs/rust-rewrite/a11/oracle-runs-v1.json",
+      "example_path": "docs/rust-rewrite/a11/capture_credential_ascii.py",
+      "evidence": "Actual completed original-only four-engine Unicode credential invocation on immutable845ff9a6 bytes; exact capture, raw stdout and full lossless receipt wrapper identities are archived in oracle-runs-v1.json. Current producer bytes equal actual executed source.",
+      "classification": "temporary backend-coupled manual original reference; no native runtime or mandatory gate execution",
+      "migration_owner": "A11",
+      "retirement_owner": "G08",
+      "disposition": "retire executable G08; retain immutable original JSON, exact historical bytes and all invocation/failure/guard provenance",
+      "source_sha256": "845ff9a68d68b3a9556b7535977234635f21048e2985acaf4e5bda36db4016ad",
+      "executed_source_sha256": "845ff9a68d68b3a9556b7535977234635f21048e2985acaf4e5bda36db4016ad",
+      "current_producer_sha256": "845ff9a68d68b3a9556b7535977234635f21048e2985acaf4e5bda36db4016ad",
+      "executed_source_archive": "docs/rust-rewrite/a11/evidence/executed-capture_credential_ascii-845ff9a6.py.txt",
+      "execution_receipt": "docs/rust-rewrite/a11/oracle-runs-v1.json",
+      "actual_exit_code": 0,
+      "actual_executed_source_path": "/private/tmp/a11-credential-ascii-oracle-proposal-v1/capture_credential_ascii.py",
+      "actual_external_receipt": "/private/tmp/a11-original-credential-capture-v1/receipt.json",
+      "current_bytes_equal_observed_executed_bytes": true
     }
   ],
   "external_temporary_oracle_sources": [
@@ -5660,16 +5773,16 @@
     "manual_developer_tool_guidance_rows": 61,
     "retired_python_invocation_rows": 1,
     "configured_precommit_hook_rows": 15,
-    "historical_py_txt_paths": 729,
+    "historical_py_txt_paths": 739,
     "documented_py_txt_command_references": 49,
     "python_configuration_groups": 106,
     "active_dynamic_python_source_paths": 1,
     "shebang_py_txt_historical_paths": 8,
     "active_python_invocation_rows": 63,
-    "non_runtime_historical_py_txt_paths": 728,
-    "developer_oracle_invocation_rows": 72,
+    "non_runtime_historical_py_txt_paths": 738,
+    "developer_oracle_invocation_rows": 78,
     "historical_py_txt_git_modes": {
-      "100644": 729
+      "100644": 739
     }
   },
   "dynamic_source_audit": {
@@ -11049,6 +11162,76 @@
     },
     {
       "path": "docs/experiments/evidence/transport-overhead-diagnostic/measure.py.txt",
+      "classification": "historical evidence",
+      "git_mode": "100644",
+      "python_shebang": false,
+      "documented_python_invocation_references": []
+    },
+    {
+      "path": "docs/rust-rewrite/a11/evidence/a11-finish-producer-style-amendment-v1.py.txt",
+      "classification": "historical evidence",
+      "git_mode": "100644",
+      "python_shebang": false,
+      "documented_python_invocation_references": []
+    },
+    {
+      "path": "docs/rust-rewrite/a11/evidence/a11-producer-style-amendment-v1.py.txt",
+      "classification": "historical evidence",
+      "git_mode": "100644",
+      "python_shebang": false,
+      "documented_python_invocation_references": []
+    },
+    {
+      "path": "docs/rust-rewrite/a11/evidence/capture-boundaries-failed-e06c.py.txt",
+      "classification": "historical evidence",
+      "git_mode": "100644",
+      "python_shebang": false,
+      "documented_python_invocation_references": []
+    },
+    {
+      "path": "docs/rust-rewrite/a11/evidence/capture-config-executed-668244.py.txt",
+      "classification": "historical evidence",
+      "git_mode": "100644",
+      "python_shebang": false,
+      "documented_python_invocation_references": []
+    },
+    {
+      "path": "docs/rust-rewrite/a11/evidence/executed-capture_boundaries-542a67a3.py.txt",
+      "classification": "historical evidence",
+      "git_mode": "100644",
+      "python_shebang": false,
+      "documented_python_invocation_references": []
+    },
+    {
+      "path": "docs/rust-rewrite/a11/evidence/executed-capture_config_reachability-668244f7.py.txt",
+      "classification": "historical evidence",
+      "git_mode": "100644",
+      "python_shebang": false,
+      "documented_python_invocation_references": []
+    },
+    {
+      "path": "docs/rust-rewrite/a11/evidence/executed-capture_regressions-f4b231dd.py.txt",
+      "classification": "historical evidence",
+      "git_mode": "100644",
+      "python_shebang": false,
+      "documented_python_invocation_references": []
+    },
+    {
+      "path": "docs/rust-rewrite/a11/evidence/executed-capture_representation-c648efd8.py.txt",
+      "classification": "historical evidence",
+      "git_mode": "100644",
+      "python_shebang": false,
+      "documented_python_invocation_references": []
+    },
+    {
+      "path": "docs/rust-rewrite/a11/evidence/executed-capture_supplement-fe1117a0.py.txt",
+      "classification": "historical evidence",
+      "git_mode": "100644",
+      "python_shebang": false,
+      "documented_python_invocation_references": []
+    },
+    {
+      "path": "docs/rust-rewrite/a11/evidence/executed-capture_credential_ascii-845ff9a6.py.txt",
       "classification": "historical evidence",
       "git_mode": "100644",
       "python_shebang": false,
