@@ -118,3 +118,9 @@ Measured response sizes are 13,115,220, 19,656,020 and 16,385,620 bytes; the
 default whole-value parser remains bounded at 4 MiB. The focused helper passes
 these cases. The proposed shared transport still needs a scoped trusted output
 budget that preserves this complete batch without changing global input bounds.
+
+The separate [nesting capture](evidence/nesting-characterization-v1.json) also
+proves that a valid retained event with 98 nested arrays reaches both HTTP
+payloads exactly. Wrapping it in the event batch exceeds the default whole-value
+depth bound even though each event remains valid. The shared output profile must
+preserve this boundary; per-event input limits remain unchanged.
