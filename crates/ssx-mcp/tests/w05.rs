@@ -22,7 +22,11 @@ use ssx_infra::{
     search::*,
     valkey::saved::{SavedStore, events::EventLimits},
 };
-use ssx_mcp::saved_events::{SavedEventRegistry, http_router};
+use ssx_mcp::{
+    harness::Host,
+    oauth::NetworkAuth,
+    saved_events::{SavedEventRegistry, http_router},
+};
 use std::{
     collections::BTreeMap,
     sync::{
@@ -34,6 +38,32 @@ use std::{
 use tokio_util::sync::CancellationToken;
 #[path = "w05_support/search.rs"]
 mod search_support;
+fn fixture_auth() -> NetworkAuth {
+    NetworkAuth::Static(ssx_domain::oauth::Secret::new("w05-native-fixture".into()).unwrap())
+}
+fn fixture_url(address: std::net::SocketAddr) -> String {
+    assert!(address.ip().is_loopback());
+    let url = format!("http://{address}/mcp");
+    let parsed = url::Url::parse(&url).unwrap();
+    assert_eq!(parsed.scheme(), "http");
+    assert_eq!(parsed.host_str(), Some("127.0.0.1"));
+    assert_eq!(parsed.port(), Some(address.port()));
+    url
+}
+fn fixture_http() -> reqwest::Client {
+    let mut headers = reqwest::header::HeaderMap::new();
+    headers.insert(
+        reqwest::header::AUTHORIZATION,
+        reqwest::header::HeaderValue::from_static("Bearer w05-native-fixture"),
+    );
+    reqwest::Client::builder()
+        .no_proxy()
+        .redirect(reqwest::redirect::Policy::none())
+        .timeout(Duration::from_secs(30))
+        .default_headers(headers)
+        .build()
+        .unwrap()
+}
 struct FixtureEngine(AtomicUsize);
 impl SearchEngine for FixtureEngine {
     fn search<'a>(&'a self, _: &'a SearchRequest) -> PortFuture<'a, AdapterResponse> {
@@ -107,28 +137,33 @@ async fn actual_native_transport_create_wait_repeat_ack_restart_resume_and_grant
             SavedEventRegistry::new(events, search.clone(), authority, Duration::from_secs(2))
                 .unwrap();
         let cancel = CancellationToken::new();
-        let router = http_router(registry.clone(), cancel.clone());
-        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let address = listener.local_addr().unwrap();
-        assert!(address.ip().is_loopback());
-        let url = format!("http://{address}/mcp");
-        let parsed = url::Url::parse(&url).unwrap();
-        assert_eq!(parsed.scheme(), "http");
-        assert_eq!(parsed.host_str(), Some("127.0.0.1"));
-        assert_eq!(parsed.port(), Some(address.port()));
-        let shutdown = cancel.clone();
-        let host = tokio::spawn(async move {
-            axum::serve(listener, router)
-                .with_graceful_shutdown(shutdown.cancelled_owned())
-                .await
+        let host = Host::start(
+            http_router(registry.clone(), fixture_auth(), cancel.clone()).unwrap(),
+            cancel.clone(),
+        )
+        .await
+        .unwrap();
+        let address = host.address;
+        let url = fixture_url(address);
+        let http = fixture_http();
+        for token in [None, Some("wrong-fixture-token")] {
+            let client = reqwest::Client::builder()
+                .no_proxy()
+                .redirect(reqwest::redirect::Policy::none())
+                .timeout(Duration::from_secs(30))
+                .build()
                 .unwrap();
-        });
-        // no_proxy prevents inherited proxy settings from routing this fixture.
-        let http = reqwest::Client::builder()
-            .no_proxy()
-            .redirect(reqwest::redirect::Policy::none())
-            .build()
-            .unwrap();
+            let mut request = client.post(&url).json(&json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"denied","version":"1"}}}));
+            if let Some(token) = token {
+                request = request.bearer_auth(token);
+            }
+            assert_eq!(
+                request.send().await.unwrap().status(),
+                reqwest::StatusCode::UNAUTHORIZED
+            );
+        }
+        assert!(store.list_definitions(128).await.unwrap().is_empty());
+        assert_eq!(engine.0.load(Ordering::SeqCst), 0);
         let connect = || {
             let transport = StreamableHttpClientTransport::with_client(
                 http.clone(),
@@ -334,20 +369,41 @@ async fn actual_native_transport_create_wait_repeat_ack_restart_resume_and_grant
                 tokio::time::sleep(Duration::from_millis(10)).await;
             }
         }
+        if !granted {
+            let mut control = redis::Client::open(server.url.as_str())
+                .unwrap()
+                .get_connection()
+                .unwrap();
+            let keys = [
+                ssx_infra::valkey::keys::saved("events", store.tenant(), None).unwrap(),
+                ssx_infra::valkey::keys::saved("event-consumers", store.tenant(), None).unwrap(),
+                ssx_infra::valkey::keys::saved("event-ack", store.tenant(), Some("wire-agent"))
+                    .unwrap(),
+                ssx_infra::valkey::saved::events::acknowledgement_key(
+                    store.tenant(),
+                    &ssx_infra::saved_events::codec::ConsumerId::new("wire-agent").unwrap(),
+                ),
+            ];
+            let existing: usize = redis::cmd("EXISTS").arg(&keys).query(&mut control).unwrap();
+            assert_eq!(
+                existing, 0,
+                "denied event read/ack must not create any event or acknowledgement state"
+            );
+        }
         registry.close().await;
         assert_eq!(engine.0.load(Ordering::SeqCst), 1);
         search.shutdown().await;
         cancel.cancel();
-        tokio::time::timeout(Duration::from_secs(3), host)
-            .await
-            .unwrap()
-            .unwrap();
+        host.shutdown().await.unwrap();
         assert!(tokio::net::TcpStream::connect(address).await.is_err());
         drop(registry);
         drop(store);
         drop(server);
         if granted {
             println!("W05_CASE_COMPLETE:actual-mcp-legacy-quarantine-explicit-recovery");
+            println!(
+                "W05_CASE_COMPLETE:actual-mcp-static-auth-rejects-missing-and-wrong-token-without-mutation"
+            );
         }
         println!(
             "W05_CASE_COMPLETE:{}",
@@ -395,25 +451,15 @@ async fn actual_registry_close_fences_admitted_create_and_rejects_late_mutation(
     )
     .unwrap();
     let cancel = CancellationToken::new();
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let address = listener.local_addr().unwrap();
-    assert!(address.ip().is_loopback());
-    let url = format!("http://{address}/mcp");
-    let parsed = url::Url::parse(&url).unwrap();
-    assert_eq!(parsed.host_str(), Some("127.0.0.1"));
-    let shutdown = cancel.clone();
-    let router = http_router(registry.clone(), cancel.clone());
-    let host = tokio::spawn(async move {
-        axum::serve(listener, router)
-            .with_graceful_shutdown(shutdown.cancelled_owned())
-            .await
-            .unwrap();
-    });
-    let http = reqwest::Client::builder()
-        .no_proxy()
-        .redirect(reqwest::redirect::Policy::none())
-        .build()
-        .unwrap();
+    let host = Host::start(
+        http_router(registry.clone(), fixture_auth(), cancel.clone()).unwrap(),
+        cancel.clone(),
+    )
+    .await
+    .unwrap();
+    let address = host.address;
+    let url = fixture_url(address);
+    let http = fixture_http();
     let transport = StreamableHttpClientTransport::with_client(
         http,
         StreamableHttpClientTransportConfig::with_uri(url),
@@ -480,10 +526,7 @@ async fn actual_registry_close_fences_admitted_create_and_rejects_late_mutation(
     client.cancel().await.unwrap();
     search.shutdown().await;
     cancel.cancel();
-    tokio::time::timeout(Duration::from_secs(3), host)
-        .await
-        .unwrap()
-        .unwrap();
+    host.shutdown().await.unwrap();
     drop(control);
     drop(registry);
     drop(store);
@@ -525,29 +568,14 @@ async fn actual_maximum_batches_preserve_100_exact_64k_events_and_escaping() {
     let registry =
         SavedEventRegistry::new(events, search.clone(), authority, Duration::from_secs(2)).unwrap();
     let cancel = CancellationToken::new();
-    let router = http_router(registry.clone(), cancel.clone());
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let address = listener.local_addr().unwrap();
-    assert!(address.ip().is_loopback());
-    let url = format!("http://{address}/mcp");
-    let parsed = url::Url::parse(&url).unwrap();
-    assert_eq!(parsed.scheme(), "http");
-    assert_eq!(parsed.host_str(), Some("127.0.0.1"));
-    assert_eq!(parsed.port(), Some(address.port()));
-    let shutdown = cancel.clone();
-    let host = tokio::spawn(async move {
-        axum::serve(listener, router)
-            .with_graceful_shutdown(shutdown.cancelled_owned())
-            .await
-            .unwrap();
-    });
-    // no_proxy prevents inherited proxy settings from routing this fixture.
-    let http = reqwest::Client::builder()
-        .timeout(Duration::from_secs(30))
-        .no_proxy()
-        .redirect(reqwest::redirect::Policy::none())
-        .build()
-        .unwrap();
+    let host = Host::start(
+        http_router(registry.clone(), fixture_auth(), cancel.clone()).unwrap(),
+        cancel.clone(),
+    )
+    .await
+    .unwrap();
+    let url = fixture_url(host.address);
+    let http = fixture_http();
 
     let mut connection = redis::Client::open(server.url.as_str())
         .unwrap()
@@ -565,8 +593,17 @@ async fn actual_maximum_batches_preserve_100_exact_64k_events_and_escaping() {
             .query(&mut connection)
             .unwrap();
         let mut expected = Vec::new();
+        let mut original_strings = Vec::new();
         for i in 0..100 {
-            let mut payload = ssx_json::json!({"event_id":format!("historic-{i}"),"event_type":"report_created","occurred_at":now,"_policy_engines":["brave"],"opaque":""});
+            let raw = format!(
+                r#"{{"event_id":"historic-{i}","event_type":"report_created","occurred_at":{now},"_policy_engines":["brave"],"opaque":"","first":18446744073709551617,"second":18446744073709551618,"reserved":{{"$serde_json::private::Number":"123"}}}}"#
+            );
+            let mut payload: ssx_json::Value = ssx_json::from_str(&raw).unwrap();
+            let mut deep = ssx_json::json!("leaf");
+            for _ in 0..98 {
+                deep = ssx_json::Value::Array(vec![deep]);
+            }
+            payload["deep"] = deep;
             let empty = ssx_infra::saved_events::codec::Event::from_payload(payload.clone())
                 .unwrap()
                 .bytes()
@@ -575,18 +612,22 @@ async fn actual_maximum_batches_preserve_100_exact_64k_events_and_escaping() {
             let budget = 65536 - empty;
             let opaque =
                 pattern.repeat(budget / escaped_bytes) + &"x".repeat(budget % escaped_bytes);
-            expected.push(opaque.clone());
+            original_strings.push(opaque.clone());
             payload["opaque"] = ssx_json::json!(opaque);
             let event = ssx_infra::saved_events::codec::Event::from_payload(payload).unwrap();
             let data = event.bytes().unwrap();
             assert_eq!(data.len(), 65536);
-            let _: String = redis::cmd("XADD")
+            let cursor: String = redis::cmd("XADD")
                 .arg(&stream)
                 .arg("*")
                 .arg("payload")
                 .arg(data)
                 .query(&mut connection)
                 .unwrap();
+            expected.push(event.public(
+                &ssx_infra::saved_events::codec::Cursor::new(cursor).unwrap(),
+                false,
+            ));
         }
         let init=http.post(&url).header("accept","application/json, text/event-stream").json(&json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"w05-raw-batch","version":"1"}}})).send().await.unwrap();
         assert!(init.status().is_success());
@@ -606,7 +647,11 @@ async fn actual_maximum_batches_preserve_100_exact_64k_events_and_escaping() {
             request = request.header("mcp-session-id", s);
         }
         let response = request.send().await.unwrap();
-        assert!(response.status().is_success());
+        assert!(
+            response.status().is_success(),
+            "actual raw HTTP tool status {}",
+            response.status()
+        );
         let bytes = response.bytes().await.unwrap();
         #[derive(serde::Deserialize)]
         struct Wire {
@@ -627,6 +672,10 @@ async fn actual_maximum_batches_preserve_100_exact_64k_events_and_escaping() {
             returned: usize,
             events: Vec<Box<serde_json::value::RawValue>>,
         }
+        assert!(
+            !String::from_utf8_lossy(&bytes).contains("ssx/native-structured-text"),
+            "internal marker must not reach the wire"
+        );
         let wire: Wire = serde_json::from_slice(&bytes).unwrap();
         let text: Batch = serde_json::from_str(&wire.result.content[0].text).unwrap();
         let structured: Batch = serde_json::from_str(wire.result.structured.get()).unwrap();
@@ -637,8 +686,39 @@ async fn actual_maximum_batches_preserve_100_exact_64k_events_and_escaping() {
         for (index, (t, s)) in text.events.iter().zip(&structured.events).enumerate() {
             let t: ssx_json::Value = ssx_json::from_str(t.get()).unwrap();
             let s: ssx_json::Value = ssx_json::from_str(s.get()).unwrap();
+            assert_eq!(
+                t["first"], s["first"],
+                "historic integer must remain exact in structuredContent"
+            );
+            assert_eq!(
+                t["second"], s["second"],
+                "second historic integer must remain exact in structuredContent"
+            );
+            assert_eq!(t["opaque"].as_str().unwrap(), original_strings[index]);
+            assert_eq!(s["opaque"].as_str().unwrap(), original_strings[index]);
             assert_eq!(t, s);
-            assert_eq!(t["opaque"].as_str().unwrap(), expected[index]);
+            assert_eq!(
+                t, expected[index],
+                "all original public fields must round-trip exactly"
+            );
+            assert_eq!(
+                ssx_json::to_string(&t["first"]).unwrap(),
+                "18446744073709551617"
+            );
+            assert_eq!(
+                ssx_json::to_string(&t["second"]).unwrap(),
+                "18446744073709551618"
+            );
+            assert_ne!(t["first"], t["second"]);
+            assert_eq!(
+                t["reserved"],
+                ssx_json::json!({"$serde_json::private::Number":"123"})
+            );
+            let mut leaf = &t["deep"];
+            for _ in 0..98 {
+                leaf = &leaf.as_array().unwrap()[0];
+            }
+            assert_eq!(leaf.as_str(), Some("leaf"));
         }
         assert!(bytes.len() > 4 * 1024 * 1024);
         assert!(wire.result.content[0].text.len() > 4 * 1024 * 1024);
@@ -653,10 +733,7 @@ async fn actual_maximum_batches_preserve_100_exact_64k_events_and_escaping() {
     registry.close().await;
     search.shutdown().await;
     cancel.cancel();
-    tokio::time::timeout(Duration::from_secs(3), host)
-        .await
-        .unwrap()
-        .unwrap();
+    host.shutdown().await.unwrap();
     drop(connection);
     drop(registry);
     drop(store);
@@ -664,4 +741,8 @@ async fn actual_maximum_batches_preserve_100_exact_64k_events_and_escaping() {
     println!("W05_CASE_COMPLETE:maximum-batch-100-exact-64k-plain");
     println!("W05_CASE_COMPLETE:maximum-batch-100-exact-64k-quote-backslash");
     println!("W05_CASE_COMPLETE:maximum-batch-100-exact-64k-control-heavy");
+    println!("W05_CASE_COMPLETE:actual-mcp-adjacent-above-u64-integers-lossless");
+    println!("W05_CASE_COMPLETE:actual-mcp-literal-reserved-number-tag-object");
+    println!("W05_CASE_COMPLETE:actual-mcp-retained-depth98-per-event-lossless");
+    println!("W05_CASE_COMPLETE:actual-mcp-trusted-structured-text-exact-public-fields");
 }

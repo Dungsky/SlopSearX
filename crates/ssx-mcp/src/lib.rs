@@ -5,6 +5,7 @@ pub mod http_client;
 pub mod legacy;
 pub mod oauth;
 pub mod opaque;
+pub mod output_limits;
 pub mod projection;
 use rmcp::{ErrorData, RoleServer, ServerHandler, model::*, service::RequestContext};
 use serde_json::{Value, json};

@@ -10,8 +10,17 @@ use ssx_infra::{
     valkey::saved::SavedStore,
 };
 use ssx_json::{Value, json};
-use std::{sync::Arc, time::Duration};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    sync::Arc,
+    time::Duration,
+};
 use tokio::sync::{Mutex, RwLock, watch};
+const TOOL_NAMES: [&str; 3] = [
+    "slopsearx_create_saved_search",
+    "slopsearx_read_saved_search_events",
+    "slopsearx_ack_saved_search_events",
+];
 #[derive(Clone)]
 pub struct SavedEventRegistry {
     events: EventService,
@@ -52,11 +61,7 @@ impl SavedEventRegistry {
         let source: serde_json::Value =
             serde_json::from_str(include_str!("../fixtures/python-sse.json"))
                 .expect("captured descriptor fixture");
-        let names = [
-            "slopsearx_create_saved_search",
-            "slopsearx_read_saved_search_events",
-            "slopsearx_ack_saved_search_events",
-        ];
+        let names = TOOL_NAMES;
         serde_json::Value::Array(
             source["observations"]["public_tools"]
                 .as_array()
@@ -66,6 +71,44 @@ impl SavedEventRegistry {
                 .cloned()
                 .collect(),
         )
+    }
+    fn catalogs() -> crate::Result<Arc<crate::opaque::Catalogs>> {
+        use serde_json::value::RawValue;
+        let source: BTreeMap<String, Box<RawValue>> =
+            serde_json::from_str(include_str!("../fixtures/python-sse.json"))?;
+        let observations: BTreeMap<String, Box<RawValue>> =
+            serde_json::from_str(source["observations"].get())?;
+        let tools: Vec<Box<RawValue>> = serde_json::from_str(observations["public_tools"].get())?;
+        let mut selected = Vec::new();
+        let mut names = BTreeSet::new();
+        for tool in tools {
+            let fields: BTreeMap<String, Box<RawValue>> = serde_json::from_str(tool.get())?;
+            let name: String = serde_json::from_str(fields["name"].get())?;
+            if TOOL_NAMES.contains(&name.as_str()) {
+                if !names.insert(name) {
+                    return Err("duplicate saved-event descriptor".into());
+                }
+                selected.push(tool);
+            }
+        }
+        if names != TOOL_NAMES.into_iter().map(str::to_owned).collect() {
+            return Err("missing saved-event descriptor".into());
+        }
+        let tools = serde_json::to_string(&selected)?;
+        Ok(Arc::new(
+            [
+                (
+                    "tools/list".into(),
+                    RawValue::from_string(format!("{{\"tools\":{tools}}}"))?,
+                ),
+                (
+                    "ssx/native-tools".into(),
+                    RawValue::from_string(serde_json::to_string(&TOOL_NAMES)?)?,
+                ),
+            ]
+            .into_iter()
+            .collect(),
+        ))
     }
     async fn invoke(&self, name: &str, args: &Value) -> Result<Value, ErrorData> {
         // Retain admission through all awaited store work and task registration.
@@ -201,31 +244,30 @@ impl ServerHandler for SavedEventRegistry {
         let text = ssx_json::to_string(&value).map_err(|_| {
             ErrorData::internal_error("saved event response serialization failed", None)
         })?;
-        let structured = serde_json::from_str(&text).map_err(|_| {
-            ErrorData::internal_error("saved event structured response serialization failed", None)
-        })?;
-        let mut response = CallToolResult::success(vec![ContentBlock::text(text)]);
-        response.structured_content = Some(structured);
+        // Only the trusted transport restores this exact object text. The SDK
+        // sees an empty placeholder so historic integers and large batches never
+        // pass through its floating-point structured Value representation.
+        let response: CallToolResult = serde_json::from_value(serde_json::json!({
+            "content": [{"type":"text","text":text}],
+            "structuredContent": {},
+            "isError": false,
+            "_meta": {"ssx/native-structured-text":true}
+        }))
+        .map_err(|_| ErrorData::internal_error("saved event response envelope failed", None))?;
         Ok(response.into())
     }
 }
-/// Actual rmcp transport; caller owns authentication, principal resolution and
-/// joined registry/HTTP lifecycle. Tests provide an authenticated fixed principal.
+/// Focused HTTP mount with the caller's actual network authentication and
+/// trusted typed principal. W09 owns full production identity composition.
 pub fn http_router(
     registry: SavedEventRegistry,
+    authentication: crate::oauth::NetworkAuth,
     cancel: tokio_util::sync::CancellationToken,
-) -> axum::Router {
-    use rmcp::transport::streamable_http_server::{
-        StreamableHttpServerConfig, StreamableHttpService, session::local::LocalSessionManager,
-    };
-    let service: StreamableHttpService<SavedEventRegistry, LocalSessionManager> =
-        StreamableHttpService::new(
-            move || Ok(registry.clone()),
-            Arc::new(LocalSessionManager::default()),
-            StreamableHttpServerConfig::default()
-                .with_legacy_session_mode(false)
-                .with_json_response(true)
-                .with_cancellation_token(cancel),
-        );
-    axum::Router::new().nest_service("/mcp", service)
+) -> crate::Result<crate::harness::ManagedRouter> {
+    let catalogs = SavedEventRegistry::catalogs()?;
+    let output = crate::output_limits::OutputLimits::new(32 * 1024 * 1024)?;
+    Ok(
+        crate::harness::http_router_for_with_limits(registry, catalogs, cancel, output)
+            .map(|router| authentication.mount(router)),
+    )
 }

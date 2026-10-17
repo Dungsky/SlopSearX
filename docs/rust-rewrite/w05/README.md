@@ -93,15 +93,29 @@ joins their owned work. Calls admitted after close return an explicit closed
 error before store mutation. A private Valkey WRITE pause makes the concurrent
 create/close assertion causal, and repeated close is idempotent.
 
-## Candidate transport precision defect
+## Lossless historic payload transport
 
-The v2 candidate gate passes its 91 cases, but review identified a missing historic
-payload boundary. Actual HTTP characterization in
-[evidence](evidence/numeric-wire-defect-v1.json) proves that the SDK conversion
-rounds adjacent integers above u64 in structuredContent while text stays exact.
-The reserved number-tag object remains literal in this fixture. This is an open
-correctness defect, not an accepted contract difference or final parity evidence.
-Shared trusted native-handler wire restoration is being coordinated with T06.
+The original SDK defect remains immutable in
+[evidence](evidence/numeric-wire-defect-v1.json): structuredContent rounded two
+adjacent integers above u64 while text preserved them. The current focused HTTP
+mount uses the shared trusted native-handler wire restoration. The handler
+supplies exact object text and a structured placeholder; only the three admitted
+saved tools can restore that text, and the internal marker is removed.
+
+Actual HTTP bytes are decoded through RawValue envelopes and checked one event
+at a time with ssx_json. All 300 exact-size retained events across three batches
+preserve distinct 18446744073709551617/18446744073709551618, a literal
+`$serde_json::private::Number` object, 98 nested arrays and every original public
+field. The typed SDK client is not the numeric oracle. The full W05 gate requires
+99 exact completed cases, preserving all prior 94.
+
+The focused HTTP helper requires an explicit NetworkAuth mount and retains its
+managed session cleanup. Missing and wrong bearer credentials return 401 before
+any definition or engine dispatch. Event-grant denial leaves event/consumer/ack
+keys absent while the ordinary saved report still completes. This fixture uses
+a fixed trusted principal; it does not certify complete production identity,
+live grant reload, W05 stdio/legacy mounts, or gateway composition. W09 owns
+those production integration obligations.
 
 ## Maximum retained event batches
 
@@ -114,13 +128,23 @@ owned-process cleanup and exact test-source restoration are preserved in
 The permanent actual-HTTP regression reads all 100 exact-size events for plain,
 quote/backslash and control-heavy unknown fields. It compares every event and
 its original string through RawValue envelopes and per-event ssx_json parsing.
-Measured response sizes are 13,115,220, 19,656,020 and 16,385,620 bytes; the
-default whole-value parser remains bounded at 4 MiB. The focused helper passes
-these cases. The proposed shared transport still needs a scoped trusted output
-budget that preserves this complete batch without changing global input bounds.
+The shared-profile batches measure 13,116,620, 19,625,420 and 16,371,020 HTTP
+bytes with the historic numeric/nesting fields included. Historical measurements
+without those fields remain in the earlier evidence. Whole-batch parsing is
+never used as the oracle; default ssx_json document limits remain unchanged.
+
+The focused HTTP composition opts into a typed 32 MiB output profile. Every input
+remains bounded at 4 MiB with 32 pending requests, and the saved handler retains
+its 64 KiB argument limit. Other HTTP mounts keep their 4 MiB output
+default; the legacy transport retains its 16 MiB output default. For 100 events, allowing 256 extra public bytes each and 4096 envelope
+bytes gives N <= 100*(65536+256)+4096 = 6,583,296. JSON text escaping plus the raw
+structured copy is bounded by 3*N+4096 = 19,753,984 < 32 MiB. The real quote,
+backslash and control-heavy batches qualify this bound. Shared regressions
+separately reject one byte beyond the configured output profile.
 
 The separate [nesting capture](evidence/nesting-characterization-v1.json) also
 proves that a valid retained event with 98 nested arrays reaches both HTTP
 payloads exactly. Wrapping it in the event batch exceeds the default whole-value
-depth bound even though each event remains valid. The shared output profile must
-preserve this boundary; per-event input limits remain unchanged.
+depth bound even though each event remains valid. The actual shared HTTP
+profile now preserves this boundary in every maximum-size batch; per-event input
+limits remain unchanged.

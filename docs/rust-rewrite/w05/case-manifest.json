@@ -95,7 +95,12 @@
     "validation-7",
     "validation-8",
     "validation-9",
-    "wrong-type-preflight-no-publication"
+    "wrong-type-preflight-no-publication",
+    "actual-mcp-adjacent-above-u64-integers-lossless",
+    "actual-mcp-literal-reserved-number-tag-object",
+    "actual-mcp-retained-depth98-per-event-lossless",
+    "actual-mcp-trusted-structured-text-exact-public-fields",
+    "actual-mcp-static-auth-rejects-missing-and-wrong-token-without-mutation"
   ],
   "native_tests": {
     "ssx-infra": [

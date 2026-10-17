@@ -76,3 +76,14 @@ Every delivered event is compared through a RawValue envelope and per-event
 lossless parser; no whole large payload is admitted to the default 4 MiB parser.
 The original complete-batch parser panic and explicit owned-fixture termination
 remain historical failure evidence.
+
+The current focused HTTP mount composes the shared trusted native-handler wire
+restoration and typed 32 MiB output profile with an actual NetworkAuth gate. The
+permanent maximum batches preserve the original string oracle and independently
+check adjacent integers beyond u64, a literal reserved number-tag object and 98
+nested arrays, using RawValue envelopes and per-event lossless parsing. The 99
+case manifest retains all prior 94 identities. Missing/wrong credentials cause 401
+before mutation; separate event grant denial leaves all event/ack keys absent.
+The default HTTP 4 MiB input/output limits and 32 pending requests remain
+unchanged, as does the legacy 16 MiB output default. This W05 evidence applies to its actual HTTP mount; shared stdio/legacy mechanisms do
+not imply W05 mounts or complete production principal resolution.
