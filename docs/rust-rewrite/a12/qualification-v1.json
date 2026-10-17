@@ -47,7 +47,7 @@
     },
     {
       "path": "crates/ssx-infra/src/adapters/mod.rs",
-      "sha256": "b5edccab2c633e36fdc9c7e51e58521b5973f220555f0e0d0587adeeee3ac3c1"
+      "sha256": "8b619887dc05e6f4900341b41a18aec8f7e0c89185c9a7f48cf91964a714c623"
     },
     {
       "path": "crates/ssx-infra/src/adapters/shodan.rs",
@@ -59,11 +59,11 @@
     },
     {
       "path": "crates/ssx-infra/src/adapters/source_payload.rs",
-      "sha256": "19d7e3cb4a94c1e4f3445f7afa9d1b05ca56eaf02f55de38f6896acfd52493a0"
+      "sha256": "826006a11ef93c6c6127cdaa7f340d5f8aa1261941d388b38c2437d5ea7f89fb"
     },
     {
       "path": "crates/ssx-infra/src/adapters/source_payload/batch.rs",
-      "sha256": "864d4d9056a4a5f12d2a40001a501376ea2ec682ce21c32a40837bea4bb8ba21"
+      "sha256": "f75c77b3e43e307a758a6af685ab39cc3ccd6eec9c1eb4d8f68824114a789bf6"
     },
     {
       "path": "crates/ssx-infra/src/adapters/source_repr.rs",
@@ -79,7 +79,7 @@
     },
     {
       "path": "crates/ssx-infra/src/http.rs",
-      "sha256": "53f617dc02aca29a3a6db418c9c6f90e965f8498d8f154dbe9301344d15e9ed0"
+      "sha256": "131cc1313b96f36bfbd9cf865a2e1857a6120ef3a2736ebee0b0b9565f80ac6b"
     },
     {
       "path": "crates/ssx-infra/tests/a12_security.rs",
@@ -87,7 +87,7 @@
     },
     {
       "path": "crates/xtask/src/main.rs",
-      "sha256": "84e71cca58c9b9c021fe5674478ee3e2101a2e0fc598940c3857fa96eca4d252"
+      "sha256": "13d51169ecb5ed8d6fe9a9393ae5c726d9683d1747415e757711060564a49886"
     },
     {
       "path": "docs/rust-rewrite/CASE_STUDY.md",
