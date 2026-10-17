@@ -3184,7 +3184,7 @@
     },
     {
       "path": "crates/ssx-http/Dockerfile.t02",
-      "sha256": "b9d4532c61a6e13355a618bec4469be340f66f038ba48b18c10c14d0cffebf81"
+      "sha256": "53e3674581512f4992c0770340cba421015815c5f11ee703b1dcc31b53751199"
     },
     {
       "path": "crates/ssx-http/Dockerfile.t02.dockerignore",

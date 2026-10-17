@@ -5,6 +5,7 @@ WORKDIR /src
 COPY Cargo.toml Cargo.lock rust-toolchain.toml ./
 COPY .cargo .cargo
 COPY crates crates
+COPY contracts contracts
 COPY vendor vendor
 COPY docs/rust-rewrite docs/rust-rewrite
 ENV CARGO_BUILD_JOBS=2 CARGO_INCREMENTAL=0
