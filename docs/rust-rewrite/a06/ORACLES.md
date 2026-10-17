@@ -20,11 +20,13 @@ whole-source records. Stress adds five complete outputs and three explicit
 large-field summaries, with deterministic recipes/input hashes; it does not
 claim eight complete outputs. Parser replay consumes only applicable records.
 
-`scripts/rust-a06-native-qualification.py` is an eighth temporary Python file. It
-compiles an offline native probe, checks real inherited-file/socket FD closure,
-stdio, resource limits and GNU absolute address-space behavior. It is currently a
-required CI driver, explicitly inventoried as tooling, and needs a native
-successor before G08 removes required Python. No backend runtime calls it.
+`docs/rust-rewrite/a06/oracle/native_qualification.py` is a temporary manual
+qualification helper. It compiles an offline native probe and checks inherited
+file/socket descriptor closure, stdio, resource limits, and GNU absolute address
+space behavior. The required CI driver is now the native `cargo xtask check A06`
+gate. The helper was moved from `scripts/rust-a06-native-qualification.py` after
+that replacement; historical invocation records retain the original path. G08
+must retire this remaining executable Python helper. No backend runtime calls it.
 
 Wire supplement captures63 complete request controls, four complete UTF7/ET error
 controls, and every Unicode codepoint of the pinned Python word predicate. Native

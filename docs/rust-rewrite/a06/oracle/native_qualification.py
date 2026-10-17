@@ -13,7 +13,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--build-messages", type=Path, required=True)
     args = parser.parse_args()
-    root = Path(__file__).resolve().parents[1]
+    root = Path(__file__).resolve().parents[4]
     out = None
     for line in args.build_messages.read_text().splitlines():
         row = json.loads(line)

@@ -436,7 +436,7 @@
     },
     {
       "path": "Cargo.lock",
-      "sha256": "00feadc187f567fe563bcb97016ec3b0f9d26c178748195e91c708f88536fd02"
+      "sha256": "7e8d7fa8f0837d009958e3e746b3dd88bce8130745b4e04b17eb8f873cbcc1c9"
     },
     {
       "path": "crates/ssx-infra/src/adapters/mod.rs",
@@ -452,11 +452,7 @@
     },
     {
       "path": "crates/xtask/src/main.rs",
-      "sha256": "8fcc171a41f8eb8f25ec97e4a720ef942665c7c69d3eddac2d26c7d6475ea70d"
-    },
-    {
-      "path": "docs/rust-rewrite/a09/header-profile-amendment.json",
-      "sha256": "98463ae56a197c6058a142b5bb50ddf0ff9cf7d5f35566cc23aab76169915d02"
+      "sha256": "4255b859acf5bfb1dca698097902b0213032ad3aace348c3c2d51c45b2865b7a"
     }
   ],
   "ordered_case_ids": [
