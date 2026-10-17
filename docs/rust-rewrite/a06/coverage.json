@@ -244,11 +244,11 @@
     },
     {
       "path": "crates/ssx-infra/src/http.rs",
-      "sha256": "108d989729e7a38ef849639f5d09caa826ac8c8e4c89ca689dc3d8671f6f796c"
+      "sha256": "700c2a4f4526a97fe54b293c9465262ef94c5666caaae1c0e92f3fd5a64554a6"
     },
     {
       "path": "crates/ssx-infra/src/jev.rs",
-      "sha256": "9e70b7436f5e9fcb3e68f4e1fcec2958454632249ef7e9225a52a285ebd6d5c2"
+      "sha256": "d1437f0336cbbfaa6bc165b4863748e80b94330472a7503829add8e122c4e54c"
     },
     {
       "path": "crates/ssx-infra/tests/a06_admission.rs",
@@ -312,7 +312,7 @@
     },
     {
       "path": "crates/ssx-infra/tests/a08_factories.rs",
-      "sha256": "d3d389ab768bdfcaf7acbec2cea1f8abb0e5a8ad4166d0c6be3a2c2b49662e75"
+      "sha256": "ddc2b6c6219a519c9faf79825b852addd9d11dc49e7c5286c25d5f5d6c44df68"
     },
     {
       "path": "crates/ssx-infra/tests/http.rs",
@@ -744,11 +744,15 @@
     },
     {
       "path": "crates/ssx-infra/tests/a07_context.rs",
-      "sha256": "55fe233592166d061d2373484ab5a5b7a735aebaf52222db6c4afa408e0f75e0"
+      "sha256": "919274821e4123628422cbba1face5334dca30d3ec7d782fabe37c3505c7c0b7"
     },
     {
       "path": "crates/ssx-infra/tests/support/a07_cold_context.rs",
-      "sha256": "b5011c67e1d464327e98e55c60b91da54db5bdbc71249709e2a5918e431fad6d"
+      "sha256": "35b0c77f25a4175fd8b25e63f10e2d95d13addde018264f3d5cb4dcf4248c55f"
+    },
+    {
+      "path": "crates/ssx-infra/tests/support/default_ca_environment.rs",
+      "sha256": "00aee0178f3f111449e5a6e99f495538a1eafa29ec95ced7d8343a3a8ee1108c"
     }
   ],
   "native_groups": [
@@ -23529,6 +23533,14 @@
     },
     {
       "path": "crates/ssx-infra/tests/support/a07_cold_context.rs",
+      "completed_case_events": 0,
+      "completed_consumers": [
+
+      ],
+      "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
+    },
+    {
+      "path": "crates/ssx-infra/tests/support/default_ca_environment.rs",
       "completed_case_events": 0,
       "completed_consumers": [
 

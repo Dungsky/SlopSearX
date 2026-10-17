@@ -1,3 +1,5 @@
+#[path = "support/default_ca_environment.rs"]
+mod default_ca_environment;
 use ssx_application::{AdmissionDecision, PortFuture, SearchAdmission, SearchContext};
 use ssx_domain::{EngineStatus, SearchRequest};
 use ssx_infra::{
@@ -208,6 +210,11 @@ async fn wired(
 }
 #[tokio::test]
 async fn all_four_future_drops_close_real_pending_sockets() {
+    if default_ca_environment::default_ca_test_environment(
+        "all_four_future_drops_close_real_pending_sockets",
+    ) {
+        return;
+    }
     for name in NAMES {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
@@ -258,6 +265,11 @@ async fn all_four_future_drops_close_real_pending_sockets() {
 }
 #[tokio::test]
 async fn all_four_real_network_timers_match_actual_source_loopback() {
+    if default_ca_environment::default_ca_test_environment(
+        "all_four_real_network_timers_match_actual_source_loopback",
+    ) {
+        return;
+    }
     let source: serde_json::Value = serde_json::from_str(include_str!(
         "../../../docs/rust-rewrite/a08/timeout-loopback.json"
     ))
@@ -360,6 +372,11 @@ impl SearchAdmission for Pending {
 }
 #[tokio::test]
 async fn all_four_denied_unavailable_and_pending_admission_stop_before_http() {
+    if default_ca_environment::default_ca_test_environment(
+        "all_four_denied_unavailable_and_pending_admission_stop_before_http",
+    ) {
+        return;
+    }
     for name in NAMES {
         for (admission, status) in [
             (

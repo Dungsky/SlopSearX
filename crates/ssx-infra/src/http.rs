@@ -1645,6 +1645,12 @@ mod f15_header_tests {
     }
 }
 #[cfg(test)]
+#[path = "../tests/support/default_ca_environment.rs"]
+mod default_ca_environment;
+#[cfg(test)]
+pub(crate) use default_ca_environment::default_ca_test_environment;
+
+#[cfg(test)]
 mod client_initialization_tests {
     use super::*;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -1779,6 +1785,11 @@ mod client_initialization_tests {
     }
     #[tokio::test]
     async fn prepared_default_client_is_moved_once_and_reuses_existing_retention_and_expiry() {
+        if default_ca_test_environment(
+            "http::client_initialization_tests::prepared_default_client_is_moved_once_and_reuses_existing_retention_and_expiry",
+        ) {
+            return;
+        }
         let http = AdapterHttp::default();
         *http.builders.build.lock().unwrap() = Some(Arc::new(|_| {
             build_client(&Options {
@@ -1874,6 +1885,11 @@ mod client_initialization_tests {
     }
     #[tokio::test]
     async fn builder_error_releases_both_leases_and_reserved_slot_without_idle_client() {
+        if default_ca_test_environment(
+            "http::client_initialization_tests::builder_error_releases_both_leases_and_reserved_slot_without_idle_client",
+        ) {
+            return;
+        }
         let http = AdapterHttp::default();
         *http.builders.build.lock().unwrap() = Some(Arc::new(|_| Err(Error::InvalidRequest)));
         assert_eq!(
@@ -2007,6 +2023,11 @@ mod client_initialization_tests {
     #[tokio::test]
     async fn aborted_unpublished_constructor_guardian_joins_blocked_builder_without_external_owner()
     {
+        if default_ca_test_environment(
+            "http::client_initialization_tests::aborted_unpublished_constructor_guardian_joins_blocked_builder_without_external_owner",
+        ) {
+            return;
+        }
         let owner = Arc::new(AdapterHttp::default());
         let weak = Arc::downgrade(&owner);
         let connections = owner.connections.clone();
@@ -2065,6 +2086,11 @@ mod client_initialization_tests {
     }
     #[tokio::test]
     async fn unread_successful_publication_still_requires_ack_and_drains_on_receiver_drop() {
+        if default_ca_test_environment(
+            "http::client_initialization_tests::unread_successful_publication_still_requires_ack_and_drains_on_receiver_drop",
+        ) {
+            return;
+        }
         let owner = Arc::new(AdapterHttp::default());
         let weak = Arc::downgrade(&owner);
         let connections = owner.connections.clone();

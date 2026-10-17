@@ -1,4 +1,6 @@
 //! Real A07 adapters under the accepted F14 caller-owned context.
+#[path = "support/default_ca_environment.rs"]
+mod default_ca_environment;
 use ssx_application::{
     AdmissionDecision, NoopSink, PortFuture, SearchAdmission, SearchContext, SearchEngine,
 };
@@ -247,6 +249,11 @@ async fn ample_context_preserves_all_legacy_result_and_response_fields() {
 }
 #[tokio::test]
 async fn pubchem_second_request_renewal_and_pubmed_pipeline_cannot_extend_context() {
+    if default_ca_environment::default_ca_test_environment(
+        "pubchem_second_request_renewal_and_pubmed_pipeline_cannot_extend_context",
+    ) {
+        return;
+    }
     for (name, first, second) in [
         ("pubchem", PC_SEARCH, PC_DETAIL),
         ("pubmed", PM_SEARCH, PM_SUMMARY),
@@ -280,6 +287,11 @@ async fn pubchem_second_request_renewal_and_pubmed_pipeline_cannot_extend_contex
 }
 #[tokio::test]
 async fn queue_time_consumes_absolute_context_instead_of_original_request_timeout() {
+    if default_ca_environment::default_ca_test_environment(
+        "queue_time_consumes_absolute_context_instead_of_original_request_timeout",
+    ) {
+        return;
+    }
     let (base, seen, task) = server(vec![(
         r#"{"studies":[]}"#.into(),
         Duration::from_millis(100),

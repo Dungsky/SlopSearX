@@ -9,16 +9,20 @@ use std::{
 };
 const ARTIFACTS: &[(&str, &str)] = &[
     (
+        "crates/ssx-infra/tests/support/default_ca_environment.rs",
+        "00aee0178f3f111449e5a6e99f495538a1eafa29ec95ced7d8343a3a8ee1108c",
+    ),
+    (
         "crates/ssx-infra/src/http.rs",
-        "108d989729e7a38ef849639f5d09caa826ac8c8e4c89ca689dc3d8671f6f796c",
+        "700c2a4f4526a97fe54b293c9465262ef94c5666caaae1c0e92f3fd5a64554a6",
     ),
     (
         "crates/ssx-infra/tests/a07_context.rs",
-        "55fe233592166d061d2373484ab5a5b7a735aebaf52222db6c4afa408e0f75e0",
+        "919274821e4123628422cbba1face5334dca30d3ec7d782fabe37c3505c7c0b7",
     ),
     (
         "crates/ssx-infra/tests/support/a07_cold_context.rs",
-        "b5011c67e1d464327e98e55c60b91da54db5bdbc71249709e2a5918e431fad6d",
+        "35b0c77f25a4175fd8b25e63f10e2d95d13addde018264f3d5cb4dcf4248c55f",
     ),
     (
         "crates/ssx-infra/tests/support/a07_http_clock.rs",

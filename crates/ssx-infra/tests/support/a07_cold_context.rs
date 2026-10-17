@@ -15,6 +15,11 @@ use tokio::io::AsyncReadExt;
 
 #[tokio::test]
 async fn cold_default_context_expiry_retains_real_builder_until_owned_drain() {
+    if super::default_ca_test_environment(
+        "http::cold_context_tests::cold_default_context_expiry_retains_real_builder_until_owned_drain",
+    ) {
+        return;
+    }
     for name in ["clinicaltrials", "pubchem", "pubmed"] {
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let address = listener.local_addr().unwrap();

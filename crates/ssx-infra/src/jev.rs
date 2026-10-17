@@ -438,6 +438,11 @@ mod ready_constructor_tests {
     use super::*;
     #[tokio::test]
     async fn actual_production_ready_router_constructor_prepares_without_dispatch() {
+        if crate::http::default_ca_test_environment(
+            "jev::ready_constructor_tests::actual_production_ready_router_constructor_prepares_without_dispatch",
+        ) {
+            return;
+        }
         let config = JevConfig::from_environment(&BTreeMap::from([(
             "TYPESAFE_API_KEY".into(),
             "synthetic".into(),
