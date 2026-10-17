@@ -34,7 +34,7 @@ impl CveAdapter {
         let data = v::json(
             &self.http,
             req,
-            c::network_deadline(&self.config, false, context)?,
+            c::network_deadline_for_http(&self.http, &self.config, context)?,
             context,
             true,
         )

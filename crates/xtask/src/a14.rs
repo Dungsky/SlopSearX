@@ -50,7 +50,7 @@ const SOURCES: &[(&str, &str)] = &[
         "e83aba432f43ced82db088f18fa22b77da7d68e8",
     ),
 ];
-const CASES_SHA: &str = "aec17d1b8c673877c2af48ae7a16c38ccd4a71aaff84a5b4d2a927cde188eaab";
+const CASES_SHA: &str = "4d7e4d4208a514c0f2b7b9b137651d07c9953fdaa3836d8c3a30490b6f0cd5c5";
 const SUBCASE_COUNT: usize = 178;
 const NATIVE_CASES: &[&str] = &[
     "adapters::jobs::tests::system_proxy_guard_rejects_every_enabled_system_flag: test",

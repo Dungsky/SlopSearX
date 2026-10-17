@@ -35,15 +35,15 @@
     },
     {
       "path": "crates/ssx-infra/src/adapters/clinicaltrials.rs",
-      "sha256": "d85151ac6399ee72cf0372840b648a7aa810ed2a1c1d1f46978f236448c6acc3"
+      "sha256": "f7f74938aafe9ce7560f74fbddf907baf8ead53b8b6c0f22a7435de66372c5b7"
     },
     {
       "path": "crates/ssx-infra/src/adapters/cve.rs",
-      "sha256": "c0ef3ea36b5614a5335df3304bbc0b17fa14246dd84c774a63b328736a66925d"
+      "sha256": "3594582c5feb10fc3d8eb50fb858d1d34c9b0a8ded253d06b6ca643ade9bed91"
     },
     {
       "path": "crates/ssx-infra/src/adapters/epss.rs",
-      "sha256": "8f30a99e8cbc99623ac780412c26210a732a603e230b5cd7a041d81652203fc9"
+      "sha256": "32727a0ba6c5b07aed9c22cc0591c2ca2c191c5c5560fb14ee8f22866f7d75ed"
     },
     {
       "path": "crates/ssx-infra/src/adapters/exploitdb.rs",
@@ -67,7 +67,7 @@
     },
     {
       "path": "crates/ssx-infra/src/adapters/nvd.rs",
-      "sha256": "9c24ecc92dab4513f0a419e0409d73bde8a020f3f4303336df27a60acb977bd3"
+      "sha256": "d5593c319bc64be051c47202d04c22134ab8b2b7d2e4a09231ed22f4e48bd37c"
     },
     {
       "path": "crates/ssx-infra/src/adapters/source_json.rs",
@@ -87,7 +87,7 @@
     },
     {
       "path": "crates/ssx-infra/src/adapters/vulnerability.rs",
-      "sha256": "06620fbe9f7bfdf8d3f945f75aba284fdcef9fa55ce0766d586f769c676d5992"
+      "sha256": "5b8852e45bd4b7bd63be0c9fdebf1c245ddd270d2fc3965fddb73dfd4c1f7db4"
     },
     {
       "path": "crates/ssx-infra/src/adapters/vulnerability_child_tests.rs",
@@ -115,7 +115,7 @@
     },
     {
       "path": "crates/ssx-infra/src/adapters/vulnerability_tests.rs",
-      "sha256": "0220819632a46bbbd0721e21a68bbaa7f3f214dbf78face64b30a03d76a84a9d"
+      "sha256": "71c351bb896af5091fc0c79d50b823438456d39a05e5ad30321ce3853cc98d3f"
     },
     {
       "path": "crates/ssx-infra/src/adapters/vulnerability_wire.rs",
@@ -155,7 +155,7 @@
     },
     {
       "path": "crates/ssx-infra/src/http.rs",
-      "sha256": "53f617dc02aca29a3a6db418c9c6f90e965f8498d8f154dbe9301344d15e9ed0"
+      "sha256": "131cc1313b96f36bfbd9cf865a2e1857a6120ef3a2736ebee0b0b9565f80ac6b"
     },
     {
       "path": "crates/ssx-infra/src/process_pool.rs",
@@ -228,6 +228,14 @@
     {
       "path": "docs/rust-rewrite/f06/catalog.json",
       "sha256": "f81855f6a6c4053753d63ed85aaf6f88aa743afa7ad375f4382fae9c3ae0c96c"
+    },
+    {
+      "path": "crates/ssx-infra/src/http/monotonic.rs",
+      "sha256": "1a58034e2ca03360d8bb4cdf419353e3677be0528704962a66ecb4add388a24f"
+    },
+    {
+      "path": "crates/ssx-infra/tests/support/a10_http_clock.rs",
+      "sha256": "b850833e2cac860cce876858fdff32130640b07fd2192f4f74b34f8729676c72"
     }
   ],
   "original_sources": [
@@ -4359,6 +4367,97 @@
           "kind": "native_contract",
           "prefix": "A10_FIXTURE_COMPLETE",
           "value": "direct-spawn-error-released"
+        }
+      ]
+    },
+    {
+      "target": "lib",
+      "test": "http::a10_owner_clock_tests::manual_session_survives_elapsed_tokio_after_confirmed_post_exchange_decoder_wait",
+      "execution_multiplicity": 1,
+      "cases": [
+        {
+          "id": "native:A10_OWNER_CLOCK_COMPLETE:manual-session-after-decoder-wait",
+          "kind": "native_contract",
+          "prefix": "A10_OWNER_CLOCK_COMPLETE",
+          "value": "manual-session-after-decoder-wait"
+        }
+      ]
+    },
+    {
+      "target": "lib",
+      "test": "http::a10_owner_clock_tests::system_session_expires_after_confirmed_post_exchange_decoder_wait",
+      "execution_multiplicity": 1,
+      "cases": [
+        {
+          "id": "native:A10_OWNER_CLOCK_COMPLETE:system-session-expiry-after-decoder-wait",
+          "kind": "native_contract",
+          "prefix": "A10_OWNER_CLOCK_COMPLETE",
+          "value": "system-session-expiry-after-decoder-wait"
+        }
+      ]
+    },
+    {
+      "target": "lib",
+      "test": "http::a10_owner_clock_tests::identity_decoder_uses_owner_after_confirmed_worker_start_and_elapsed_wall_time",
+      "execution_multiplicity": 1,
+      "cases": [
+        {
+          "id": "native:A10_OWNER_CLOCK_COMPLETE:identity-reader-wall-delay",
+          "kind": "native_contract",
+          "prefix": "A10_OWNER_CLOCK_COMPLETE",
+          "value": "identity-reader-wall-delay"
+        }
+      ]
+    },
+    {
+      "target": "lib",
+      "test": "http::a10_owner_clock_tests::manual_pending_exchange_expires_at_exact_250us_and_drops_once",
+      "execution_multiplicity": 1,
+      "cases": [
+        {
+          "id": "native:A10_OWNER_CLOCK_COMPLETE:pending-exact-250us",
+          "kind": "native_contract",
+          "prefix": "A10_OWNER_CLOCK_COMPLETE",
+          "value": "pending-exact-250us"
+        }
+      ]
+    },
+    {
+      "target": "lib",
+      "test": "http::a10_owner_clock_tests::unmocked_system_expiry_and_expired_search_context_dispatch_nothing",
+      "execution_multiplicity": 1,
+      "cases": [
+        {
+          "id": "native:A10_OWNER_CLOCK_COMPLETE:system-unmocked-and-context-expiry",
+          "kind": "native_contract",
+          "prefix": "A10_OWNER_CLOCK_COMPLETE",
+          "value": "system-unmocked-and-context-expiry"
+        }
+      ]
+    },
+    {
+      "target": "lib",
+      "test": "http::a10_owner_clock_tests::manual_direct_replay_rejects_absolute_search_context",
+      "execution_multiplicity": 1,
+      "cases": [
+        {
+          "id": "native:A10_OWNER_CLOCK_COMPLETE:manual-context-refused",
+          "kind": "native_contract",
+          "prefix": "A10_OWNER_CLOCK_COMPLETE",
+          "value": "manual-context-refused"
+        }
+      ]
+    },
+    {
+      "target": "lib",
+      "test": "adapters::vulnerability::tests::direct_api_configured_deadline_uses_exact_owner_250us_and_preserves_system_context",
+      "execution_multiplicity": 1,
+      "cases": [
+        {
+          "id": "native:A10_OWNER_CLOCK_COMPLETE:configured-exact-owner-250us",
+          "kind": "native_contract",
+          "prefix": "A10_OWNER_CLOCK_COMPLETE",
+          "value": "configured-exact-owner-250us"
         }
       ]
     }
