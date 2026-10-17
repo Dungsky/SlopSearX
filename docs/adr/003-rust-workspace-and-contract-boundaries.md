@@ -115,3 +115,31 @@ depend on application. This allowance adds no socket, storage, configuration,
 provider or wire dependency. W01 source-captured identities and settlements run
 alongside F11 normalization evidence; the F11 dependency guard explicitly permits
 this pure hashing dependency while retaining its other boundary checks.
+
+
+## A05 amendment: native HTML helper and source text codecs
+
+Parent approved the exact vendor/binding direction for implementation after the
+A05 adoption packet review; this is not A05 acceptance. Infrastructure owns a
+separately packaged `ssx-html-parser` native executable and its supervised IPC
+client. The child alone owns libxml2 documents. Application/domain/wire types
+never contain C handles, and native CLI/gateway clients do not import this
+backend dependency. Cancellation/deadlines and shutdown must kill and reap
+children before releasing admission; dropping a future is insufficient.
+
+The pure `ssx-source-codecs` leaf owns source-compatible HTTP text decoding and
+pinned generated mapping/name data, consumed by infra. Its first69single-byte
+families retain the full Python license, per-source attribution and immutable
+source output fixtures. Other108-decoder scope remains unfinished; successful
+captured examples do not authorize a reduced charset contract. The package
+explicitly declares MIT AND PSF-2.0 with a package-specific PSF policy exception,
+not a global license allowlist expansion. Further Unicode/JIS/third-party
+mapping notices require exact review before copying. No Python runtime/API,
+interpreter, subprocess Python or service fallback is permitted.
+
+See A05 ARCHITECTURE, ADOPTION-PACKET and codec-source-notice-manifest for source,
+review authority, known unresolved wrapper/codec/resource qualification and
+historical capture identities. Existing186full-output/request replays remain
+mandatory; all-target and helper lifecycle/security evidence remain acceptance
+work. Native admission bounds must derive from accepted F08 byte limits and
+actual decoder/tree expansion; no unexplained16MiBrestriction is accepted.

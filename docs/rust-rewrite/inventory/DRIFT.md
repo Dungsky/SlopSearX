@@ -547,6 +547,49 @@ The reviewed A04 checkpoint is integrated with accepted F14 main `576d43b03c0378
 
 The fully qualified A04/F14 checkpoint `ca7c6209b4b5e67f5916297e632afbd93f09d758` is normally integrated with accepted W00 main `950071404c61eabc1201730362baccd01b3f2295`. The complete-record union is384 Python source paths and25 developer-oracle invocations. Both parent records and all raw captures remain exact. W00 adds saved modules, gate and evidence metadata; A04 runtime and its exact optional-subreddit cache/flight correction remain unchanged. This entry changes only combined documentary bindings; independent integration review and acceptance remain pending.
 
+## A05 HTML adapter source and temporary oracle
+
+A05 starts at `01876639fb8d87123f12293c02821981cff3f8b9`, after accepted A01
+PR #969. DuckDuckGo/Google Python source and named regression identities remain
+pinned in `a05/corpus.json`; native code uses accepted registry/HTTP/quota seams.
+One backend-coupled offline exporter is added under `a05/oracle/export.py`, owned
+by A05/G08. It is never called by runtime, CI or native gates; G08 retires the
+executable and retains the historical JSON. Disposition/source counts grow by
+one; developer-only oracle invocation inventory grows by one. No plan edges or
+mandatory Python gates are removed.
+
+A05's complete outcome/request replay preserves the source 5 ms bootstrap bug,
+text versus lite/image redirect decoding, malformed-empty HTML failures and
+Python ASCII/Latin-1 codecs. `a05/README.md` records two precise reviewed
+differences: F08 typed network-error diagnostics omit arbitrary HTTPX exception
+text, and accepted F08 host-only cookies do not leak from parent to subdomain.
+Domain-cookie continuity remains supported. Live provider compatibility is
+unverified; no deployment or provider request is authorized by this evidence.
+
+A05 independent review appended 43 whole-source cases in `a05/corpus-review.json`
+while retaining the original 115-case file byte-for-byte. Corrections preserve
+context-inclusive lxml selectors, declarations/PI/open-comment empty-document
+classification, Python quote_plus bytes and UTF-32 decoding. No further parity
+exceptions were approved. The existing exporter optionally writes both pinned
+corpora; its invocation inventory row changes without adding Python sources or
+commands to native gates. The already-locked html5ever 0.39.0 package becomes a
+direct ssx-infra dependency for tokenization; Tokio test-util is enabled only as
+a dev dependency for the controlled bootstrap clock. Lock versions/checksums
+are unchanged. Exact source identity/pin changes require parent review.
+
+## A05 accepted-main integration checkpoint (qualification pending)
+
+Local A05 checkpoint c8b9516f merges accepted main
+1e9dd82d62456fe6f511cc5ade88bae619fac027. This documentary union preserves all
+complete parent source/invocation records: 385 historical source rows and 26
+historical developer-oracle invocation rows. Those counts describe the merged
+historical inventories, not the complete current A05 source set. Additional A05
+codec/provenance/timer migration oracles are not registered yet and require full
+F01/G08 inventory and retirement reconciliation. No runtime or existing source
+pin is refreshed. Accepted-main F01 document pins remain unchanged and are
+expected red after this documentary union until exact parent-reviewed refresh.
+All accepted main workflow/module/gate entries are retained; A05 adds its scoped
+step and artifact without claiming package, provider, resource or CI acceptance.
 ## W11 staged-store source oracle
 
 At baseline `1e9dd82d62456fe6f511cc5ade88bae619fac027`, add the isolated developer oracle `docs/rust-rewrite/w11/oracle/export.py` and its documented invocation. It executes source AST functions and staged-store read/retry controls against private disposable Valkey only. Mandatory W11 checks consume immutable JSON and execute native Rust. G08 retires this executable Python before backend removal; the original source snapshot remains non-executable historical evidence. Existing inventory entries and runtime boundaries are unchanged.
@@ -569,6 +612,52 @@ A07 biomedical candidate adds12 exact-hash temporary offline source producers,39
 
 The DCO A07 checkpoint is normally merged with accepted main1bad48b (F15/W11/W02). All complete parent and A07 inventory records are retained:399 tracked Python source paths and40 temporary developer-oracle invocation rows. Existing source observations and source Git pins remain immutable. Historical native/CI baseline blobs are checked separately from current native implementations. Final integrated gates and exact-head CI remain required.
 
+## A05 normal integration with accepted A07 main (qualification pending)
+
+Local DCO checkpoint `c9d0e18b9024cf9decdb4710aaa2252e23511976` is normally
+integrated with accepted main `2f78b9d02cfe62c9829fcfb38b85cd632a889de0`.
+The complete historical-record union retains400 source rows and41 developer
+oracle invocation rows, including every complete parent record. These are not
+current-source completeness counts: later A05 producers remain unregistered
+until the explicit final F01/G08 reconciliation. Existing historical pins and
+captures remain unchanged; document pins are not refreshed to manufacture a
+passing gate. All main registrations, gates and artifacts remain present, with
+A05 added separately. Integrated runtime, platform and exact-head qualification
+remain pending.
+
+## A05 final Python producer reconciliation (review proposal)
+
+The exact current tracked set is456 Python source paths, including56 newly
+classified A05/adopted provenance paths. All400 prior complete records and all41
+actual developer-oracle invocation records remain unchanged. Four upstream
+licensed Python originals are historical evidence and must leave the runnable
+backend/helper tree at G08;52 tools are temporary manual source or derivation
+producers. A separate52-entry AST-derived invocation-guidance appendix describes
+actual arguments and output sites without claiming CI execution or recapture.
+The native A05 gate consumes retained JSON/binary observations only.
+
+Current documentary fixture bindings and the current A05 exporter binding are
+proposed separately from historical source identities; previous fixture blobs
+remain recorded in the immutable reconciliation receipt. No adapter-source or
+raw-capture pin changes. Full G08 removal and final package/platform qualification
+remain pending.
+
+## A05 authored producer maintenance and immutable hook policy
+
+The complete456 original classification records and41 historical developer
+invocations remain unchanged. Current AST-equivalent maintenance identities for
+53 authored producers (52 new tools plus the previously registered exporter)
+are separate in `a05/producer-identity-amendments.json`; original source Git
+blobs and full classification rows remain retained there. Historical capture
+and generation producer hashes describe the original executions and are not
+repinned to imply recapture. The only AST normalization splits multi-alias
+imports into consecutive singleton imports in identical execution order.
+
+Exact40 immutable source/provenance/fixture paths are excluded only from
+modifying text hooks; four licensed upstream Python originals additionally
+avoid Ruff modification. Existing validators remain enabled. Authored producers
+retain lint/format checks; intentional bootstrap/import/API names use reviewed
+line-local annotations. The unrelated baseline saved-method test is preserved.
 
 ## A08 actual source migration evidence
 
@@ -597,6 +686,15 @@ W04 adds the temporary offline synthetic `docs/rust-rewrite/w04/capture_source.p
 
 Normal integration of accepted A07 main `2f78b9d02cfe62c9829fcfb38b85cd632a889de0` preserves every complete parent record, yielding400 tracked Python source paths,277 backend-coupled tooling/test paths and41 developer-oracle invocation rows. Both A07 and W04 native gates and artifact uploads remain enabled. Historical observations and source pins are unchanged. This records integration; final combined-source validation and review remain required.
 
+## A05 normal integration with accepted W04 main
+
+The qualified local A05 checkpoint `fac23a9c9cb54cfe03ed9e84f6eb0872a3b6ccc8`
+is normally merged with accepted W04 main `9b7d888da1ee3f7e2ed045c2185ea16f419381e9`.
+All complete parent records are preserved:457 classified Python paths and42
+historical developer-oracle recipes, with52 separate A05 manual guidance rows.
+Current AST-equivalent producer identity amendments remain separate from original
+capture/generation identities. Both A05 and W04 workflow steps/artifacts survive;
+final integrated native gates and exact-head platform qualification remain pending.
 ## A08 union with accepted W04/main
 
 The normal merge preserves the accepted A08 history through `f3ef8910` and
