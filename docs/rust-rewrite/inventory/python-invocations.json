@@ -14,7 +14,7 @@
       "100644": 729
     },
     "configured_precommit_hook_rows": 15,
-    "developer_oracle_invocation_rows": 57
+    "developer_oracle_invocation_rows": 58
   },
   "interpreter_invocations": [
     {
@@ -8834,6 +8834,20 @@
       "source_sha256": "71b2550dc438b9fe75120fe60d8d5137f9e8e00eb159e2bad713502a61f01c79",
       "mandatory_native_gate": false,
       "provider_calls_authorized": false
+    },
+    {
+      "path": "docs/rust-rewrite/w05/README.md",
+      "example_path": "docs/rust-rewrite/w05/capture_source.py",
+      "evidence": "Actual completed invocation /private/tmp/slopsearx-rust-oracle-py314/bin/python docs/rust-rewrite/w05/capture_source.py --allow-original-oracle --output docs/rust-rewrite/w05/source.json",
+      "classification": "temporary backend-coupled manual original pure oracle; no native runtime or mandatory gate execution",
+      "migration_owner": "W05",
+      "retirement_owner": "G08",
+      "disposition": "retire executable G08; retain immutable original JSON and invocation/failure provenance",
+      "source_sha256": "85ed07e9f915183037d126cda5132dad00acce86f51eb9cc78fbb03359cf5dd3",
+      "execution_receipt": "docs/rust-rewrite/w05/oracle-runs.json",
+      "executed_source_sha256": "85ed07e9f915183037d126cda5132dad00acce86f51eb9cc78fbb03359cf5dd3",
+      "current_producer_sha256": "da65590a847b3b12b3571900293d123f0e31491e5202799ea0da88256d08af7c",
+      "current_producer_amendment": "docs/rust-rewrite/w05/producer-format-amendment.json"
     }
   ],
   "external_temporary_oracle_sources": [
