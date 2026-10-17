@@ -45,8 +45,8 @@ struct State {
 }
 struct Inner {
     helper: PathBuf,
-    #[cfg(test)]
-    test_args: Vec<std::ffi::OsString>,
+    #[cfg(all(test, unix))]
+    shell_fixture: bool,
     permits: Arc<Semaphore>,
     state: Mutex<State>,
     drained: Notify,
@@ -111,8 +111,8 @@ impl ProcessPool {
         Ok(Self {
             inner: Arc::new(Inner {
                 helper,
-                #[cfg(test)]
-                test_args: Vec::new(),
+                #[cfg(all(test, unix))]
+                shell_fixture: false,
                 permits: Arc::new(Semaphore::new(capacity.get())),
                 state: Mutex::new(State::default()),
                 drained: Notify::new(),
@@ -301,8 +301,13 @@ async fn run_worker<P: AsRef<[u8]> + Sync>(
             return Err(ProcessError::Deadline);
         }
         let mut command = tokio::process::Command::new(&inner.helper);
-        #[cfg(test)]
-        command.args(&inner.test_args);
+        #[cfg(all(test, unix))]
+        if inner.shell_fixture {
+            // Private generated scripts are data read by a stable executable.
+            // Never ask execve to execute an inode still open for writing.
+            command = tokio::process::Command::new("/bin/sh");
+            command.arg(&inner.helper);
+        }
         command
             .env_clear()
             .stdin(std::process::Stdio::piped())
@@ -509,6 +514,12 @@ mod cleanup_tests {
         )
     }
     #[cfg(unix)]
+    fn fixture_pool(path: PathBuf) -> ProcessPool {
+        let mut pool = ProcessPool::new(path, NonZeroUsize::new(1).unwrap()).unwrap();
+        Arc::get_mut(&mut pool.inner).unwrap().shell_fixture = true;
+        pool
+    }
+    #[cfg(unix)]
     fn fixture(body: &str) -> (PathBuf, PathBuf) {
         let stamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -545,15 +556,6 @@ mod cleanup_tests {
             return (path, pid);
         }
         panic!("private fixture directory collision limit");
-    }
-    #[cfg(unix)]
-    fn fixture_pool(path: &std::path::Path) -> ProcessPool {
-        let mut pool =
-            ProcessPool::new(PathBuf::from("/bin/sh"), NonZeroUsize::new(1).unwrap()).unwrap();
-        // Configured exactly once before any clone or dispatch; no shared
-        // mutation, retry, or production command change.
-        Arc::get_mut(&mut pool.inner).unwrap().test_args = vec![path.as_os_str().to_owned()];
-        pool
     }
     #[cfg(unix)]
     fn cleanup_fixture(path: PathBuf, pid: PathBuf) {
@@ -654,7 +656,7 @@ mod cleanup_tests {
     async fn cancelled_caller_lease_survives_blocked_cleanup_until_real_reap() {
         let (path, pidfile) =
             fixture("IFS= read -r first; printf 'ready\\n' > \"$0.ready\"; while :; do :; done");
-        let pool = fixture_pool(&path);
+        let pool = fixture_pool(path.clone());
         let gate = Arc::new(CleanupGate {
             entered: Semaphore::new(0),
             release: Semaphore::new(0),
@@ -733,7 +735,7 @@ mod cleanup_tests {
     #[tokio::test]
     async fn missing_request_readiness_releases_gate_before_bounded_shutdown() {
         let (path, pidfile) = fixture("exec /bin/sleep 30");
-        let pool = fixture_pool(&path);
+        let pool = fixture_pool(path.clone());
         let gate = Arc::new(CleanupGate {
             entered: Semaphore::new(0),
             release: Semaphore::new(0),
@@ -778,7 +780,11 @@ mod cleanup_tests {
         .enumerate()
         {
             let (path, pidfile) = fixture(body);
-            let pool = fixture_pool(&path);
+            // Deterministically retain a writable descriptor while the child
+            // reads the script: fixture execution must not depend on execve's
+            // writable-inode exclusion. The descriptor is never written again.
+            let writer = std::fs::OpenOptions::new().write(true).open(&path).unwrap();
+            let pool = fixture_pool(path.clone());
             let (payload, payload_budget, payload_dropped) = charged_payload();
             let accounting = Arc::new(Semaphore::new(1));
             let lease = Arc::new(accounting.clone().acquire_owned().await.unwrap());
@@ -791,19 +797,26 @@ mod cleanup_tests {
                     lease,
                 )
                 .await;
-            assert_eq!(
-                result,
-                if index == 0 {
-                    Ok(b"ok".to_vec())
-                } else {
-                    Err(ProcessError::Truncated)
-                }
-            );
-            pool.shutdown().await.unwrap();
+            let expected = if index == 0 {
+                Ok(b"ok".to_vec())
+            } else {
+                Err(ProcessError::Truncated)
+            };
+            let shutdown = pool.shutdown().await;
+            if result != expected {
+                eprintln!("private fixture mismatch: shutdown={shutdown:?}");
+                drop(writer);
+                cleanup_fixture(path, pidfile);
+                assert_eq!(result, expected);
+                return;
+            }
+            assert_eq!(result, expected);
+            shutdown.unwrap();
             assert_eq!(payload_budget.snapshot().unwrap().used, 0);
             assert!(payload_dropped.load(std::sync::atomic::Ordering::SeqCst));
             assert_eq!(accounting.available_permits(), 1);
             assert!(pid_gone(&actual_pid(&pidfile).await));
+            drop(writer);
             cleanup_fixture(path, pidfile);
         }
     }
@@ -819,7 +832,7 @@ mod cleanup_tests {
         let direct_error = std::process::Command::new(&path).spawn().unwrap_err();
         assert_eq!(direct_error.raw_os_error(), Some(26));
         let direct = ProcessPool::new(path.clone(), NonZeroUsize::new(1).unwrap()).unwrap();
-        assert!(direct.inner.test_args.is_empty());
+        assert!(!direct.inner.shell_fixture);
         assert_eq!(
             direct
                 .exchange(
@@ -833,7 +846,7 @@ mod cleanup_tests {
         );
         direct.shutdown().await.unwrap();
         assert!(!pidfile.exists());
-        let interpreted = fixture_pool(&path);
+        let interpreted = fixture_pool(path.clone());
         let (payload, budget, dropped) = charged_payload();
         let accounting = Arc::new(Semaphore::new(1));
         let lease = Arc::new(accounting.clone().acquire_owned().await.unwrap());
@@ -871,7 +884,7 @@ mod cleanup_tests {
             .unwrap_err()
             .to_string();
         let pool = ProcessPool::new(missing, NonZeroUsize::new(1).unwrap()).unwrap();
-        assert!(pool.inner.test_args.is_empty());
+        assert!(!pool.inner.shell_fixture);
         let (payload, budget, dropped) = charged_payload();
         let accounting = Arc::new(Semaphore::new(1));
         let lease = Arc::new(accounting.clone().acquire_owned().await.unwrap());
@@ -899,7 +912,7 @@ mod cleanup_tests {
     async fn closed_receiver_during_success_delivery_retains_lease_until_reply_drop() {
         let (path, pidfile) =
             fixture("/bin/cat >/dev/null; printf '\\000\\000\\000\\000\\000\\000\\000\\002ok'");
-        let pool = fixture_pool(&path);
+        let pool = fixture_pool(path.clone());
         let gate = Arc::new(CleanupGate {
             entered: Semaphore::new(0),
             release: Semaphore::new(0),
@@ -982,7 +995,7 @@ mod cleanup_tests {
             } else {
                 "/bin/cat >/dev/null; printf x"
             });
-            let pool = fixture_pool(&path);
+            let pool = fixture_pool(path.clone());
             let (payload, budget, dropped) = charged_payload();
             let header_budget = ssx_owned_budget::Budget::new(8 * 1024 * 1024).unwrap();
             let header_charge = header_budget.reserve(4 * 1024 * 1024).unwrap();
@@ -1019,7 +1032,7 @@ mod cleanup_tests {
     async fn unknown_cleanup_retains_lease_and_permit_and_reports_failed_drain() {
         let (path, pidfile) =
             fixture("/bin/cat >/dev/null; printf '\\000\\000\\000\\000\\000\\000\\000\\002ok'");
-        let pool = fixture_pool(&path);
+        let pool = fixture_pool(path.clone());
         pool.inner
             .cleanup_error
             .store(true, std::sync::atomic::Ordering::SeqCst);

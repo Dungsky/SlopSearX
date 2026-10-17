@@ -159,7 +159,7 @@
     },
     {
       "path": "crates/ssx-infra/src/process_pool.rs",
-      "sha256": "55d9871a8f166ce8520b47aea6e7ca3e002ca630a90c812ff060d37a1a6b417d"
+      "sha256": "48aa72c6daea89469da559ce319952fb1e7da32a798296472e8bbdaffd34fea6"
     },
     {
       "path": "crates/ssx-infra/tests/a10_factories.rs",
