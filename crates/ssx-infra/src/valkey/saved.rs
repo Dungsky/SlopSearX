@@ -1,5 +1,6 @@
 //! Tenant-bound saved definitions and guarded schedule claims. No provider execution.
 use super::{Failure, Read, TokenSource, Valkey, keys};
+pub mod events;
 use base64::Engine as _;
 use ssx_application::saved::{PreparedDefinition, SavedPolicy, prepare_pause, prepare_update};
 use ssx_domain::{
@@ -32,6 +33,7 @@ pub enum Error {
     Conflict,
     QuotaExceeded,
     RepairIncomplete,
+    OutboxCapacity,
     Malformed,
 }
 impl From<Failure> for Error {
@@ -742,10 +744,31 @@ impl SavedStore {
         next_due: f64,
         policy_fingerprint: &str,
     ) -> Result<bool, Error> {
+        Ok(self
+            .commit_publication(
+                claim,
+                report,
+                replacement,
+                next_due,
+                policy_fingerprint,
+                None,
+            )
+            .await?
+            .committed)
+    }
+    async fn commit_publication(
+        &self,
+        claim: &Claim,
+        report: &ssx_json::Value,
+        replacement: Option<&ssx_json::Value>,
+        next_due: f64,
+        policy_fingerprint: &str,
+        event: Option<events::Publication<'_>>,
+    ) -> Result<events::CommitOutcome, Error> {
         let d = claim.definition();
         d.validate_binding(self.tenant.as_str(), &d.search_id)?;
         if d.paused || d.deleted || d.policy_fingerprint != policy_fingerprint {
-            return Ok(false);
+            return Ok(events::CommitOutcome::lost());
         }
         let run = report["run_id"].as_str().ok_or(Error::Malformed)?;
         validate_saved_id(run)?;
@@ -791,15 +814,23 @@ impl SavedStore {
             .map_err(|_| Error::Malformed)?
             .unwrap_or_default();
         let mut cmd = redis::cmd("EVAL");
-        cmd.arg(include_str!("saved_scripts/commit.lua"))
-            .arg(6)
-            .arg(self.key("definition", &d.search_id))
-            .arg(self.key("lease", &d.search_id))
-            .arg(self.key("report", &format!("{}:{run}", d.search_id)))
-            .arg(self.key("reports", &d.search_id))
-            .arg(self.index("due"))
-            .arg(self.key("baseline", &d.search_id))
-            .arg(&claim.raw)
+        let event_bytes = event.as_ref().map(|e| e.event.bytes()).transpose()?;
+        cmd.arg(if event.is_some() {
+            include_str!("saved_scripts/events/commit.lua")
+        } else {
+            include_str!("saved_scripts/commit.lua")
+        })
+        .arg(if event.is_some() { 7 } else { 6 })
+        .arg(self.key("definition", &d.search_id))
+        .arg(self.key("lease", &d.search_id))
+        .arg(self.key("report", &format!("{}:{run}", d.search_id)))
+        .arg(self.key("reports", &d.search_id))
+        .arg(self.index("due"))
+        .arg(self.key("baseline", &d.search_id));
+        if event.is_some() {
+            cmd.arg(self.index("events"));
+        }
+        cmd.arg(&claim.raw)
             .arg(claim.token.as_str())
             .arg(policy_fingerprint)
             .arg(next_bytes)
@@ -814,11 +845,31 @@ impl SavedStore {
             .arg(self.key("report", &format!("{}:", d.search_id)))
             .arg(next_due)
             .arg(&d.search_id);
+        if let Some(event) = event {
+            cmd.arg(event_bytes.unwrap_or_default())
+                .arg(event.limits.retention_seconds())
+                .arg(event.limits.capacity());
+            let (status, cursor): (i64, String) =
+                redis::from_redis_value(self.backend.execute(cmd, true).await?)
+                    .map_err(|_| Error::Malformed)?;
+            return match status {
+                1 => Ok(events::CommitOutcome {
+                    committed: true,
+                    cursor: Some(crate::saved_events::codec::Cursor::new(cursor)?),
+                }),
+                0 => Ok(events::CommitOutcome::lost()),
+                -5 => Err(Error::OutboxCapacity),
+                _ => Err(Error::Malformed),
+            };
+        }
         let status: i64 = redis::from_redis_value(self.backend.execute(cmd, true).await?)
             .map_err(|_| Error::Malformed)?;
         match status {
-            1 => Ok(true),
-            0 => Ok(false),
+            1 => Ok(events::CommitOutcome {
+                committed: true,
+                cursor: None,
+            }),
+            0 => Ok(events::CommitOutcome::lost()),
             _ => Err(Error::Malformed),
         }
     }

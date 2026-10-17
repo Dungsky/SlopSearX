@@ -372,3 +372,69 @@ mod sentry_source_controls {
         assert!(SentryConfig::parse(Some(environment), f64::INFINITY).is_err());
     }
 }
+
+#[cfg(test)]
+mod original_configuration_rows {
+    use super::*;
+    #[test]
+    fn five_original_explicit_environment_configuration_cases_select_exact_native_profile() {
+        let source: ssx_json::Value = ssx_json::from_str(include_str!(
+            "../../../xtask/fixtures/o01/source-supplement.json"
+        ))
+        .unwrap();
+        let mut completed = Vec::new();
+        for case in source["cases"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|case| case["id"].as_str().unwrap().starts_with("logging.config."))
+        {
+            let selected = SentryConfig::resolve(
+                case["input"]["explicit"].as_str(),
+                case["input"]["environment"].as_str(),
+                1.,
+            )
+            .unwrap();
+            let calls = case["output"].as_array().unwrap();
+            if calls.is_empty() {
+                assert!(selected.is_none());
+            } else {
+                assert_eq!(calls.len(), 1);
+                let call = &calls[0];
+                assert_eq!(call["send_default_pii"], false);
+                assert_eq!(call["traces_sample_rate"].as_f64(), Some(0.));
+                assert_eq!(
+                    call["_experiments"]["continuous_profiling_auto_start"],
+                    false
+                );
+                let selected = selected.unwrap();
+                assert_eq!(Some(selected.sample_rate), call["sample_rate"].as_f64());
+                let (endpoint, key) = match call["dsn"].as_str().unwrap() {
+                    "https://publickey@monitor.invalid/12" => {
+                        ("https://monitor.invalid/api/12/envelope/", "publickey")
+                    }
+                    "https://explicitkey@monitor.invalid/13" => {
+                        ("https://monitor.invalid/api/13/envelope/", "explicitkey")
+                    }
+                    other => panic!("unexpected immutable captured DSN {other}"),
+                };
+                assert_eq!(selected.endpoint.as_str(), endpoint);
+                assert_eq!(
+                    selected.authentication(),
+                    format!(
+                        "Sentry sentry_key={key}, sentry_version=7, sentry_client=slopsearx.rust/{}",
+                        env!("CARGO_PKG_VERSION")
+                    )
+                );
+            }
+            completed.push(case["id"].as_str().unwrap());
+        }
+        assert_eq!(completed.len(), 5);
+        for id in completed {
+            println!(
+                "O01_CASE_COMPLETE:{}",
+                ssx_json::json!({"id":id,"consumer":"five_original_explicit_environment_configuration_cases_select_exact_native_profile","class":"source-configuration-api","difference":"native identity; closed error events without traces/profiling; supplied environment value only, no bootstrap activation"})
+            );
+        }
+    }
+}

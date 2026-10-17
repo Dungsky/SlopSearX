@@ -1,0 +1,32 @@
+{
+  "schema": 1,
+  "scope": "explicit source/native operational telemetry differences, not blanket canonicalization",
+  "differences": [
+    {
+      "case_id": "audit.latency.-0.0",
+      "source": "-0.0",
+      "native": "0.0",
+      "boundary": "public Audit::query std::time::Duration cannot encode signed zero; integer query_completed unchanged",
+      "policy": "only this exact string pair superseded;12othercapturedlatencies require exact parity",
+      "evidence": "/private/tmp/o01-audit-latency-source-probe/receipt.json",
+      "evidence_sha256": "63d03548b2dc88e965ddacd4824a20ec981604b60e05cfe6936e6d4532da48c0"
+    },
+    {
+      "id": "availability.absent-authority",
+      "source_states": [
+        "none",
+        "disconnected",
+        "no-client"
+      ],
+      "native": "optional configured authority None",
+      "scope": "retained as6separate audit/stats source rows; zero writes/failures/drops",
+      "reason": "native port has no Python cache object/is_connected/private_client states"
+    },
+    {
+      "id": "availability.failure-phase",
+      "source": "mock pipeline execute raises after recording intended commands",
+      "native": "actual killed/reaped private Valkey socket connection refusal",
+      "scope": "nonfatal one failed telemetry event and joined bounded shutdown; no command/await count parity claim"
+    }
+  ]
+}

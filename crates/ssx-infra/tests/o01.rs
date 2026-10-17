@@ -829,3 +829,434 @@ async fn checked_audit_totals_preserve_boundary_and_refuse_overflow_without_queu
     }
     assert_eq!(observed, 3);
 }
+
+#[tokio::test]
+async fn six_original_stats_statuses_match_actual_private_backend_fields_and_retention() {
+    let source: ssx_json::Value = ssx_json::from_str(include_str!(
+        "../../xtask/fixtures/o01/source-supplement.json"
+    ))
+    .unwrap();
+    let server = Server::start();
+    let mut connection = server.connection();
+    let mut completed = Vec::new();
+    for (name, status) in [
+        ("ok", EngineStatus::Ok),
+        ("rate_limited", EngineStatus::RateLimited),
+        ("blocked", EngineStatus::Blocked),
+        ("error", EngineStatus::Error),
+        ("timeout", EngineStatus::Timeout),
+        ("unavailable", EngineStatus::Unavailable),
+    ] {
+        let id = format!("stats.status.{name}");
+        let case = source["cases"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|case| case["id"].as_str() == Some(id.as_str()))
+            .unwrap();
+        assert_eq!(case["input"]["status"], name);
+        assert_eq!(case["output"]["awaited"], 1);
+        let started = std::time::Instant::now();
+        let telemetry = Telemetry::new(
+            Options {
+                audit: false,
+                ..Default::default()
+            },
+            Some(&server.url),
+            vec!["fixture".into()],
+            vec![],
+        )
+        .unwrap();
+        telemetry.engine_outcome(
+            "fixture",
+            &AdapterResponse {
+                status,
+                results: vec![
+                    SearchResult {
+                        score: FiniteF64::new(0.75).unwrap(),
+                        ..Default::default()
+                    };
+                    4
+                ],
+                latency_ms: FiniteF64::new(12.7).unwrap(),
+                ..Default::default()
+            },
+            OutcomeOrigin::AdapterReturned,
+        );
+        telemetry.shutdown().await;
+        assert_eq!(telemetry.delivery.written.load(Ordering::Relaxed), 1);
+        assert_eq!(telemetry.delivery.failed.load(Ordering::Relaxed), 0);
+        assert_eq!(telemetry.delivery.dropped.load(Ordering::Relaxed), 0);
+        let day = chrono::Local::now().format("%Y-%m-%d");
+        let key = format!("engine_stats:fixture:{day}");
+        let actual: BTreeMap<String, i64> = redis::cmd("HGETALL")
+            .arg(&key)
+            .query(&mut connection)
+            .unwrap();
+        let mut expected = BTreeMap::new();
+        let mut expiry = None;
+        for command in case["output"]["commands"].as_array().unwrap() {
+            let command = command.as_array().unwrap();
+            match command[0].as_str().unwrap() {
+                "hincrby" => {
+                    expected.insert(
+                        command[2].as_str().unwrap().to_owned(),
+                        command[3].as_i64().unwrap(),
+                    );
+                }
+                "expire" => {
+                    expiry = Some(command[2].as_i64().unwrap());
+                }
+                other => panic!("unexpected captured command {other}"),
+            }
+        }
+        assert_eq!(actual, expected, "{id}");
+        let ttl: i64 = redis::cmd("TTL").arg(&key).query(&mut connection).unwrap();
+        let expected_ttl = expiry.unwrap();
+        assert!(
+            ttl > 0
+                && ttl <= expected_ttl
+                && expected_ttl - ttl <= started.elapsed().as_secs() as i64 + 1,
+            "{id}: {ttl}"
+        );
+        let deleted: usize = redis::cmd("DEL").arg(&key).query(&mut connection).unwrap();
+        assert_eq!(deleted, 1);
+        drop(telemetry);
+        completed.push(id);
+    }
+    let remaining: usize = redis::cmd("DBSIZE").query(&mut connection).unwrap();
+    assert_eq!(remaining, 0);
+    drop(connection);
+    drop(server);
+    assert_eq!(completed.len(), 6);
+    for id in completed {
+        println!(
+            "O01_CASE_COMPLETE:{}",
+            ssx_json::json!({"id":id,"consumer":"six_original_stats_statuses_match_actual_private_backend_fields_and_retention","class":"source-private-backend"})
+        );
+    }
+}
+
+#[tokio::test]
+async fn original_object_and_dictionary_audit_fields_share_exact_native_typed_projection() {
+    let source: ssx_json::Value = ssx_json::from_str(include_str!(
+        "../../xtask/fixtures/o01/source-supplement.json"
+    ))
+    .unwrap();
+    let server = Server::start();
+    let mut connection = server.connection();
+    let mut completed = Vec::new();
+    for id in ["audit.statuses.object", "audit.statuses.dict"] {
+        let case = source["cases"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|case| case["id"] == id)
+            .unwrap();
+        let commands = case["output"]["commands"].as_array().unwrap();
+        let command = commands[0].as_array().unwrap();
+        assert_eq!(command[0], "execute_command");
+        assert_eq!(command[1], "XADD");
+        assert_eq!(command[3], "MAXLEN");
+        assert_eq!(command[4], "~");
+        assert_eq!(command[5], "10000");
+        assert_eq!(command[6], "*");
+        let expected = command[7..]
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .map(|pair| {
+                (
+                    pair[0].as_str().unwrap().to_owned(),
+                    pair[1].as_str().unwrap().to_owned(),
+                )
+            })
+            .collect::<BTreeMap<_, _>>();
+        let started = std::time::Instant::now();
+        let telemetry =
+            Telemetry::new(Options::default(), Some(&server.url), vec![], vec![]).unwrap();
+        let request = SearchRequest {
+            query: expected["query"].clone(),
+            client_identifier: Some(expected["client_ip"].clone()),
+            ..Default::default()
+        };
+        // Original object/dictionary input branches normalize to the same native
+        // typed outcome. The immutable source captures independently prove both.
+        let response = SearchResponse {
+            engine_outcomes: [
+                "ok",
+                "rate_limited",
+                "blocked",
+                "error",
+                "timeout",
+                "unavailable",
+            ]
+            .into_iter()
+            .map(|status| EngineOutcome {
+                engine: status.into(),
+                status: status.into(),
+                result_count: 0,
+                ..Default::default()
+            })
+            .collect(),
+            ..Default::default()
+        };
+        telemetry.query_completed(&request, &response, 0);
+        telemetry.shutdown().await;
+        assert_eq!(telemetry.delivery.written.load(Ordering::Relaxed), 1);
+        assert_eq!(telemetry.delivery.failed.load(Ordering::Relaxed), 0);
+        assert_eq!(telemetry.delivery.dropped.load(Ordering::Relaxed), 0);
+        let day = chrono::Local::now().format("%Y-%m-%d");
+        let key = format!("query_audit:{day}");
+        let rows: redis::streams::StreamRangeReply = redis::cmd("XRANGE")
+            .arg(&key)
+            .arg("-")
+            .arg("+")
+            .query(&mut connection)
+            .unwrap();
+        assert_eq!(rows.ids.len(), 1);
+        assert_eq!(rows.ids[0].map.len(), expected.len());
+        for (field, value) in &expected {
+            let actual = rows.ids[0].get::<String>(field).unwrap();
+            if field == "timestamp" {
+                let at = chrono::DateTime::parse_from_rfc3339(&actual).unwrap();
+                assert!(at.timestamp_millis() <= chrono::Utc::now().timestamp_millis());
+                assert!(
+                    chrono::Utc::now()
+                        .signed_duration_since(at)
+                        .num_milliseconds()
+                        <= started.elapsed().as_millis() as i64 + 1
+                );
+            } else {
+                assert_eq!(actual, *value, "{id}: {field}");
+            }
+        }
+        let ttl: i64 = redis::cmd("TTL").arg(&key).query(&mut connection).unwrap();
+        let expected_ttl = commands[1][2].as_i64().unwrap();
+        assert!(
+            ttl > 0
+                && ttl <= expected_ttl
+                && expected_ttl - ttl <= started.elapsed().as_secs() as i64 + 1
+        );
+        let deleted: usize = redis::cmd("DEL").arg(&key).query(&mut connection).unwrap();
+        assert_eq!(deleted, 1);
+        drop(telemetry);
+        completed.push(id);
+    }
+    let remaining: usize = redis::cmd("DBSIZE").query(&mut connection).unwrap();
+    assert_eq!(remaining, 0);
+    drop(connection);
+    drop(server);
+    assert_eq!(completed.len(), 2);
+    for id in completed {
+        println!(
+            "O01_CASE_COMPLETE:{}",
+            ssx_json::json!({"id":id,"consumer":"original_object_and_dictionary_audit_fields_share_exact_native_typed_projection","class":"source-private-backend","normalization":"object/dictionary collapse to native typed outcomes; live timestamp replaces frozen clock"})
+        );
+    }
+}
+
+#[tokio::test]
+async fn original_thirteen_audit_latencies_match_except_reviewed_duration_signed_zero() {
+    let source: ssx_json::Value = ssx_json::from_str(include_str!(
+        "../../xtask/fixtures/o01/source-supplement.json"
+    ))
+    .unwrap();
+    let server = Server::start();
+    let mut connection = server.connection();
+    let mut markers = Vec::new();
+    let ledger: ssx_json::Value = ssx_json::from_str(include_str!(
+        "../../xtask/fixtures/o01/native-differences.json"
+    ))
+    .unwrap();
+    let mut completed = 0;
+    for case in source["cases"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|c| c["id"].as_str().unwrap().starts_with("audit.latency."))
+    {
+        let id = case["id"].as_str().unwrap();
+        let repr = case["input"]["repr"].as_str().unwrap();
+        let integer = case["input"]["type"] == "int";
+        let command = case["output"]["commands"][0].as_array().unwrap();
+        let expected = command[7..]
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .find(|p| p[0] == "latency_ms")
+            .unwrap()[1]
+            .as_str()
+            .unwrap();
+        let telemetry =
+            Telemetry::new(Options::default(), Some(&server.url), vec![], vec![]).unwrap();
+        let request = SearchRequest {
+            query: "synthetic query".into(),
+            client_identifier: Some("192.0.2.12".into()),
+            ..Default::default()
+        };
+        if integer {
+            telemetry.query_completed(&request, &SearchResponse::default(), repr.parse().unwrap());
+        } else {
+            telemetry.query(
+                &request,
+                &SearchResponse::default(),
+                Duration::try_from_secs_f64(repr.parse::<f64>().unwrap() / 1000.).unwrap(),
+            );
+        }
+        telemetry.shutdown().await;
+        assert_eq!(telemetry.delivery.written.load(Ordering::Relaxed), 1);
+        assert_eq!(telemetry.delivery.failed.load(Ordering::Relaxed), 0);
+        let day = chrono::Local::now().format("%Y-%m-%d");
+        let key = format!("query_audit:{day}");
+        let rows: redis::streams::StreamRangeReply = redis::cmd("XRANGE")
+            .arg(&key)
+            .arg("-")
+            .arg("+")
+            .query(&mut connection)
+            .unwrap();
+        assert_eq!(rows.ids.len(), 1);
+        let actual = rows.ids[0].get::<String>("latency_ms").unwrap();
+        let class = if id == "audit.latency.-0.0" {
+            let difference = &ledger["differences"][0];
+            assert_eq!(difference["case_id"], id);
+            assert_eq!(difference["source"], expected);
+            assert_eq!(difference["native"], actual.as_str());
+            assert_eq!(expected, "-0.0");
+            assert_eq!(actual, "0.0");
+            assert_eq!(repr, "-0.0");
+            assert!(!integer);
+            assert_eq!(Duration::try_from_secs_f64(-0.0).unwrap(), Duration::ZERO);
+            "reviewed-typed-port-supersession"
+        } else {
+            assert_eq!(actual, expected, "{id}");
+            "source-private-backend"
+        };
+        markers.push((id.to_owned(), class));
+        let deleted: usize = redis::cmd("DEL").arg(&key).query(&mut connection).unwrap();
+        assert_eq!(deleted, 1);
+        drop(telemetry);
+        completed += 1;
+    }
+    assert_eq!(completed, 13);
+    let remaining: usize = redis::cmd("DBSIZE").query(&mut connection).unwrap();
+    assert_eq!(remaining, 0);
+    drop(connection);
+    drop(server);
+    assert_eq!(
+        markers
+            .iter()
+            .filter(|(_, class)| *class == "reviewed-typed-port-supersession")
+            .count(),
+        1
+    );
+    for (id, class) in markers {
+        println!(
+            "O01_CASE_COMPLETE:{}",
+            ssx_json::json!({"id":id,"consumer":"original_thirteen_audit_latencies_match_except_reviewed_duration_signed_zero","class":class})
+        );
+    }
+}
+
+#[tokio::test]
+async fn original_eight_availability_rows_preserve_noop_and_nonfatal_failure_with_explicit_native_projection()
+ {
+    let source: ssx_json::Value = ssx_json::from_str(include_str!(
+        "../../xtask/fixtures/o01/source-supplement.json"
+    ))
+    .unwrap();
+    let ledger: ssx_json::Value = ssx_json::from_str(include_str!(
+        "../../xtask/fixtures/o01/native-differences.json"
+    ))
+    .unwrap();
+    let projection = &ledger["differences"][1];
+    assert_eq!(projection["id"], "availability.absent-authority");
+    assert_eq!(projection["source_states"].as_array().unwrap().len(), 3);
+    assert_eq!(ledger["differences"][2]["id"], "availability.failure-phase");
+    let mut completed = Vec::new();
+    for kind in ["audit", "stats"] {
+        for state in ["none", "disconnected", "no-client", "failed"] {
+            let id = format!("{kind}.{state}");
+            let case = source["cases"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|c| c["id"].as_str() == Some(id.as_str()))
+                .unwrap();
+            assert_eq!(case["output"]["returned"], true);
+            let unavailable_url = if state == "failed" {
+                assert_eq!(case["output"]["awaited"], 1);
+                assert!(!case["output"]["commands"].as_array().unwrap().is_empty());
+                let server = Server::start();
+                let url = server.url.clone();
+                drop(server); // actual private server killed/reaped, socket removed
+                Some(url)
+            } else {
+                assert!(
+                    projection["source_states"]
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .any(|s| s == &ssx_json::Value::from(state))
+                );
+                assert_eq!(case["output"]["awaited"], 0);
+                assert!(case["output"]["commands"].as_array().unwrap().is_empty());
+                None
+            };
+            let telemetry = Telemetry::new(
+                Options::default(),
+                unavailable_url.as_deref(),
+                vec!["fixture".into()],
+                vec![],
+            )
+            .unwrap();
+            if kind == "audit" {
+                telemetry.query(
+                    &SearchRequest {
+                        query: "synthetic query".into(),
+                        client_identifier: Some("192.0.2.12".into()),
+                        ..Default::default()
+                    },
+                    &SearchResponse::default(),
+                    Duration::from_millis(1),
+                );
+            } else {
+                telemetry.engine_outcome(
+                    "fixture",
+                    &AdapterResponse {
+                        latency_ms: FiniteF64::new(1.).unwrap(),
+                        ..Default::default()
+                    },
+                    OutcomeOrigin::AdapterReturned,
+                );
+            }
+            tokio::time::timeout(Duration::from_secs(3), telemetry.shutdown())
+                .await
+                .unwrap();
+            let delivery = telemetry.delivery.clone();
+            let expected_failure = u64::from(state == "failed");
+            assert_eq!(
+                delivery.failed.load(Ordering::Relaxed),
+                expected_failure,
+                "{id}"
+            );
+            assert_eq!(delivery.written.load(Ordering::Relaxed), 0, "{id}");
+            assert_eq!(delivery.dropped.load(Ordering::Relaxed), 0, "{id}");
+            drop(telemetry);
+            tokio::task::yield_now().await;
+            assert_eq!(
+                delivery.failed.load(Ordering::Relaxed),
+                expected_failure,
+                "{id}"
+            );
+            completed.push(id);
+        }
+    }
+    assert_eq!(completed.len(), 8);
+    for id in completed {
+        println!(
+            "O01_CASE_COMPLETE:{}",
+            ssx_json::json!({"id":id,"consumer":"original_eight_availability_rows_preserve_noop_and_nonfatal_failure_with_explicit_native_projection","class":"reviewed-typed-port-supersession","difference":"optional authority represents absent/disconnected/no-client; actual connection refusal tests nonfatal failure, not source mockexecute faultphase/commands parity"})
+        );
+    }
+}

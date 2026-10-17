@@ -1,4 +1,5 @@
 //! Bounded, native operational telemetry. Transport owners drain after search shutdown.
+mod event_metrics;
 pub mod metrics;
 pub mod sentry;
 use chrono::{DateTime, Utc};

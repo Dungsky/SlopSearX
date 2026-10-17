@@ -343,6 +343,91 @@ impl Metrics {
         if !self.enabled {
             return;
         }
+        // These are the exact closed callbacks emitted by W05's accepted shared
+        // bridge. Counter increments carry no age or tenant/subject/event data.
+        let saved = match name {
+            "saved_event_published_report_created" => Some((
+                "slopsearx_saved_search_event_publications_total",
+                "event_type",
+                "report_created",
+            )),
+            "saved_event_published_run_incomparable" => Some((
+                "slopsearx_saved_search_event_publications_total",
+                "event_type",
+                "run_incomparable",
+            )),
+            "saved_event_published_run_failed" => Some((
+                "slopsearx_saved_search_event_publications_total",
+                "event_type",
+                "run_failed",
+            )),
+            "saved_event_published_definition_paused" => Some((
+                "slopsearx_saved_search_event_publications_total",
+                "event_type",
+                "definition_paused",
+            )),
+            "saved_event_published_definition_expired" => Some((
+                "slopsearx_saved_search_event_publications_total",
+                "event_type",
+                "definition_expired",
+            )),
+            "saved_event_read_delivered" => Some((
+                "slopsearx_saved_search_event_reads_total",
+                "outcome",
+                "delivered",
+            )),
+            "saved_event_read_empty" => Some((
+                "slopsearx_saved_search_event_reads_total",
+                "outcome",
+                "empty",
+            )),
+            "saved_event_read_gap" => {
+                Some(("slopsearx_saved_search_event_reads_total", "outcome", "gap"))
+            }
+            "saved_event_read_redacted" => Some((
+                "slopsearx_saved_search_event_reads_total",
+                "outcome",
+                "redacted",
+            )),
+            "saved_event_read_rejected" => Some((
+                "slopsearx_saved_search_event_reads_total",
+                "outcome",
+                "rejected",
+            )),
+            "saved_event_ack_advanced" => Some((
+                "slopsearx_saved_search_event_acknowledgements_total",
+                "outcome",
+                "advanced",
+            )),
+            "saved_event_ack_idempotent" => Some((
+                "slopsearx_saved_search_event_acknowledgements_total",
+                "outcome",
+                "idempotent",
+            )),
+            "saved_event_ack_rejected" => Some((
+                "slopsearx_saved_search_event_acknowledgements_total",
+                "outcome",
+                "rejected",
+            )),
+            "saved_event_capacity_stream" => Some((
+                "slopsearx_saved_search_event_capacity_rejections_total",
+                "resource",
+                "stream",
+            )),
+            "saved_event_capacity_consumer" => Some((
+                "slopsearx_saved_search_event_capacity_rejections_total",
+                "resource",
+                "consumer",
+            )),
+            _ => None,
+        };
+        if let Some((metric, label, value)) = saved {
+            let _ = self.update(metric, &[(label, value)], 1.);
+            if name == "saved_event_read_gap" {
+                let _ = self.update("slopsearx_saved_search_event_retention_gaps_total", &[], 1.);
+            }
+            return;
+        }
         let index = match name {
             "search_engine_internal_failure" => 0,
             "search_engine_observed" => 1,
@@ -1079,13 +1164,21 @@ impl Metrics {
         if outcome == "gap" {
             self.update("slopsearx_saved_search_event_retention_gaps_total", &[], 1.)?;
         }
+        self.saved_event_age(["empty", "gap"].contains(&outcome), oldest_age)
+    }
+    // Kept separate from counters: the shared W05 bridge already counts reads.
+    pub(super) fn saved_event_age(
+        &self,
+        reset_absent: bool,
+        oldest_age: Option<f64>,
+    ) -> Result<(), &'static str> {
         if let Some(age) = oldest_age {
             self.update(
                 "slopsearx_saved_search_event_backlog_age_seconds",
                 &[],
                 age.max(0.),
             )?;
-        } else if ["empty", "gap"].contains(&outcome) {
+        } else if reset_absent {
             self.update("slopsearx_saved_search_event_backlog_age_seconds", &[], 0.)?;
         }
         Ok(())
@@ -1350,6 +1443,10 @@ mod bucket_source_controls {
                 render_histogram(&mut output, "custom", "engine=\"fixture\"", bounds, &state);
                 assert_eq!(output, case["output"]["render"].as_str().unwrap());
             }
+            println!(
+                "O01_CASE_COMPLETE:{}",
+                ssx_json::json!({"id":case["id"].as_str().unwrap(),"consumer":"actual_custom_and_invalid_source_profiles_use_the_production_helpers","class":"source-bounded-helper"})
+            );
             completed += 1;
         }
         assert_eq!(completed, 5);
