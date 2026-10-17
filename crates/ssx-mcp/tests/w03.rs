@@ -131,6 +131,88 @@ async fn actual_authenticated_http_preview_execute_followup_replay_and_completio
         assert!(invalid.is_error.unwrap_or(false));
     }
     assert_eq!(fixture.calls(), 0);
+    // Frozen descriptors prohibit undeclared top-level keys. Exercise the
+    // actual authenticated transport before any job/budget/provider work.
+    let keys_before: u64 = redis::cmd("DBSIZE").query(&mut server.connection())?;
+    let declared_calls = [
+        (
+            "slopsearx_plan_research",
+            json!({"question":"q","subquestions":[]}),
+        ),
+        (
+            "slopsearx_plan_query_variants",
+            json!({"question":"q","variants":[]}),
+        ),
+        (
+            "slopsearx_plan_research_followup",
+            json!({"job_id":"missing","query":"q","parent_attempt_id":"missing","evidence_result_ids":[],"rationale":"q"}),
+        ),
+        ("slopsearx_start_research", json!({"question":"q"})),
+        ("slopsearx_get_job", json!({"job_id":"missing"})),
+        ("slopsearx_cancel_job", json!({"job_id":"missing"})),
+        ("slopsearx_retry_research", json!({"job_id":"missing"})),
+        (
+            "slopsearx_extend_research",
+            json!({"job_id":"missing","query":"q"}),
+        ),
+        (
+            "slopsearx_update_research",
+            json!({"job_id":"missing","subquestion_states":{}}),
+        ),
+    ];
+    assert_eq!(
+        declared_calls.len(),
+        ssx_mcp::research_planning::TOOL_NAMES.len()
+    );
+    for (name, mut args) in declared_calls {
+        args["unexpected"] = json!(true);
+        let invalid = client
+            .call_tool(
+                CallToolRequestParams::new(name).with_arguments(args.as_object().unwrap().clone()),
+            )
+            .await?;
+        assert!(
+            invalid.is_error.unwrap_or(false),
+            "undeclared tool argument must reject before execution: {name}"
+        );
+        let serialized = serde_json::to_value(invalid)?;
+        assert_eq!(
+            serialized["content"][0]["text"],
+            "undeclared tool argument: unexpected"
+        );
+        assert_eq!(fixture.calls(), 0);
+        let keys_after: u64 = redis::cmd("DBSIZE").query(&mut server.connection())?;
+        assert_eq!(
+            keys_after, keys_before,
+            "undeclared call must not create durable work: {name}"
+        );
+    }
+    let misspelled = client
+        .call_tool(
+            CallToolRequestParams::new("slopsearx_start_research").with_arguments(
+                json!({"question":"q","max_query":1})
+                    .as_object()
+                    .unwrap()
+                    .clone(),
+            ),
+        )
+        .await?;
+    assert!(
+        misspelled.is_error.unwrap_or(false),
+        "misspelled option must not use defaults"
+    );
+    assert_eq!(
+        serde_json::to_value(misspelled)?["content"][0]["text"],
+        "undeclared tool argument: max_query"
+    );
+    assert_eq!(fixture.calls(), 0);
+    assert_eq!(
+        redis::cmd("DBSIZE").query::<u64>(&mut server.connection())?,
+        keys_before
+    );
+    println!(
+        "W03_UNDECLARED_ARGUMENTS_COMPLETE tools=9 misspelled=1 actual_http=true provider_calls=0 durable_key_count_unchanged=true"
+    );
     let preview=call(&client,"slopsearx_plan_research",json!({"question":"compare maintenance and alternatives","engines":["wikipedia"],"subquestions":[{"id":"a","question":"maintenance"},{"id":"b","question":"alternatives"}],"max_queries":4,"max_attempts":4,"max_engine_attempts":4})).await;
     assert_eq!(preview["dispatched"], json!(false));
     assert_eq!(fixture.calls(), 0);

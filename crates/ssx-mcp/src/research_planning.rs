@@ -189,6 +189,12 @@ fn validate(name: &str, args: &Value) -> Result<(), ErrorData> {
     }
     for (key, v) in object {
         let Some(schema) = properties.get(key.as_str()) else {
+            if descriptor["inputSchema"]["additionalProperties"].as_bool() == Some(false) {
+                return Err(ErrorData::invalid_params(
+                    format!("undeclared tool argument: {key}"),
+                    None,
+                ));
+            }
             continue;
         };
         if !schema_accepts(schema, v) {

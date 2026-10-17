@@ -35,3 +35,21 @@ Valid retained dossier budget values preserve bool, arbitrary-width signed integ
 Historical qualification `candidate-002-partial` and its 117-test reports are preserved outside the repository. The later source-order/error-projection correction has its own source identity, failures and new qualification; those older reports must not be relabeled as evidence for this revision.
 
 Candidate-003 review corrections preserve the source's conditional parent authority: only evidence-bearing continuations inherit parent scope, while bare-parent web execution and same-key replay remain available under current new-query/research/tenant fences. Association validation checks terminal parent and admitted IDs, then current parent policy with its original `requires_intent_grant` and captured evidence, before resolved/duplicate/variant/budget guards; fenced evidence revalidation remains. START and PREVIEW retain their distinct source budget-validation orders. Four new regressions reproduced the candidate-003 failures before correction, then passed with complete JSON and all-key Valkey value/history comparisons; candidate-003 remains immutable evidence, not acceptance for this revision.
+
+## Declared planning arguments
+
+The nine planning descriptors specify top-level additionalProperties: false.
+The native handler now rejects an undeclared key before planning, job storage,
+budget admission or engine dispatch. Dictionary-valued declared arguments retain
+their existing schemas. A misspelled option produces the declared validation
+error instead of silently selecting a default.
+
+The existing authenticated HTTP workflow test exercises all nine tools with an
+extra key, checks a misspelled start option, and then completes its original
+preview/start/follow-up/replay/completion workflow. Rejected calls leave the
+provider-call count and private Valkey key count unchanged. Native failing and
+passing outputs, source hashes and exact commands are retained in
+[evidence/argument-validation/manifest.json](evidence/argument-validation/manifest.json).
+The old-runtime failure is the undeclared-argument assertion, after successful
+compilation; it is not a watchdog or compiler failure. No original capture or
+intentional-difference ledger was changed.
