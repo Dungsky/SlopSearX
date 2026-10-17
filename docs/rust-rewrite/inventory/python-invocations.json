@@ -14,7 +14,7 @@
       "100644": 729
     },
     "configured_precommit_hook_rows": 15,
-    "developer_oracle_invocation_rows": 57
+    "developer_oracle_invocation_rows": 58
   },
   "interpreter_invocations": [
     {
@@ -8822,6 +8822,18 @@
       "disposition": "Actual completed offline invocation. Retire executable producer at G08; retain JSON/provenance.",
       "source_sha256": "82e43ccfc759d769f9909a6267f06b675c8087d4e210765c46c18d177345c3ad",
       "execution_receipt": "docs/rust-rewrite/a09/oracle-runs.json"
+    },
+    {
+      "path": "docs/rust-rewrite/t06/G08.md",
+      "example_path": "docs/rust-rewrite/t06/capture_guarded.py",
+      "evidence": "/private/tmp/slopsearx-rust-oracle-py314/bin/python docs/rust-rewrite/t06/capture_guarded.py PRODUCER NEW_OUTPUT",
+      "classification": "temporary backend-coupled developer oracle; never a mandatory native gate or runtime dependency",
+      "migration_owner": "T06",
+      "retirement_owner": "G08",
+      "disposition": "retire executable Python before backend removal; retain immutable JSON source evidence",
+      "source_sha256": "71b2550dc438b9fe75120fe60d8d5137f9e8e00eb159e2bad713502a61f01c79",
+      "mandatory_native_gate": false,
+      "provider_calls_authorized": false
     },
     {
       "path": "docs/rust-rewrite/w05/README.md",

@@ -25,6 +25,7 @@ use tokio_util::sync::CancellationToken;
 struct Session {
     input: mpsc::Sender<AdmittedMessage>,
     cancel: CancellationToken,
+    owner: Option<ssx_domain::TenantId>,
 }
 // A permit follows the body into the queue and through pump consumption.
 struct AdmittedMessage {
@@ -33,6 +34,7 @@ struct AdmittedMessage {
 }
 const MESSAGE_CAPACITY: usize = 32;
 const OUTPUT_CAPACITY: usize = 64 * 1024 * 1024;
+#[cfg(test)]
 const OUTPUT_FRAME_LIMIT: usize = 16 * 1024 * 1024;
 struct ChargedLine {
     text: String,
@@ -49,6 +51,7 @@ struct OutputReader<R> {
     bytes: Vec<u8>,
     permits: Vec<tokio::sync::OwnedSemaphorePermit>,
     budget: Arc<tokio::sync::Semaphore>,
+    frame_limit: crate::output_limits::OutputLimits,
 }
 impl<R: AsyncRead + Unpin> OutputReader<R> {
     fn new(reader: R, budget: Arc<tokio::sync::Semaphore>) -> Self {
@@ -57,6 +60,17 @@ impl<R: AsyncRead + Unpin> OutputReader<R> {
             bytes: Vec::new(),
             permits: Vec::new(),
             budget,
+            frame_limit: crate::output_limits::OutputLimits::LEGACY,
+        }
+    }
+    fn with_limit(
+        reader: R,
+        budget: Arc<tokio::sync::Semaphore>,
+        frame_limit: crate::output_limits::OutputLimits,
+    ) -> Self {
+        Self {
+            frame_limit,
+            ..Self::new(reader, budget)
         }
     }
     async fn next_line(&mut self) -> crate::Result<Option<ChargedLine>> {
@@ -70,8 +84,12 @@ impl<R: AsyncRead + Unpin> OutputReader<R> {
             }
             let end = chunk.iter().position(|b| *b == b'\n').map(|n| n + 1);
             let count = end.unwrap_or(chunk.len());
-            if self.bytes.len() + count > OUTPUT_FRAME_LIMIT {
-                return Err("legacy output frame limit".into());
+            if self.bytes.len() + count > self.frame_limit.bytes() {
+                return Err(format!(
+                    "legacy output frame limit: {} bytes",
+                    self.frame_limit.bytes()
+                )
+                .into());
             }
             let permit = self
                 .budget
@@ -105,8 +123,21 @@ fn event_bytes(
     text: &str,
     budget: &Arc<tokio::sync::Semaphore>,
 ) -> crate::Result<OutputEvent> {
-    if text.len() > OUTPUT_FRAME_LIMIT {
-        return Err("legacy output frame limit".into());
+    event_bytes_with_limit(
+        kind,
+        text,
+        budget,
+        crate::output_limits::OutputLimits::LEGACY,
+    )
+}
+fn event_bytes_with_limit(
+    kind: &str,
+    text: &str,
+    budget: &Arc<tokio::sync::Semaphore>,
+    limit: crate::output_limits::OutputLimits,
+) -> crate::Result<OutputEvent> {
+    if text.len() > limit.bytes() {
+        return Err(format!("legacy output frame limit: {} bytes", limit.bytes()).into());
     }
     let count = text.len()
         + text.bytes().filter(|b| matches!(b, b'\n' | b'\r')).count() * 6
@@ -150,9 +181,16 @@ fn request_id(text: &str) -> crate::Result<Option<String>> {
 fn output_event(text: &str, budget: &Arc<tokio::sync::Semaphore>) -> crate::Result<OutputEvent> {
     event_bytes("message", text, budget)
 }
+type NativeHandlerFactory<H> = Arc<
+    dyn Fn(Arc<Mutex<crate::opaque::WireState>>, Option<crate::oauth::AuthenticatedClient>) -> H
+        + Send
+        + Sync,
+>;
 #[derive(Clone)]
-pub struct Legacy {
-    registry: Registry,
+pub struct Legacy<H: rmcp::ServerHandler + Clone + 'static = Registry> {
+    factory: NativeHandlerFactory<H>,
+    catalogs: Arc<crate::opaque::Catalogs>,
+    output_limits: crate::output_limits::OutputLimits,
     sessions: Arc<Mutex<HashMap<String, Session>>>,
     pub message_path: String,
     pub ttl: Duration,
@@ -161,9 +199,27 @@ pub struct Legacy {
     messages: Arc<tokio::sync::Semaphore>,
     output: Arc<tokio::sync::Semaphore>,
 }
-impl Legacy {
+impl Legacy<Registry> {
     pub fn new(
         registry: Registry,
+        message_path: &str,
+        ttl: Duration,
+        cancel: CancellationToken,
+    ) -> crate::Result<Self> {
+        let catalogs = registry.opaque.clone();
+        Self::with_factory(
+            Arc::new(move |_, _| registry.clone()),
+            catalogs,
+            message_path,
+            ttl,
+            cancel,
+        )
+    }
+}
+impl<H: rmcp::ServerHandler + Clone + 'static> Legacy<H> {
+    pub fn with_factory(
+        factory: NativeHandlerFactory<H>,
+        catalogs: Arc<crate::opaque::Catalogs>,
         message_path: &str,
         ttl: Duration,
         cancel: CancellationToken,
@@ -176,7 +232,9 @@ impl Legacy {
             return Err("legacy message prefix must be an absolute path ending /".into());
         }
         Ok(Self {
-            registry,
+            factory,
+            catalogs,
+            output_limits: crate::output_limits::OutputLimits::LEGACY,
             sessions: Arc::new(Mutex::new(HashMap::new())),
             message_path: message_path.into(),
             ttl,
@@ -185,6 +243,10 @@ impl Legacy {
             messages: Arc::new(tokio::sync::Semaphore::new(MESSAGE_CAPACITY)),
             output: Arc::new(tokio::sync::Semaphore::new(OUTPUT_CAPACITY)),
         })
+    }
+    pub fn with_output_limits(mut self, limits: crate::output_limits::OutputLimits) -> Self {
+        self.output_limits = limits;
+        self
     }
     pub fn available_permits(&self) -> usize {
         self.admission.available_permits()
@@ -204,28 +266,35 @@ impl Legacy {
         }
         let prefix = self.message_path.trim_end_matches('/');
         Ok(Router::new()
-            .route(sse_path, get(connect))
-            .route(prefix, post(message))
-            .route(&format!("{prefix}/"), post(message))
-            .route(&format!("{prefix}/{{*suffix}}"), post(message))
+            .route(sse_path, get(connect::<H>))
+            .route(prefix, post(message::<H>))
+            .route(&format!("{prefix}/"), post(message::<H>))
+            .route(&format!("{prefix}/{{*suffix}}"), post(message::<H>))
             .layer(DefaultBodyLimit::max(4 * 1024 * 1024))
             .with_state(self))
     }
 }
-struct StreamState {
+struct StreamState<H: rmcp::ServerHandler + Clone + 'static> {
     rx: mpsc::Receiver<OutputEvent>,
     session: String,
-    state: Legacy,
+    state: Legacy<H>,
     _admission: Arc<tokio::sync::OwnedSemaphorePermit>,
 }
-impl Drop for StreamState {
+impl<H: rmcp::ServerHandler + Clone + 'static> Drop for StreamState<H> {
     fn drop(&mut self) {
         if let Some(session) = self.state.sessions.lock().unwrap().remove(&self.session) {
             session.cancel.cancel();
         }
     }
 }
-async fn connect(State(state): State<Legacy>) -> Response {
+async fn connect<H: rmcp::ServerHandler + Clone + 'static>(
+    State(state): State<Legacy<H>>,
+    request: Request,
+) -> Response {
+    let owner = request
+        .extensions()
+        .get::<crate::oauth::AuthenticatedClient>()
+        .cloned();
     if state.cancel.is_cancelled() {
         return StatusCode::SERVICE_UNAVAILABLE.into_response();
     }
@@ -243,6 +312,7 @@ async fn connect(State(state): State<Legacy>) -> Response {
         Session {
             input,
             cancel: cancel.clone(),
+            owner: owner.as_ref().map(|identity| identity.0.clone()),
         },
     );
     let endpoint = format!("{}?session_id={id}", state.message_path);
@@ -256,8 +326,9 @@ async fn connect(State(state): State<Legacy>) -> Response {
     let _ = events.send(endpoint).await;
     let (server_io, client_io) = tokio::io::duplex(65536);
     let (reader, mut writer) = tokio::io::split(client_io);
-    let registry = state.registry.clone();
-    let catalogs = registry.opaque.clone();
+    let wire = Arc::new(Mutex::new(crate::opaque::WireState::default()));
+    let registry = (state.factory)(wire.clone(), owner);
+    let catalogs = state.catalogs.clone();
     let state_cleanup = state.clone();
     let id_cleanup = id.clone();
     let ct = cancel.clone();
@@ -269,13 +340,21 @@ async fn connect(State(state): State<Legacy>) -> Response {
             Ok::<(), crate::Error>(())
         };
         let pump = async {
-            let mut lines = OutputReader::new(reader, state_cleanup.output.clone());
+            let mut lines = OutputReader::with_limit(
+                reader,
+                state_cleanup.output.clone(),
+                state_cleanup.output_limits,
+            );
             let mut overlay = crate::opaque::Overlay::default();
             let mut lifecycle = crate::opaque::Lifecycle::default();
-            let mut wire = crate::opaque::WireState::default();
             let mut pending = HashMap::new();
+            let completed = wire.lock().unwrap().completion_notification();
             loop {
                 tokio::select! {
+                    _ = completed.notified() => {
+                        let ids = wire.lock().unwrap().drain_cancelled_native()?;
+                        for id in ids { overlay.abandon(&id)?; pending.remove(&id); }
+                    }
                     input = incoming.recv() => {
                         let Some(message) = input else { break };
                         let s = &message.body;
@@ -285,13 +364,14 @@ async fn connect(State(state): State<Legacy>) -> Response {
                             { break; }
                             continue;
                         }
-                        let rewritten = wire.request(s)?;
+                        let rewritten = wire.lock().unwrap().request_for(&catalogs, s)?;
                         lifecycle.remap(s, &rewritten)?;
                         let id = request_id(&rewritten)?;
                         if id.as_ref().is_some_and(|id| pending.contains_key(id)) {
                             return Err("duplicate SDK request identity".into());
                         }
                         overlay.request(&catalogs, &rewritten)?;
+                        let rewritten = crate::opaque::native_arguments_for_sdk(&catalogs, &rewritten)?;
                         writer.write_all(rewritten.as_bytes()).await?;
                         writer.write_all(b"\n").await?;
                         // SDK/opaque state retains request copies until its reply;
@@ -303,12 +383,13 @@ async fn connect(State(state): State<Legacy>) -> Response {
                     line = lines.next_line() => {
                         let Some(line) = line? else { break };
                         let response_id = request_id(&line.text)?;
+                        if wire.lock().unwrap().stale_native_generation(&line.text)? { continue; }
                         if lifecycle.response(&line.text)? {
                             writer.write_all(crate::opaque::INITIALIZED).await?;
                         }
                         let response = overlay.response(&line.text)?;
-                        let response = wire.response(&response)?;
-                        if events.send(output_event(&response, &state_cleanup.output)?).await.is_err() { break; }
+                        let Some(response) = wire.lock().unwrap().native_response(&response)? else { continue; };
+                        if events.send(event_bytes_with_limit("message", &response, &state_cleanup.output, state_cleanup.output_limits)?).await.is_err() { break; }
                         if let Some(id) = response_id { pending.remove(&id); }
                     }
                 }
@@ -347,12 +428,16 @@ async fn connect(State(state): State<Legacy>) -> Response {
     );
     response
 }
-async fn message(
-    State(state): State<Legacy>,
+async fn message<H: rmcp::ServerHandler + Clone + 'static>(
+    State(state): State<Legacy<H>>,
     RawQuery(query): RawQuery,
     headers: HeaderMap,
     request: Request,
 ) -> Response {
+    let owner = request
+        .extensions()
+        .get::<crate::oauth::AuthenticatedClient>()
+        .map(|identity| identity.0.clone());
     if state.cancel.is_cancelled() {
         return StatusCode::SERVICE_UNAVAILABLE.into_response();
     }
@@ -403,9 +488,15 @@ async fn message(
     let Some(session) = session else {
         return (StatusCode::NOT_FOUND, "Could not find session").into_response();
     };
+    if session.owner != owner {
+        // Match unknown-session behavior: another verified client cannot infer
+        // whether this session exists, enqueue a request, or receive its stream.
+        return (StatusCode::NOT_FOUND, "Could not find session").into_response();
+    }
     // Validate the same envelope after a disposable lossless ID alias; the session
     // pump retains the real alias mapping through response/cancellation.
-    let validation = crate::opaque::sdk_validation(&body);
+    let validation = crate::opaque::sdk_validation(&body)
+        .and_then(|request| crate::opaque::native_arguments_for_sdk(&state.catalogs, &request));
     if validation
         .as_ref()
         .ok()
@@ -578,6 +669,7 @@ mod admission_tests {
                 Session {
                     input,
                     cancel: CancellationToken::new(),
+                    owner: None,
                 },
             );
             receivers.push(incoming);
@@ -674,7 +766,9 @@ mod admission_tests {
         .await?;
         assert_eq!(rejected.status(), StatusCode::SERVICE_UNAVAILABLE);
         assert_eq!(
-            connect(State(state.clone())).await.status(),
+            connect(State(state.clone()), Request::new(Body::empty()))
+                .await
+                .status(),
             StatusCode::SERVICE_UNAVAILABLE
         );
         assert_eq!(state.available_message_permits(), MESSAGE_CAPACITY);
