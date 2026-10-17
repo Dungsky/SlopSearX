@@ -65,6 +65,7 @@ pub struct SavedRunner {
     authority: Arc<dyn SavedAuthority>,
     timeout: Duration,
     renew_every: Duration,
+    events: Option<crate::saved_events::EventPublisher>,
 }
 struct OwnedExecution {
     cancel: watch::Sender<bool>,
@@ -75,6 +76,28 @@ impl Drop for OwnedExecution {
     }
 }
 impl SavedRunner {
+    pub fn with_events(mut self, events: crate::saved_events::EventPublisher) -> Self {
+        self.events = Some(events);
+        self
+    }
+    async fn publish(
+        &self,
+        claim: &Claim,
+        report: &Value,
+        baseline: Option<&Value>,
+        next_due: f64,
+        fingerprint: &str,
+    ) -> Result<bool, StoreError> {
+        if let Some(events) = &self.events {
+            return events
+                .publish(&self.store, claim, report, baseline, next_due, fingerprint)
+                .await;
+        }
+        self.store
+            .commit(claim, report, baseline, next_due, fingerprint)
+            .await
+    }
+
     /// Poll bounded pages with explicit joined shutdown. Discovery failures are
     /// retried on the next poll; persisted claims remain recovery authority.
     pub async fn run(
@@ -86,9 +109,22 @@ impl SavedRunner {
             return Err(DomainError("invalid saved poll interval").into());
         }
         let mut cursor = 0;
+        let mut expiry_cursor = 0;
         loop {
             if *shutdown.borrow() {
                 return Ok(());
+            }
+            if let Some(events) = &self.events {
+                let expiry = tokio::select! {biased; _ = stopped(&mut shutdown) => return Ok(()), result = events.publish_expired_page(&self.store, expiry_cursor, 128) => result};
+                match expiry {
+                    Ok(next) => expiry_cursor = next,
+                    Err(_) => {
+                        // Source run_forever skips due acquisition after an
+                        // expiry publication failure, then waits one poll.
+                        tokio::select! {biased; _ = stopped(&mut shutdown) => return Ok(()), _ = tokio::time::sleep(poll) => ()}
+                        continue;
+                    }
+                }
             }
             let page = tokio::select! {biased; _ = stopped(&mut shutdown) => return Ok(()), page = self.store.scan_tenants(cursor,128) => page};
             if let Ok(page) = page {
@@ -156,6 +192,7 @@ impl SavedRunner {
             authority,
             timeout,
             renew_every: Duration::from_secs(20),
+            events: None,
         })
     }
     /// An outer dropped future signals its owned task. That task cancels and
@@ -287,7 +324,7 @@ impl SavedRunner {
         // Renewal remains owned through publication. Store fencing is final;
         // cancellation during an accepted write cannot retract that write.
         let committed = {
-            let publication = self.store.commit(
+            let publication = self.publish(
                 claim,
                 &report,
                 baseline.as_ref(),

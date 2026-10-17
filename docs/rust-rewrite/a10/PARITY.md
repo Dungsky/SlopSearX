@@ -48,4 +48,4 @@ Private pending-socket tests separately observe an actual request before cancell
 
 ## Bounded ownership
 
-HTML uses the existing A05 input/tree/descriptor/row-buffer charging and retained worker lease. The old A05 layout and reply bytes remain covered. A10 validates its separate row schema, rejects malformed/cross-layout frames, yields during empty-field row loops and long UTF-8 fields, and retains owned storage through public handoff. NVD structural CWE membership uses charged cooperative comparison rather than stringification. These are scoped ownership proofs; G04 still owns a complete process RSS claim.
+HTML uses the existing A05 input/tree/descriptor/row-buffer charging and retained worker lease. The old A05 layout and reply bytes remain covered. A10 validates its separate row schema, rejects malformed/cross-layout frames, yields during empty-field row loops and long UTF-8 fields, and retains owned storage through public handoff. NVD structural CWE membership uses charged cooperative comparison rather than stringification. These are scoped ownership proofs; G03 still owns a complete process RSS claim.

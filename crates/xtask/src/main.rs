@@ -31,6 +31,7 @@ mod w00;
 mod w01;
 mod w02;
 mod w04;
+mod w05;
 mod w06;
 mod w11;
 use serde::Deserialize;
@@ -478,6 +479,7 @@ fn execute(root: &Path, id: &str, records: &mut Vec<Value>) -> Result<()> {
         "W01" => w01::check(root, records),
         "W02" => w02::check(root, records),
         "W04" => w04::check(root, records),
+        "W05" => w05::check(root, records),
         "W06" => w06::check(root, records),
         "W11" => w11::check(root, records),
         "F08" => f08::check(root, records),
@@ -634,6 +636,8 @@ fn main() {
         "saved definitions, optimistic revisions, tenant/index/quota authority and schedule ownership with private Valkey; no provider execution, comparison/report/outbox publication or public saved tools"
     } else if id == "W04" {
         "saved observations, comparisons and fenced atomic publication with private Valkey and native lifecycle qualification; no outbox, production dynamic grant reload or deployment claim"
+    } else if id == "W05" {
+        "saved event atomic publication, exact cursors, ack/replay/retention and actual loopback native MCP with private Valkey; typed observability seam only, full O01/W09 composition pending"
     } else if id == "W06" {
         "staged planning, owned canonical search/snapshot execution and fenced recovery with private Valkey/loopback; source qualification required; no production cutover or exactly-once remote dispatch claim"
     } else if id == "O03" {

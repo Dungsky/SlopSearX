@@ -3,7 +3,7 @@
   "baseline_sha": "20109f9083babd014971951e8c02565ae51c2326",
   "source": "Pinned F01 baseline inventory plus reviewed post-baseline additions recorded in DRIFT.md; source-set validation refreshed at acceptance.",
   "summary": {
-    "tracked_python_source_count": 468,
+    "tracked_python_source_count": 469,
     "extensionless_python_entrypoints": 1,
     "executable_config_python_invocation_lines": 63,
     "interpreter_configuration_lines": 106,
@@ -12,21 +12,21 @@
     "source_classifications": {
       "historical evidence": 4,
       "backend/runtime": 122,
-      "backend-coupled tooling/test": 341,
+      "backend-coupled tooling/test": 342,
       "client-only": 1
     },
     "documentation_file_modes": {
       "100644": 732
     },
     "source_path_set_validation": {
-      "method": "prospective sorted exact-set comparison between git ls-files --cached --others --exclude-standard Python/ssx paths and files[].path; authorized staging/native F01 still required",
-      "tracked_expected_count": 468,
-      "manifest_count": 468,
+      "method": "prospective exact-set comparison of normal01eb main plus b296 A10 source paths; native F01 must verify actual merged tracked set",
+      "tracked_expected_count": 469,
+      "manifest_count": 469,
       "exact_match": true,
       "extensionless_python_paths": [
         "ssx"
       ],
-      "validation_scope": "A10 candidate plus accepted0a main; all466 prior source records preserved; full native qualification/normal main union pending"
+      "validation_scope": "Normal union of accepted W05 main01eb22f6 and A10 checkpointb2963a7c; complete parent source records preserved, native F01 requalification required"
     },
     "historical_evidence_py_txt_path_count": 732,
     "non_runtime_historical_py_txt_path_count": 731,
@@ -6509,6 +6509,20 @@
       "reason": "Temporary migration evidence only. Native runtime/mandatory gate never executes Python. Retire executable at G08, preserve JSON/provenance.",
       "introduced_after_baseline": "A09 from9fae1639a57b9e3497c04c3f5fe304651d077ad5",
       "sha256": "82e43ccfc759d769f9909a6267f06b675c8087d4e210765c46c18d177345c3ad"
+    },
+    {
+      "path": "docs/rust-rewrite/w05/capture_source.py",
+      "classification": "backend-coupled tooling/test",
+      "migration_owner": "W05",
+      "migration_owners": [
+        "W05",
+        "G08"
+      ],
+      "disposition": "temporary_developer_oracle_retire_before_backend_removal",
+      "evidence": "Completed offline pure original invocation recorded in docs/rust-rewrite/w05/oracle-runs.json; current formatting-only producer SHA separately bound by native gate.",
+      "reason": "Optional manual original reference only; no mandatory native runtime/gate dependency; retire executable G08 and retain frozen captures.",
+      "introduced_after_baseline": "W05 from93db215de1c5b59ffdcac035a79ffcbd8e806762",
+      "sha256": "da65590a847b3b12b3571900293d123f0e31491e5202799ea0da88256d08af7c"
     },
     {
       "path": "docs/rust-rewrite/a10/capture_regressions.py",

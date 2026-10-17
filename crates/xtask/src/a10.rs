@@ -23,7 +23,7 @@ use std::{
     fs,
     path::Path,
 };
-const COVERAGE_SHA: &str = "12f5de634f84c5f24e9d71ff3d7fbd95f0206eb61de2581c661cd64ae9aa1836";
+const COVERAGE_SHA: &str = "2029fbcb1f35b0ab2bfe1d3b9f67b557fd529947400f00131a8015b453909435";
 fn require(value: bool, message: &str) -> Result<()> {
     if value { Ok(()) } else { Err(message.into()) }
 }
@@ -372,7 +372,7 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
         records,
     )?;
     execution(&output, name, 1)?;
-    records.push(json!({"gate":"A10","status":"passed","case_count":pack["native_tests"].as_array().unwrap().iter().map(|test|test["cases"].as_array().unwrap().len()).sum::<usize>(),"source_tests":74,"original_observations":133,"original_boundaries":308,"original_supplement":30,"limitations":"Reviewed finite differences and explicit tiny positive real-deadline tuples; no Python/network parity claim beyond recorded source mocks; no production/W09/G04 RSS claim"}));
+    records.push(json!({"gate":"A10","status":"passed","case_count":pack["native_tests"].as_array().unwrap().iter().map(|test|test["cases"].as_array().unwrap().len()).sum::<usize>(),"source_tests":74,"original_observations":133,"original_boundaries":308,"original_supplement":30,"limitations":"Reviewed finite differences and explicit tiny positive real-deadline tuples; no Python/network parity claim beyond recorded source mocks; no production/W09/G03 RSS claim"}));
     Ok(())
 }
 #[cfg(test)]
