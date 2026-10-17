@@ -886,3 +886,12 @@ pub use vulnerability::{
 
 pub(crate) mod vulnerability_html;
 pub(crate) mod vulnerability_wire;
+
+// A11 engine-local IP/URL intelligence; catalog and admission remain shared.
+pub mod abuseipdb;
+pub mod greynoise;
+pub mod otx;
+mod threat_intel;
+mod threat_ioc;
+pub mod urlhaus;
+pub use threat_intel::{ThreatIntelConfig, ThreatIntelSettings, register_threat_intelligence};

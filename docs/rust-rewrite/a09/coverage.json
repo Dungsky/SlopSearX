@@ -440,7 +440,7 @@
     },
     {
       "path": "crates/ssx-infra/src/adapters/mod.rs",
-      "sha256": "e9a5b50c7abc7f76039f714c120f31cf47ff0a091187b1c803a31e712dffd2a4"
+      "sha256": "8ce30221c6eb47228d6d11cf69225fb566b2669aa8556af4dfc88900e1222726"
     },
     {
       "path": "crates/ssx-application/src/lib.rs",
@@ -452,7 +452,7 @@
     },
     {
       "path": "crates/xtask/src/main.rs",
-      "sha256": "0fd74fe20dbfb91e9531219773ba6c1b895dd555b50adfa56838b5eb99883b07"
+      "sha256": "8634b4593a73eb0b77de3d9c67039c23575a335471b467438297596cf9818779"
     }
   ],
   "ordered_case_ids": [

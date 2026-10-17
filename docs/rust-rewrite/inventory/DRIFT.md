@@ -774,6 +774,47 @@ mandatory native gate dependency is introduced. Native qualification is pending.
 
 A10 candidate adds native CVE/NVD/EPSS/ExploitDB/MITRE ATT&CK factory and storage-consumer proofs at the recorded0a source baseline. The five original adapter records retain every original field and add only a native-successor pointer; the Python runtime stays classified until W09/G08. Two optional guarded original-reference producers are recorded with actual executed hashes separately from current formatted bytes. Three completed captures (133/308/30 observations) and one failed original invocation remain distinct. Three immutable producer text archives are historical data, never native runtime or mandatory-gate inputs. Full A10/native F01/O06/exact-head CI qualification and the reviewed normal main union remain required.
 
+
+## A11 source-bound native threat-intelligence candidate
+
+Four adapter records gain only an additive native_successor: abuseipdb, greynoise,
+otx and urlhaus. All479 existing Python-source records,58 prior manual-oracle
+records and728 historical non-runtime examples retain every original field.
+Five manual original producers and nine immutable source/verifier archives are
+appended. Historical executed SHA, current formatted/styled SHA and exact
+execution receipts remain separate; no current producer is recaptured to change
+its identity. Native engine/domain execution and the mandatory A11 gate use Rust
+only. G08 retires the executable original oracles before backend removal.
+
+A11 binds321 complete original observations,32 original test functions and41
+actual parameterized calls to compiled native cases; four extra synthetic YAML
+entry controls disclose accepted-F06 validation differences. The proposed gate
+has414 individually named cases across13 tests; exact-artifact qualification and
+normal accepted-main integration are still required. Closed F05 refusals and
+request/header/diagnostic/helper differences are explicit, not blanket output
+normalization. Actual private wire proof covers its13 named rows. W09 owns full
+production/portal composition and G03 owns global resource/performance evidence.
+
+## A11 Unicode credential correction
+
+The existing A11 candidate and its historical414-case evidence remain intact.
+A separate original-only four-engine supplement proves real HTTPX ASCII header
+normalization rejects the fixed synthetic Unicode credential before Transport.
+The native pre-fix control observed four OK responses with one private HTTP
+connection each; the corrected factories return four complete Error responses
+with zero HTTP connections and a fixed safe diagnostic. The exact four output
+bindings are separate from the unchanged370-entry replay difference ledger.
+
+The candidate adds five case objects to the unchanged414 and one named native
+test to the unchanged13:419 cases across14 tests. Final expanded qualification
+and normal-main integration remain required. One optional manual producer and
+one immutable executed-source archive are appended, giving six A11 producers;
+all484 preceding source records and63 actual developer-oracle rows retain every
+field and order. Current and executed credential producer bytes are identical.
+No F06 contract, global HTTP header policy, provider call, native interpreter
+dependency or mandatory Python execution is introduced. G08 owns executable
+retirement; W09 and G03 composition/resource obligations remain unchanged.
+
 ## O01 native observability source evidence
 
 The accepted T06/main8b48 composition retains all479 Python source paths. O01
