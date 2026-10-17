@@ -24,8 +24,9 @@ that a passing Rust test cannot substitute for the missing source completion.
 `coverage.json` pins the relevant source bodies and immutable captures;
 `completed-source-cases.json` names the claimed executions and exceptions.
 
-The local pre-A08-union qualification has 211 native test identities and 1,535
-completed source events. These are scoped identities, not a claim that every
+The current local qualification inventory has 276 native test identities and
+1,619 completed source events. The earlier pre-A08-union packet had 211 native
+identities and 1,535 events. These are scoped identities, not a claim that every
 artifact row executes. The 41 original local regression mappings remain distinct
 from conservative crosssurface discovery and unqualified handoffs. Source-only
 observations, F06-unreachable null/list/map configurations and the raw header
@@ -64,3 +65,37 @@ unqualified global/platform or crosssurface obligations.
 `HTTP_INITIALIZATION.md` records the explicit production readiness constructor,
 supervised cold client construction and publication/cancellation ownership. Its
 startup budget and five-second prepared expiry do not renew query deadlines.
+
+## Deadline qualification boundaries
+
+Production uses one System monotonic clock through context admission, scholarly
+query preparation, operation ownership and HTTP deadlines. The original timeout
+anchors remain unchanged. A positive one-millisecond configuration can legally
+expire before dispatch because preparation belongs to the same operation budget.
+The original MockTransport success captures remain immutable; they do not promise
+dispatch under a real elapsed-time deadline.
+
+Across the three public factories, 42 source timeout configurations run in both
+direct and caller-context modes. The inventory distinguishes 84 System observed
+expiry cases from 84 controlled pending-exchange policy cases. The sealed,
+test-only owner cannot supply a response, replace its transport or enter parser
+workers. Its clock is shared through the pre-response path; it does not qualify
+post-response parsing under controlled time. Preparation-clock, transport,
+response and parser negative mutations preserve those restrictions as executable
+checks. The other 1,451 completed-source records retain their identities.
+
+The A07 context fixtures prepare the actual ordinary HTTP client before their
+unchanged 70/80-millisecond query anchors, with startup recorded separately and
+zero provider requests. A separate cold-Default control holds the real client
+builder past a context deadline for ClinicalTrials, PubChem and PubMed, verifies
+zero dispatch and retained ownership, then releases and drains the worker. This
+isolates context behavior without changing production cold-start deadlines.
+Original failing real-clock observations remain evidence, not discarded retries.
+
+All seven local A06/A07/F08/A05/A08/F01/O06 gates and the exact 182-consumer union
+passed on the coherent candidate. Subsequent reviewed lint-only corrections were
+checked with strict workspace Clippy, formatting, the affected timeout tests,
+F01/O06, scoped hooks and the AST graph update. Those supplements do not rewrite
+the earlier reports' source bindings. Final merged-source and architecture CI
+remain required before publication acceptance; issue984 remains open for its
+separate integrated obligations.
