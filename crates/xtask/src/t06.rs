@@ -5,6 +5,7 @@ use sha2::{Digest, Sha256};
 use std::{collections::BTreeSet, fs, path::Path};
 const BASELINE: &str = "6c44976444340cc8f343fef61e2e8d723b189c19";
 const BINDINGS: &str = "11660374ae3fd544590cb014b532eda4d6f3a95ef8f0bc062b308bd7911fc771";
+const NATIVE_BINDINGS: &str = "ccfbc5859c5b1c95f4c8f779b3630fd45e643ec64dd341f00e96af594609131e";
 fn digest(bytes: &[u8]) -> String {
     Sha256::digest(bytes)
         .iter()
@@ -28,6 +29,18 @@ fn validate(bytes: &[u8]) -> Result<Value> {
     }
     Ok(v)
 }
+fn validate_native(bytes: &[u8]) -> Result<Value> {
+    if digest(bytes) != NATIVE_BINDINGS {
+        return Err("T06 reviewed native fixture bindings differ".into());
+    }
+    let value: Value = serde_json::from_slice(bytes).map_err(|e| e.to_string())?;
+    if value["schema_version"] != 1 || value["files"].as_array().map(Vec::len) != Some(3) {
+        return Err("T06 incomplete native fixture provenance".into());
+    }
+    Ok(value)
+}
+const NATIVE_FIXTURE_TESTS: &[&str] =
+    &["tests::receipt_write_latency_is_outside_the_ready_fake_engine_future"];
 const LIB_TESTS: &[&str] = &[
     "search_surface::validation::tests::actual_source_argument_matrix_preserves_validation_text_and_coercions",
     "search_surface::entities::tests::frozen_source_entity_grammar_conserves_indices_facts_edges_and_unicode16",
@@ -111,6 +124,18 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
     let raw = fs::read(root.join("docs/rust-rewrite/t06/source_bindings_v2.json"))
         .map_err(|e| e.to_string())?;
     let v = validate(&raw)?;
+    let native = validate_native(
+        &fs::read(root.join("docs/rust-rewrite/t06/native_fixture_bindings.json"))
+            .map_err(|e| e.to_string())?,
+    )?;
+    for row in native["files"].as_array().unwrap() {
+        let path = row["file"].as_str().ok_or("T06 native fixture path")?;
+        let bytes = fs::read(root.join(path)).map_err(|e| format!("T06 {path}: {e}"))?;
+        if Some(digest(&bytes).as_str()) != row["sha256"].as_str() {
+            return Err(format!("T06 reviewed native fixture drift: {path}"));
+        }
+    }
+
     for key in ["sources", "artifacts"] {
         for row in v[key].as_array().unwrap() {
             let path = row["file"].as_str().ok_or("T06 binding path")?;
@@ -137,6 +162,12 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
     if !command(root, &binary, &["--version"], records)?.starts_with("Valkey server v=8.1.10 ") {
         return Err("T06 official disposable Valkey8.1.10 required".into());
     }
+    run_suite(
+        root,
+        &["--bin", "search-qualification"],
+        NATIVE_FIXTURE_TESTS,
+        records,
+    )?;
     run_suite(root, &["--lib", "search_surface::"], LIB_TESTS, records)?;
     run_suite(root, &["--test", "t06_discovery"], T06_DISCOVERY, records)?;
     run_suite(root, &["--test", "t06_service"], T06_SERVICE, records)?;
@@ -148,7 +179,7 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
     )?;
     run_suite(root, &["--test", "t06_transport"], T06_TRANSPORT, records)?;
     run_suite(root, &["--test", "t06_wire"], T06_WIRE, records)?;
-    records.push(json!({"plan_id":"T06","status":"passed","source_bindings_sha256":BINDINGS,"source_baseline":BASELINE,"source_files":19,"frozen_artifacts":24,"tools":11,"resource_registrations":4,"prompts":5,"provider_calls":0,"scope":"actual native handler/service/snapshots/passive discovery through authenticated HTTP, stdio and legacy; bounded cancellation and lossless input/output; exactly two accepted outer-params diagnostic differences; production startup T02/W09 separate"}));
+    records.push(json!({"plan_id":"T06","status":"passed","source_bindings_sha256":BINDINGS,"source_baseline":BASELINE,"source_files":19,"frozen_artifacts":24,"native_fixture_files":3,"native_fixture_tests":1,"native_fixture_bindings_sha256":NATIVE_BINDINGS,"tools":11,"resource_registrations":4,"prompts":5,"provider_calls":0,"scope":"actual native handler/service/snapshots/passive discovery through authenticated HTTP, stdio and legacy; bounded cancellation and lossless input/output; exactly two accepted outer-params diagnostic differences; production startup T02/W09 separate"}));
     Ok(())
 }
 #[cfg(test)]
@@ -158,6 +189,12 @@ mod tests {
     fn altered_t06_bindings_cannot_self_certify() {
         let raw = include_bytes!("../../../docs/rust-rewrite/t06/source_bindings_v2.json");
         validate(raw).unwrap();
+        let native = include_bytes!("../../../docs/rust-rewrite/t06/native_fixture_bindings.json");
+        validate_native(native).unwrap();
+        let mut altered: Value = serde_json::from_slice(native).unwrap();
+        altered["files"][0]["sha256"] = json!("0".repeat(64));
+        assert!(validate_native(&serde_json::to_vec(&altered).unwrap()).is_err());
+
         let mut v: Value = serde_json::from_slice(raw).unwrap();
         v["artifacts"][0]["sha256"] = json!("0".repeat(64));
         assert!(validate(&serde_json::to_vec(&v).unwrap()).is_err());

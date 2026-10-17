@@ -1,6 +1,8 @@
 //! Explicit native T06 qualification process. Fake providers are never public startup defaults.
 #[path = "../../tests/t06_support/fixture.rs"]
 mod fixture;
+#[path = "../../tests/t06_support/observer.rs"]
+mod observer;
 use ssx_mcp::{Result, search_surface::SearchSurface};
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -97,7 +99,7 @@ async fn main() -> Result<()> {
                 Ok(fixture::FakeEngine {
                     name: name.into(),
                     calls: Default::default(),
-                    dispatch_receipt: Some(dispatch_receipt.clone()),
+                    dispatch_receipt: None,
                     count: 3,
                     status: ssx_domain::EngineStatus::Ok,
                     delay: std::time::Duration::ZERO,
@@ -107,12 +109,98 @@ async fn main() -> Result<()> {
             .collect::<Result<Vec<_>>>()?;
         fixture::Fixture::with_engines(url, false, engines).await
     };
+    let receipts = endpoint
+        .is_none()
+        .then(|| observer::DispatchReceipts::new(fixture.engines.clone(), dispatch_receipt));
     let surface = fixture.surface.clone();
     ssx_mcp::opaque::stdio_with_factory(
-        move |wire| surface.bind_connection(wire, None),
+        move |wire| observer::ObservedSurface {
+            inner: surface.bind_connection(wire, None),
+            receipts,
+        },
         SearchSurface::catalogs(),
     )
     .await?;
     fixture.service.shutdown().await;
     Ok(())
+}
+
+#[cfg(test)]
+#[path = "../../tests/t06_support/server.rs"]
+mod private_valkey;
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ssx_application::SearchEngine;
+    use ssx_domain::{EngineStatus, SearchRequest};
+    use std::{
+        collections::BTreeMap,
+        sync::{Arc, atomic::Ordering},
+        time::Duration,
+    };
+
+    #[tokio::test]
+    async fn receipt_write_latency_is_outside_the_ready_fake_engine_future() -> Result<()> {
+        let server = private_valkey::Server::start();
+        let store = Arc::new(
+            ssx_infra::valkey::Valkey::new(server.url(), Duration::from_millis(300)).unwrap(),
+        );
+        store.ping().await.unwrap();
+        let old = fixture::FakeEngine {
+            name: "wikipedia".into(),
+            calls: Default::default(),
+            dispatch_receipt: Some(store.clone()),
+            count: 3,
+            status: EngineStatus::Ok,
+            delay: Duration::ZERO,
+            results: None,
+        };
+        let ready = fixture::FakeEngine {
+            name: "brave".into(),
+            calls: Default::default(),
+            dispatch_receipt: None,
+            ..old.clone()
+        };
+        // This is an actual delayed private-store write, not an adapter/provider delay.
+        // READ commands and local counter observation remain available.
+        redis::cmd("CLIENT")
+            .arg("PAUSE")
+            .arg(100)
+            .arg("WRITE")
+            .query::<()>(&mut server.connection())?;
+        let request = SearchRequest::default();
+        assert!(
+            tokio::time::timeout(Duration::from_millis(1), old.search(&request))
+                .await
+                .is_err(),
+            "old receipt instrumentation must consume the one-millisecond engine budget"
+        );
+        assert_eq!(old.calls.load(Ordering::SeqCst), 1);
+        // The fixed fake provider does not yield to receipt I/O at all.
+        use futures_util::FutureExt;
+        let response = ready
+            .search(&request)
+            .now_or_never()
+            .expect("ready fake engine must finish in its first poll");
+        assert_eq!(response.status, EngineStatus::Ok);
+        assert_eq!(response.results.len(), 3);
+        assert_eq!(ready.calls.load(Ordering::SeqCst), 1);
+        let receipts =
+            observer::DispatchReceipts::new(BTreeMap::from([(ready.name.clone(), ready)]), store);
+        let start = tokio::time::Instant::now();
+        receipts.publish().await?;
+        assert!(
+            start.elapsed() > Duration::from_millis(1),
+            "control did not delay post-call publication"
+        );
+        let keys: Vec<String> = redis::cmd("KEYS")
+            .arg("t06:qualification:dispatch:brave:*")
+            .query(&mut server.connection())?;
+        assert_eq!(
+            keys.len(),
+            1,
+            "actual atomic dispatch observations must reach the parent before reply"
+        );
+        Ok(())
+    }
 }

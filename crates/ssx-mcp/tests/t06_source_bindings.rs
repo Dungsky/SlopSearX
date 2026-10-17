@@ -37,5 +37,34 @@ fn original_profiles_strategies_tool_surface_and_observations_match_reviewed_sou
             "missing static profiles/strategies/topology binding"
         );
     }
+    let native: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../docs/rust-rewrite/t06/native_fixture_bindings.json"
+    ))
+    .unwrap();
+    let paths: std::collections::BTreeSet<_> = native["files"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|row| row["file"].as_str().unwrap())
+        .collect();
+    assert_eq!(
+        paths,
+        std::collections::BTreeSet::from([
+            "crates/ssx-mcp/src/bin/search-qualification.rs",
+            "crates/ssx-mcp/tests/t06_support/fixture.rs",
+            "crates/ssx-mcp/tests/t06_support/observer.rs",
+        ])
+    );
+    for row in native["files"].as_array().unwrap() {
+        let name = row["file"].as_str().unwrap();
+        assert_eq!(
+            Sha256::digest(std::fs::read(root.join(name)).unwrap())
+                .iter()
+                .map(|b| format!("{b:02x}"))
+                .collect::<String>(),
+            row["sha256"].as_str().unwrap(),
+            "reviewed native fixture drift: {name}"
+        );
+    }
     assert_eq!(unicode_normalization::UNICODE_VERSION, (16, 0, 0));
 }
