@@ -3,7 +3,7 @@
   "baseline_sha": "20109f9083babd014971951e8c02565ae51c2326",
   "source": "Pinned F01 baseline inventory plus reviewed post-baseline additions recorded in DRIFT.md; source-set validation refreshed at acceptance.",
   "summary": {
-    "tracked_python_source_count": 479,
+    "tracked_python_source_count": 485,
     "extensionless_python_entrypoints": 1,
     "executable_config_python_invocation_lines": 63,
     "interpreter_configuration_lines": 106,
@@ -12,24 +12,24 @@
     "source_classifications": {
       "historical evidence": 4,
       "backend/runtime": 122,
-      "backend-coupled tooling/test": 352,
+      "backend-coupled tooling/test": 358,
       "client-only": 1
     },
     "documentation_file_modes": {
-      "100644": 729
+      "100644": 739
     },
     "source_path_set_validation": {
       "method": "sorted exact-set comparison between git ls-files paths ending .py/.pyw/.pyi plus ssx and files[].path",
-      "tracked_expected_count": 479,
-      "manifest_count": 479,
+      "tracked_expected_count": 485,
+      "manifest_count": 485,
       "exact_match": true,
       "extensionless_python_paths": [
         "ssx"
       ],
-      "validation_scope": "T06 normal union with accepted W05 main01eb22; complete parent records retained; native qualification pending"
+      "validation_scope": "A11 exact six manual producers appended on accepted8b48 baseline; all484 preceding complete records unchanged by credential correction; proposed tracked source identity, final credential-corrected native qualification pending."
     },
-    "historical_evidence_py_txt_path_count": 729,
-    "non_runtime_historical_py_txt_path_count": 728,
+    "historical_evidence_py_txt_path_count": 739,
+    "non_runtime_historical_py_txt_path_count": 738,
     "active_dynamic_python_source_path_count": 1,
     "documented_py_txt_command_references": 49,
     "python_invocations_appendix": "python-invocations.json",
@@ -6703,6 +6703,90 @@
       "reason": "Optional manual original reference only; no mandatory native runtime/gate dependency; retire executable G08 and retain frozen captures.",
       "introduced_after_baseline": "W05 from93db215de1c5b59ffdcac035a79ffcbd8e806762",
       "sha256": "da65590a847b3b12b3571900293d123f0e31491e5202799ea0da88256d08af7c"
+    },
+    {
+      "path": "docs/rust-rewrite/a11/capture_regressions.py",
+      "classification": "backend-coupled tooling/test",
+      "migration_owner": "A11",
+      "migration_owners": [
+        "A11",
+        "G08"
+      ],
+      "disposition": "temporary_developer_oracle_retire_before_backend_removal",
+      "evidence": "Actual original-only invocation and immutable executed source archived in docs/rust-rewrite/a11/oracle-runs-v1.json; current formatting/style copy separately identified and not recaptured.",
+      "reason": "Optional manual reference only: private MockTransport or config-only guard; no provider/production/mandatory native gate/interpreter dependency. G08 retires executable and retains reference evidence.",
+      "introduced_after_baseline": "A11 from8b48dc9ea0917230f31dfcc9c44ea2698b612b36",
+      "sha256": "f4b231dd531b705736ba388cf38393de50da16e53a45b70adc65b1cc4aecfc8a"
+    },
+    {
+      "path": "docs/rust-rewrite/a11/capture_boundaries.py",
+      "classification": "backend-coupled tooling/test",
+      "migration_owner": "A11",
+      "migration_owners": [
+        "A11",
+        "G08"
+      ],
+      "disposition": "temporary_developer_oracle_retire_before_backend_removal",
+      "evidence": "Actual original-only invocation and immutable executed source archived in docs/rust-rewrite/a11/oracle-runs-v1.json; current formatting/style copy separately identified and not recaptured.",
+      "reason": "Optional manual reference only: private MockTransport or config-only guard; no provider/production/mandatory native gate/interpreter dependency. G08 retires executable and retains reference evidence.",
+      "introduced_after_baseline": "A11 from8b48dc9ea0917230f31dfcc9c44ea2698b612b36",
+      "sha256": "a40b194073618a572307e610f9ce9092e8b947ccdcad3689ad31afec55dbdab2"
+    },
+    {
+      "path": "docs/rust-rewrite/a11/capture_supplement.py",
+      "classification": "backend-coupled tooling/test",
+      "migration_owner": "A11",
+      "migration_owners": [
+        "A11",
+        "G08"
+      ],
+      "disposition": "temporary_developer_oracle_retire_before_backend_removal",
+      "evidence": "Actual original-only invocation and immutable executed source archived in docs/rust-rewrite/a11/oracle-runs-v1.json; current formatting/style copy separately identified and not recaptured.",
+      "reason": "Optional manual reference only: private MockTransport or config-only guard; no provider/production/mandatory native gate/interpreter dependency. G08 retires executable and retains reference evidence.",
+      "introduced_after_baseline": "A11 from8b48dc9ea0917230f31dfcc9c44ea2698b612b36",
+      "sha256": "a26345d493374be83dc0aec8483d82a17cc710ef8eb6b2ffe527c8017b93bdc7"
+    },
+    {
+      "path": "docs/rust-rewrite/a11/capture_representation.py",
+      "classification": "backend-coupled tooling/test",
+      "migration_owner": "A11",
+      "migration_owners": [
+        "A11",
+        "G08"
+      ],
+      "disposition": "temporary_developer_oracle_retire_before_backend_removal",
+      "evidence": "Actual original-only invocation and immutable executed source archived in docs/rust-rewrite/a11/oracle-runs-v1.json; current formatting/style copy separately identified and not recaptured.",
+      "reason": "Optional manual reference only: private MockTransport or config-only guard; no provider/production/mandatory native gate/interpreter dependency. G08 retires executable and retains reference evidence.",
+      "introduced_after_baseline": "A11 from8b48dc9ea0917230f31dfcc9c44ea2698b612b36",
+      "sha256": "b58150d657e1d2da021a197131ef778a5916cf0331aaa11e1aab45f1a047ecb9"
+    },
+    {
+      "path": "docs/rust-rewrite/a11/capture_config_reachability.py",
+      "classification": "backend-coupled tooling/test",
+      "migration_owner": "A11",
+      "migration_owners": [
+        "A11",
+        "G08"
+      ],
+      "disposition": "temporary_developer_oracle_retire_before_backend_removal",
+      "evidence": "Actual original-only invocation and immutable executed source archived in docs/rust-rewrite/a11/oracle-runs-v1.json; current formatting/style copy separately identified and not recaptured.",
+      "reason": "Optional manual reference only: private MockTransport or config-only guard; no provider/production/mandatory native gate/interpreter dependency. G08 retires executable and retains reference evidence.",
+      "introduced_after_baseline": "A11 from8b48dc9ea0917230f31dfcc9c44ea2698b612b36",
+      "sha256": "e76ceedbd82f519fc3e974a885fe121f14ca403b3a36a0bb9f5ac17eb4c037df"
+    },
+    {
+      "path": "docs/rust-rewrite/a11/capture_credential_ascii.py",
+      "classification": "backend-coupled tooling/test",
+      "migration_owner": "A11",
+      "migration_owners": [
+        "A11",
+        "G08"
+      ],
+      "disposition": "temporary_developer_oracle_retire_before_backend_removal",
+      "evidence": "Actual original-only four-engine Unicode credential invocation, immutable executed source and exact full receipt wrapper are archived in docs/rust-rewrite/a11/oracle-runs-v1.json; current producer bytes equal actual executed bytes.",
+      "reason": "Optional manual original reference only: fixed four private MockTransport searches with real HTTPX ASCII-header refusal before transport; no provider/production/mandatory native gate/interpreter dependency. G08 retires executable and retains reference evidence.",
+      "introduced_after_baseline": "A11 from8b48dc9ea0917230f31dfcc9c44ea2698b612b36",
+      "sha256": "845ff9a68d68b3a9556b7535977234635f21048e2985acaf4e5bda36db4016ad"
     }
   ],
   "documentation_examples": [],
