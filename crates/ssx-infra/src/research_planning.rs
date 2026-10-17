@@ -1303,6 +1303,12 @@ impl AdaptiveResearch {
             .await
             .map_err(store_error)
     }
+    /// Run the existing fixed-size durable polling pool. The composition owner
+    /// must supervise exactly one pool per registry; the durable ready index,
+    /// claims and current policy remain authoritative across all tenants.
+    pub async fn run_workers(&self, stop: watch::Receiver<bool>) {
+        self.runner.run(stop).await;
+    }
     pub async fn run(
         &self,
         tenant: TenantId,
@@ -2121,7 +2127,7 @@ pub fn job_summary(job: &ResearchJob) -> Value {
     let queries:Vec<_>=job.queries.iter().map(|q|{
         let attempts:Vec<_>=q.attempts.iter().map(|a|{
             let mut value=ssx_json::to_value(a).expect("attempt serialization");
-            value["artifact"]=artifact("research_attempt",&ssx_domain::canonical::composite_artifact_id(&[&job.job_id,&a.attempt_id]).expect("valid attempt identity"));value["snapshot_artifact"]=snapshot(&a.cursor);value
+            value["artifact"]=if a.attempt_id.is_empty(){Value::Null}else{artifact("research_attempt",&ssx_domain::canonical::composite_artifact_id(&[&job.job_id,&a.attempt_id]).expect("valid attempt identity"))};value["snapshot_artifact"]=snapshot(&a.cursor);value
         }).collect();
         json!({"index":q.index,"query":q.query,"intent":q.intent,"engines":q.engines,"state":q.state,"result_count":q.result_count,"query_id":q.query_id,"cursor":q.cursor,"snapshot_artifact":snapshot(&q.cursor),"error":q.error,"subquestion_id":q.subquestion_id,"rationale":q.rationale,"parent_attempt_id":q.parent_attempt_id,"planning_method":q.planning_method,"evidence_result_ids":q.evidence_result_ids,"continuation_key":q.continuation_key,"attempts":attempts,"engine_coverage":q.engine_coverage,"coverage":coverage(&q.engine_coverage),"enforcement":q.enforcement})
     }).collect();

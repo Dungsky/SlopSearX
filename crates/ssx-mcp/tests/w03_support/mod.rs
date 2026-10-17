@@ -38,7 +38,7 @@ pub async fn setup(url: &str) -> (PlanningRegistry, fixture::Fixture) {
             owner: "w03-wire".into(),
             lease_seconds: NonZeroU64::new(2).unwrap(),
             poll_interval: Duration::from_millis(20),
-            workers: NonZeroU64::new(2).unwrap(),
+            workers: NonZeroU64::new(1).unwrap(),
             ceilings: ResearchCeilings {
                 queries: 20,
                 engines_per_query: 10,
