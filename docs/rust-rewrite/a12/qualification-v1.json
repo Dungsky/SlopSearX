@@ -43,7 +43,7 @@
     },
     {
       "path": "crates/ssx-infra/src/adapters/infrastructure_security.rs",
-      "sha256": "71f433bc1cb94419fa77a38c91fd1dc1d966ad353ca959fa48138abc687c5765"
+      "sha256": "90522017a316c66f3dae5e81985ac66478344e242ae9e4440a759ccf177cc7c1"
     },
     {
       "path": "crates/ssx-infra/src/adapters/mod.rs",
@@ -83,7 +83,7 @@
     },
     {
       "path": "crates/ssx-infra/tests/a12_security.rs",
-      "sha256": "ed2e50a2ac281fdb257598d0d26f0fe170efab7fe9e3e91467909e3bcdc2e82c"
+      "sha256": "601e6e9c1260dc1550820be5057db2dea37e41e81d9ba7d030f02dddfa2446db"
     },
     {
       "path": "crates/xtask/src/main.rs",
@@ -99,19 +99,19 @@
     },
     {
       "path": "docs/rust-rewrite/a12/BOUNDS_REVIEW.md",
-      "sha256": "e31064069e755a93e34062dc24b356734c4f9ecafa6d5b3ce073f9d467be195f"
+      "sha256": "523858a693e0c749eb86cf196e2a71c87e2fe52a0b7f88645beb0ce121b5d05f"
     },
     {
       "path": "docs/rust-rewrite/a12/PARITY.md",
-      "sha256": "9e809b4d8e3b845228ae3b8e147d64928a52f00bc7390a078a4d9742d53d79c4"
+      "sha256": "07a70d2478ca35acfd409a9e6195165b9741c53ca1f3c2620df5808470e12469"
     },
     {
       "path": "docs/rust-rewrite/a12/PORTAL_IMPACT.md",
-      "sha256": "192a27b4cdca4fabc117a80551b5e83844d951ebcb3097d874295a255c4fada4"
+      "sha256": "80f25e8ce45ae59fb8a291a4b81a3b5fd9ed70a2d2055b6d7cc01f218cb55325"
     },
     {
       "path": "docs/rust-rewrite/a12/README.md",
-      "sha256": "c96a313c318ba092a5e8517963d5dbdbc7ef279f3969a90f59447863bbe62141"
+      "sha256": "1549371b9556abe7065665b49378eb5a0721882d790b8415f2cac3e72908bfc2"
     },
     {
       "path": "docs/rust-rewrite/a12/source-test-map-v1.json",
@@ -208,6 +208,7 @@
     "all_five_complete_results_and_exact_requests",
     "context_and_configured_deadline_each_drop_actual_inflight_exchange",
     "crtsh_marker_order_sniff_window_and_decoded_scan_boundaries",
+    "crtsh_requests_json_explicitly_with_encoded_query",
     "drop_and_shutdown_cancel_only_owned_exchange_and_join_cleanup",
     "dropping_actual_projection_work_releases_scratch_at_observed_charge",
     "expired_absolute_context_does_not_admit_or_dispatch",

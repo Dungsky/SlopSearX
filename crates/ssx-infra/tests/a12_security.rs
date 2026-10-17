@@ -250,7 +250,7 @@ fn assert_request(kind: Kind, r: &Request, q: &str, limit: &str, key: &str) {
         Kind::Shodan => ("/shodan/host/search", vec![("query", q), ("limit", limit)]),
         Kind::VirusTotal => ("/search", vec![("query", q), ("limit", limit)]),
         Kind::VulnCheck => ("/community/cve/CVE-2024-3094", vec![]),
-        Kind::CrtSh => ("/", vec![("q", q)]),
+        Kind::CrtSh => ("/", vec![("output", "json"), ("q", q)]),
     };
     let mut expected = reqwest::Url::parse(&format!("{}{suffix}", kind.base())).unwrap();
     if !params.is_empty() {
@@ -1266,7 +1266,7 @@ fn private_loopback_wire_contract() {
                 };
                 let(r,bytes)=tokio::time::timeout(Duration::from_secs(3),async{tokio::join!(e.search(&q),server)}).await.expect("private request and server must finish together");whole(r,EngineStatus::Ok,expected(kind),None);
                 let text=std::str::from_utf8(&bytes).unwrap();let mut lines=text.split("\r\n");let request_line=lines.next().unwrap();
-                let path=match kind {Kind::Censys=>"/private/hosts/search?q=example+query&per_page=10",Kind::Shodan=>"/private/shodan/host/search?query=example+query&limit=10",Kind::VirusTotal=>"/private/search?query=example+query&limit=10",Kind::VulnCheck=>"/private/community/cve/CVE-2024-3094",Kind::CrtSh=>"/private/?q=example+query"};assert_eq!(request_line,format!("GET {path} HTTP/1.1"));
+                let path=match kind {Kind::Censys=>"/private/hosts/search?q=example+query&per_page=10",Kind::Shodan=>"/private/shodan/host/search?query=example+query&limit=10",Kind::VirusTotal=>"/private/search?query=example+query&limit=10",Kind::VulnCheck=>"/private/community/cve/CVE-2024-3094",Kind::CrtSh=>"/private/?output=json&q=example+query"};assert_eq!(request_line,format!("GET {path} HTTP/1.1"));
                 let mut headers=std::collections::BTreeMap::new();for line in lines.take_while(|l|!l.is_empty()){let(k,v)=line.split_once(':').unwrap();assert!(headers.insert(k.to_ascii_lowercase(),v.trim().to_string()).is_none(),"no repeated test header");}
                 assert_eq!(headers.get("host"),Some(&addr.to_string()));assert!(!headers.contains_key("x-api-key"));
                 match kind {Kind::Censys=>{use base64::Engine as _;assert_eq!(headers.get("authorization"),Some(&format!("Basic {}",base64::engine::general_purpose::STANDARD.encode("synthetic-key:synthetic-secret"))));},Kind::Shodan|Kind::VulnCheck=>assert_eq!(headers.get("authorization").map(String::as_str),Some("Bearer synthetic-key")),Kind::VirusTotal=>assert_eq!(headers.get("x-apikey").map(String::as_str),Some("synthetic-key")),Kind::CrtSh=>{assert!(!headers.contains_key("authorization"));assert!(!headers.contains_key("x-apikey"));}}
@@ -1679,4 +1679,36 @@ async fn review_source_selection_crtsh_vertical_tab_html() {
             "CRT.sh returned an upstream challenge/block page (HTTP 200, content-type application/json; markers=captcha)",
         ),
     );
+}
+
+#[tokio::test]
+async fn crtsh_requests_json_explicitly_with_encoded_query() {
+    let kind = Kind::CrtSh;
+    let mut q = query(kind);
+    q.query = "π &output=html/#?".into();
+    let (actual, wire, admission) = execute(
+        kind,
+        b"[]".to_vec(),
+        200,
+        Some("application/json"),
+        settings(),
+        q.clone(),
+    )
+    .await;
+    whole(actual, EngineStatus::Ok, vec![], None);
+    assert_eq!(*admission.calls.lock().unwrap(), vec![kind.name()]);
+    let calls = wire.calls.lock().unwrap();
+    assert_eq!(calls.len(), 1);
+    assert_eq!(
+        calls[0]
+            .url
+            .query_pairs()
+            .find(|(k, _)| k == "output")
+            .map(|(_, v)| v.into_owned()),
+        Some("json".into()),
+        "CRT.sh JSON format must be explicit on actual request"
+    );
+    assert_request(kind, &calls[0], &q.query, "10", "synthetic-key");
+    assert_eq!(calls[0].url.query_pairs().count(), 2);
+    assert!(calls[0].url.fragment().is_none());
 }

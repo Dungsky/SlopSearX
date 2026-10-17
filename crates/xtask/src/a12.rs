@@ -3,7 +3,7 @@ use crate::{Result, command};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::{collections::BTreeSet, fs, path::Path};
-const QUALIFICATION_SHA: &str = "61e3d2cd2626962342b1006d0f7269f469dcb5f66eb8d3db8c20166308e54ea3";
+const QUALIFICATION_SHA: &str = "2cc7f07e9b24a736ea668f2edc87c199de80b39cc736c7559d0452511d42df32";
 fn require(ok: bool, message: &str) -> Result<()> {
     if ok { Ok(()) } else { Err(message.into()) }
 }
@@ -86,7 +86,7 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
         })
         .collect::<Result<BTreeSet<_>>>()?;
     require(
-        tests.len() == 27
+        tests.len() == 28
             && q["native_tests"]
                 .as_array()
                 .is_some_and(|v| v.len() == tests.len()),

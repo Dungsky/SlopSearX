@@ -271,7 +271,13 @@ impl Runtime {
                 true,
             ),
             Kind::VulnCheck => ("", Vec::new(), true),
-            Kind::CrtSh => ("/?output=json", vec![("q", q.query.clone())], false),
+            // Intentional source correction: HTTPX replaced the URL's
+            // output=json with params. Ask CRT.sh for JSON explicitly.
+            Kind::CrtSh => (
+                "/",
+                vec![("output", "json".into()), ("q", q.query.clone())],
+                false,
+            ),
         };
         let endpoint = if let Some(cve) = &cve {
             format!("{}/community/cve/{}", self.config.base_url, cve.as_str())
@@ -280,7 +286,7 @@ impl Runtime {
         };
         let mut request =
             Request::get(&endpoint).map_err(|_| error("invalid infrastructure base URL"))?;
-        // HTTPX params replaces an existing query rather than merging output=json.
+        // Retain HTTPX query replacement; fixed provider params are explicit above.
         if !params.is_empty() {
             request.url.set_query(None);
             request

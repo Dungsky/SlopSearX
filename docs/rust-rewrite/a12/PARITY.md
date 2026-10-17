@@ -15,8 +15,12 @@ No CVE means empty success without HTTP. Vendors use the first five source rows,
 then deduplicate/sort. The result link remains the original fixed API URL.
 
 CRT.sh constructs `/?output=json`, then HTTPX `params={q:...}` replaces that query;
-the effective request has `q` alone. No corrective `output=json` parameter was
-invented. Status429/403 precede body parsing. HTML MIME or the original first256
+the source effective request has `q` alone. The native implementation intentionally
+corrects this source bug by including `output=json` explicitly in the parameter
+list alongside `q`; other adapters still replace existing URL queries. This is
+an intentional provider-request difference, not observed source parity. The
+closed native request fixtures and real loopback wire check require both keys;
+Unicode and parameter-shaped query text remain encoded data. Status429/403 precede body parsing. HTML MIME or the original first256
 byte sniff precedes JSON; markers are searched in the first65536 decoded code
 points, in the original nine-marker order. Challenge, other HTML, malformed
 JSON, wrong root, wrong row and valid empty list retain distinct outcomes and
@@ -49,5 +53,5 @@ for every malformed-field cross product.
 
 All source expectations here are static. Passing native fixtures cannot establish
 observed Python parity, production injection or provider compatibility. The
-unapplied gate is designed to bind source identity, this map and exact compiled
-test identities; parent acceptance and current-main integration remain required.
+native gate binds source identity, this map and exact compiled test identities.
+Current-source hosted acceptance and production composition remain separate.
