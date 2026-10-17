@@ -452,7 +452,7 @@
     },
     {
       "path": "crates/xtask/src/main.rs",
-      "sha256": "48da0376fd9cda2fae8ebfc387ae1ae449ae0debb7c3678821f2073c2566be43"
+      "sha256": "c5110f5fbdb285cb6900d92bc0b2f7d5b1f7221640b00be3e47551e503ffb7f2"
     }
   ],
   "ordered_case_ids": [
