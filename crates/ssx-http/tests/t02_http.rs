@@ -9,6 +9,9 @@ use std::{
     process::{Child, Command, Stdio},
     time::Duration,
 };
+// Keep independent process/capture suites in the same controlled order as T02.
+static PROCESS_TEST_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
 struct Process {
     child: Child,
 }
@@ -365,6 +368,7 @@ fn request_pairs(value: &Value) -> Vec<(String, String)> {
 }
 #[tokio::test]
 async fn original_literal_corpus_through_a_real_native_http_process() {
+    let _process_test_guard = PROCESS_TEST_LOCK.lock().await;
     let cases = fixtures();
     let bindings = source_bindings(&corpus_texts());
     assert_eq!(cases.len(), 270);
@@ -623,6 +627,7 @@ async fn original_literal_corpus_through_a_real_native_http_process() {
 }
 #[tokio::test]
 async fn original_owned_html_assertions_use_real_native_renderer() {
+    let _process_test_guard = PROCESS_TEST_LOCK.lock().await;
     for theme in ["dark", "darker"] {
         let out = directory(&format!("html-{theme}"));
         let (mut process, base, _) = start(&out, theme);
@@ -714,8 +719,9 @@ impl PrivateValkey {
     fn start(out: &std::path::Path) -> Self {
         let mut random = [0u8; 8];
         aws_lc_rs::rand::fill(&mut random).unwrap();
-        let socket = PathBuf::from(format!(
-            "/private/tmp/t02-http-cache-{}.sock",
+        // A short Unix temp path also fits macOS sockaddr_un limits.
+        let socket = PathBuf::from("/tmp").join(format!(
+            "t02-http-cache-{}.sock",
             random
                 .iter()
                 .map(|b| format!("{b:02x}"))
@@ -777,6 +783,7 @@ impl PrivateValkey {
 }
 #[tokio::test]
 async fn original_fault_bodies_and_private_valkey_cache_match_real_http() {
+    let _process_test_guard = PROCESS_TEST_LOCK.lock().await;
     let out = directory("faults");
     let cache_out = out.join("valkey");
     fs::create_dir(&cache_out).unwrap();
@@ -972,6 +979,7 @@ async fn family_wire(
 }
 #[tokio::test]
 async fn original_assertion_families_use_runtime_policy_config_and_public_discovery() {
+    let _process_test_guard = PROCESS_TEST_LOCK.lock().await;
     let out = directory("families");
     let client = reqwest::Client::builder()
         .no_proxy()
@@ -1311,6 +1319,7 @@ async fn original_assertion_families_use_runtime_policy_config_and_public_discov
 
 #[tokio::test]
 async fn absolute_date_proof_and_forwarding_reach_actual_http_without_claiming_a06() {
+    let _process_test_guard = PROCESS_TEST_LOCK.lock().await;
     let out = directory("date-proof");
     let (mut process, base, _) = start_scenario(&out, "dark", "date-proof", None);
     let client = reqwest::Client::builder()
@@ -1418,6 +1427,7 @@ async fn absolute_date_proof_and_forwarding_reach_actual_http_without_claiming_a
 
 #[tokio::test]
 async fn reviewed_offsets_category_labels_and_duplicate_queries_match_original_http() {
+    let _process_test_guard = PROCESS_TEST_LOCK.lock().await;
     let text =
         include_str!("../../../docs/rust-rewrite/t02/oracle/source_http_review_records.jsonl");
     let cases = text

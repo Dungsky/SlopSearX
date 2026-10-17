@@ -3172,7 +3172,7 @@
     },
     {
       "path": "crates/ssx-http/tests/t02_http.rs",
-      "sha256": "0d3e083f979e635eec0e8cbf2f153500806f86e3e9b15de7486fbb6e902eabff"
+      "sha256": "219ee1920f1f391e2a25285a3bcbe103c0740de7e2c2d1afc7b80da01130c131"
     },
     {
       "path": "crates/ssx-http/tests/t09.rs",
