@@ -7,3 +7,5 @@ The success/protocol fixture deliberately holds a writable descriptor without wr
 The prior ARM CI receipt observed Spawn("Text file busy (os error 26)"); its descriptor-level cause is unknown. Darwin qualification passed the selected control, all six fixtures, the unchanged 207-test library inventory, workspace/all-target build, formatting and strict Clippy. The first full-library attempt lacked the required native HTML helper: its 200 passes/seven failures are preserved. Building the required executable before the unchanged suite produced 207 passes; no test or timer changed. Evidence is in evidence/process-fixtures/manifest.json. Linux qualification and current-head review remain required before merge.
 
 Context: [Rust rewrite case study](../CASE_STUDY.md).
+
+Receipts are Base64-encoded gzip bytes in text files. Decode Base64 and then gzip to recover the exact raw streams; the manifest binds encoded, compressed and raw hashes. This satisfies native source hygiene without binary-asset exemptions. The initial hosted O06 failure on unlisted gzip files is retained in PR history; fixture source is unchanged.
