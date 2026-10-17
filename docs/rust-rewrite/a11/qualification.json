@@ -506,9 +506,7 @@
       "actual_parameterized_calls": [
         "tests/test_abuseipdb.py::TestAbuseIPDBAdapter::test_adapter_registered"
       ],
-      "source_observation_ids": [
-
-      ],
+      "source_observation_ids": [],
       "native_cases": [
         "A11_SOURCE_TEST_COMPLETE:tests/test_abuseipdb.py::TestAbuseIPDBAdapter::test_adapter_registered"
       ],
@@ -649,9 +647,7 @@
       "actual_parameterized_calls": [
         "tests/test_greynoise.py::TestGreyNoiseAdapter::test_adapter_registered"
       ],
-      "source_observation_ids": [
-
-      ],
+      "source_observation_ids": [],
       "native_cases": [
         "A11_SOURCE_TEST_COMPLETE:tests/test_greynoise.py::TestGreyNoiseAdapter::test_adapter_registered"
       ],
@@ -664,9 +660,7 @@
       "actual_parameterized_calls": [
         "tests/test_greynoise.py::TestGreyNoiseAdapter::test_adapter_categories"
       ],
-      "source_observation_ids": [
-
-      ],
+      "source_observation_ids": [],
       "native_cases": [
         "A11_SOURCE_TEST_COMPLETE:tests/test_greynoise.py::TestGreyNoiseAdapter::test_adapter_categories"
       ],
@@ -709,9 +703,7 @@
       "actual_parameterized_calls": [
         "tests/test_otx.py::TestOTXAdapter::test_adapter_registered"
       ],
-      "source_observation_ids": [
-
-      ],
+      "source_observation_ids": [],
       "native_cases": [
         "A11_SOURCE_TEST_COMPLETE:tests/test_otx.py::TestOTXAdapter::test_adapter_registered"
       ],
@@ -982,9 +974,7 @@
       "actual_parameterized_calls": [
         "tests/test_urlhaus.py::TestURLhausAdapter::test_adapter_registered"
       ],
-      "source_observation_ids": [
-
-      ],
+      "source_observation_ids": [],
       "native_cases": [
         "A11_SOURCE_TEST_COMPLETE:tests/test_urlhaus.py::TestURLhausAdapter::test_adapter_registered"
       ],
@@ -997,9 +987,7 @@
       "actual_parameterized_calls": [
         "tests/test_urlhaus.py::TestURLhausAdapter::test_adapter_categories"
       ],
-      "source_observation_ids": [
-
-      ],
+      "source_observation_ids": [],
       "native_cases": [
         "A11_SOURCE_TEST_COMPLETE:tests/test_urlhaus.py::TestURLhausAdapter::test_adapter_categories"
       ],

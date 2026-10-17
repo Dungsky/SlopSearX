@@ -88,13 +88,41 @@ pub struct Claim {
 pub struct ResearchStore {
     store: Arc<Valkey>,
     tenant: TenantId,
+    #[cfg(test)]
+    completion_probe: Option<Arc<crate::research_runner::completion_tests::Probe>>,
 }
 impl ResearchStore {
     pub fn new(store: Arc<Valkey>, tenant: TenantId) -> Self {
-        Self { store, tenant }
+        Self {
+            store,
+            tenant,
+            #[cfg(test)]
+            completion_probe: None,
+        }
     }
     pub fn for_tenant(&self, tenant: TenantId) -> Self {
+        #[cfg(test)]
+        {
+            let mut scoped = Self::new(self.store.clone(), tenant);
+            scoped.completion_probe = self.completion_probe.clone();
+            scoped
+        }
+        #[cfg(not(test))]
         Self::new(self.store.clone(), tenant)
+    }
+    #[cfg(test)]
+    pub(crate) fn with_completion_probe(
+        mut self,
+        probe: Arc<crate::research_runner::completion_tests::Probe>,
+    ) -> Self {
+        self.completion_probe = Some(probe);
+        self
+    }
+    #[cfg(test)]
+    pub(crate) fn completion_probe(
+        &self,
+    ) -> Option<&Arc<crate::research_runner::completion_tests::Probe>> {
+        self.completion_probe.as_ref()
     }
     pub fn tenant(&self) -> &TenantId {
         &self.tenant
@@ -306,6 +334,24 @@ impl ResearchStore {
             .arg(cancel_snapshot.unwrap_or_default());
         match self.store.execute(cmd, true).await? {
             redis::Value::Int(1) => {
+                #[cfg(test)]
+                if next.lease_token.is_none()
+                    && let Some(probe) = self.completion_probe()
+                {
+                    probe.clear_saw_joined.store(
+                        probe
+                            .monitor_joined
+                            .load(std::sync::atomic::Ordering::SeqCst),
+                        std::sync::atomic::Ordering::SeqCst,
+                    );
+                    probe.clear_committed.add_permits(1);
+                    probe
+                        .release_clear
+                        .acquire()
+                        .await
+                        .expect("owned fixture gate")
+                        .forget();
+                }
                 self.refresh_indexes(next).await;
                 Ok(())
             }
