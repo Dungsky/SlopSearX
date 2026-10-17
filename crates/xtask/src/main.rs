@@ -9,6 +9,7 @@ mod a08;
 mod a09;
 mod a10;
 mod a11;
+mod a14;
 mod date_amendment;
 mod f05;
 mod f06;
@@ -465,6 +466,7 @@ fn execute(root: &Path, id: &str, records: &mut Vec<Value>) -> Result<()> {
         "A09" => a09::check(root, records),
         "A10" => a10::check(root, records),
         "A11" => a11::check(root, records),
+        "A14" => a14::check(root, records),
         "A03" => a03::check(root, records),
         "A02" => a02::check(root, records),
         "A05" => a05::check(root, records),
@@ -640,6 +642,8 @@ fn main() {
         "source-bound pypi/rubygems/dockerhub adapters through registry and caller-owned F08 pool; no live providers, deployment or full server parity claim"
     } else if id == "A01" {
         "source-mapped npm/crates registry adapters through F06 factories and F08 loopback sessions; no live provider calls, deployment, performance or full adapter parity claim"
+    } else if id == "A14" {
+        "source-pinned Ashby/Greenhouse/Lever adapters through F08 loopback; company extraction, provider request/response handling, limits, failures, timeout and cancellation; zero provider calls"
     } else if id == "W00" {
         "saved definitions, optimistic revisions, tenant/index/quota authority and schedule ownership with private Valkey; no provider execution, comparison/report/outbox publication or public saved tools"
     } else if id == "W04" {

@@ -3,6 +3,15 @@
   "scope": "explicit source/native operational telemetry differences, not blanket canonicalization",
   "differences": [
     {
+      "id": "audit.default-redacted",
+      "source": "query/client fields are retained by the source audit default",
+      "native": "query and client identifiers are redacted by default; QueryPrivacy::RetainRaw is an explicit opt-in",
+      "scope": "privacy decision approved for native operational audit; audit enablement, fields, retention, queue limits and lifecycle remain unchanged",
+      "reason": "native telemetry should minimize sensitive query and client data at rest",
+      "tracking": "https://github.com/magnus919/SlopSearX/issues/1012",
+      "evidence": "crates/ssx-infra/tests/o01.rs::redacted_and_disabled_auditing_are_distinct; crates/ssx-infra/tests/o01.rs::explicit_raw_retention_and_absent_store_are_qualified"
+    },
+    {
       "case_id": "audit.latency.-0.0",
       "source": "-0.0",
       "native": "0.0",
