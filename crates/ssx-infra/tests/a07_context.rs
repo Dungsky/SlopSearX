@@ -233,27 +233,103 @@ async fn pubchem_second_request_renewal_and_pubmed_pipeline_cannot_extend_contex
         ("pubchem", PC_SEARCH, PC_DETAIL),
         ("pubmed", PM_SEARCH, PM_SUMMARY),
     ] {
-        let (base, seen, task) = server(vec![
-            (first.into(), Duration::from_millis(20)),
-            (second.into(), Duration::from_millis(100)),
-        ])
-        .await;
+        let start = Instant::now();
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let base = format!("http://{}", listener.local_addr().unwrap());
+        let seen = Arc::new(Mutex::new(Vec::new()));
+        let requests = seen.clone();
+        let (entered_tx, mut entered_rx) = tokio::sync::mpsc::channel(2);
+        let (release_tx, release_rx) = tokio::sync::oneshot::channel::<()>();
+        let mut task = tokio::spawn(async move {
+            let mut release = Some(release_rx);
+            for (stage, body) in [first, second].into_iter().enumerate() {
+                let (mut stream, _) = listener.accept().await.unwrap();
+                let mut bytes = Vec::new();
+                loop {
+                    let mut buf = [0; 4096];
+                    let n = stream.read(&mut buf).await.unwrap();
+                    if n == 0 {
+                        break;
+                    }
+                    bytes.extend_from_slice(&buf[..n]);
+                    if bytes.windows(4).any(|b| b == b"\r\n\r\n") {
+                        break;
+                    }
+                }
+                requests
+                    .lock()
+                    .unwrap()
+                    .push(String::from_utf8(bytes).unwrap());
+                entered_tx.send(stage).await.unwrap();
+                if stage == 0 {
+                    // Consume the original budget so renewing it at stage two is observable.
+                    tokio::time::sleep_until(tokio::time::Instant::from_std(
+                        start + Duration::from_millis(1500),
+                    ))
+                    .await;
+                }
+                if stage == 1 {
+                    // Keep the real second response unavailable until the caller finishes.
+                    let _ = release.take().unwrap().await;
+                }
+                let header = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                    body.len()
+                );
+                let _ = stream.write_all(header.as_bytes()).await;
+                let _ = stream.write_all(body.as_bytes()).await;
+            }
+        });
         let http = Arc::new(AdapterHttp::default());
         let mut c = BiomedicalConfig::defaults(&base);
-        c.timeout_ms = ConfigScalar::Integer(500);
+        c.timeout_ms = ConfigScalar::Integer(15_000);
         let engine = adapter(name, http.clone(), Arc::new(AllowAllAdmission), c);
-        let start = Instant::now();
         let context = SearchContext {
-            deadline: start + Duration::from_millis(80),
+            deadline: start + Duration::from_secs(3),
         };
-        let out = engine.search_with_context(&request(), context).await;
+        let mut client =
+            tokio::spawn(async move { engine.search_with_context(&request(), context).await });
+        let stages = tokio::time::timeout_at(
+            tokio::time::Instant::from_std(start + Duration::from_millis(2500)),
+            async { (entered_rx.recv().await, entered_rx.recv().await) },
+        )
+        .await;
+        // Never renew the original context after observing either stage.
+        let outcome = tokio::time::timeout_at(
+            tokio::time::Instant::from_std(start + Duration::from_secs(6)),
+            &mut client,
+        )
+        .await;
+        let elapsed = start.elapsed();
+        if outcome.is_err() {
+            client.abort();
+            let _ = client.await;
+        }
+        let _ = release_tx.send(());
+        let server_join = tokio::time::timeout(Duration::from_secs(1), &mut task).await;
+        if server_join.is_err() {
+            task.abort();
+            let _ = task.await;
+        }
+        http.shutdown_and_wait().await;
+        assert_eq!(
+            stages.unwrap(),
+            (Some(0), Some(1)),
+            "{name}: both stages must enter"
+        );
+        let out = outcome.unwrap().unwrap();
         assert_eq!(out.status, EngineStatus::Timeout, "{name}");
         assert!(out.results.is_empty());
-        assert!(start.elapsed() < Duration::from_millis(250));
+        assert!(
+            elapsed >= Duration::from_millis(2900),
+            "{name}: premature timeout"
+        );
+        assert!(
+            elapsed < Duration::from_secs(4),
+            "{name}: original deadline was extended"
+        );
         assert_eq!(seen.lock().unwrap().len(), 2);
-        task.abort();
-        let _ = task.await;
-        http.shutdown_and_wait().await;
+        assert!(server_join.unwrap().is_ok());
     }
 }
 #[tokio::test]
