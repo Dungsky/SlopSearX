@@ -29,6 +29,7 @@
         "identifiers_exact_prefix_unicode_and_punctuation",
         "invalid_initial_admission_matrix_is_atomic_and_snapshots_stay_complete",
         "legacy_nullable_planning_collections_and_digest_preserve_source_contract",
+        "legacy_retry_public_preserves_unknown_attempt_and_known_artifact",
         "legacy_untagged_repeat_and_digest_remain_compatible",
         "lower_retry_attempt_cap_and_current_policy_matrix_preserve_original_attempts",
         "malformed_decomposition_matrix_is_atomic",
