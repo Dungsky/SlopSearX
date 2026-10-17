@@ -302,3 +302,5 @@ EXP-119 readout:not-supported at development. Metadata-conditioned selector nP@5
 ## Daily delivery records
 
 - [2026-10-16](daily-delivery-2026-10-16.md): completed existing bounded-date HTTP fix [#874](https://github.com/magnus919/SlopSearX/pull/874), merged `d207d449`; 319 contract tests pass on candidate and merged main. No new experiment or production uplift estimate; zero provider calls.
+
+- [2026-10-17 readiness](daily-readiness-2026-10-17.md): no new experiment or product change; native date parity is in active component integration, ranking replacement exhausted its input-collection retry, and no independent measured candidate was qualified. Zero provider calls.

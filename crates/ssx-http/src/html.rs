@@ -65,9 +65,20 @@ impl PublicHtml {
         } else {
             &self.theme
         };
+        let darker = theme == "darker";
+        let (label, accessible_name, pressed) = if darker {
+            ("Dark mode", "Use dark mode", "true")
+        } else {
+            ("Darker mode", "Use darker mode", "false")
+        };
         format!(
-            "<!doctype html><html lang=\"en\" data-default-theme=\"{theme}\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>{}</title><style>body{{max-width:70rem;margin:3rem auto;padding:0 1rem;font:1rem/1.6 system-ui;background:#191a18;color:#f4f0e8}}a{{color:#e5b567}}form{{display:flex;gap:1rem}}input{{flex:1}}input,button{{font:inherit;padding:.7rem}}article{{margin:2rem 0;border-top:1px solid #555}}small{{color:#bbb}}[data-theme=darker]{{background:#0b0c0b}}</style></head><body><header><a href=\"/\">SlopSearX</a> <button type=\"button\" data-theme-toggle>Change theme</button></header><main>{body}</main><script>document.querySelector('[data-theme-toggle]').onclick=()=>{{let e=document.documentElement;e.dataset.theme=e.dataset.theme==='darker'?'dark':'darker'}};</script></body></html>",
-            escape(title)
+            "<!doctype html><html lang=\"en\" data-default-theme=\"{theme}\" data-theme=\"{theme}\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>{}</title><style>:root{{--page-bg:#191a18;--page-fg:#f4f0e8;--muted:#bbb;color-scheme:dark}}:root[data-theme=darker]{{--page-bg:#0b0c0b}}html,body{{background-color:var(--page-bg);color:var(--page-fg)}}body{{max-width:70rem;margin:3rem auto;padding:0 1rem;font:1rem/1.6 system-ui}}a{{color:#e5b567}}form{{display:flex;gap:1rem}}input{{flex:1}}input,button{{font:inherit;padding:.7rem}}article{{margin:2rem 0;border-top:1px solid #555}}small{{color:var(--muted)}}</style></head><body><header><a href=\"/\">SlopSearX</a> <button type=\"button\" data-theme-toggle aria-label=\"{accessible_name}\" aria-pressed=\"{pressed}\">{label}</button></header><main>{body}</main><script>(()=>{{const root=document.documentElement;const button=document.querySelector('[data-theme-toggle]');const configured=root.dataset.defaultTheme;const valid=theme=>theme==='dark'||theme==='darker';const apply=theme=>{{root.dataset.theme=theme;const darker=theme==='darker';button.textContent=darker?'Dark mode':'Darker mode';button.setAttribute('aria-label',darker?'Use dark mode':'Use darker mode');button.setAttribute('aria-pressed',String(darker))}};let initial=valid(configured)?configured:'dark';try{{const stored=window.localStorage.getItem('slopsearx-theme');if(valid(stored))initial=stored}}catch(_){{}}apply(initial);button.addEventListener('click',()=>{{const next=root.dataset.theme==='darker'?'dark':'darker';apply(next);try{{window.localStorage.setItem('slopsearx-theme',next)}}catch(_){{}}}})}})();</script></body></html>",
+            escape(title),
+            accessible_name = accessible_name,
+            pressed = pressed,
+            label = label,
+            body = body,
+            theme = theme,
         )
     }
 }

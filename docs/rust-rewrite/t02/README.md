@@ -18,6 +18,13 @@ rejects missing/duplicate/extra/changed bindings and missing wire receipts, then
 actually omits one source case and requires failure with269 completions and a
 joined server. The report embeds full raw wire receipts and HTML streams.
 
+The supplemental native theme browser smoke exercises the served Rust HTML over
+HTTP in a real Chromium instance. It checks configured defaults, valid stored-theme
+overrides, invalid stored-value fallback, reload persistence, storage-access failure,
+accessible button state and the painted body background. It is additional evidence;
+it does not rewrite the 421 primary bindings, 352 positive receipts or 269 omission
+receipts above. The client is wire-only and CI starts the fixture process separately.
+
 `original-bindings.json` maps162 original nodes and733 literal assertions to
 T02 evidence or explicit ownership. The original test bodies each completed
 setup/call/teardown once in the isolated reviewed reference fixture. Full source

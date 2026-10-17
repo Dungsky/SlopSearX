@@ -3128,7 +3128,7 @@
     },
     {
       "path": "crates/ssx-http/src/html.rs",
-      "sha256": "6f6489ffd972e2557407b8c0562f2cd7c78a1e98b40b6bb8c77c0571a76821f5"
+      "sha256": "b5901a8d45b0c17eb95359a60416c25a0d4dde2e77a8acfa8c4c3d04257025d4"
     },
     {
       "path": "crates/ssx-http/src/lib.rs",
@@ -3276,7 +3276,7 @@
     },
     {
       "path": "docs/rust-rewrite/t02/README.md",
-      "sha256": "ec06e5f20318f22069fa0616bf6e8155c5b4eba7c588a8e1b6075c016ad1b681"
+      "sha256": "4ec95e0260027efadaf72b82107154b6709199a3f442b2458a3f41b4154527cb"
     },
     {
       "path": "docs/rust-rewrite/t02/WORKING_HANDOFF.md",

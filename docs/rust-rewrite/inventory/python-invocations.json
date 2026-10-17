@@ -3,7 +3,7 @@
   "baseline_sha": "20109f9083babd014971951e8c02565ae51c2326",
   "source_manifest": "python-disposition.json",
   "summary": {
-    "active_python_invocation_rows": 63,
+    "active_python_invocation_rows": 66,
     "python_configuration_groups": 106,
     "historical_py_txt_paths": 739,
     "non_runtime_historical_py_txt_paths": 738,
@@ -760,6 +760,39 @@
         "T08"
       ],
       "disposition": "replace with the assigned native or shell successor"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "line": 189,
+      "evidence": "python -m pip install pytest pytest-cov \"playwright>=1.50\"",
+      "classification": "executable Python interpreter or Python-console-tool invocation",
+      "migration_owner": "T02",
+      "migration_owners": [
+        "T02"
+      ],
+      "disposition": "retain_as_optional_wire_only_native_browser_client_until_native_client_successor"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "line": 191,
+      "evidence": "python -m playwright install --with-deps chromium",
+      "classification": "executable Python interpreter or Python-console-tool invocation",
+      "migration_owner": "T02",
+      "migration_owners": [
+        "T02"
+      ],
+      "disposition": "retain_as_optional_wire_only_native_browser_client_until_native_client_successor"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "line": 257,
+      "evidence": "python -m pytest --no-cov -q tests/test_native_html_theme_browser.py",
+      "classification": "executable Python interpreter or Python-console-tool invocation",
+      "migration_owner": "T02",
+      "migration_owners": [
+        "T02"
+      ],
+      "disposition": "retain_as_optional_wire_only_native_browser_client_until_native_client_successor"
     }
   ],
   "interpreter_configuration": [

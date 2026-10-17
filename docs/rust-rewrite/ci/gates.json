@@ -2057,6 +2057,72 @@
       "owner": "T02",
       "state": "additive",
       "successor": "Actual offline Rust HTTP service image and independent Rust client; no Python executable/libpython/backend fallback; network-none process and wire checks. Production assembly/cutover remains O04/W09/O09."
+    },
+    "ci.yml:native-portal-theme-browser": {
+      "source": {
+        "job": {
+          "name": "Native portal theme browser",
+          "runs-on": "ubuntu-latest",
+          "timeout-minutes": 20,
+          "steps": [
+            {
+              "uses": "actions/checkout@v7"
+            },
+            {
+              "uses": "actions/setup-python@v7",
+              "with": {
+                "python-version": "3.12",
+                "cache": "pip"
+              }
+            },
+            {
+              "name": "Install wire-only browser client dependencies",
+              "run": "python -m pip install pytest pytest-cov \"playwright>=1.50\""
+            },
+            {
+              "name": "Install deterministic Chromium runtime",
+              "run": "python -m playwright install --with-deps chromium"
+            },
+            {
+              "name": "Install repository-pinned Rust toolchain",
+              "run": "toolchain=\"$(sed -n 's/^channel = \"\\([^\"]*\\)\"/\\1/p' rust-toolchain.toml)\"\ntest \"$toolchain\" = \"1.99.0\"\nrustup toolchain install \"$toolchain\" --profile minimal\n"
+            },
+            {
+              "name": "Confirm pinned Rust toolchain",
+              "run": "rustup run 1.99.0 rustc --version --verbose"
+            },
+            {
+              "name": "Build native HTTP fixture",
+              "run": "cargo build --locked -p ssx-http --example t02_fixture"
+            },
+            {
+              "name": "Exercise the native HTML theme over HTTP",
+              "env": {
+                "PORTAL_NATIVE_HTML_THEME_SMOKE": "1"
+              },
+              "run": "set -euo pipefail\nserver_pid=\"\"\nfifo=\"\"\nstem=\"\"\nstop_fixture() {\n  if [ -n \"$server_pid\" ]; then\n    if kill -0 \"$server_pid\" 2>/dev/null; then\n      printf 'STOP\\n' >&3 2>/dev/null || true\n      for attempt in $(seq 1 50); do\n        if ! kill -0 \"$server_pid\" 2>/dev/null; then break; fi\n        sleep 0.1\n      done\n      if kill -0 \"$server_pid\" 2>/dev/null; then kill -TERM \"$server_pid\"; fi\n      for attempt in $(seq 1 20); do\n        if ! kill -0 \"$server_pid\" 2>/dev/null; then break; fi\n        sleep 0.1\n      done\n      if kill -0 \"$server_pid\" 2>/dev/null; then kill -KILL \"$server_pid\"; fi\n    fi\n    exec 3>&- || true\n    wait \"$server_pid\" 2>/dev/null || true\n    server_pid=\"\"\n  fi\n  if [ -n \"$fifo\" ]; then rm -f \"$fifo\"; fifo=\"\"; fi\n  if [ -n \"$stem\" ]; then rm -f \"$stem.log\" \"$stem.calls\"; stem=\"\"; fi\n}\ntrap stop_fixture EXIT\nrun_theme() {\n  local theme=\"$1\"\n  stem=\"$RUNNER_TEMP/native-theme-$theme\"\n  fifo=\"$stem.stdin\"\n  local log=\"$stem.log\"\n  local calls=\"$stem.calls\"\n  mkfifo \"$fifo\"\n  env -i PATH=\"$PATH\" target/debug/examples/t02_fixture \\\n    \"$calls\" \"$theme\" stdin contract <\"$fifo\" >\"$log\" 2>&1 &\n  server_pid=$!\n  exec 3<>\"$fifo\"\n  local ready=\"\"\n  for attempt in $(seq 1 50); do\n    if grep -q '\"address\"' \"$log\"; then ready=1; break; fi\n    if ! kill -0 \"$server_pid\" 2>/dev/null; then cat \"$log\" >&2; return 1; fi\n    sleep 0.1\n  done\n  if [ -z \"$ready\" ]; then echo \"native fixture startup timed out\" >&2; cat \"$log\" >&2; return 1; fi\n  local address\n  address=\"$(sed -n 's/.*\"address\":\"\\([^\"]*\\)\".*/\\1/p' \"$log\" | head -n 1)\"\n  if [ -z \"$address\" ]; then echo \"native fixture did not publish its loopback address\" >&2; cat \"$log\" >&2; return 1; fi\n  local output\n  if output=\"$(PORTAL_NATIVE_HTML_THEME_SMOKE=1 \\\n      PORTAL_NATIVE_HTML_BASE_URL=\"http://$address/\" \\\n      PORTAL_NATIVE_HTML_DEFAULT_THEME=\"$theme\" \\\n      python -m pytest --no-cov -q tests/test_native_html_theme_browser.py 2>&1)\"; then\n    :\n  else\n    local result=$?\n    printf '%s\\n' \"$output\"\n    return \"$result\"\n  fi\n  printf '%s\\n' \"$output\"\n  if ! printf '%s\\n' \"$output\" | grep -Eq '^1 passed in [0-9.]+s$'; then\n    echo \"expected exactly one passing native theme browser test\" >&2\n    return 1\n  fi\n  if printf '%s\\n' \"$output\" | grep -Eq 'skipped'; then\n    echo \"native theme browser test must not skip\" >&2\n    return 1\n  fi\n  if [ ! -e \"$calls\" ] || [ -s \"$calls\" ]; then\n    echo \"theme landing/toggle requests unexpectedly dispatched a search\" >&2\n    if [ -e \"$calls\" ]; then cat \"$calls\" >&2; fi\n    return 1\n  fi\n  printf 'STOP\\n' >&3\n  for attempt in $(seq 1 50); do\n    if ! kill -0 \"$server_pid\" 2>/dev/null; then break; fi\n    sleep 0.1\n  done\n  if kill -0 \"$server_pid\" 2>/dev/null; then\n    echo \"native fixture did not stop after STOP\" >&2\n    return 1\n  fi\n  exec 3>&-\n  if ! wait \"$server_pid\"; then echo \"native fixture exited unsuccessfully\" >&2; return 1; fi\n  server_pid=\"\"\n  rm -f \"$fifo\" \"$log\" \"$calls\"\n  fifo=\"\"\n  stem=\"\"\n}\nrun_theme dark\nrun_theme darker\n"
+            }
+          ]
+        },
+        "workflow": {
+          "name": "CI",
+          "on": {
+            "push": {
+              "branches": [
+                "main"
+              ]
+            },
+            "pull_request": {
+              "branches": [
+                "main"
+              ]
+            }
+          }
+        }
+      },
+      "owner": "T02",
+      "state": "additive",
+      "successor": "cargo xtask check T02 plus this real-browser native HTTP smoke; Rust owns the fixture/server, Python is only a wire client and does not import or launch the backend"
     }
   },
   "pr_template_source": "## Summary\n\nBrief description of the change.\n\n## Related Issues\n\nCloses #N\n\n## Type of Change\n\n- [ ] Bug fix\n- [ ] New feature\n- [ ] Documentation\n- [ ] CI / Infrastructure\n- [ ] Refactor\n\n## Checklist\n\n- [ ] Code follows project conventions (one file per engine, `@register_engine`)\n- [ ] Tests added for new behavior\n- [ ] Tests pass (`pytest`)\n- [ ] Lint passes (`ruff check .`)\n- [ ] Commits are signed (`git commit -s`)\n- [ ] Commits use Conventional Commits (`feat:`, `fix:`, etc.)\n- [ ] Documentation updated (README, spec, or AGENTS.md)\n- [ ] If adding an engine: one file, zero orchestrator changes\n- [ ] I reviewed portal impact for shared/backend changes (or this change is unrelated)\n- [ ] If the portal contract changed, I updated its tests and documentation\n- [ ] Portal contract/browser validation is included or explained below\n\n## Test Results\n\n```\n$ pytest -v\n...\n```\n\n## Additional Notes\n\n<!-- AI-assisted contributions: disclose the tool used here and confirm you reviewed the output. -->\n",
