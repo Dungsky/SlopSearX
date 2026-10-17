@@ -18,7 +18,7 @@ const ARTIFACTS: &[(&str, &str)] = &[
     ),
     (
         "crates/ssx-infra/tests/a07_context.rs",
-        "919274821e4123628422cbba1face5334dca30d3ec7d782fabe37c3505c7c0b7",
+        "b913e5f13290c10b38ea1794b8cae976858ab4951bd0a43b478abb93109eae69",
     ),
     (
         "crates/ssx-infra/tests/support/a07_cold_context.rs",
