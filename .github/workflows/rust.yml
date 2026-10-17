@@ -177,6 +177,8 @@ jobs:
 
       - name: Staged admission ownership and recovery evidence
         run: cargo xtask check W11 --output target/rust-evidence/W11.json
+      - name: Staged execution and retained evidence authority
+        run: cargo xtask check W06 --output target/rust-evidence/W06.json
       - name: Active experiment tooling inventory and native evidence contracts
         run: cargo xtask check O03 --output target/rust-evidence/O03.json
       - name: Native pooled HTTP session evidence
@@ -236,6 +238,7 @@ jobs:
             target/rust-evidence/W02.json
             target/rust-evidence/W04.json
             target/rust-evidence/W11.json
+            target/rust-evidence/W06.json
             target/rust-evidence/O03.json
             target/rust-evidence/F08.json
             target/rust-evidence/F10.json
