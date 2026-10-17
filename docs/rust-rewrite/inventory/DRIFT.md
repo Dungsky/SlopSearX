@@ -812,3 +812,22 @@ field and order. Current and executed credential producer bytes are identical.
 No F06 contract, global HTTP header policy, provider call, native interpreter
 dependency or mandatory Python execution is introduced. G08 owns executable
 retirement; W09 and G03 composition/resource obligations remain unchanged.
+
+## O01 native observability source evidence
+
+The accepted T06/main8b48 composition retains all479 Python source paths. O01
+adds seven external temporary producer identities as non-executable historical
+source.txt copies and four receipt-backed actual invocation rows (58 to62).
+The original53 v1 runner's wrong49 collection check remains a failure alongside
+its53 passing source cases; v2 independently closes53 cases across42 functions.
+SDK/state/render captures without separate process receipts remain capture-only
+provenance, not invented invocation rows. Native O01 reads frozen JSON and
+executes no Python. G08 retires the external runnable producers and legacy
+backend/tests; immutable non-executable evidence may remain. Two actual HTTP
+route rows and production bootstrap composition remain downstream T02/W09.
+
+O01 also retains the inherited26-case exporter's co-staged historical identity
+as an eighth external, capture-only producer. The old checkout and staged bytes
+are untouched. No execution attestation or actual invocation row is invented;
+all62 actual rows and479 source paths remain unchanged. G08 owns retirement
+of that runnable old-checkout exporter as well as the seven current-goal tools.
