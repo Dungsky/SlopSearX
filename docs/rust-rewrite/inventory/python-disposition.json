@@ -3394,8 +3394,16 @@
       "evidence": "slopsearx/audit.py: backend package module participating in server, worker, MCP, portal, or shared-state behavior. Source markers: from __future__ import annotations; import logging; import time; from typing import Any; from slopsearx.adapter import EngineStatus.",
       "reason": "Implements backend service/state/protocol behavior; port its public and internal contracts to the assigned native owner.",
       "migration_owners": [
-        "O01"
-      ]
+        "O01",
+        "G08"
+      ],
+      "native_successor": {
+        "gate": "cargo xtask check O01",
+        "coverage": "docs/rust-rewrite/o01/coverage.json",
+        "qualification": "53 parameter cases across42ownedfunctions +39supplemental native API/private-backend cases",
+        "retirement": "retain original source/tests until G08 successor acceptance; exclude all runnable Python from final backend/helper packages",
+        "limits": "2HTTP routes belong to T02; W09/T02 bootstrap composition not claimed; reviewed typed-port/identity/privacy differences explicit"
+      }
     },
     {
       "path": "slopsearx/cache.py",
@@ -3497,8 +3505,16 @@
       "evidence": "slopsearx/logging.py: backend package module participating in server, worker, MCP, portal, or shared-state behavior. Source markers: from slopsearx.logging import get_logger, setup_logging; from __future__ import annotations; import logging; import os; import sys.",
       "reason": "Implements backend service/state/protocol behavior; port its public and internal contracts to the assigned native owner.",
       "migration_owners": [
-        "O01"
-      ]
+        "O01",
+        "G08"
+      ],
+      "native_successor": {
+        "gate": "cargo xtask check O01",
+        "coverage": "docs/rust-rewrite/o01/coverage.json",
+        "qualification": "53 parameter cases across42ownedfunctions +39supplemental native API/private-backend cases",
+        "retirement": "retain original source/tests until G08 successor acceptance; exclude all runnable Python from final backend/helper packages",
+        "limits": "2HTTP routes belong to T02; W09/T02 bootstrap composition not claimed; reviewed typed-port/identity/privacy differences explicit"
+      }
     },
     {
       "path": "slopsearx/mcp/__init__.py",
@@ -3788,8 +3804,16 @@
       "evidence": "slopsearx/metrics.py: backend package module participating in server, worker, MCP, portal, or shared-state behavior. Source markers: from __future__ import annotations; import math; import time; from collections import defaultdict; from dataclasses import dataclass.",
       "reason": "Implements backend service/state/protocol behavior; port its public and internal contracts to the assigned native owner.",
       "migration_owners": [
-        "O01"
-      ]
+        "O01",
+        "G08"
+      ],
+      "native_successor": {
+        "gate": "cargo xtask check O01",
+        "coverage": "docs/rust-rewrite/o01/coverage.json",
+        "qualification": "53 parameter cases across42ownedfunctions +39supplemental native API/private-backend cases",
+        "retirement": "retain original source/tests until G08 successor acceptance; exclude all runnable Python from final backend/helper packages",
+        "limits": "2HTTP routes belong to T02; W09/T02 bootstrap composition not claimed; reviewed typed-port/identity/privacy differences explicit"
+      }
     },
     {
       "path": "slopsearx/middleware.py",
@@ -4129,8 +4153,16 @@
       "evidence": "slopsearx/stats.py: backend package module participating in server, worker, MCP, portal, or shared-state behavior. Source markers: from __future__ import annotations; import logging; import time; from typing import Any; from slopsearx.adapter import EngineStatus.",
       "reason": "Implements backend service/state/protocol behavior; port its public and internal contracts to the assigned native owner.",
       "migration_owners": [
-        "O01"
-      ]
+        "O01",
+        "G08"
+      ],
+      "native_successor": {
+        "gate": "cargo xtask check O01",
+        "coverage": "docs/rust-rewrite/o01/coverage.json",
+        "qualification": "53 parameter cases across42ownedfunctions +39supplemental native API/private-backend cases",
+        "retirement": "retain original source/tests until G08 successor acceptance; exclude all runnable Python from final backend/helper packages",
+        "limits": "2HTTP routes belong to T02; W09/T02 bootstrap composition not claimed; reviewed typed-port/identity/privacy differences explicit"
+      }
     },
     {
       "path": "slopsearx/suggest.py",
@@ -4338,8 +4370,17 @@
       "evidence": "tests/test_audit.py: repository test module asserting backend behavior/contracts or using backend fixtures. Source markers: from __future__ import annotations; import inspect; from unittest.mock import AsyncMock, MagicMock; from slopsearx.adapter import AdapterResponse, EngineStatus, SearchResult; from slopsearx.audit import QueryAuditLogger.",
       "reason": "Test suite depends on the behavior shown by its imports/declarations; preserve the regression contract in native qualification before retiring this Python test.",
       "migration_owners": [
-        "O05"
-      ]
+        "O05",
+        "O01",
+        "G08"
+      ],
+      "native_successor": {
+        "gate": "cargo xtask check O01",
+        "coverage": "docs/rust-rewrite/o01/coverage.json",
+        "qualification": "53 parameter cases across42ownedfunctions +39supplemental native API/private-backend cases",
+        "retirement": "retain original source/tests until G08 successor acceptance; exclude all runnable Python from final backend/helper packages",
+        "limits": "2HTTP routes belong to T02; W09/T02 bootstrap composition not claimed; reviewed typed-port/identity/privacy differences explicit"
+      }
     },
     {
       "path": "tests/test_cache.py",
@@ -5577,8 +5618,16 @@
       "reason": "Test suite depends on the behavior shown by its imports/declarations; preserve the regression contract in native qualification before retiring this Python test.",
       "migration_owners": [
         "O01",
-        "O05"
-      ]
+        "O05",
+        "G08"
+      ],
+      "native_successor": {
+        "gate": "cargo xtask check O01",
+        "coverage": "docs/rust-rewrite/o01/coverage.json",
+        "qualification": "53 parameter cases across42ownedfunctions +39supplemental native API/private-backend cases",
+        "retirement": "retain original source/tests until G08 successor acceptance; exclude all runnable Python from final backend/helper packages",
+        "limits": "2HTTP routes belong to T02; W09/T02 bootstrap composition not claimed; reviewed typed-port/identity/privacy differences explicit"
+      }
     },
     {
       "path": "tests/test_misc_polish.py",
@@ -6022,8 +6071,16 @@
       "reason": "Test suite depends on the behavior shown by its imports/declarations; preserve the regression contract in native qualification before retiring this Python test.",
       "migration_owners": [
         "O01",
-        "O05"
-      ]
+        "O05",
+        "G08"
+      ],
+      "native_successor": {
+        "gate": "cargo xtask check O01",
+        "coverage": "docs/rust-rewrite/o01/coverage.json",
+        "qualification": "53 parameter cases across42ownedfunctions +39supplemental native API/private-backend cases",
+        "retirement": "retain original source/tests until G08 successor acceptance; exclude all runnable Python from final backend/helper packages",
+        "limits": "2HTTP routes belong to T02; W09/T02 bootstrap composition not claimed; reviewed typed-port/identity/privacy differences explicit"
+      }
     },
     {
       "path": "tests/test_saved_events.py",
@@ -6254,8 +6311,17 @@
       "evidence": "tests/test_stats.py: repository test module asserting backend behavior/contracts or using backend fixtures. Source markers: from __future__ import annotations; import inspect; from unittest.mock import AsyncMock, MagicMock; from slopsearx.adapter import EngineStatus; from slopsearx.stats import EngineStatsTracker.",
       "reason": "Test suite depends on the behavior shown by its imports/declarations; preserve the regression contract in native qualification before retiring this Python test.",
       "migration_owners": [
-        "O05"
-      ]
+        "O05",
+        "O01",
+        "G08"
+      ],
+      "native_successor": {
+        "gate": "cargo xtask check O01",
+        "coverage": "docs/rust-rewrite/o01/coverage.json",
+        "qualification": "53 parameter cases across42ownedfunctions +39supplemental native API/private-backend cases",
+        "retirement": "retain original source/tests until G08 successor acceptance; exclude all runnable Python from final backend/helper packages",
+        "limits": "2HTTP routes belong to T02; W09/T02 bootstrap composition not claimed; reviewed typed-port/identity/privacy differences explicit"
+      }
     },
     {
       "path": "tests/test_tier1_adapters.py",
@@ -6397,8 +6463,16 @@
       "reason": "Test suite depends on the behavior shown by its imports/declarations; preserve the regression contract in native qualification before retiring this Python test.",
       "migration_owners": [
         "O01",
-        "O05"
-      ]
+        "O05",
+        "G08"
+      ],
+      "native_successor": {
+        "gate": "cargo xtask check O01",
+        "coverage": "docs/rust-rewrite/o01/coverage.json",
+        "qualification": "53 parameter cases across42ownedfunctions +39supplemental native API/private-backend cases",
+        "retirement": "retain original source/tests until G08 successor acceptance; exclude all runnable Python from final backend/helper packages",
+        "limits": "2HTTP routes belong to T02; W09/T02 bootstrap composition not claimed; reviewed typed-port/identity/privacy differences explicit"
+      }
     },
     {
       "path": "tests/test_workflow_portal.py",
@@ -6935,7 +7009,7 @@
       "exact_match": true,
       "method": "sorted exact-set comparison between git ls-files paths ending .py/.pyw/.pyi plus ssx and files[].path",
       "tracked_expected_count": 494,
-      "validation_scope": "Normal A06/T06 accepted-main8b48 full-record union; exact staged source-set native F01 requalification required",
+      "validation_scope": "Normal A06/accepted O01 main87af full-record union; exact tracked source-set and native requalification pending",
       "extensionless_python_paths": [
         "ssx"
       ],

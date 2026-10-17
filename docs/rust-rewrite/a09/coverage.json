@@ -444,7 +444,7 @@
     },
     {
       "path": "crates/ssx-application/src/lib.rs",
-      "sha256": "a005929db4783426cdd11efd171fc4d63da35d0614f5863ff176516b01147e83"
+      "sha256": "90b73619b3d929e7b299f2b371d4f151c8760b91b2047c1ea63961d908872155"
     },
     {
       "path": "crates/ssx-http/Cargo.toml",
@@ -452,7 +452,7 @@
     },
     {
       "path": "crates/xtask/src/main.rs",
-      "sha256": "4255b859acf5bfb1dca698097902b0213032ad3aace348c3c2d51c45b2865b7a"
+      "sha256": "240508ad1446a09fa323c039a2afa4518b335a97e8eef6cd1037bb376d4e723f"
     }
   ],
   "ordered_case_ids": [

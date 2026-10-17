@@ -2138,3 +2138,22 @@ mandatory native gate dependency is introduced. Native qualification is pending.
 ## A06 / accepted W05 main01eb22 integration
 
 The normal union of the scholarly candidate with accepted main `01eb22f63c8284d7773a70948386d1800d54ba70` preserves both histories and complete source/invocation records. The prospective inventory contains 482 Python source paths, 67 actual developer-oracle invocation rows, and 60 manual developer-tool guidance rows; guidance is not execution evidence. Stronger G08 retirement requirements remain, with the original A05 exporter introduction attribution retained. No captured source outcomes are rewritten.
+
+## O01 native observability source evidence
+
+The accepted T06/main8b48 composition retains all479 Python source paths. O01
+adds seven external temporary producer identities as non-executable historical
+source.txt copies and four receipt-backed actual invocation rows (58 to62).
+The original53 v1 runner's wrong49 collection check remains a failure alongside
+its53 passing source cases; v2 independently closes53 cases across42 functions.
+SDK/state/render captures without separate process receipts remain capture-only
+provenance, not invented invocation rows. Native O01 reads frozen JSON and
+executes no Python. G08 retires the external runnable producers and legacy
+backend/tests; immutable non-executable evidence may remain. Two actual HTTP
+route rows and production bootstrap composition remain downstream T02/W09.
+
+O01 also retains the inherited26-case exporter's co-staged historical identity
+as an eighth external, capture-only producer. The old checkout and staged bytes
+are untouched. No execution attestation or actual invocation row is invented;
+all62 actual rows and479 source paths remain unchanged. G08 owns retirement
+of that runnable old-checkout exporter as well as the seven current-goal tools.

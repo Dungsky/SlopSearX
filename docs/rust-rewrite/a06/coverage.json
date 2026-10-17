@@ -821,8 +821,20 @@
         "adapters::http_headers::tests::charged_empty_duplicate_copy_has_repeated_pending_then_cancellation_or_real_deadline",
         "adapters::http_headers::tests::global_decode_duplicate_empty_and_utf8_chunk_boundaries_are_exact",
         "adapters::http_headers::tests::output_is_precharged_and_failures_release_exact_capacity",
+        "adapters::internetarchive::owned_operation_tests::actual_engine_budget_rejects_and_releases_all_operation_storage",
+        "adapters::internetarchive::owned_operation_tests::dropping_actual_projection_future_releases_charged_scratch_and_rows",
+        "adapters::internetarchive::owned_operation_tests::valid_then_invalid_is_atomic_releases_and_next_call_succeeds",
+        "adapters::musicbrainz::owned_operation_tests::actual_engine_budget_rejects_and_releases_all_operation_storage",
+        "adapters::musicbrainz::owned_operation_tests::dropping_actual_projection_future_releases_charged_scratch_and_rows",
+        "adapters::musicbrainz::owned_operation_tests::valid_then_invalid_is_atomic_releases_and_next_call_succeeds",
+        "adapters::nominatim::owned_operation_tests::actual_engine_budget_rejects_and_releases_all_operation_storage",
+        "adapters::nominatim::owned_operation_tests::dropping_actual_projection_future_releases_charged_scratch_and_rows",
+        "adapters::nominatim::owned_operation_tests::valid_then_invalid_is_atomic_releases_and_next_call_succeeds",
         "adapters::openalex_projection::original_abstract_helper_tests::actual_abstract_helper_preserves_original_empty_simple_and_multiple_positions",
         "adapters::openalex_runtime::tests::actual_runtime_root_refusal_charged_cpu_drop_and_real_deadline_need_no_helper",
+        "adapters::openlibrary::owned_operation_tests::actual_engine_budget_rejects_and_releases_all_operation_storage",
+        "adapters::openlibrary::owned_operation_tests::dropping_actual_projection_future_releases_charged_scratch_and_rows",
+        "adapters::openlibrary::owned_operation_tests::valid_then_invalid_is_atomic_releases_and_next_call_succeeds",
         "adapters::scholarly_config::tests::raw_config_request_and_operation_projection_matches_actual_source",
         "adapters::scholarly_float::tests::charged_lexical_work_yields_then_cancels_or_expires_and_refuses_small_budget",
         "adapters::scholarly_float::tests::pinned_original_float_controls_keep_exact_bits",
@@ -871,6 +883,8 @@
         "adapters::source_payload::batch::tests::batch_owns_projection_capacity_overlap_and_named_handoff",
         "adapters::source_payload::batch::tests::cancelled_push_drops_partial_storage_before_batch_charge",
         "adapters::source_payload::batch::tests::non_success_handoff_has_no_partial_rows_and_charges_error_copy",
+        "adapters::source_payload::batch::tests::thumbnail_capacity_refusal_and_cancel_release_projection_storage",
+        "adapters::source_payload::batch::tests::thumbnail_uses_same_budget_and_named_handoff_release",
         "adapters::source_payload::batch::tests::wrong_ledger_refusal_and_fixed_capacity_preserve_storage_ownership",
         "adapters::source_payload::generic_envelope_tests::generic_science_wrapper_keeps_bytes_charges_and_declared_envelopes",
         "adapters::source_payload::scalar_borrow_tests::both_empty_author_paths_yield_after_array_charge_and_observe_deadline",
@@ -894,6 +908,9 @@
         "adapters::source_repr::tests::large_repr_uses_real_storage_envelope_instead_of_arbitrary_point_multiplier",
         "adapters::source_repr::tests::quota_failure_is_fallible_terminal_and_releases_stack_and_output",
         "adapters::stackexchange::tests::zero_string_slice_precedes_row_interpretation_without_accepting_unsliceable_values",
+        "adapters::tmdb::owned_operation_tests::actual_engine_budget_rejects_and_releases_all_operation_storage",
+        "adapters::tmdb::owned_operation_tests::dropping_actual_projection_future_releases_charged_scratch_and_rows",
+        "adapters::tmdb::owned_operation_tests::valid_then_invalid_is_atomic_releases_and_next_call_succeeds",
         "browser_identity::oidc::source_replay::exact_source_claim_signature_settings_and_return_corpus_with_named_hardening",
         "browser_identity::oidc::tests::authentic_claims_reject_finite_type_issuer_audience_nonce_and_time_boundaries",
         "browser_identity::oidc::tests::bounded_json_rejects_nested_escaped_duplicates_depth_and_oversize",
@@ -955,6 +972,43 @@
         "http::scholarly_timeout_clock::real_system_one_ms_preparation_expiry_does_not_promise_dispatch",
         "http::scholarly_timeout_clock::sealed_pending_owner_rejects_replacement_context_and_worker_entry",
         "jev::ready_constructor_tests::actual_production_ready_router_constructor_prepares_without_dispatch",
+        "observability::lifecycle_tests::cancelled_shutdown_caller_retains_exporter_and_next_shutdown_joins_socket",
+        "observability::lifecycle_tests::exporter_panic_still_signals_completion",
+        "observability::logging::console_writer_tests::console_writer_preserves_validated_correlation_and_timing",
+        "observability::logging::correlation_tests::request_uuid_and_query_correlation_are_separate_validated_fields",
+        "observability::logging::original_configuration_rows::five_original_explicit_environment_configuration_cases_select_exact_native_profile",
+        "observability::logging::sentry_source_controls::disabled_fallback_selection_and_native_config_bounds",
+        "observability::logging::sentry_source_controls::pinned_sdk_dsn_controls_preserve_endpoint_auth_and_explicit_native_identity",
+        "observability::logging::tests::diagnostics_do_not_contain_raw_text",
+        "observability::logging::tests::sentry_disabled_invalid_and_safe_configuration",
+        "observability::metrics::bucket_source_controls::actual_custom_and_invalid_source_profiles_use_the_production_helpers",
+        "observability::metrics::bucket_source_controls::empty_bounds_render_and_changed_lengths_refuse_without_mutation",
+        "observability::metrics::bucket_source_controls::invalid_observations_retain_no_buckets_and_native_profile_cap_is_explicit",
+        "observability::metrics::catalog_admission::catalog_stops_before_unbounded_duplicate_input",
+        "observability::metrics::explicit_state_controls::original_gap_some_age_and_zero_queued_positive_age_are_preserved",
+        "observability::metrics::explicit_state_controls::same_length_duplicate_or_missing_labels_refuse_without_retaining_series",
+        "observability::metrics::original_metrics_tests::original_counter_and_gauge_assertions",
+        "observability::metrics::original_metrics_tests::original_histogram_assertions",
+        "observability::metrics::original_metrics_tests::original_render_escape_and_error_assertions",
+        "observability::metrics::original_metrics_tests::original_saved_event_metric_assertions",
+        "observability::metrics::original_metrics_tests::original_workflow_metric_assertions",
+        "observability::metrics::source_replay::actual_source_metric_catalog_and_workflow_render",
+        "observability::metrics::tests::all_metric_definitions_have_unique_identity",
+        "observability::metrics::tests::closed_workflow_and_event_vocabularies",
+        "observability::metrics::tests::empty_success_is_not_error_and_caller_cancelled_is_excluded",
+        "observability::metrics::tests::fixed_buckets_counts_and_invalid_values",
+        "observability::metrics::tests::traffic_does_not_invent_series",
+        "observability::metrics::wire_controls::accumulated_histogram_overflow_uses_prometheus_spelling",
+        "observability::metrics::wire_controls::actual_source_numbers_and_escaped_series_order",
+        "observability::metrics::workflow_helpers::workflow_transitions_recovery_and_event_reads_close_stale_gauges",
+        "observability::sentry::lifecycle_controls::cancelled_then_concurrent_shutdown_retains_handle_until_real_response_and_join",
+        "observability::sentry::lifecycle_controls::completion_guard_signals_even_when_its_task_panics",
+        "observability::sentry::lifecycle_controls::non_success_and_connection_refusal_are_nonfatal_without_retry",
+        "observability::sentry::never_polled_control::never_polled_worker_abort_drops_each_envelope_and_signals_completion",
+        "observability::sentry::tests::disabled_and_sample_zero_create_no_sender_http_owner_or_worker",
+        "observability::sentry::tests::full_queue_and_hanging_post_shutdown_account_for_discarded_work_and_close_socket",
+        "observability::sentry::tests::public_operational_error_posts_exact_envelope_auth_and_native_identity",
+        "observability::sentry::tests::redirect_is_failed_once_without_forwarding_authentication",
         "process_pool::cleanup_tests::both_shutdown_waiters_observe_injected_supervisor_panic",
         "process_pool::cleanup_tests::cancelled_caller_lease_survives_blocked_cleanup_until_real_reap",
         "process_pool::cleanup_tests::charged_payload_releases_after_write_and_read_failures",
@@ -977,24 +1031,7 @@
         "search::tests::cooperative_completion_collection_preserves_real_health_origin",
         "search::tests::zero_remaining_budget_never_polls_engine",
         "tests::injected_sinks_observe_real_readiness",
-        "tests::unavailable_is_not_missing_or_ready",
-        "adapters::openlibrary::owned_operation_tests::actual_engine_budget_rejects_and_releases_all_operation_storage",
-        "adapters::openlibrary::owned_operation_tests::dropping_actual_projection_future_releases_charged_scratch_and_rows",
-        "adapters::openlibrary::owned_operation_tests::valid_then_invalid_is_atomic_releases_and_next_call_succeeds",
-        "adapters::musicbrainz::owned_operation_tests::actual_engine_budget_rejects_and_releases_all_operation_storage",
-        "adapters::musicbrainz::owned_operation_tests::dropping_actual_projection_future_releases_charged_scratch_and_rows",
-        "adapters::musicbrainz::owned_operation_tests::valid_then_invalid_is_atomic_releases_and_next_call_succeeds",
-        "adapters::tmdb::owned_operation_tests::actual_engine_budget_rejects_and_releases_all_operation_storage",
-        "adapters::tmdb::owned_operation_tests::dropping_actual_projection_future_releases_charged_scratch_and_rows",
-        "adapters::tmdb::owned_operation_tests::valid_then_invalid_is_atomic_releases_and_next_call_succeeds",
-        "adapters::nominatim::owned_operation_tests::actual_engine_budget_rejects_and_releases_all_operation_storage",
-        "adapters::nominatim::owned_operation_tests::dropping_actual_projection_future_releases_charged_scratch_and_rows",
-        "adapters::nominatim::owned_operation_tests::valid_then_invalid_is_atomic_releases_and_next_call_succeeds",
-        "adapters::internetarchive::owned_operation_tests::actual_engine_budget_rejects_and_releases_all_operation_storage",
-        "adapters::internetarchive::owned_operation_tests::dropping_actual_projection_future_releases_charged_scratch_and_rows",
-        "adapters::internetarchive::owned_operation_tests::valid_then_invalid_is_atomic_releases_and_next_call_succeeds",
-        "adapters::source_payload::batch::tests::thumbnail_uses_same_budget_and_named_handoff_release",
-        "adapters::source_payload::batch::tests::thumbnail_capacity_refusal_and_cancel_release_projection_storage"
+        "tests::unavailable_is_not_missing_or_ready"
       ]
     },
     {
@@ -22034,737 +22071,553 @@
     {
       "path": "crates/ssx-infra/src/adapters/arxiv.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "crates/ssx-infra/src/adapters/arxiv_accounting.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "crates/ssx-infra/src/adapters/arxiv_expat.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "crates/ssx-infra/src/adapters/arxiv_expat_wire.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "crates/ssx-infra/src/adapters/arxiv_projection.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "crates/ssx-infra/src/adapters/arxiv_redirect.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "crates/ssx-infra/src/adapters/arxiv_runtime.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "crates/ssx-infra/src/adapters/arxiv_runtime_tests.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "crates/ssx-infra/src/adapters/arxiv_xml.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "crates/ssx-infra/src/adapters/brave.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "crates/ssx-infra/src/adapters/clinicaltrials.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "crates/ssx-infra/src/adapters/community.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "crates/ssx-infra/src/adapters/crates_io.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "crates/ssx-infra/src/adapters/dockerhub.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "crates/ssx-infra/src/adapters/edgar.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "crates/ssx-infra/src/adapters/europepmc.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "crates/ssx-infra/src/adapters/fda_case.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "crates/ssx-infra/src/adapters/fred.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "crates/ssx-infra/src/adapters/github.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "crates/ssx-infra/src/adapters/hackernews.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "crates/ssx-infra/src/adapters/hostname_lower.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "crates/ssx-infra/src/adapters/hostname_lower_data.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "crates/ssx-infra/src/adapters/http_charset.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "crates/ssx-infra/src/adapters/http_headers.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "crates/ssx-infra/src/adapters/huggingface.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "crates/ssx-infra/src/adapters/mod.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "crates/ssx-infra/src/adapters/npm.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "crates/ssx-infra/src/adapters/openalex_projection.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "crates/ssx-infra/src/adapters/openalex_runtime.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "crates/ssx-infra/src/adapters/openfda.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "crates/ssx-infra/src/adapters/oyez.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "crates/ssx-infra/src/adapters/pubchem.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "crates/ssx-infra/src/adapters/pubmed.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "crates/ssx-infra/src/adapters/pypi.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "crates/ssx-infra/src/adapters/reddit.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "crates/ssx-infra/src/adapters/regulatory.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "crates/ssx-infra/src/adapters/rubygems.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "crates/ssx-infra/src/adapters/scholarly_config.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "crates/ssx-infra/src/adapters/scholarly_float.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "crates/ssx-infra/src/adapters/scholarly_frame.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "crates/ssx-infra/src/adapters/scholarly_helper.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "crates/ssx-infra/src/adapters/scholarly_order.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "crates/ssx-infra/src/adapters/scholarly_reply.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "crates/ssx-infra/src/adapters/scholarly_runtime.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "crates/ssx-infra/src/adapters/scholarly_sort.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "crates/ssx-infra/src/adapters/scholarly_wire.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "crates/ssx-infra/src/adapters/scholarly_word.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "crates/ssx-infra/src/adapters/semantic_projection.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "crates/ssx-infra/src/adapters/semantic_retry_after.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "crates/ssx-infra/src/adapters/semantic_runtime.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "crates/ssx-infra/src/adapters/semantic_scholar.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "crates/ssx-infra/src/adapters/source_json.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "crates/ssx-infra/src/adapters/source_json_accounting.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "crates/ssx-infra/src/adapters/source_json_diagnostic.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "crates/ssx-infra/src/adapters/source_json_future.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "crates/ssx-infra/src/adapters/source_payload.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "crates/ssx-infra/src/adapters/source_repr.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "crates/ssx-infra/src/adapters/stackexchange.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "crates/ssx-infra/src/adapters/uniprot.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "crates/ssx-infra/src/adapters/wikipedia.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "crates/ssx-infra/src/http.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "crates/ssx-infra/src/jev.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "crates/ssx-infra/tests/a06_admission.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "crates/ssx-infra/tests/a06_arxiv_parser.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "crates/ssx-infra/tests/a06_arxiv_runtime.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "crates/ssx-infra/tests/a06_expat_candidate.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "crates/ssx-infra/tests/a06_http_status_boundaries.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "crates/ssx-infra/tests/a06_openalex_bounded.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "crates/ssx-infra/tests/a06_openalex_runtime.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "crates/ssx-infra/tests/a06_pre_http.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "crates/ssx-infra/tests/a06_process_pool.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "crates/ssx-infra/tests/a06_raw_atom.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "crates/ssx-infra/tests/a06_resolved_config.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "crates/ssx-infra/tests/a06_semantic_bounded.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "crates/ssx-infra/tests/a06_semantic_runtime.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "crates/ssx-infra/tests/a06_semantic_source.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "crates/ssx-infra/tests/a06_timeout_config.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "crates/ssx-infra/tests/a08_factories.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "crates/ssx-infra/tests/http.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "crates/ssx-infra/tests/support/a06_case.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "crates/ssx-infra/tests/support/a07_resources.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "crates/xtask/src/a06_resource.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "docs/rust-rewrite/a06/HTTP_INITIALIZATION.md",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "docs/rust-rewrite/a06/NATIVE_QUALIFICATION.md",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "docs/rust-rewrite/a06/arxiv-runtime-selected-ids.json",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "docs/rust-rewrite/a06/atom-raw-selected-ids.json",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "docs/rust-rewrite/a06/completed-source-cases.json",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "docs/rust-rewrite/a06/openalex-runtime-selected-ids.json",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "docs/rust-rewrite/a06/oracle-runs.json",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "docs/rust-rewrite/a06/semantic-runtime-selected-ids.json",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "docs/rust-rewrite/a06/source-arxiv-invalid-base.json",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "docs/rust-rewrite/a06/source-arxiv-redirect-boundaries.json",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
@@ -22778,9 +22631,7 @@
     {
       "path": "docs/rust-rewrite/a06/source-charset-boundaries.json",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
@@ -22806,17 +22657,13 @@
     {
       "path": "docs/rust-rewrite/a06/source-float-lexical.json",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "docs/rust-rewrite/a06/source-hostname-lower.json",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
@@ -22890,25 +22737,19 @@
     {
       "path": "docs/rust-rewrite/a06/source-payload-controls.json",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "docs/rust-rewrite/a06/source-publication-envelope.json",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "docs/rust-rewrite/a06/source-regression-inventory.json",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
@@ -22924,9 +22765,7 @@
     {
       "path": "docs/rust-rewrite/a06/source-repr-boundary.json",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
@@ -22966,17 +22805,13 @@
     {
       "path": "docs/rust-rewrite/a06/source-timeout-loopback.json",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "docs/rust-rewrite/a06/source-wire.json",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
@@ -22990,9 +22825,7 @@
     {
       "path": "docs/rust-rewrite/a06/source-xml-stress.json",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
@@ -23006,545 +22839,409 @@
     {
       "path": "docs/rust-rewrite/a06/timeout-config-classification.json",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "engines/arxiv.py",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "engines/openalex.py",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "engines/semanticscholar.py",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "slopsearx/adapter.py",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "slopsearx/config.py",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "slopsearx/filters.py",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "slopsearx/payload.py",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "tests/test_adapters.py",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "tests/test_advisories.py",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "tests/test_arxiv_relevance.py",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "tests/test_capabilities.py",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "tests/test_capability_catalog.py",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "tests/test_coverage_band_companion.py",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "tests/test_coverage_engine_replay.py",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "tests/test_coverage_frozen_pool_collect.py",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "tests/test_coverage_frozen_resource_evidence.py",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "tests/test_coverage_gate_calculation.py",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "tests/test_coverage_live_acquire.py",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "tests/test_coverage_pipeline_inputs.py",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "tests/test_coverage_resource_evidence.py",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "tests/test_coverage_saved_corpus.py",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "tests/test_coverage_saved_method_materials.py",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "tests/test_coverage_saved_resource_accounting.py",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "tests/test_coverage_stage_finalization.py",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "tests/test_coverage_stage_orchestration.py",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "tests/test_coverage_study_acquire.py",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "tests/test_coverage_study_core.py",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "tests/test_coverage_v2_snapshot_consumers.py",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "tests/test_entity_projection.py",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "tests/test_filter_semantics.py",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "tests/test_formatter.py",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "tests/test_jev.py",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "tests/test_mcp_enforcement.py",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "tests/test_mcp_gateway.py",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "tests/test_mcp_research.py",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "tests/test_mcp_tools.py",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "tests/test_misc_polish.py",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "tests/test_openalex_adapter.py",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "tests/test_payload.py",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "tests/test_research_coverage.py",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "tests/test_research_retry_followup.py",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "tests/test_result_contract.py",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "tests/test_routing.py",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "tests/test_routing_eval.py",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "tests/test_routing_service.py",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "tests/test_scholarly.py",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "tests/test_scholarly_arxiv_html_identity.py",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "tests/test_semanticscholar_cooldown.py",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "tests/test_server.py",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "tests/test_service.py",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "tests/test_service_engine_config.py",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "tests/test_tier1_adapters.py",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "vendor/expat/build.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "vendor/expat/tests/resource_hang.c",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "vendor/expat/tests/resource_launch.c",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "vendor/expat/tests/resource_probe.c",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "vendor/expat/wrapper.c",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "crates/ssx-infra/src/http/monotonic.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "crates/ssx-infra/src/http/pending_replay.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "crates/ssx-infra/tests/a07_biomedical.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "crates/ssx-infra/tests/support/a06_timeout_clock.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "crates/ssx-infra/tests/support/a07_http_clock.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "crates/ssx-infra/tests/support/a07_owner_clock.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "crates/ssx-infra/tests/support/a07_source_replay.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "crates/ssx-infra/tests/a07_context.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "crates/ssx-infra/tests/support/a07_cold_context.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     },
     {
       "path": "crates/ssx-infra/tests/support/default_ca_environment.rs",
       "completed_case_events": 0,
-      "completed_consumers": [
-
-      ],
+      "completed_consumers": [],
       "classification": "Pinned provenance/source or test-body binding; no completed source-case execution claim"
     }
   ]

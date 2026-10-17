@@ -59,11 +59,33 @@ pub trait Clock: Send + Sync {
     /// Process-local elapsed ticks; never serialize these as durable timestamps.
     fn monotonic_elapsed(&self) -> std::time::Duration;
 }
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum CacheObservation {
+    Miss,
+    Hit,
+    Negative,
+}
 pub trait Metrics: Send + Sync {
+    fn cache_lookup(&self, _: CacheObservation) {}
     fn increment(&self, name: &'static str);
+    fn engine_outcome(&self, _: &str, _: &AdapterResponse, _: health::OutcomeOrigin) {}
 }
 pub trait Audit: Send + Sync {
     fn record(&self, event: &'static str);
+    fn query(&self, _: &SearchRequest, _: &ssx_domain::SearchResponse, _: std::time::Duration) {}
+    /// Completed service audits use the same integer elapsed time presented by its capture.
+    fn query_completed(
+        &self,
+        request: &SearchRequest,
+        response: &ssx_domain::SearchResponse,
+        elapsed_ms: i64,
+    ) {
+        self.query(
+            request,
+            response,
+            std::time::Duration::from_millis(elapsed_ms.max(0) as u64),
+        );
+    }
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TaskState {

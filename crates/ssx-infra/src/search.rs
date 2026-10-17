@@ -883,6 +883,17 @@ impl SearchService {
         let cache_categories = request_categories(&request).to_vec();
         if let Some(cache) = &self.0.deps.cache {
             let entry = tokio::select! { biased; _ = cancelled(&mut stop) => return Err(SearchError::Closed), _ = cancelled(&mut preflight_cancel) => return Err(SearchError::Cancelled), entry = tokio::time::timeout(self.0.config.optional_port_timeout, cache.read(&key, fresh)) => entry.ok().flatten() };
+            let cache_observation = if fresh {
+                None
+            } else {
+                Some(match &entry {
+                    None => ssx_application::CacheObservation::Miss,
+                    Some(CacheEntry::Negative { .. }) => {
+                        ssx_application::CacheObservation::Negative
+                    }
+                    Some(CacheEntry::Canonical(_)) => ssx_application::CacheObservation::Hit,
+                })
+            };
             let entry = entry.filter(|entry| {
                 expected_date_proof.is_none()
                     || match entry {
@@ -894,6 +905,11 @@ impl SearchService {
                         CacheEntry::Negative { .. } => false,
                     }
             });
+            if let Some(observation) = cache_observation
+                && (observation != ssx_application::CacheObservation::Hit || entry.is_some())
+            {
+                self.0.deps.metrics.cache_lookup(observation);
+            }
             if let Some(entry) = entry {
                 let context = ssx_application::cache::CachedViewContext {
                     query: request.query.clone(),
@@ -1021,6 +1037,11 @@ impl SearchService {
         };
         let capture =
             SearchReadCapture::new(self, canonical, request, scope, query_id, start, false);
+        self.0.deps.audit.query_completed(
+            &capture.request,
+            capture.canonical.response(),
+            capture.elapsed_ms,
+        );
         self.0.deps.audit.record("search_query");
         drop(waiter);
         Ok(capture)
@@ -1535,6 +1556,9 @@ async fn execute(
                 name.clone(),
                 "successful scrape returned no results".into(),
             ]);
+        }
+        if let Some(origin) = origin {
+            inner.deps.metrics.engine_outcome(name, &result, origin);
         }
         response.engine_outcomes.push(EngineOutcome {
             engine: name.clone(),

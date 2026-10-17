@@ -3,6 +3,7 @@ pub mod adapters;
 pub mod html;
 pub mod http;
 pub mod jev;
+pub mod observability;
 pub mod search;
 pub mod suggest;
 pub mod valkey;
