@@ -5,6 +5,7 @@ mod crates_io;
 mod github;
 mod hackernews;
 mod huggingface;
+mod jobs;
 mod npm;
 mod reddit;
 pub mod source_json;
@@ -21,6 +22,7 @@ use std::sync::OnceLock;
 use std::time::Instant;
 
 pub use crates_io::CratesConfig;
+pub use jobs::{AshbyConfig, GreenhouseConfig, JobsConfig, LeverConfig};
 pub use npm::NpmConfig;
 
 pub use brave::BraveConfig;
@@ -122,6 +124,55 @@ pub fn register_pilots(
                 crates_http.clone(),
                 crates_admission.clone(),
                 crates_config.clone(),
+            )) as Box<dyn ssx_registry::Engine>
+        }) as EngineFactory,
+    )?;
+    Ok(())
+}
+
+/// Register the three company-scoped ATS providers owned by A14.
+pub fn register_jobs(
+    registry: &mut Registry,
+    http: Arc<AdapterHttp>,
+    admission: Arc<dyn SearchAdmission>,
+    config: JobsConfig,
+) -> Result<(), RegistryError> {
+    let engine_http = http.clone();
+    let engine_admission = admission.clone();
+    let engine_config = config.ashby;
+    registry.register(
+        "ashby",
+        Arc::new(move || {
+            Box::new(jobs::AshbyAdapter::ashby(
+                engine_http.clone(),
+                engine_admission.clone(),
+                engine_config.clone(),
+            )) as Box<dyn ssx_registry::Engine>
+        }) as EngineFactory,
+    )?;
+    let engine_http = http.clone();
+    let engine_admission = admission.clone();
+    let engine_config = config.greenhouse;
+    registry.register(
+        "greenhouse",
+        Arc::new(move || {
+            Box::new(jobs::GreenhouseAdapter::greenhouse(
+                engine_http.clone(),
+                engine_admission.clone(),
+                engine_config.clone(),
+            )) as Box<dyn ssx_registry::Engine>
+        }) as EngineFactory,
+    )?;
+    let engine_http = http;
+    let engine_admission = admission;
+    let engine_config = config.lever;
+    registry.register(
+        "lever",
+        Arc::new(move || {
+            Box::new(jobs::LeverAdapter::lever(
+                engine_http.clone(),
+                engine_admission.clone(),
+                engine_config.clone(),
             )) as Box<dyn ssx_registry::Engine>
         }) as EngineFactory,
     )?;

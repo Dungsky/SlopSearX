@@ -43,7 +43,7 @@
     },
     {
       "path": "crates/ssx-infra/src/adapters/mod.rs",
-      "sha256": "93e55910e64dd23870baf9d7e8a041d69a7b263de37c53bcaa34e08de7d77c79"
+      "sha256": "bdedd3934acf3c99239ce626b384b3671fd3431f54cd9acb9e2dec858d3cae6d"
     },
     {
       "path": "crates/ssx-infra/src/adapters/otx.rs",

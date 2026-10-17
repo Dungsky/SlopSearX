@@ -436,11 +436,11 @@
     },
     {
       "path": "Cargo.lock",
-      "sha256": "b3781e5d46f4b3f545664a9bfc712b99b7196ad853fdf7fcc9ede89b1497d860"
+      "sha256": "5633a2999f932cc1e91a451c3bc6b6ff68baa9d9fcbe68f8b5d5dfbae3fb8a35"
     },
     {
       "path": "crates/ssx-infra/src/adapters/mod.rs",
-      "sha256": "93e55910e64dd23870baf9d7e8a041d69a7b263de37c53bcaa34e08de7d77c79"
+      "sha256": "bdedd3934acf3c99239ce626b384b3671fd3431f54cd9acb9e2dec858d3cae6d"
     },
     {
       "path": "crates/ssx-application/src/lib.rs",
@@ -448,11 +448,11 @@
     },
     {
       "path": "crates/ssx-http/Cargo.toml",
-      "sha256": "7754d39ad4f5592361cbb86f14e9c066783b6e579ad1f11d62985703ab5cc85f"
+      "sha256": "f90536f1ed8b9db38035ee7546258a08dfe441013d802d618bb5c65f98a9480e"
     },
     {
       "path": "crates/xtask/src/main.rs",
-      "sha256": "75cd020fce4a127db48aa9feb486f9bf627d4f8dd7c81599e3fb6290741566d1"
+      "sha256": "33d42e9dec86729c3e6fc79999db40d9fd2c76b06de87d3d152ad20ad8583a85"
     }
   ],
   "ordered_case_ids": [
