@@ -12205,5 +12205,18 @@
       ],
       "evidence": "Actual AST-inspected arguments/write sites; guidance only, no claim command executed or exists in CI/config."
     }
+  ],
+  "native_ci_boundaries": [
+    {
+      "path": ".github/workflows/rust-t02-image.yml",
+      "migration_owner": "T02",
+      "classification": "native Rust HTTP offline fixture image; no interpreter invocation",
+      "actual_image_qualification": "pending current-head CI execution; static files are not image proof",
+      "runtime_sources": [
+        "crates/ssx-http/examples/t02_fixture.rs",
+        "crates/ssx-http/examples/t02_image_smoke.rs"
+      ],
+      "production_assembly_owner": "O04/W09/O09"
+    }
   ]
 }

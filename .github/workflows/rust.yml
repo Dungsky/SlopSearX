@@ -13,7 +13,7 @@ jobs:
   foundation:
     name: Foundation (${{ matrix.runner }})
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 45
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
@@ -108,6 +108,9 @@ jobs:
       - name: Clippy
         run: cargo clippy --locked --workspace --all-targets -- -D warnings
 
+      - name: Build actual-process HTTP fixture server
+        run: cargo build --locked -p ssx-http --example t02_fixture
+
       - name: Workspace tests, including xtask
         run: cargo test --locked --workspace
 
@@ -164,6 +167,9 @@ jobs:
 
       - name: Bounded semantic reranking and read-boundary advisory evidence
         run: cargo xtask check F15 --output target/rust-evidence/F15.json
+
+      - name: Native HTTP original corpus and real-process evidence
+        run: cargo xtask check T02 --output target/rust-evidence/T02.json
 
       - name: Native Valkey ownership and lifecycle evidence
         run: cargo xtask check F07 --output target/rust-evidence/F07.json
@@ -261,6 +267,7 @@ jobs:
             target/rust-evidence/F13.json
             target/rust-evidence/F14.json
             target/rust-evidence/F15.json
+            target/rust-evidence/T02.json
             target/rust-evidence/T09.json
             target/rust-evidence/A01.json
             target/rust-evidence/A02.json
