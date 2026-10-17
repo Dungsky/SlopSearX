@@ -1,6 +1,7 @@
 [workspace]
 members = ["crates/*"]
 resolver = "3"
+exclude = ["vendor/libxml"]
 
 [workspace.package]
 version = "0.1.0"
@@ -10,10 +11,9 @@ license = "MIT"
 publish = false
 
 [workspace.dependencies]
-ssx-owned-budget = { path = "crates/ssx-owned-budget" }
 aws-lc-rs = "=1.18.2"
 base64 = "=0.23.1"
-tokio = { version = "=1.53.3", features = ["macros", "rt-multi-thread", "net", "signal", "sync", "time", "io-util"] }
+tokio = { version = "=1.53.3", features = ["macros", "rt-multi-thread", "net", "signal", "sync", "time", "io-util", "process"] }
 axum = { version = "=0.8.9" }
 tower = { version = "=0.5.3", features = ["util"] }
 tower-http = { version = "=0.7.1" }
@@ -26,7 +26,9 @@ serde = { version = "=1.0.229", features = ["derive"] }
 serde_json = { version = "=1.0.154", features = ["raw_value"] }
 schemars = { version = "=1.2.3" }
 scraper = { version = "=0.27.0" }
+html5ever = "=0.39.0"
 encoding_rs = "=0.8.42"
+libxml = { path = "vendor/libxml", version = "=0.3.22", default-features = false, features = ["runtime"] }
 quick-xml = { version = "=0.42.0" }
 clap = { version = "=4.6.7", features = ["derive"] }
 indexmap = { version = "=2.14.2", features = ["serde"] }
@@ -34,6 +36,8 @@ url = { version = "=2.5.8" }
 sha2 = { version = "=0.11.1" }
 ryu = { version = "=1.0.23" }
 flate2 = "=1.1.9"
+ssx-source-codecs = { path = "crates/ssx-source-codecs" }
+ssx-owned-budget = { path = "crates/ssx-owned-budget" }
 ssx-publication = { path = "crates/ssx-publication" }
 ssx-json = { path = "crates/ssx-json" }
 ssx-domain = { path = "crates/ssx-domain" }

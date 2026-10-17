@@ -3,6 +3,7 @@ mod a01;
 mod a02;
 mod a03;
 mod a04;
+mod a05;
 mod a07;
 mod a08;
 mod a09;
@@ -458,6 +459,7 @@ fn execute(root: &Path, id: &str, records: &mut Vec<Value>) -> Result<()> {
         "A09" => a09::check(root, records),
         "A03" => a03::check(root, records),
         "A02" => a02::check(root, records),
+        "A05" => a05::check(root, records),
         "O03" => o03::check(root, records),
         "O06" => o06::check(root, records),
         "F01" | "F02" => source_check(root, id, records),
@@ -610,6 +612,8 @@ fn main() {
     let a08_scope = a08::report_scope(&records);
     let scope = if id == "A09" {
         "source-bound catalog/media adapters; actual assertions plus guarded private loopback; qualification excludes incident calls and full portal/transport/global RSS"
+    } else if id == "A05" {
+        "offline source-bound DuckDuckGo/Google HTML adapter replay and loopback sessions; explicit host-only cookie correction; no live provider or deployment claims"
     } else if id == "A08" {
         a08_scope.as_str()
     } else if id == "A07" {

@@ -199,11 +199,16 @@ jobs:
       - name: Native Brave, Wikipedia, and Reddit adapters
         run: cargo xtask check A04 --output target/rust-evidence/A04.json
 
+      - name: Native DuckDuckGo and Google HTML adapters
+        run: cargo xtask check A05 --output target/rust-evidence/A05.json
       - name: Native biomedical adapters
         run: cargo xtask check A07 --output target/rust-evidence/A07.json
 
       - name: Native regulatory financial and legal adapters
         run: cargo xtask check A08 --output target/rust-evidence/A08.json
+
+      - name: Native catalog media geocoding and archive adapters
+        run: cargo xtask check A09 --output target/rust-evidence/A09.json
 
       - name: Native readiness and Python bridge smoke
         env:
@@ -243,8 +248,10 @@ jobs:
             target/rust-evidence/A02.json
             target/rust-evidence/A03.json
             target/rust-evidence/A04.json
+            target/rust-evidence/A05.json
             target/rust-evidence/A07.json
             target/rust-evidence/A08.json
+            target/rust-evidence/A09.json
             target/rust-feature-graph.txt
           if-no-files-found: warn
 
