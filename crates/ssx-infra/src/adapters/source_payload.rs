@@ -6,6 +6,8 @@
 //! their operation accounting ends explicitly at final adapter response handoff.
 use super::source_json::{ProjectionError, Text, Value};
 mod batch;
+#[cfg(test)]
+pub(crate) use batch::{BATCH_PHASE, BatchPhase};
 pub use batch::{Outcome, ProducedBatch, Skeleton};
 
 #[derive(Debug, PartialEq, Eq)]

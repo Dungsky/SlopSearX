@@ -96,11 +96,11 @@
     },
     {
       "path": "docs/rust-rewrite/inventory/python-disposition.json",
-      "git_blob": "89d7e76059cf6264182ad9e856fcc6e20ddf5ca3"
+      "git_blob": "1913fedc7f3694dbdb4382a2123ed5d4c4c1e2e2"
     },
     {
       "path": "docs/rust-rewrite/inventory/python-invocations.json",
-      "git_blob": "07fcf8d6914863ebb576f3fb313c76d3fab7853b"
+      "git_blob": "7f61ca6cf1d9206d7059160fa87db23982532dc1"
     },
     {
       "path": "docs/rust-rewrite/inventory/surface-contracts.md",
@@ -1889,6 +1889,22 @@
     {
       "path": "docs/rust-rewrite/a08/oracle/export_timeout.py",
       "git_blob": "21cbf680c3cf2355cf6e48a97db4a8305d8add10"
+    },
+    {
+      "path": "docs/rust-rewrite/a09/oracle/export_regressions.py",
+      "git_blob": "ac0a9cfe68f5308d41ca5110a920a0d34295e3e7"
+    },
+    {
+      "path": "docs/rust-rewrite/a09/oracle/export_source.py",
+      "git_blob": "30d0243e823e46d811bc389b616a1249c89755f0"
+    },
+    {
+      "path": "docs/rust-rewrite/a09/oracle/export_timeouts.py",
+      "git_blob": "664170e46e5ae2c2ee715fc9a13b4c94a5c6f44b"
+    },
+    {
+      "path": "docs/rust-rewrite/a09/oracle/export_word.py",
+      "git_blob": "f5ea351b8d7dfcb29c234d6394355302932a638a"
     }
   ]
 }
