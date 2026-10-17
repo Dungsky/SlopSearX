@@ -99,7 +99,7 @@
     },
     {
       "path": "crates/ssx-infra/src/adapters/vulnerability_ledger_tests.rs",
-      "sha256": "d02352bb383b5ec09bd47f7c88b768d4a348ebcb96c375c41617c0922ce46843"
+      "sha256": "fb528f6ca570bd743c90fc37b4221072ea8cd2efc397825332d36516d1e4f9d0"
     },
     {
       "path": "crates/ssx-infra/src/adapters/vulnerability_max.rs",
@@ -119,7 +119,7 @@
     },
     {
       "path": "crates/ssx-infra/src/adapters/vulnerability_wire_tests.rs",
-      "sha256": "8ef04e9a458840b543bd669965f46d3c12dcb39f972de22897af1f638e3ec187"
+      "sha256": "81948469632494600f84df349ecefaf110115aeebea848df482753bc13d17544"
     },
     {
       "path": "crates/ssx-infra/src/html.rs",
