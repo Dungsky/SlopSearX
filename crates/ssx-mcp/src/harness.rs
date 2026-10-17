@@ -546,9 +546,16 @@ async fn opaque_catalog(
     }
     let mut overlay = crate::opaque::Overlay::default();
     let bytes = if let Ok(text) = std::str::from_utf8(&bytes) {
-        match wire.lock().unwrap().request(text) {
+        match wire.lock().unwrap().request_for(&state.catalogs, text) {
             Ok(rewritten) => {
-                let _ = overlay.request(&state.catalogs, &rewritten);
+                if overlay.request(&state.catalogs, &rewritten).is_err() {
+                    return StatusCode::BAD_REQUEST.into_response();
+                }
+                let rewritten =
+                    match crate::opaque::native_arguments_for_sdk(&state.catalogs, &rewritten) {
+                        Ok(request) => request,
+                        Err(_) => return StatusCode::BAD_REQUEST.into_response(),
+                    };
                 axum::body::Bytes::from(rewritten)
             }
             Err(_) => return StatusCode::BAD_REQUEST.into_response(),

@@ -11,7 +11,7 @@
   "owned_sources": [
     {
       "path": "Cargo.lock",
-      "sha256": "bb4b4539d2316896de348069435cc528c847f9afa5bb35d313e0ee086e651566"
+      "sha256": "b3781e5d46f4b3f545664a9bfc712b99b7196ad853fdf7fcc9ede89b1497d860"
     },
     {
       "path": "Cargo.toml",

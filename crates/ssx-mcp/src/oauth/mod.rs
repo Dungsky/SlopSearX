@@ -15,6 +15,9 @@ use ssx_domain::oauth::{OAuthError, OAuthSettings, Secret, TokenKind};
 use std::sync::Arc;
 use subtle::ConstantTimeEq;
 pub const BODY_LIMIT: usize = 65_536;
+/// Established only by verified network OAuth middleware, never tool arguments.
+#[derive(Clone)]
+pub struct AuthenticatedClient(pub ssx_domain::TenantId);
 const INVALID_TOKEN: &str = "Authentication failed. The provided bearer token is invalid, expired, or no longer recognized by the server. To resolve: clear authentication tokens in your MCP client and reconnect. Your client should automatically re-register and obtain new tokens.";
 /// Explicit protocol configuration. Browser identity and tenant policy do not enter this authority.
 #[derive(Clone)]
@@ -166,7 +169,7 @@ fn bearer(headers: &HeaderMap) -> Option<&str> {
 pub(crate) fn equal(a: &str, b: &str) -> bool {
     bool::from(a.as_bytes().ct_eq(b.as_bytes()))
 }
-async fn protected(State(gate): State<Gate>, request: Request, next: Next) -> Response {
+async fn protected(State(gate): State<Gate>, mut request: Request, next: Next) -> Response {
     let credential = bearer(request.headers());
     match gate {
         Gate::Static(token) => {
@@ -196,6 +199,11 @@ async fn protected(State(gate): State<Gate>, request: Request, next: Next) -> Re
                         .as_ref()
                         .is_none_or(|v| v == &oauth.settings.resource_server_url) =>
                 {
+                    let Ok(tenant) = ssx_domain::TenantId::new(grant.grant.client_id.clone())
+                    else {
+                        return challenge(&oauth, Some(INVALID_TOKEN));
+                    };
+                    request.extensions_mut().insert(AuthenticatedClient(tenant));
                     next.run(request).await
                 }
                 Ok(_) | Err(OAuthError::Denied(_)) => challenge(&oauth, Some(INVALID_TOKEN)),

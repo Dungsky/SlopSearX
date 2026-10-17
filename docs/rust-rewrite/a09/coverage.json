@@ -436,7 +436,7 @@
     },
     {
       "path": "Cargo.lock",
-      "sha256": "bb4b4539d2316896de348069435cc528c847f9afa5bb35d313e0ee086e651566"
+      "sha256": "b3781e5d46f4b3f545664a9bfc712b99b7196ad853fdf7fcc9ede89b1497d860"
     },
     {
       "path": "crates/ssx-infra/src/adapters/mod.rs",
@@ -452,7 +452,7 @@
     },
     {
       "path": "crates/xtask/src/main.rs",
-      "sha256": "6187a11c86904f352f44dddca6acfc94dff19083d170f7eef4864740dcb00ad0"
+      "sha256": "aefe16b87f6aceadeef15c7d9e20b600b77e818f8d1815e73be8d5667aee1eff"
     }
   ],
   "ordered_case_ids": [
