@@ -35,6 +35,7 @@ fn private_endpoint(url: &str) -> bool {
         && parsed.username().is_empty()
         && parsed.password().is_none()
 }
+#[cfg(target_os = "macos")]
 fn proxy_enabled(flags: &[(String, i32)]) -> bool {
     flags.iter().any(|(_, v)| *v != 0)
 }

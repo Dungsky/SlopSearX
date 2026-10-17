@@ -159,7 +159,7 @@
     },
     {
       "path": "crates/ssx-infra/tests/a10_factories.rs",
-      "sha256": "fee1370882c3cbf2d78c2366c96182dcf631ab865d89b4dcd0f00c7d09cb164a"
+      "sha256": "05f4012759dd89bd3394081bc88d3f4b33d2fcfd17d6796bdd738cc382e4ba55"
     },
     {
       "path": "crates/ssx-registry/src/lib.rs",
