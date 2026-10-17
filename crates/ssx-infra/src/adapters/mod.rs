@@ -922,3 +922,6 @@ mod threat_intel;
 mod threat_ioc;
 pub mod urlhaus;
 pub use threat_intel::{ThreatIntelConfig, ThreatIntelSettings, register_threat_intelligence};
+
+// A13 first slice: a real sensitive factory, mounted explicitly by its owner.
+pub mod dehashed;
