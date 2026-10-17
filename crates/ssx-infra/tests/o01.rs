@@ -163,11 +163,11 @@ async fn retained_audit_and_stats_use_native_private_valkey() {
 }
 #[tokio::test]
 async fn redacted_and_disabled_auditing_are_distinct() {
+    assert!(matches!(Options::default().privacy, QueryPrivacy::Redacted));
     let server = Server::start();
     let telemetry = Telemetry::new(
         Options {
             audit: true,
-            privacy: QueryPrivacy::Redacted,
             monitoring: false,
             ..Default::default()
         },
@@ -745,9 +745,18 @@ async fn real_telemetry_exports_internal_panics_without_upstream_health_or_statu
 }
 
 #[tokio::test]
-async fn source_default_retains_raw_fields_and_absent_store_is_noop() {
+async fn explicit_raw_retention_and_absent_store_are_qualified() {
     let server = Server::start();
-    let telemetry = Telemetry::new(Options::default(), Some(&server.url), vec![], vec![]).unwrap();
+    let telemetry = Telemetry::new(
+        Options {
+            privacy: QueryPrivacy::RetainRaw,
+            ..Default::default()
+        },
+        Some(&server.url),
+        vec![],
+        vec![],
+    )
+    .unwrap();
     telemetry.query(&request(), &response(), Duration::ZERO);
     telemetry.shutdown().await;
     let mut conn = server.connection();
@@ -973,8 +982,16 @@ async fn original_object_and_dictionary_audit_fields_share_exact_native_typed_pr
             })
             .collect::<BTreeMap<_, _>>();
         let started = std::time::Instant::now();
-        let telemetry =
-            Telemetry::new(Options::default(), Some(&server.url), vec![], vec![]).unwrap();
+        let telemetry = Telemetry::new(
+            Options {
+                privacy: QueryPrivacy::RetainRaw,
+                ..Default::default()
+            },
+            Some(&server.url),
+            vec![],
+            vec![],
+        )
+        .unwrap();
         let request = SearchRequest {
             query: expected["query"].clone(),
             client_identifier: Some(expected["client_ip"].clone()),
@@ -1088,8 +1105,16 @@ async fn original_thirteen_audit_latencies_match_except_reviewed_duration_signed
             .unwrap()[1]
             .as_str()
             .unwrap();
-        let telemetry =
-            Telemetry::new(Options::default(), Some(&server.url), vec![], vec![]).unwrap();
+        let telemetry = Telemetry::new(
+            Options {
+                privacy: QueryPrivacy::RetainRaw,
+                ..Default::default()
+            },
+            Some(&server.url),
+            vec![],
+            vec![],
+        )
+        .unwrap();
         let request = SearchRequest {
             query: "synthetic query".into(),
             client_identifier: Some("192.0.2.12".into()),
@@ -1118,7 +1143,12 @@ async fn original_thirteen_audit_latencies_match_except_reviewed_duration_signed
         assert_eq!(rows.ids.len(), 1);
         let actual = rows.ids[0].get::<String>("latency_ms").unwrap();
         let class = if id == "audit.latency.-0.0" {
-            let difference = &ledger["differences"][0];
+            let difference = ledger["differences"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|difference| difference["case_id"] == id)
+                .unwrap();
             assert_eq!(difference["case_id"], id);
             assert_eq!(difference["source"], expected);
             assert_eq!(difference["native"], actual.as_str());
@@ -1169,10 +1199,21 @@ async fn original_eight_availability_rows_preserve_noop_and_nonfatal_failure_wit
         "../../xtask/fixtures/o01/native-differences.json"
     ))
     .unwrap();
-    let projection = &ledger["differences"][1];
+    let projection = ledger["differences"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|difference| difference["id"] == "availability.absent-authority")
+        .unwrap();
     assert_eq!(projection["id"], "availability.absent-authority");
     assert_eq!(projection["source_states"].as_array().unwrap().len(), 3);
-    assert_eq!(ledger["differences"][2]["id"], "availability.failure-phase");
+    assert!(
+        ledger["differences"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|difference| difference["id"] == "availability.failure-phase")
+    );
     let mut completed = Vec::new();
     for kind in ["audit", "stats"] {
         for state in ["none", "disconnected", "no-client", "failed"] {
@@ -1204,7 +1245,10 @@ async fn original_eight_availability_rows_preserve_noop_and_nonfatal_failure_wit
                 None
             };
             let telemetry = Telemetry::new(
-                Options::default(),
+                Options {
+                    privacy: QueryPrivacy::RetainRaw,
+                    ..Default::default()
+                },
                 unavailable_url.as_deref(),
                 vec!["fixture".into()],
                 vec![],
@@ -1294,7 +1338,16 @@ async fn original_audit_and_stats_pipeline_assertions_use_exact_inputs_and_joine
     let mut completed = Vec::new();
     // Source TestAuditPipeline._make_engine_results has2successful rows,1error.
     let started = std::time::Instant::now();
-    let telemetry = Telemetry::new(Options::default(), Some(&server.url), vec![], vec![]).unwrap();
+    let telemetry = Telemetry::new(
+        Options {
+            privacy: QueryPrivacy::RetainRaw,
+            ..Default::default()
+        },
+        Some(&server.url),
+        vec![],
+        vec![],
+    )
+    .unwrap();
     let request = SearchRequest {
         query: "test query".into(),
         client_identifier: Some("10.0.0.1".into()),

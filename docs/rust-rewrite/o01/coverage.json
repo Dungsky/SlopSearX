@@ -29,7 +29,7 @@
     },
     {
       "path": "crates/ssx-infra/src/observability/mod.rs",
-      "sha256": "f496b560bb522e4f5c732d71fd34a5bd3e84836617763728d87e7c354b789d26"
+      "sha256": "a2cff0ef1848fcac8c6c7630406217e824d9a6a3b860235843fe69074c5733ae"
     },
     {
       "path": "crates/ssx-infra/src/observability/original_metrics_tests.rs",
@@ -45,7 +45,7 @@
     },
     {
       "path": "crates/ssx-infra/tests/o01.rs",
-      "sha256": "d104daa0bce175f0ebeb9d471e7b503c7a0e9140529dc41201564bf2d27ecc9a"
+      "sha256": "98a959bf3826aaf86e49124f60beb72d294e0c5361e7674799f13807b0583fd7"
     },
     {
       "path": "crates/ssx-infra/tests/o01_w05_metrics.rs",
@@ -57,7 +57,7 @@
     },
     {
       "path": "crates/xtask/fixtures/o01/native-differences.json",
-      "sha256": "b78dfd2cc22606652ff5d8f214891414b1ddc2fe1ae9bb54b9ba7e4590b1ed1c"
+      "sha256": "2c56a05235c5958795872e18aaf1a850561b9719e56feb3dabbbff956bfc8805"
     },
     {
       "path": "crates/xtask/fixtures/o01/original-render-source.json",
@@ -125,7 +125,7 @@
     },
     {
       "path": "docs/rust-rewrite/o01/README.md",
-      "sha256": "3870130ab61be764469a31cb56ccd4c326c69a3ed854659a5d9ce7da34793949"
+      "sha256": "8ccd1bbc9794bc7eb0a7d5c3e6806d77098eed66b001d7680f4c90cc9fdf1858"
     },
     {
       "path": "docs/rust-rewrite/o01/original44-map.json",
@@ -203,7 +203,7 @@
         "shared_search_audit_uses_unsliced_outcomes_when_status_is_excluded",
         "shared_search_cache_metrics_preserve_hit_miss_negative_and_bypass",
         "six_original_stats_statuses_match_actual_private_backend_fields_and_retention",
-        "source_default_retains_raw_fields_and_absent_store_is_noop",
+        "explicit_raw_retention_and_absent_store_are_qualified",
         "unavailable_store_is_nonfatal_and_not_retried"
       ]
     },
