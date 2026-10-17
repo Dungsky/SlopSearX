@@ -221,7 +221,7 @@ fn split(value: &str) -> Option<Parts<'_>> {
         fragment,
     })
 }
-fn valid_netloc(netloc: &str) -> bool {
+pub(super) fn valid_netloc(netloc: &str) -> bool {
     let open = netloc.contains('[');
     let close = netloc.contains(']');
     if open != close {

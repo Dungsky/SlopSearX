@@ -658,6 +658,26 @@ modifying text hooks; four licensed upstream Python originals additionally
 avoid Ruff modification. Existing validators remain enabled. Authored producers
 retain lint/format checks; intentional bootstrap/import/API names use reviewed
 line-local annotations. The unrelated baseline saved-method test is preserved.
+
+## A08 actual source migration evidence
+
+A08 starts from fresh accepted-main `2f78b9d02cfe62c9829fcfb38b85cd632a889de0`.
+Four exact-hash temporary source producers have actual completed offline or
+private-loopback invocation receipts in `a08/oracle-runs.json`. The candidate
+union is403 tracked Python source paths and44 developer-oracle invocation rows.
+Every existing parent record and historical capture is preserved. Native A08
+runtime and mandatory gate read immutable JSON only and never execute Python.
+G08 retires all four executable producers; source captures/provenance remain.
+Initial exploratory/partial attempts are not these accepted capture receipts.
+
+A08 regression-mapping correction against candidate `9e1b4453` retains the
+original 47 passing parameter instances / 44 functions and 38 original adapter
+invocations, and adds five whole-adapter replays of the exact observed Oyez
+URL-helper assertion inputs. The existing inventoried producer captures those
+inputs and performs all five offline adapter calls; its updated exact hash and
+executed receipt remain bound here and in F01. No producer count or retirement
+owner changes. Genuine registration-only disposition is restricted to the five
+explicit original registration nodes.
 ## W04 saved-runner source oracle inventory correction
 
 W04 adds the temporary offline synthetic `docs/rust-rewrite/w04/capture_source.py` producer. Its existing local oracle inventory did not update the global F01 source set; this correction adds its exact source binding, backend-coupled tooling/test classification, W04/G08 ownership and reproduction guidance. The guidance is not an execution receipt. Existing source/invocation records remain unchanged: the additive union is388 Python source paths,265 backend-coupled tooling/test paths and29 developer-oracle invocation rows. Native runtime and mandatory gates never execute the exporter; the W04 gate hash-reads it as a temporary source artifact. G08 retires executable Python before backend removal and retains immutable JSON observations/provenance.
@@ -675,3 +695,13 @@ historical developer-oracle recipes, with52 separate A05 manual guidance rows.
 Current AST-equivalent producer identity amendments remain separate from original
 capture/generation identities. Both A05 and W04 workflow steps/artifacts survive;
 final integrated native gates and exact-head platform qualification remain pending.
+## A08 union with accepted W04/main
+
+The normal merge preserves the accepted A08 history through `f3ef8910` and
+main/W04 `9b7d888d`. Both complete source inventories and developer-oracle
+records are retained: 404 tracked Python sources and 45 developer-oracle
+invocation rows. Existing source observations, captures and producer hashes
+remain unchanged. The descriptive A08 regression-producer evidence SHA now
+matches its already-enforced current hash. CI snapshot and evidence paths
+retain both W04 and A08 gates. Main integration does not adopt pending A05/A06
+shared seams; their future union remains a separate reviewed operation.
