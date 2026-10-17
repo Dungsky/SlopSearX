@@ -815,8 +815,8 @@
     }
   ],
   "owned_sources": {
-    "Cargo.lock": "b7fd45a8e8a0bd28ffe0cc23f83acb3cc34363c8cb91f004395f9da2463ba579",
-    "crates/ssx-application/src/lib.rs": "174408b7b238faf670d2877edf198ddeb14e1b5b0e638dee726adcc78db1e7a0",
+    "Cargo.lock": "bb4b4539d2316896de348069435cc528c847f9afa5bb35d313e0ee086e651566",
+    "crates/ssx-application/src/lib.rs": "d7dfb151c056b15123c2065412f6f5b78848a9c842aabb09736bfeefbb3a6224",
     "crates/ssx-application/src/policy.rs": "d31cf1d643d4b5754d8da760a3c03b408958ca859dda97e8a9adf3e96bc107cd",
     "crates/ssx-application/src/staged.rs": "c153cb0f71c4ac661e7dcb26b429ad66285c4c3debba8178711bf8f7ae537a75",
     "crates/ssx-application/tests/w06.rs": "07353aca4fe7778a29daaf9282dc6254420480cd19dda8783975d84b0d56344c",
