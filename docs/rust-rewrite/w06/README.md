@@ -7,10 +7,12 @@ inputs, loopback acquisition, and disposable private Valkey. No provider or
 production requests are authorized or represented by it.
 
 Independent source review accepts the corrected 14-file runtime/test identity
-map. The current qualification manifest binds 303 actual case receipts; the
-combined gate and parent delivery checks still require the fresh-main union.
-The earlier 151-case gate packet remains historical evidence. Read
-[HANDOFF.md](HANDOFF.md) for exact identities and acceptance boundaries.
+map. Integrated W06 qualification passed on `4cc5858c` with 303 exact case
+receipts, alongside F01/O06/W04/W11/W02. The earlier 151-case mutation packet
+remains historical evidence. The compact
+[integrated receipt](evidence/integrated-qualification303.json) records exact
+artifacts and hook limits; parent final-head CI/review/delivery remains pending.
+Read [HANDOFF.md](HANDOFF.md) for identities and acceptance boundaries.
 
 `source.json` records complete source plan/error envelopes and identity bytes,
 claimed records, actual runner responses and dispatch requests, complete final
@@ -76,3 +78,9 @@ command stdout/stderr and failure status. See [PARITY.md](PARITY.md) for
 boundaries, reviewed differences and downstream obligations. A successful
 local packet does not itself establish transport, portal, production or final
 Rust-only release parity.
+
+Direct `ruff check .` and scoped W06 hooks pass. The immutable qualified
+exporter's long metadata string has an exact-file E501-only Ruff exception;
+all its other selected rules remain checked. The earlier all-files run also
+reformatted one unrelated existing test; that file was restored byte for byte.
+The receipt preserves both original failures and makes no all-files-green claim.

@@ -16,7 +16,24 @@ The final R04 review is in `evidence/independent-r04-final-review.json` (SHA256
 These receipts compose the original full review, public/saved-authority
 corrections and exact-integer truthiness correction. They establish source
 review acceptance for the listed hashes, not final combined gate or delivery
-acceptance. Parent owns the fresh-main union, exact-head CI and final gate.
+acceptance. Parent owns exact-head CI/review and final delivery acceptance.
+
+Integrated local qualification now passes on merge `4cc5858c` (parents
+`aea0844f` and `9fae1639`). W06 executed all 37 semantic tests with zero ignored
+and checked 303 distinct post-assertion receipts against the exact manifest;
+F01/O06/W04/W11/W02 also passed. All 14 reviewed runtime/test hashes remain
+unchanged. See `evidence/integrated-qualification303.json` for compact artifact
+identities. The giant runtime reports stay outside Git. The earlier 151 packet
+and its actual mutation negatives remain immutable historical evidence;
+no 303-case mutation rerun is represented by that packet.
+
+The approved `pyproject.toml` exception suppresses only E501 for the frozen
+exporter's long metadata string, preserving producer bytes. Direct Ruff and
+scoped hooks pass. The original all-files hook run failed on that line and
+an unrelated existing formatter wrapping; the latter was inspected and
+restored exactly. Import-linter and mypy passed all-files, then had no matching
+changed runtime Python in the scoped run. The graph was refreshed by AST after
+main integration. No provider or production qualification is implied.
 
 The immutable original source corpus has 85 cases. Separate retained-policy
 and saved-source-authority packets add 13 envelopes each; the public-input
