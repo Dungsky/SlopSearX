@@ -605,3 +605,81 @@ pub fn register_regulatory(
     attach!(oyez, OyezAdapter);
     Ok(())
 }
+
+// A09 engine-local implementations; availability remains separate from enabled policy.
+mod catalog_media;
+pub mod internetarchive;
+pub mod musicbrainz;
+pub mod nominatim;
+pub mod openlibrary;
+pub mod tmdb;
+#[derive(Clone, Debug)]
+pub struct CatalogMediaSettings {
+    pub openlibrary: openlibrary::OpenLibraryConfig,
+    pub musicbrainz: musicbrainz::MusicBrainzConfig,
+    pub tmdb: tmdb::TmdbConfig,
+    pub nominatim: nominatim::NominatimConfig,
+    pub internetarchive: internetarchive::InternetArchiveConfig,
+}
+impl CatalogMediaSettings {
+    pub fn from_resolved(config: &ssx_config::Config) -> Self {
+        fn resolve(config: &ssx_config::Config, name: &str, base: &str) -> catalog_media::Settings {
+            let mut c = config
+                .engines
+                .get(name)
+                .map(catalog_media::Settings::from_resolved)
+                .unwrap_or_else(|| catalog_media::Settings::defaults(base));
+            if c.base_url.chars().all(ssx_json::python_whitespace) {
+                c.base_url = base.into();
+            }
+            c
+        }
+        Self {
+            openlibrary: resolve(config, "openlibrary", openlibrary::ENDPOINT),
+            musicbrainz: resolve(config, "musicbrainz", musicbrainz::ENDPOINT),
+            tmdb: tmdb::TmdbConfig {
+                settings: resolve(config, "tmdb", tmdb::ENDPOINT),
+                api_key: config
+                    .engines
+                    .get("tmdb")
+                    .map(|c| c.api_key.clone())
+                    .unwrap_or_default(),
+            },
+            nominatim: resolve(config, "nominatim", nominatim::ENDPOINT),
+            internetarchive: internetarchive::InternetArchiveConfig {
+                settings: resolve(config, "internetarchive", internetarchive::ENDPOINT),
+                cdx_url: None,
+                availability_url: None,
+            },
+        }
+    }
+}
+pub fn register_catalog_media(
+    registry: &mut Registry,
+    http: Arc<AdapterHttp>,
+    admission: Arc<dyn SearchAdmission>,
+    config: CatalogMediaSettings,
+) -> Result<(), RegistryError> {
+    macro_rules! attach {
+        ($module:ident,$adapter:ident) => {{
+            let h = http.clone();
+            let a = admission.clone();
+            let c = config.$module;
+            registry.register(
+                stringify!($module),
+                Arc::new(move || {
+                    Box::new($module::$adapter::new(h.clone(), a.clone(), c.clone()))
+                        as Box<dyn ssx_registry::Engine>
+                }) as EngineFactory,
+            )?;
+        }};
+    }
+    attach!(openlibrary, OpenLibraryAdapter);
+    attach!(musicbrainz, MusicBrainzAdapter);
+    attach!(tmdb, TmdbAdapter);
+    attach!(nominatim, NominatimAdapter);
+    attach!(internetarchive, InternetArchiveAdapter);
+    Ok(())
+}
+
+mod tmdb_case;

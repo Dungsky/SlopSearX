@@ -25,6 +25,7 @@ tower.workspace = true
 tower-http.workspace = true
 
 [dev-dependencies]
+ssx-config.workspace = true
 aws-lc-rs.workspace = true
 base64.workspace = true
 reqwest.workspace = true

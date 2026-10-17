@@ -3,7 +3,7 @@
   "baseline_sha": "20109f9083babd014971951e8c02565ae51c2326",
   "source": "Pinned F01 baseline inventory plus reviewed post-baseline additions recorded in DRIFT.md; source-set validation refreshed at acceptance.",
   "summary": {
-    "tracked_python_source_count": 404,
+    "tracked_python_source_count": 408,
     "extensionless_python_entrypoints": 1,
     "executable_config_python_invocation_lines": 63,
     "interpreter_configuration_lines": 106,
@@ -11,7 +11,7 @@
     "documented_example_invocation_references": 49,
     "source_classifications": {
       "backend/runtime": 122,
-      "backend-coupled tooling/test": 281,
+      "backend-coupled tooling/test": 285,
       "client-only": 1
     },
     "documentation_file_modes": {
@@ -19,13 +19,13 @@
     },
     "source_path_set_validation": {
       "method": "sorted exact-set comparison between git ls-files paths ending .py/.pyw/.pyi plus ssx and files[].path",
-      "tracked_expected_count": 404,
-      "manifest_count": 404,
+      "tracked_expected_count": 408,
+      "manifest_count": 408,
       "exact_match": true,
       "extensionless_python_paths": [
         "ssx"
       ],
-      "validation_scope": "A08 normal union with accepted W04/main; all parent source records retained and exact tracked path set checked by native F01"
+      "validation_scope": "A09 candidate; accepted parent records preserved and four temporary manual producers inventoried for G08"
     },
     "historical_evidence_py_txt_path_count": 729,
     "non_runtime_historical_py_txt_path_count": 728,
@@ -4807,6 +4807,62 @@
       "evidence": "Isolated CPython3.14.7 offline synthetic saved observation/comparison corpus producer; SHA256 718d4591e0d87ccad5f29023ccd3c2e4b568c73c291bdd4f80bf23b8fc99528d. Native runtime and mandatory gates never execute it; W04 gate hash-reads this source artifact.",
       "reason": "Temporary developer oracle; G08 removes executable Python before backend removal while retaining immutable JSON observations.",
       "introduced_after_baseline": "a97a7384"
+    },
+    {
+      "path": "docs/rust-rewrite/a09/oracle/export_regressions.py",
+      "classification": "backend-coupled tooling/test",
+      "migration_owner": "A09",
+      "migration_owners": [
+        "A09",
+        "G08"
+      ],
+      "disposition": "temporary_developer_oracle_retire_before_backend_removal",
+      "evidence": "Actual manual offline execution in docs/rust-rewrite/a09/oracle-runs.json",
+      "reason": "Temporary migration evidence only. Native runtime/mandatory gate never executes Python. Retire executable at G08, preserve JSON/provenance.",
+      "introduced_after_baseline": "A09 from9fae1639a57b9e3497c04c3f5fe304651d077ad5",
+      "sha256": "181891f1a87dbe9d8d6ef148d7e7349800a0001b349b2e9d8e5260bdcbf117b2"
+    },
+    {
+      "path": "docs/rust-rewrite/a09/oracle/export_source.py",
+      "classification": "backend-coupled tooling/test",
+      "migration_owner": "A09",
+      "migration_owners": [
+        "A09",
+        "G08"
+      ],
+      "disposition": "temporary_developer_oracle_retire_before_backend_removal",
+      "evidence": "Actual manual offline execution in docs/rust-rewrite/a09/oracle-runs.json",
+      "reason": "Temporary migration evidence only. Native runtime/mandatory gate never executes Python. Retire executable at G08, preserve JSON/provenance.",
+      "introduced_after_baseline": "A09 from9fae1639a57b9e3497c04c3f5fe304651d077ad5",
+      "sha256": "eef0d23f5ad62e7cbf04dae25628b44ae89e8d9d25ea4e0414ca400aa508eb7e"
+    },
+    {
+      "path": "docs/rust-rewrite/a09/oracle/export_word.py",
+      "classification": "backend-coupled tooling/test",
+      "migration_owner": "A09",
+      "migration_owners": [
+        "A09",
+        "G08"
+      ],
+      "disposition": "temporary_developer_oracle_retire_before_backend_removal",
+      "evidence": "Actual manual offline execution in docs/rust-rewrite/a09/oracle-runs.json",
+      "reason": "Temporary migration evidence only. Native runtime/mandatory gate never executes Python. Retire executable at G08, preserve JSON/provenance.",
+      "introduced_after_baseline": "A09 from9fae1639a57b9e3497c04c3f5fe304651d077ad5",
+      "sha256": "ab2975e01f5e8480a59b90efc3d45cca82be593828f0d6cca659b8e4b832035b"
+    },
+    {
+      "path": "docs/rust-rewrite/a09/oracle/export_timeouts.py",
+      "classification": "backend-coupled tooling/test",
+      "migration_owner": "A09",
+      "migration_owners": [
+        "A09",
+        "G08"
+      ],
+      "disposition": "temporary_developer_oracle_retire_before_backend_removal",
+      "evidence": "Actual manual offline execution in docs/rust-rewrite/a09/oracle-runs.json",
+      "reason": "Temporary migration evidence only. Native runtime/mandatory gate never executes Python. Retire executable at G08, preserve JSON/provenance.",
+      "introduced_after_baseline": "A09 from9fae1639a57b9e3497c04c3f5fe304651d077ad5",
+      "sha256": "82e43ccfc759d769f9909a6267f06b675c8087d4e210765c46c18d177345c3ad"
     }
   ],
   "documentation_examples": []

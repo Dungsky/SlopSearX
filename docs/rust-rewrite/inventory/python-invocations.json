@@ -14,7 +14,7 @@
       "100644": 729
     },
     "configured_precommit_hook_rows": 15,
-    "developer_oracle_invocation_rows": 45
+    "developer_oracle_invocation_rows": 49
   },
   "interpreter_invocations": [
     {
@@ -8693,6 +8693,50 @@
       "migration_owner": "W04",
       "retirement_owner": "G08",
       "disposition": "retire executable Python before backend removal; retain immutable JSON source observations and provenance"
+    },
+    {
+      "path": "docs/rust-rewrite/a09/README.md",
+      "example_path": "docs/rust-rewrite/a09/oracle/export_source.py",
+      "evidence": "/private/tmp/slopsearx-rust-oracle-py314/bin/python -O docs/rust-rewrite/a09/oracle/export_source.py",
+      "classification": "temporary backend-coupled developer oracle; never mandatory native gate/runtime",
+      "migration_owner": "A09",
+      "retirement_owner": "G08",
+      "disposition": "Actual completed offline invocation. Retire executable producer at G08; retain JSON/provenance.",
+      "source_sha256": "eef0d23f5ad62e7cbf04dae25628b44ae89e8d9d25ea4e0414ca400aa508eb7e",
+      "execution_receipt": "docs/rust-rewrite/a09/oracle-runs.json"
+    },
+    {
+      "path": "docs/rust-rewrite/a09/README.md",
+      "example_path": "docs/rust-rewrite/a09/oracle/export_regressions.py",
+      "evidence": "/private/tmp/slopsearx-rust-oracle-py314/bin/python -O docs/rust-rewrite/a09/oracle/export_regressions.py",
+      "classification": "temporary backend-coupled developer oracle; never mandatory native gate/runtime",
+      "migration_owner": "A09",
+      "retirement_owner": "G08",
+      "disposition": "Actual completed offline invocation. Retire executable producer at G08; retain JSON/provenance.",
+      "source_sha256": "181891f1a87dbe9d8d6ef148d7e7349800a0001b349b2e9d8e5260bdcbf117b2",
+      "execution_receipt": "docs/rust-rewrite/a09/oracle-runs.json"
+    },
+    {
+      "path": "docs/rust-rewrite/a09/README.md",
+      "example_path": "docs/rust-rewrite/a09/oracle/export_word.py",
+      "evidence": "/private/tmp/slopsearx-rust-oracle-py314/bin/python -O docs/rust-rewrite/a09/oracle/export_word.py",
+      "classification": "temporary backend-coupled developer oracle; never mandatory native gate/runtime",
+      "migration_owner": "A09",
+      "retirement_owner": "G08",
+      "disposition": "Actual completed offline invocation. Retire executable producer at G08; retain JSON/provenance.",
+      "source_sha256": "ab2975e01f5e8480a59b90efc3d45cca82be593828f0d6cca659b8e4b832035b",
+      "execution_receipt": "docs/rust-rewrite/a09/oracle-runs.json"
+    },
+    {
+      "path": "docs/rust-rewrite/a09/README.md",
+      "example_path": "docs/rust-rewrite/a09/oracle/export_timeouts.py",
+      "evidence": "/private/tmp/slopsearx-rust-oracle-py314/bin/python -O docs/rust-rewrite/a09/oracle/export_timeouts.py",
+      "classification": "temporary backend-coupled developer oracle; never mandatory native gate/runtime",
+      "migration_owner": "A09",
+      "retirement_owner": "G08",
+      "disposition": "Actual completed offline invocation. Retire executable producer at G08; retain JSON/provenance.",
+      "source_sha256": "82e43ccfc759d769f9909a6267f06b675c8087d4e210765c46c18d177345c3ad",
+      "execution_receipt": "docs/rust-rewrite/a09/oracle-runs.json"
     }
   ]
 }
