@@ -17,7 +17,7 @@ use tokio::{
     task::JoinHandle,
 };
 
-/// Source-compatible audit retains query/client fields. Optional redaction is explicit; logs/metrics never contain them.
+/// Audit redacts query/client fields by default. Raw retention is an explicit opt-in; logs/metrics never contain them.
 #[derive(Clone, Copy)]
 pub enum QueryPrivacy {
     Redacted,
@@ -36,7 +36,7 @@ impl Default for Options {
         Self {
             monitoring: true,
             audit: true,
-            privacy: QueryPrivacy::RetainRaw,
+            privacy: QueryPrivacy::Redacted,
             queue_capacity: 256,
             operation_timeout: Duration::from_secs(1),
             shutdown_timeout: Duration::from_secs(2),
