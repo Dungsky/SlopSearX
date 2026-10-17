@@ -400,11 +400,11 @@
     },
     {
       "path": "docs/rust-rewrite/inventory/python-disposition.json",
-      "git_blob": "69eefa015c1c181d65190a630c1caf437afae2b7"
+      "git_blob": "971d905e6fdee7c1bc93216d173baf77f0137880"
     },
     {
       "path": "docs/rust-rewrite/inventory/python-invocations.json",
-      "git_blob": "470447650eefb799c17760f11b9f286f54779580"
+      "git_blob": "35911727250c7f667c22080967badb04f8f0b6fe"
     },
     {
       "path": "docs/rust-rewrite/inventory/surface-contracts.md",
