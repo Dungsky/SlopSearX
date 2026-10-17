@@ -126,8 +126,8 @@ jobs:
           [ "$head" = "$GITHUB_SHA" ]
           [ -z "$(git status --porcelain)" ]
           source_path=crates/ssx-infra/src/process_pool.rs
-          before_sha=55d9871a8f166ce8520b47aea6e7ca3e002ca630a90c812ff060d37a1a6b417d
-          mutant_sha=56fe8a54008243cd59a2881a32728ed6a1c1019d8eda717758fe233fd968df82
+          before_sha=48aa72c6daea89469da559ce319952fb1e7da32a798296472e8bbdaffd34fea6
+          mutant_sha=4ae74015599ad6f4e8cc6acfea2c4af1aa7f5a957162d58a658b55b9e1064f3a
           [ "$(sha256sum "$source_path" | cut -d ' ' -f 1)" = "$before_sha" ]
           mkdir -p target/rust-evidence
           [[ "$GITHUB_RUN_ID" =~ ^[0-9]+$ && "$GITHUB_RUN_ATTEMPT" =~ ^[0-9]+$ && "$RUNNER_ARCH" =~ ^(X64|ARM64)$ ]]
@@ -280,7 +280,7 @@ jobs:
           (cd "$copy"; git -C "$repo" ls-files -z | sort -z | xargs -0 sha256sum --zero) > "$evidence/copy-before.sha256z"
           cmp "$evidence/live-before.sha256z" "$evidence/copy-before.sha256z"
           [ "$(sha256sum "$copy_source" | cut -d ' ' -f 1)" = "$before_sha" ]
-          awk -v before='        let interpreted = fixture_pool(&path);' \
+          awk -v before='        let interpreted = fixture_pool(path.clone());' \
             -v after='        let interpreted = ProcessPool::new(path.clone(), NonZeroUsize::new(1).unwrap()).unwrap();' \
             '$0 == before { $0 = after; count++ } { print } END { if (count != 1) exit 1 }' \
             "$copy_source" > "$private/process-pool.mutant.rs"
