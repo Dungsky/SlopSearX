@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "qualification_base": "201b7f6ac81377ea2645cb36561a0bcc6cdcb779",
+  "scope": "Qualification-only native fake-engine dispatch observations. Actual counters published after native tool call drain in matrix mode; early cancellation endpoint receipts unchanged.",
+  "files": [
+    {
+      "file": "crates/ssx-mcp/src/bin/search-qualification.rs",
+      "sha256": "47ce5ae96db95f672e9818b6a7b0f3baa9a0a9b6974dfe32240efa471f58f54b"
+    },
+    {
+      "file": "crates/ssx-mcp/tests/t06_support/fixture.rs",
+      "sha256": "f08c457f032b5bcd8c817f2ce46aa11322a984e379dd20a186555a4779b3fee8"
+    },
+    {
+      "file": "crates/ssx-mcp/tests/t06_support/observer.rs",
+      "sha256": "86f7379b78cecc367bfd42e7fd12c28eff65cf2bbaeb90ed66b164b419827425"
+    }
+  ]
+}

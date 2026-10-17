@@ -1510,3 +1510,7 @@ mod bucket_source_controls {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "original_metrics_tests.rs"]
+mod original_metrics_tests;

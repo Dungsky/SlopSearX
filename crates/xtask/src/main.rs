@@ -19,12 +19,14 @@ mod f12;
 mod f13;
 mod f14;
 mod f15;
+mod o01;
 mod o03;
 mod o06;
 mod replay;
 mod t01;
 mod t04;
 mod t05;
+mod t06;
 mod t09;
 mod w00;
 mod w01;
@@ -462,6 +464,7 @@ fn execute(root: &Path, id: &str, records: &mut Vec<Value>) -> Result<()> {
         "A03" => a03::check(root, records),
         "A02" => a02::check(root, records),
         "A05" => a05::check(root, records),
+        "O01" => o01::check(root, records),
         "O03" => o03::check(root, records),
         "O06" => o06::check(root, records),
         "F01" | "F02" => source_check(root, id, records),
@@ -470,6 +473,7 @@ fn execute(root: &Path, id: &str, records: &mut Vec<Value>) -> Result<()> {
         "T09" => t09::check(root, records),
         "T04" => t04::check(root, records),
         "T05" => t05::check(root, records),
+        "T06" => t06::check(root, records),
         "F05" => f05::check(root, records),
         "F06" => f06::check(root, records),
         "F07" => f07::check(root, records),
@@ -640,6 +644,8 @@ fn main() {
         "active tooling inventory and prospective evidence contracts only; no experiment, provider call, receipt issuance or historical evidence mutation"
     } else if id == "T01" {
         "synthetic MCP registry, real stdio/streamable HTTP/legacy SSE and gateway SDK qualification; no production tool parity or OAuth authorization-server claim"
+    } else if id == "T06" {
+        "source-bound native search/discovery through shared authenticated HTTP, stdio and legacy with real service/snapshot authorities; exactly two accepted outer-params diagnostic differences; production startup T02/W09 separate"
     } else if id == "T05" {
         "OAuth wire endpoints and all-network transport authentication with real clients/private Valkey; no provider, production cutover or browser identity claim"
     } else if id == "T04" {

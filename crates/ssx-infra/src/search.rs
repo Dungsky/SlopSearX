@@ -605,6 +605,14 @@ impl SearchService {
         &self,
         proposal: &ScopeProposal,
     ) -> Result<ValidatedScope, SearchError> {
+        self.prepare_scope_with_cancellation(proposal, SearchCancellation::default())
+            .await
+    }
+    pub async fn prepare_scope_with_cancellation(
+        &self,
+        proposal: &ScopeProposal,
+        cancellation: SearchCancellation,
+    ) -> Result<ValidatedScope, SearchError> {
         if self.0.closed.load(Ordering::Acquire) {
             return Err(SearchError::Closed);
         }
@@ -619,9 +627,54 @@ impl SearchService {
             done: self.0.callers_done.clone(),
         };
         let policy = self.current_policy(self.0.deps.clock.capture().0)?;
-        let cancellation = SearchCancellation::default();
         self.authorize_proposal(proposal, &policy, &mut cancellation.0.subscribe())
             .await
+    }
+    /// Read-only scope preview using the same live policy and optional routing
+    /// boundary as dispatch. It never returns or constructs dispatch authority.
+    pub async fn preview_scope(
+        &self,
+        proposal: &ScopeProposal,
+    ) -> Result<ScopePreview, SearchError> {
+        self.preview_scope_with_cancellation(proposal, SearchCancellation::default())
+            .await
+    }
+    pub async fn preview_scope_with_cancellation(
+        &self,
+        proposal: &ScopeProposal,
+        cancellation: SearchCancellation,
+    ) -> Result<ScopePreview, SearchError> {
+        if self.0.closed.load(Ordering::Acquire) {
+            return Err(SearchError::Closed);
+        }
+        let _caller = CallerGuard {
+            permit: Some(
+                self.0
+                    .callers
+                    .clone()
+                    .try_acquire_owned()
+                    .map_err(|_| SearchError::Busy)?,
+            ),
+            done: self.0.callers_done.clone(),
+        };
+        let policy = self.current_policy(self.0.deps.clock.capture().0)?;
+        let advice = crate::jev::prepare_optional(
+            self.0.deps.jev.as_deref(),
+            proposal,
+            &policy,
+            self.0.deps.routing_cache.as_ref(),
+        );
+        let mut stop = self.0.stop.subscribe();
+        let mut cancel = cancellation.0.subscribe();
+        tokio::select! {
+            biased;
+            _ = cancelled(&mut stop) => Err(SearchError::Closed),
+            _ = cancelled(&mut cancel) => Err(SearchError::Cancelled),
+            prepared = tokio::time::timeout(self.0.config.optional_port_timeout, advice) => match prepared {
+                Ok(result) => result.map(|prepared| prepared.preview).map_err(SearchError::Policy),
+                Err(_) => policy.preview(proposal).map_err(SearchError::Policy),
+            }
+        }
     }
     async fn authorize_proposal(
         &self,
@@ -680,6 +733,21 @@ impl SearchService {
         cancellation: SearchCancellation,
     ) -> Result<CapturedSearch, SearchError> {
         let capture = self.capture_read(proposal, cancellation.clone()).await?;
+        self.snapshot_read_capture(capture, snapshots, parents, cancellation)
+            .await
+    }
+    /// Consume this service's admitted capture and persist its complete immutable
+    /// evidence without resolving policy, charging quota or executing again.
+    pub async fn snapshot_read_capture(
+        &self,
+        capture: SearchReadCapture,
+        snapshots: &ssx_application::snapshot::SnapshotService,
+        parents: &[ssx_domain::ArtifactRef],
+        cancellation: SearchCancellation,
+    ) -> Result<CapturedSearch, SearchError> {
+        if !std::sync::Weak::ptr_eq(&capture.service, &Arc::downgrade(&self.0)) {
+            return Err(SearchError::InvalidConfiguration);
+        }
         let canonical = CanonicalResponse::new(capture.full_personalized());
         let snapshot = if let Ok(permit) = self.0.callers.clone().try_acquire_owned() {
             let _caller = CallerGuard {

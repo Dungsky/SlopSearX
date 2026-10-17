@@ -27,6 +27,13 @@
       "source": "mock pipeline execute raises after recording intended commands",
       "native": "actual killed/reaped private Valkey socket connection refusal",
       "scope": "nonfatal one failed telemetry event and joined bounded shutdown; no command/await count parity claim"
+    },
+    {
+      "id": "source-async-native-owned-worker",
+      "source": "QueryAuditLogger/EngineStatsTracker record_query are async functions; SearchService schedules them with asyncio.create_task (source service.py pinned)",
+      "native": "accepted Metrics/Audit callbacks synchronously try_send to bounded owned worker; Redis pipeline query_async is awaited there; public shutdown awaits/joins worker",
+      "scope": "2source inspect.iscoroutinefunction assertions map to native compiled asynchronous worker/lifecycle proof, not literal Python-symbol introspection; pipeline outcome/one delivery/fields/retention remain exact",
+      "bounds": "explicit queue/drop/operation/shutdown limits version the source unbounded background task scheduling; no durability/production/bootstrap claim"
     }
   ]
 }

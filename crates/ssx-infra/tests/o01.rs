@@ -1258,5 +1258,298 @@ async fn original_eight_availability_rows_preserve_noop_and_nonfatal_failure_wit
             "O01_CASE_COMPLETE:{}",
             ssx_json::json!({"id":id,"consumer":"original_eight_availability_rows_preserve_noop_and_nonfatal_failure_with_explicit_native_projection","class":"reviewed-typed-port-supersession","difference":"optional authority represents absent/disconnected/no-client; actual connection refusal tests nonfatal failure, not source mockexecute faultphase/commands parity"})
         );
+        let node = match id.as_str() {
+            "audit.none" => {
+                "tests/test_audit.py::TestAuditDisconnected::test_record_query_no_cache_noop"
+            }
+            "audit.disconnected" => {
+                "tests/test_audit.py::TestAuditDisconnected::test_record_query_disconnected_cache_noop"
+            }
+            "audit.no-client" => {
+                "tests/test_audit.py::TestAuditDisconnected::test_record_query_no_client_noop"
+            }
+            "audit.failed" => "tests/test_audit.py::TestAuditPipeline::test_pipeline_error_noop",
+            "stats.none" => {
+                "tests/test_stats.py::TestStatsTrackerDisconnected::test_record_query_no_cache_noop"
+            }
+            "stats.disconnected" => {
+                "tests/test_stats.py::TestStatsTrackerDisconnected::test_record_query_disconnected_cache_noop"
+            }
+            "stats.no-client" => {
+                "tests/test_stats.py::TestStatsTrackerDisconnected::test_record_query_no_client_noop"
+            }
+            "stats.failed" => "tests/test_stats.py::TestStatsPipeline::test_pipeline_error_noop",
+            _ => panic!("unexpected original availability mapping"),
+        };
+        println!(
+            "O01_ORIGINAL_COMPLETE:{}",
+            ssx_json::json!({"node":node,"consumer":"original_eight_availability_rows_preserve_noop_and_nonfatal_failure_with_explicit_native_projection","class":"reviewed-availability-typed-port"})
+        );
+    }
+}
+#[tokio::test]
+async fn original_audit_and_stats_pipeline_assertions_use_exact_inputs_and_joined_private_writes() {
+    let server = Server::start();
+    let mut connection = server.connection();
+    let mut completed = Vec::new();
+    // Source TestAuditPipeline._make_engine_results has2successful rows,1error.
+    let started = std::time::Instant::now();
+    let telemetry = Telemetry::new(Options::default(), Some(&server.url), vec![], vec![]).unwrap();
+    let request = SearchRequest {
+        query: "test query".into(),
+        client_identifier: Some("10.0.0.1".into()),
+        ..Default::default()
+    };
+    let response = SearchResponse {
+        engine_outcomes: vec![
+            EngineOutcome {
+                engine: "brave".into(),
+                status: "ok".into(),
+                result_count: 1,
+                ..Default::default()
+            },
+            EngineOutcome {
+                engine: "wikipedia".into(),
+                status: "ok".into(),
+                result_count: 1,
+                ..Default::default()
+            },
+            EngineOutcome {
+                engine: "google".into(),
+                status: "error".into(),
+                result_count: 0,
+                ..Default::default()
+            },
+        ],
+        ..Default::default()
+    };
+    telemetry.query(&request, &response, Duration::from_millis(3200));
+    telemetry.shutdown().await;
+    assert_eq!(telemetry.delivery.written.load(Ordering::Relaxed), 1);
+    assert_eq!(telemetry.delivery.failed.load(Ordering::Relaxed), 0);
+    assert_eq!(telemetry.delivery.dropped.load(Ordering::Relaxed), 0);
+    let day = chrono::Local::now().format("%Y-%m-%d");
+    let key = format!("query_audit:{day}");
+    let parts = key.split(':').collect::<Vec<_>>();
+    assert_eq!(parts.len(), 2);
+    assert_eq!(parts[0], "query_audit");
+    assert!(chrono::NaiveDate::parse_from_str(parts[1], "%Y-%m-%d").is_ok());
+    let date_parts = parts[1].split('-').map(str::len).collect::<Vec<_>>();
+    assert_eq!(date_parts, vec![4, 2, 2]);
+    let rows: redis::streams::StreamRangeReply = redis::cmd("XRANGE")
+        .arg(&key)
+        .arg("-")
+        .arg("+")
+        .query(&mut connection)
+        .unwrap();
+    assert_eq!(rows.ids.len(), 1);
+    assert_eq!(rows.ids[0].map.len(), 9);
+    for (field, value) in [
+        ("query", "test query"),
+        ("client_ip", "10.0.0.1"),
+        ("engines", "brave,wikipedia,google"),
+        ("engines_ok", "2"),
+        ("engines_error", "1"),
+        ("engines_timeout", "0"),
+        ("total_results", "2"),
+        ("latency_ms", "3200.0"),
+    ] {
+        assert_eq!(rows.ids[0].get::<String>(field).unwrap(), value);
+    }
+    let timestamp = rows.ids[0].get::<String>("timestamp").unwrap();
+    assert!(chrono::DateTime::parse_from_rfc3339(&timestamp).is_ok());
+    let ttl: i64 = redis::cmd("TTL").arg(&key).query(&mut connection).unwrap();
+    assert!(
+        ttl > 0 && ttl <= 7_776_000 && 7_776_000 - ttl <= started.elapsed().as_secs() as i64 + 1
+    );
+    let deleted: usize = redis::cmd("DEL").arg(&key).query(&mut connection).unwrap();
+    assert_eq!(deleted, 1);
+    drop(telemetry);
+    for node in [
+        "tests/test_audit.py::TestAuditPipeline::test_pipeline_execute_is_awaited",
+        "tests/test_audit.py::TestAuditPipeline::test_pipeline_fields_correct",
+        "tests/test_audit.py::TestAuditPipeline::test_expire_set_on_stream",
+        "tests/test_audit.py::TestAuditPipeline::test_stream_key_includes_date",
+        "tests/test_audit.py::TestAuditAsyncConformance::test_record_query_is_async",
+    ] {
+        completed.push(node);
+    }
+    // Exact source timeout fixture: timeout1, error0, successful1, result1.
+    let telemetry = Telemetry::new(Options::default(), Some(&server.url), vec![], vec![]).unwrap();
+    telemetry.query(
+        &SearchRequest {
+            query: "test".into(),
+            client_identifier: Some("10.0.0.1".into()),
+            ..Default::default()
+        },
+        &SearchResponse {
+            engine_outcomes: vec![
+                EngineOutcome {
+                    engine: "brave".into(),
+                    status: "timeout".into(),
+                    result_count: 0,
+                    ..Default::default()
+                },
+                EngineOutcome {
+                    engine: "wikipedia".into(),
+                    status: "ok".into(),
+                    result_count: 1,
+                    ..Default::default()
+                },
+            ],
+            ..Default::default()
+        },
+        Duration::from_millis(5000),
+    );
+    telemetry.shutdown().await;
+    assert_eq!(telemetry.delivery.written.load(Ordering::Relaxed), 1);
+    assert_eq!(telemetry.delivery.failed.load(Ordering::Relaxed), 0);
+    let rows: redis::streams::StreamRangeReply = redis::cmd("XRANGE")
+        .arg(&key)
+        .arg("-")
+        .arg("+")
+        .query(&mut connection)
+        .unwrap();
+    assert_eq!(rows.ids.len(), 1);
+    for (field, value) in [
+        ("engines_timeout", "1"),
+        ("engines_error", "0"),
+        ("engines_ok", "1"),
+        ("total_results", "1"),
+    ] {
+        assert_eq!(rows.ids[0].get::<String>(field).unwrap(), value);
+    }
+    let deleted: usize = redis::cmd("DEL").arg(&key).query(&mut connection).unwrap();
+    assert_eq!(deleted, 1);
+    drop(telemetry);
+    completed.push("tests/test_audit.py::TestAuditPipeline::test_count_timeout_status_correctly");
+    let started = std::time::Instant::now();
+    let telemetry = Telemetry::new(
+        Options::default(),
+        Some(&server.url),
+        vec!["testengine".into()],
+        vec![],
+    )
+    .unwrap();
+    telemetry.engine_outcome(
+        "testengine",
+        &AdapterResponse {
+            results: vec![SearchResult::default(); 3],
+            latency_ms: FiniteF64::new(100.).unwrap(),
+            ..Default::default()
+        },
+        OutcomeOrigin::AdapterReturned,
+    );
+    telemetry.shutdown().await;
+    assert_eq!(telemetry.delivery.written.load(Ordering::Relaxed), 1);
+    assert_eq!(telemetry.delivery.failed.load(Ordering::Relaxed), 0);
+    assert_eq!(telemetry.delivery.dropped.load(Ordering::Relaxed), 0);
+    let key = format!("engine_stats:testengine:{day}");
+    assert_eq!(key.matches(':').count(), 2);
+    assert!(key.starts_with("engine_stats:testengine:"));
+    let actual: BTreeMap<String, i64> = redis::cmd("HGETALL")
+        .arg(&key)
+        .query(&mut connection)
+        .unwrap();
+    assert_eq!(
+        actual,
+        BTreeMap::from([
+            ("queries".into(), 1),
+            ("results_returned".into(), 3),
+            ("errors".into(), 0),
+            ("rate_limited".into(), 0),
+            ("total_latency_ms".into(), 100),
+            ("total_score".into(), 0)
+        ])
+    );
+    let ttl: i64 = redis::cmd("TTL").arg(&key).query(&mut connection).unwrap();
+    assert!(
+        ttl > 0 && ttl <= 7_776_000 && 7_776_000 - ttl <= started.elapsed().as_secs() as i64 + 1
+    );
+    let deleted: usize = redis::cmd("DEL").arg(&key).query(&mut connection).unwrap();
+    assert_eq!(deleted, 1);
+    drop(telemetry);
+    for node in [
+        "tests/test_stats.py::TestStatsPipeline::test_pipeline_execute_is_awaited",
+        "tests/test_stats.py::TestStatsAsyncConformance::test_record_query_is_async",
+    ] {
+        completed.push(node);
+    }
+    for (node, status, count, latency, errors, limited) in [
+        (
+            "tests/test_stats.py::TestStatsPipeline::test_error_and_timeout_increment_errors",
+            EngineStatus::Error,
+            0,
+            5000.,
+            1,
+            0,
+        ),
+        (
+            "tests/test_stats.py::TestStatsPipeline::test_ok_status_does_not_increment_errors",
+            EngineStatus::Ok,
+            5,
+            42.,
+            0,
+            0,
+        ),
+        (
+            "tests/test_stats.py::TestStatsPipeline::test_rate_limited_status_increments_rate_limited",
+            EngineStatus::RateLimited,
+            0,
+            100.,
+            0,
+            1,
+        ),
+    ] {
+        let telemetry = Telemetry::new(
+            Options::default(),
+            Some(&server.url),
+            vec!["testengine".into()],
+            vec![],
+        )
+        .unwrap();
+        telemetry.engine_outcome(
+            "testengine",
+            &AdapterResponse {
+                status,
+                results: vec![SearchResult::default(); count],
+                latency_ms: FiniteF64::new(latency).unwrap(),
+                ..Default::default()
+            },
+            OutcomeOrigin::AdapterReturned,
+        );
+        telemetry.shutdown().await;
+        assert_eq!(telemetry.delivery.written.load(Ordering::Relaxed), 1);
+        assert_eq!(telemetry.delivery.failed.load(Ordering::Relaxed), 0);
+        let actual: BTreeMap<String, i64> = redis::cmd("HGETALL")
+            .arg(&key)
+            .query(&mut connection)
+            .unwrap();
+        assert_eq!(
+            actual,
+            BTreeMap::from([
+                ("queries".into(), 1),
+                ("results_returned".into(), count as i64),
+                ("errors".into(), errors),
+                ("rate_limited".into(), limited),
+                ("total_latency_ms".into(), latency as i64),
+                ("total_score".into(), 0)
+            ])
+        );
+        let deleted: usize = redis::cmd("DEL").arg(&key).query(&mut connection).unwrap();
+        assert_eq!(deleted, 1);
+        drop(telemetry);
+        completed.push(node);
+    }
+    let remaining: usize = redis::cmd("DBSIZE").query(&mut connection).unwrap();
+    assert_eq!(remaining, 0);
+    drop(connection);
+    drop(server);
+    assert_eq!(completed.len(), 11);
+    for node in completed {
+        println!(
+            "O01_ORIGINAL_COMPLETE:{}",
+            ssx_json::json!({"node":node,"consumer":"original_audit_and_stats_pipeline_assertions_use_exact_inputs_and_joined_private_writes","class":"native-original-assertions-bounded-worker","difference":"source async functions scheduled fire-and-forget by service; native callback queues owned asynchronous pipeline and explicit shutdown joins; no Python coroutine-introspection identity"})
+        );
     }
 }
