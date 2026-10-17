@@ -18,7 +18,14 @@ corrections and exact-integer truthiness correction. They establish source
 review acceptance for the listed hashes, not final combined gate or delivery
 acceptance. Parent owns exact-head CI/review and final delivery acceptance.
 
-Current local qualification passes on post-A05 merge `54cabc79` (parents
+Current local qualification includes A09 main `6c449764`: normal merge
+`0b35624d` passed W06/W04/W11/W02/A05/A08, including all 303 W06 completed
+cases. Reviewed A09 artifact pin correction `ba671ae2` then passed A09/F01/O06.
+See `evidence/post-a09-qualification303.json` for exact report hashes, source
+commits and check limits. No runtime cases or immutable source captures changed.
+Published-head CI/review remains the parent's acceptance boundary.
+
+Historical local qualification passed on post-A05 merge `54cabc79` (parents
 `9de1abd3` and accepted main `93db215d`). W06 executed all 37 semantic tests
 with zero ignored and verified 303 distinct case/test receipts. Fresh
 F01/O06/W04/W11/W02/A05/A08 gates also passed. The parent-reviewed dependency
