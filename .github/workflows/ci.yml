@@ -262,7 +262,7 @@ jobs:
               return "$result"
             fi
             printf '%s\n' "$output"
-            if ! printf '%s\n' "$output" | grep -Eq '^1 passed in [0-9.]+s$'; then
+            if ! printf '%s\n' "$output" | grep -Eq '^1 passed(, [0-9]+ warnings?)? in [0-9.]+s$'; then
               echo "expected exactly one passing native theme browser test" >&2
               return 1
             fi
