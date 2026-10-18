@@ -67,7 +67,8 @@
         "actual_http_default_strategies_deadline_and_idempotent_admission",
         "budget_exhaustion_completion_and_exact_cap_replay_over_actual_http",
         "real_native_stdio_process_preserves_complete_descriptors_preview_and_evidence_replay",
-        "bounded_workers::authenticated_multistart_uses_configured_durable_workers_and_joins_shutdown"
+        "bounded_workers::authenticated_multistart_uses_configured_durable_workers_and_joins_shutdown",
+        "terminal_budget_completion_waits_for_actual_lease_release_over_http"
       ]
     },
     {
