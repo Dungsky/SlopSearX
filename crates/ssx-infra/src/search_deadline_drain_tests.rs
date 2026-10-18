@@ -124,7 +124,7 @@ fn service(
     metrics: Arc<dyn Metrics>,
     cooldowns: Option<Arc<dyn ssx_application::rate::RateStore>>,
 ) -> SearchService {
-    let service = SearchService::new(
+    SearchService::new(
         SearchConfig::default(),
         SearchDependencies {
             policy: PolicyService {
@@ -158,8 +158,7 @@ fn service(
             reranker: None,
         },
     )
-    .unwrap();
-    service
+    .unwrap()
 }
 
 // These controls execute the real owner; only collection scheduling is held.

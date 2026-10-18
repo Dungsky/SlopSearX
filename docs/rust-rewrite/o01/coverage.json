@@ -41,7 +41,7 @@
     },
     {
       "path": "crates/ssx-infra/src/search.rs",
-      "sha256": "320e69aaf20e5e3c301a21e519fb27ec4a4a5e8c1723649e1a9bec57adbd1dd0"
+      "sha256": "9391917f1d3bd3c94fe5114342164be2bc8d821856e5441139ec09ce52cbede8"
     },
     {
       "path": "crates/ssx-infra/tests/o01.rs",
