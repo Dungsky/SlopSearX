@@ -841,10 +841,11 @@ T02 adds one client-only Python source, `tests/test_native_html_theme_browser.py
 for Chromium checks against an externally started native Rust HTTP fixture. The
 client imports no application/backend module, starts no process or server, and
 contacts no provider. Rust CI owns fixture build/start/cleanup; the browser client
-observes only the supplied HTTP URL. The current F01 source inventory rises from
-485 to486 paths, with client-only sources increasing from1 to2; three CI Python
-invocation rows are added for client/browser setup and execution (63 to66). Earlier
-source inventories and invocation summaries remain historical snapshots.
+observes only the supplied HTTP URL. The browser client adds one source path;
+the current authoritative F01 inventory contains488 paths, including two client-only
+sources. The initial485-to486 count was an earlier snapshot. Three CI Python
+invocation rows cover client/browser setup and execution (63 to66). Earlier source
+inventories and invocation summaries remain historical snapshots.
 ## A12 native component candidate
 
 A12 adds native Censys/Shodan/VirusTotal/VulnCheck/CRT.sh components and a

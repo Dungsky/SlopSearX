@@ -1619,3 +1619,50 @@ fn unobserved_metric_outcomes_require_joint_complete_absence() {
         "missing native histogram must fail"
     );
 }
+
+#[tokio::test]
+async fn yaml_invalid_date_field_escapes_nonprintable_unicode_before_dispatch() {
+    let _process_test_guard = PROCESS_TEST_LOCK.lock().await;
+    let out = directory("unicode-repr");
+    let (mut process, base, _) = start(&out, "dark");
+    let client = reqwest::Client::builder()
+        .no_proxy()
+        .timeout(Duration::from_secs(5))
+        .build()
+        .unwrap();
+    let before = fs::read(out.join("engine-calls.jsonl")).unwrap();
+    let response = client
+        .get(format!("{base}/search?q=x&format=yaml&date%E2%80%A8x=1"))
+        .send()
+        .await
+        .unwrap();
+    let status = response.status().as_u16();
+    let content_type = response.headers()["content-type"]
+        .to_str()
+        .unwrap()
+        .to_owned();
+    let body = response.text().await.unwrap();
+    let after = fs::read(out.join("engine-calls.jsonl")).unwrap();
+    fs::write(
+        out.join("response.json"),
+        json!({"status":status,"content_type":content_type,"body":body}).to_string(),
+    )
+    .unwrap();
+    let clean = stop(&mut process).await;
+    fs::write(
+        out.join("terminal.json"),
+        json!({"child_exit_success":clean,"source_control":true}).to_string(),
+    )
+    .unwrap();
+    assert!(clean);
+    assert_eq!(status, 400);
+    assert_eq!(content_type, "text/vnd.yaml+markdown; charset=utf-8");
+    assert_eq!(
+        body,
+        "error: 'invalid_filter'\nmessage: 'Unknown or repeated date parameter.'\nfield: 'date\\u2028x'\n"
+    );
+    assert_eq!(
+        after, before,
+        "invalid date field must not dispatch an engine"
+    );
+}

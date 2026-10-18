@@ -187,11 +187,13 @@
       "original_assertion_families_use_runtime_policy_config_and_public_discovery",
       "absolute_date_proof_and_forwarding_reach_actual_http_without_claiming_a06",
       "reviewed_offsets_category_labels_and_duplicate_queries_match_original_http",
-      "unobserved_metric_outcomes_require_joint_complete_absence"
+      "unobserved_metric_outcomes_require_joint_complete_absence",
+      "yaml_invalid_date_field_escapes_nonprintable_unicode_before_dispatch"
     ],
     "formatter": [
       "original_pure_formatter_controls_are_not_http_acceptance",
-      "reviewed_malformed_offsets_match_original_http_null_pubdates"
+      "reviewed_malformed_offsets_match_original_http_null_pubdates",
+      "python_repr_nonprintable_literals_use_existing_unicode16_contract"
     ],
     "library": [
       "native::source_grammar_tests::pure_original_accept_helper_controls_are_not_unicode_header_claims",
@@ -3120,7 +3122,7 @@
     },
     {
       "path": "crates/ssx-http/src/formats.rs",
-      "sha256": "dd6c77b5187b669cc045cfc4b61aeb62a6d139e3741807b9dd3f5fb0e7fcfcbb"
+      "sha256": "a4232f4daa997aedce09658c60b97324854e0dc6587125c216ed392310b17a15"
     },
     {
       "path": "crates/ssx-http/src/formatter_metadata.rs",
@@ -3168,11 +3170,11 @@
     },
     {
       "path": "crates/ssx-http/tests/t02_formatter.rs",
-      "sha256": "85b02c0a00db9ad5d93215997c87f85c8c2f16096fe89e5b9714865d071256f5"
+      "sha256": "a9b9c520a7cfc826954fe1ce437e72b12604a7184938c70e9a853306bb082584"
     },
     {
       "path": "crates/ssx-http/tests/t02_http.rs",
-      "sha256": "219ee1920f1f391e2a25285a3bcbe103c0740de7e2c2d1afc7b80da01130c131"
+      "sha256": "d4741ec3d40e7a6d05856b9d8036666fb71d9e8a10b3bc05bef8746ab9542a21"
     },
     {
       "path": "crates/ssx-http/tests/t09.rs",
@@ -3276,7 +3278,7 @@
     },
     {
       "path": "docs/rust-rewrite/t02/README.md",
-      "sha256": "4ec95e0260027efadaf72b82107154b6709199a3f442b2458a3f41b4154527cb"
+      "sha256": "f42cb0231ee87621f252c068974a8d2824882b11b61dbe5468e7f6d88c6ec832"
     },
     {
       "path": "docs/rust-rewrite/t02/WORKING_HANDOFF.md",

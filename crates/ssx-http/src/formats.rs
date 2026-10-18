@@ -110,19 +110,13 @@ pub fn repr(input: &str) -> String {
         '\''
     };
     let mut out = String::from(quote);
+    let repr_quote = if quote == '\'' {
+        ssx_domain::storage::PythonReprQuote::Single
+    } else {
+        ssx_domain::storage::PythonReprQuote::Double
+    };
     for c in input.chars() {
-        match c {
-            '\\' => out.push_str("\\\\"),
-            '\n' => out.push_str("\\n"),
-            '\r' => out.push_str("\\r"),
-            '\t' => out.push_str("\\t"),
-            c if c == quote => {
-                out.push('\\');
-                out.push(c);
-            }
-            c if c.is_control() => out.push_str(&format!("\\x{:02x}", c as u32)),
-            c => out.push(c),
-        }
+        out.push_str(ssx_domain::storage::python_repr_character(c, repr_quote).as_str());
     }
     out.push(quote);
     out

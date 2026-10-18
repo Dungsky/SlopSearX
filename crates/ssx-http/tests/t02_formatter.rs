@@ -48,3 +48,21 @@ fn reviewed_malformed_offsets_match_original_http_null_pubdates() {
     }
     assert_eq!(completed, 2);
 }
+
+#[test]
+fn python_repr_nonprintable_literals_use_existing_unicode16_contract() {
+    // Literal source controls, not new backend captures or derived expectations.
+    let cases = [
+        ("\u{00ad}", "'\\xad'"),
+        ("\u{200b}", "'\\u200b'"),
+        ("\u{2028}\u{2029}", "'\\u2028\\u2029'"),
+        ("\u{1ffff}", "'\\U0001ffff'"),
+        ("é😀", "'é😀'"),
+        ("a'b\u{2028}", "\"a'b\\u2028\""),
+        ("a'\"b", "'a\\'\"b'"),
+        ("\\\n\r\t\0", "'\\\\\\n\\r\\t\\x00'"),
+    ];
+    for (input, expected) in cases {
+        assert_eq!(ssx_http::formats::repr(input), expected, "{input:?}");
+    }
+}
