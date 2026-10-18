@@ -8,7 +8,7 @@ use std::{
     fs,
     path::Path,
 };
-const QUALIFICATION_SHA: &str = "a1e1fb3ed4f7bd377e119224bda6803f5af95c0439cb6d69f932a2d85c3e52af";
+const QUALIFICATION_SHA: &str = "bc7633f9bb38ba3427c6d77df264b91a75d5c2a84afd205ec51213904ca27fe5";
 const QUALIFICATION: &str = "docs/rust-rewrite/a13/qualification-v1.json";
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -376,7 +376,7 @@ fn validate(q: &Qualification) -> Result<()> {
         "A13 five complete compiled suites required",
     )?;
     let expected = [
-        ("ssx-infra", "lib", "ssx_infra", 214),
+        ("ssx-infra", "lib", "ssx_infra", 247),
         ("ssx-json", "lib", "ssx_json", 16),
         ("ssx-infra", "test", "a13_dehashed", 21),
         ("ssx-infra", "test", "a13_hibp", 20),
@@ -395,6 +395,13 @@ fn validate(q: &Qualification) -> Result<()> {
             "A13 exact suite membership/cardinality",
         )?;
     }
+    require(
+        q.source_provenance["full_library_linux_only_names"]
+            == json!([
+                "process_pool::cleanup_tests::held_writer_refuses_direct_exec_but_script_interpreter_preserves_protocol_and_cleanup"
+            ]),
+        "A13 exact one source-declared Linux library extension",
+    )?;
     let mut total = Vec::new();
     let mut children = Vec::new();
     for spec in &q.selectors {
@@ -453,6 +460,18 @@ fn validate(q: &Qualification) -> Result<()> {
         "A13 three actual private child selectors",
     )?;
     Ok(())
+}
+// Preserve the full common214+33 inventory; this single source-gated Linux test is additional.
+fn compiled_suite_names(suite: &Suite) -> Vec<String> {
+    let mut names = suite.names.clone();
+    if cfg!(target_os = "linux")
+        && suite.package == "ssx-infra"
+        && suite.kind == "lib"
+        && suite.target == "ssx_infra"
+    {
+        names.push("process_pool::cleanup_tests::held_writer_refuses_direct_exec_but_script_interpreter_preserves_protocol_and_cleanup".into());
+    }
+    names
 }
 pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
     let bytes = fs::read(root.join(QUALIFICATION)).map_err(|e| e.to_string())?;
@@ -531,7 +550,7 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
         )?;
         same(
             &listed(&output)?,
-            &suite.names,
+            &compiled_suite_names(suite),
             "A13 exact compiled inventory missing/extra/duplicate",
         )?;
     }
@@ -551,7 +570,7 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
             &output,
             &spec.name,
             &spec.inline_payloads,
-            suite.names.len() - 1,
+            compiled_suite_names(suite).len() - 1,
         )?;
         let actual = markers(&output, &spec.name, &spec.inline_payloads)?;
         let mut expected = spec.markers.clone();

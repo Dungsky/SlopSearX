@@ -8,7 +8,7 @@ use std::{
     fs,
     path::Path,
 };
-const COVERAGE_SHA: &str = "ab83e96c5358fdbe48107334b34be49564048da44b45a6f2c4b38978082856c5";
+const COVERAGE_SHA: &str = "1383c07ae8b66ac6ca8afebaa402906b26425195b14c94269deefb1bbed2a829";
 const ORIGINAL: [&str; 4] = ["abuseipdb", "greynoise", "otx", "urlhaus"];
 fn require(ok: bool, message: &str) -> Result<()> {
     if ok { Ok(()) } else { Err(message.into()) }

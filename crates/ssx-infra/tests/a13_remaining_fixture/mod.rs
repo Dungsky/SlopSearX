@@ -953,7 +953,7 @@ pub fn inventory(engine: &str) {
     };
     assert_eq!(
         digest(&bytes),
-        "445495f27d9645035a771bd588d564e676bc4f1ecc0a9895a272ffa44f5508bf"
+        "d2e2d21929a49c2027c1a1bc46f0ea1907b3582fdcf22b0f8bfc517d8c2599d6"
     );
     let map: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
     assert_eq!(

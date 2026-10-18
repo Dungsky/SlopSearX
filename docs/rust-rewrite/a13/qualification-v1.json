@@ -6,8 +6,8 @@
     "original_backend_executed": false,
     "provider_calls": 0,
     "current_component_HEAD": "b93c7c7a2ea92ba13a48bd6e0cd72302264b1e0d",
-    "current_integrated_main": "954cc1e1ef739b84b2ed9ddb1eb966d94bd33c55",
-    "original_maps_preserved_byte_exact": true,
+    "current_integrated_main": "4bc0e618f8f237aa5fbaba5f6ea5f78b4027c6e8",
+    "original_maps_preserved_byte_exact": false,
     "historical_static_maps": [
       "docs/rust-rewrite/a13/dehashed-source-map-v1.json",
       "docs/rust-rewrite/a13/remaining/source-map.json"
@@ -19,7 +19,328 @@
     ],
     "reviewed_private_plan_sha256": "15d2f43ba35f6056775df84fe48bece72fb02b2312138973f060f0711f2b937a",
     "reviewed_private_closed_inventories_sha256": "c0804d37f516c7c3dcb7150f06d34e587b70a88b80410606163dadf1fe9bca47",
-    "private_95_prefix_reuse": false
+    "private_95_prefix_reuse": false,
+    "current_source_maps_rebound": "Only live source digest/byte rows and embedded map hashes were rebound for normal main4bc union; source-base/original-test/case/capture sections remain unchanged.",
+    "full_library_linux_only_names": [
+      "process_pool::cleanup_tests::held_writer_refuses_direct_exec_but_script_interpreter_preserves_protocol_and_cleanup"
+    ],
+    "full_library_supplement_from_main4bc": {
+      "base_common_names": 214,
+      "additional_common_names": 33,
+      "common_total": 247,
+      "linux_only_total": 1,
+      "linux_total": 248,
+      "bindings": [
+        {
+          "name": "adapters::source_payload::selected_source_object_tests::selected_nested_sources_preserve_exact_values_order_and_null",
+          "function": "selected_nested_sources_preserve_exact_values_order_and_null",
+          "source": "crates/ssx-infra/src/adapters/source_payload.rs",
+          "line": 1289,
+          "sha256": "826006a11ef93c6c6127cdaa7f340d5f8aa1261941d388b38c2437d5ea7f89fb",
+          "cfg": "test; unix supported gate targets",
+          "source_context": "mod selected_source_object_tests {\n    use super::*;\n    use ssx_owned_budget::Budget;\n    #[tokio::test]\n    async fn selected_nested_sources_preserve_exact_values_order_and_null() {\n        let source = super::super::source_json::from_slice(br#\"{\"huge\":18446744073709551617,\"nil\":null,\"tag\":{\"$serde_json::private::Number\":\"literal\"},\"version\":\"3.1\",\"ref\":\"first\"}\"#, None).await.unwrap();"
+        },
+        {
+          "name": "adapters::source_payload::selected_source_object_tests::selected_sources_refuse_budget_deadline_and_release_cancelled_storage",
+          "function": "selected_sources_refuse_budget_deadline_and_release_cancelled_storage",
+          "source": "crates/ssx-infra/src/adapters/source_payload.rs",
+          "line": 1341,
+          "sha256": "826006a11ef93c6c6127cdaa7f340d5f8aa1261941d388b38c2437d5ea7f89fb",
+          "cfg": "test; unix supported gate targets",
+          "source_context": "        drop(output);\n        assert_eq!(budget.snapshot().unwrap().used, 0);\n    }\n    #[tokio::test]\n    async fn selected_sources_refuse_budget_deadline_and_release_cancelled_storage() {\n        let source = Value::String(Text::from(\"x\".repeat(100000)));"
+        },
+        {
+          "name": "adapters::source_payload::batch::tests::expired_terminal_handoff_refuses_rows_and_drains_without_success_stamp",
+          "function": "expired_terminal_handoff_refuses_rows_and_drains_without_success_stamp",
+          "source": "crates/ssx-infra/src/adapters/source_payload/batch.rs",
+          "line": 235,
+          "sha256": "f75c77b3e43e307a758a6af685ab39cc3ccd6eec9c1eb4d8f68824114a789bf6",
+          "cfg": "test; unix supported gate targets",
+          "source_context": "    // Poll the existing two cooperative yields separately. Expire the real\n    // absolute deadline only after entering the terminal checkpoint; no corpus\n    // replay is delayed or clock-modified by this focused control.\n    #[tokio::test]\n    async fn expired_terminal_handoff_refuses_rows_and_drains_without_success_stamp() {\n        use std::{future::Future, task::Poll};"
+        },
+        {
+          "name": "adapters::vulnerability::tests::child_tests::linux_owned_process_cpu_parser_handles_command_spaces_and_refuses_invalid_counters",
+          "function": "linux_owned_process_cpu_parser_handles_command_spaces_and_refuses_invalid_counters",
+          "source": "crates/ssx-infra/src/adapters/vulnerability_child_tests.rs",
+          "line": 44,
+          "sha256": "d11ef813a00357a465e21ba302c6a46ac6eebeb89ccd66008215c2eefd12c3e7",
+          "cfg": "test; unix supported gate targets",
+          "source_context": "        .ok()?\n        .checked_add(fields.get(12)?.parse::<u64>().ok()?)\n}\n#[test]\nfn linux_owned_process_cpu_parser_handles_command_spaces_and_refuses_invalid_counters() {\n    let line = |user: &str, system: &str| {"
+        },
+        {
+          "name": "adapters::vulnerability::tests::child_tests::entered_native_extraction_cancel_deadline_shutdown_reap_and_release",
+          "function": "entered_native_extraction_cancel_deadline_shutdown_reap_and_release",
+          "source": "crates/ssx-infra/src/adapters/vulnerability_child_tests.rs",
+          "line": 55,
+          "sha256": "d11ef813a00357a465e21ba302c6a46ac6eebeb89ccd66008215c2eefd12c3e7",
+          "cfg": "test; unix supported gate targets",
+          "source_context": "    assert_eq!(proc_cpu_ticks(&line(\"18446744073709551615\", \"1\")), None);\n    println!(\"A10_CHILD_COMPLETE linux-cpu-parser\");\n}\n#[tokio::test]\nasync fn entered_native_extraction_cancel_deadline_shutdown_reap_and_release() {\n    if std::env::var_os(\"A10_CHILD_ENTRY_FILE\").is_some() {"
+        },
+        {
+          "name": "adapters::vulnerability::tests::child_tests::real_child_frame_and_projection_keep_owned_storage_until_handoff_and_refuse_partial_copies",
+          "function": "real_child_frame_and_projection_keep_owned_storage_until_handoff_and_refuse_partial_copies",
+          "source": "crates/ssx-infra/src/adapters/vulnerability_child_tests.rs",
+          "line": 213,
+          "sha256": "d11ef813a00357a465e21ba302c6a46ac6eebeb89ccd66008215c2eefd12c3e7",
+          "cfg": "test; unix supported gate targets",
+          "source_context": "    .await\n    .unwrap()\n}\n#[tokio::test]\nasync fn real_child_frame_and_projection_keep_owned_storage_until_handoff_and_refuse_partial_copies()\n {"
+        },
+        {
+          "name": "adapters::vulnerability::tests::child_tests::real_large_field_projection_cancel_and_operation_deadline_release_all_owned_storage",
+          "function": "real_large_field_projection_cancel_and_operation_deadline_release_all_owned_storage",
+          "source": "crates/ssx-infra/src/adapters/vulnerability_child_tests.rs",
+          "line": 299,
+          "sha256": "d11ef813a00357a465e21ba302c6a46ac6eebeb89ccd66008215c2eefd12c3e7",
+          "cfg": "test; unix supported gate targets",
+          "source_context": "    parser.shutdown().await.unwrap();\n    println!(\"A10_OWNERSHIP_COMPLETE frame-projection-handoff-refusals\");\n}\n#[tokio::test]\nasync fn real_large_field_projection_cancel_and_operation_deadline_release_all_owned_storage() {\n    use std::{future::Future, task::Poll};"
+        },
+        {
+          "name": "adapters::vulnerability::tests::child_tests::real_helper_request_matrix_preserves_old_empty_bytes_and_rejects_cross_layout_and_malformed_input",
+          "function": "real_helper_request_matrix_preserves_old_empty_bytes_and_rejects_cross_layout_and_malformed_input",
+          "source": "crates/ssx-infra/src/adapters/vulnerability_child_tests.rs",
+          "line": 371,
+          "sha256": "d11ef813a00357a465e21ba302c6a46ac6eebeb89ccd66008215c2eefd12c3e7",
+          "cfg": "test; unix supported gate targets",
+          "source_context": "    header.extend(allowance.to_be_bytes());\n    header\n}\n#[tokio::test]\nasync fn real_helper_request_matrix_preserves_old_empty_bytes_and_rejects_cross_layout_and_malformed_input()\n {"
+        },
+        {
+          "name": "adapters::vulnerability::tests::child_tests::production_same_html_root_charges_frame_projection_and_public_handoff",
+          "function": "production_same_html_root_charges_frame_projection_and_public_handoff",
+          "source": "crates/ssx-infra/src/adapters/vulnerability_child_tests.rs",
+          "line": 507,
+          "sha256": "d11ef813a00357a465e21ba302c6a46ac6eebeb89ccd66008215c2eefd12c3e7",
+          "cfg": "test; unix supported gate targets",
+          "source_context": "        \"A10_REQUEST_MATRIX_COMPLETE old24:all72-layout-limit-pairs:prefix32:header5:number4:point3\"\n    );\n}\n#[tokio::test]\nasync fn production_same_html_root_charges_frame_projection_and_public_handoff() {\n    let parser = helper();"
+        },
+        {
+          "name": "adapters::vulnerability::equal::object_index_tests::charged_object_index_comparison_count_scales_n_log_n_and_keeps_exact_values",
+          "function": "charged_object_index_comparison_count_scales_n_log_n_and_keeps_exact_values",
+          "source": "crates/ssx-infra/src/adapters/vulnerability_equal.rs",
+          "line": 316,
+          "sha256": "77c33a637d2fd012d21f9a1e51e73676c3d3dfa6f45629591158d7a6aacc63f5",
+          "cfg": "test; unix supported gate targets",
+          "source_context": "            .await\n            .unwrap()\n    }\n    #[tokio::test]\n    async fn charged_object_index_comparison_count_scales_n_log_n_and_keeps_exact_values() {\n        for n in [32usize, 64, 128, 256, 512, 1024] {"
+        },
+        {
+          "name": "adapters::vulnerability::equal::object_index_tests::actual_object_index_work_cancels_expires_and_releases_charged_borrows",
+          "function": "actual_object_index_work_cancels_expires_and_releases_charged_borrows",
+          "source": "crates/ssx-infra/src/adapters/vulnerability_equal.rs",
+          "line": 399,
+          "sha256": "77c33a637d2fd012d21f9a1e51e73676c3d3dfa6f45629591158d7a6aacc63f5",
+          "cfg": "test; unix supported gate targets",
+          "source_context": "        assert_eq!(bounded.snapshot().unwrap().used, 0);\n        println!(\"A10_OBJECT_INDEX_COMPLETE exact-unicode-numeric-nan-refusal\");\n    }\n    #[tokio::test]\n    async fn actual_object_index_work_cancels_expires_and_releases_charged_borrows() {\n        use std::{future::Future, task::Poll};"
+        },
+        {
+          "name": "adapters::vulnerability::equal::object_index_tests::actual_nvd_cwe_parse_path_enters_borrowed_object_index_then_retains_source_error",
+          "function": "actual_nvd_cwe_parse_path_enters_borrowed_object_index_then_retains_source_error",
+          "source": "crates/ssx-infra/src/adapters/vulnerability_equal.rs",
+          "line": 439,
+          "sha256": "77c33a637d2fd012d21f9a1e51e73676c3d3dfa6f45629591158d7a6aacc63f5",
+          "cfg": "test; unix supported gate targets",
+          "source_context": "            println!(\"A10_OBJECT_INDEX_COMPLETE entered-cancel-expire:{expire}\");\n        }\n    }\n    #[tokio::test]\n    async fn actual_nvd_cwe_parse_path_enters_borrowed_object_index_then_retains_source_error() {\n        let left = wire(128, false, false, 0);"
+        },
+        {
+          "name": "adapters::vulnerability::tests::ledger::finite_tiny_variants_require_exact_correlated_tuple_and_success_deadline_witness",
+          "function": "finite_tiny_variants_require_exact_correlated_tuple_and_success_deadline_witness",
+          "source": "crates/ssx-infra/src/adapters/vulnerability_ledger_tests.rs",
+          "line": 188,
+          "sha256": "08b0b1e0f1b5c1256f080c8d7bb2b0f2924e7aae382b8584af0a323019f53da5",
+          "cfg": "test; unix supported gate targets",
+          "source_context": "    }\n    Ok(())\n}\n#[test]\nfn finite_tiny_variants_require_exact_correlated_tuple_and_success_deadline_witness() {\n    let expected = expected(\"boundary308\").unwrap();"
+        },
+        {
+          "name": "adapters::vulnerability::tests::ledger::tiny_and_ordinary_mutations_cannot_hide_wrong_requests_partial_results_or_unused_exchanges",
+          "function": "tiny_and_ordinary_mutations_cannot_hide_wrong_requests_partial_results_or_unused_exchanges",
+          "source": "crates/ssx-infra/src/adapters/vulnerability_ledger_tests.rs",
+          "line": 299,
+          "sha256": "08b0b1e0f1b5c1256f080c8d7bb2b0f2924e7aae382b8584af0a323019f53da5",
+          "cfg": "test; unix supported gate targets",
+          "source_context": "    }\n    println!(\"A10_LEDGER_COMPLETE finite-tiny-positive-variants\");\n}\n#[test]\nfn tiny_and_ordinary_mutations_cannot_hide_wrong_requests_partial_results_or_unused_exchanges() {\n    let expected = expected(\"boundary308\").unwrap();"
+        },
+        {
+          "name": "adapters::vulnerability::tests::property_tests::source_metadata_factory_auth_contracts_and_original_case_identities",
+          "function": "source_metadata_factory_auth_contracts_and_original_case_identities",
+          "source": "crates/ssx-infra/src/adapters/vulnerability_property_tests.rs",
+          "line": 3,
+          "sha256": "539dbba7b3f45804458f992bacf456829db3502b1d2640bd25ba4337677f63ac",
+          "cfg": "test; unix supported gate targets",
+          "source_context": "use super::*;\n#[tokio::test]\nasync fn source_metadata_factory_auth_contracts_and_original_case_identities() {\n    let parser = helper();"
+        },
+        {
+          "name": "adapters::vulnerability::tests::property_tests::original_regex_cases_all_unicode16_decimal_families_greedy_limits_and_mitre_priority",
+          "function": "original_regex_cases_all_unicode16_decimal_families_greedy_limits_and_mitre_priority",
+          "source": "crates/ssx-infra/src/adapters/vulnerability_property_tests.rs",
+          "line": 132,
+          "sha256": "539dbba7b3f45804458f992bacf456829db3502b1d2640bd25ba4337677f63ac",
+          "cfg": "test; unix supported gate targets",
+          "source_context": "        println!(\"A10_SOURCE_TEST_COMPLETE {id}\");\n    }\n}\n#[tokio::test]\nasync fn original_regex_cases_all_unicode16_decimal_families_greedy_limits_and_mitre_priority() {\n    let budget = c::Budget::new(c::ROW_BYTES).unwrap();"
+        },
+        {
+          "name": "adapters::vulnerability::tests::every_frozen_original_observation_full_outputs_and_outbound",
+          "function": "every_frozen_original_observation_full_outputs_and_outbound",
+          "source": "crates/ssx-infra/src/adapters/vulnerability_tests.rs",
+          "line": 288,
+          "sha256": "71c351bb896af5091fc0c79d50b823438456d39a05e5ad30321ce3853cc98d3f",
+          "cfg": "test; unix supported gate targets",
+          "source_context": "        _ => panic!(\"unbound original observation {}\", row[\"id\"]),\n    }\n}\n#[tokio::test]\nasync fn every_frozen_original_observation_full_outputs_and_outbound() {\n    let source: Value = serde_json::from_str(include_str!("
+        },
+        {
+          "name": "adapters::vulnerability::tests::html_adapters_retain_absolute_context_and_expired_context_never_dispatches",
+          "function": "html_adapters_retain_absolute_context_and_expired_context_never_dispatches",
+          "source": "crates/ssx-infra/src/adapters/vulnerability_tests.rs",
+          "line": 623,
+          "sha256": "71c351bb896af5091fc0c79d50b823438456d39a05e5ad30321ce3853cc98d3f",
+          "cfg": "test; unix supported gate targets",
+          "source_context": "    }\n}\n\n#[tokio::test]\nasync fn html_adapters_retain_absolute_context_and_expired_context_never_dispatches() {\n    let cases: BoundaryCases = serde_json::from_str(include_str!("
+        },
+        {
+          "name": "adapters::vulnerability::tests::exploitdb_actual_header_reader_deadline_retains_timeout",
+          "function": "exploitdb_actual_header_reader_deadline_retains_timeout",
+          "source": "crates/ssx-infra/src/adapters/vulnerability_tests.rs",
+          "line": 706,
+          "sha256": "71c351bb896af5091fc0c79d50b823438456d39a05e5ad30321ce3853cc98d3f",
+          "cfg": "test; unix supported gate targets",
+          "source_context": "    }\n    parser.shutdown().await.unwrap();\n}\n#[tokio::test]\nasync fn exploitdb_actual_header_reader_deadline_retains_timeout() {\n    let budget = c::Budget::new(1024).unwrap();"
+        },
+        {
+          "name": "adapters::vulnerability::tests::source_loaded_equality_keeps_numeric_structural_and_unicode_semantics",
+          "function": "source_loaded_equality_keeps_numeric_structural_and_unicode_semantics",
+          "source": "crates/ssx-infra/src/adapters/vulnerability_tests.rs",
+          "line": 728,
+          "sha256": "71c351bb896af5091fc0c79d50b823438456d39a05e5ad30321ce3853cc98d3f",
+          "cfg": "test; unix supported gate targets",
+          "source_context": "    println!(\"A10_HEADER_DEADLINE_COMPLETE classified_timeout\");\n}\n\n#[tokio::test]\nasync fn source_loaded_equality_keeps_numeric_structural_and_unicode_semantics() {\n    let budget = c::Budget::new(1024 * 1024).unwrap();"
+        },
+        {
+          "name": "adapters::vulnerability::tests::nvd_adversarial_cwe_work_yields_expires_and_releases_cancelled_storage",
+          "function": "nvd_adversarial_cwe_work_yields_expires_and_releases_cancelled_storage",
+          "source": "crates/ssx-infra/src/adapters/vulnerability_tests.rs",
+          "line": 761,
+          "sha256": "71c351bb896af5091fc0c79d50b823438456d39a05e5ad30321ce3853cc98d3f",
+          "cfg": "test; unix supported gate targets",
+          "source_context": "    }\n    println!(\"A10_SOURCE_EQUALITY_COMPLETE exact_values\");\n}\n#[tokio::test]\nasync fn nvd_adversarial_cwe_work_yields_expires_and_releases_cancelled_storage() {\n    use std::{"
+        },
+        {
+          "name": "adapters::vulnerability::tests::all_original_boundary_cases_lossless_full_outputs_and_outbound",
+          "function": "all_original_boundary_cases_lossless_full_outputs_and_outbound",
+          "source": "crates/ssx-infra/src/adapters/vulnerability_tests.rs",
+          "line": 835,
+          "sha256": "71c351bb896af5091fc0c79d50b823438456d39a05e5ad30321ce3853cc98d3f",
+          "cfg": "test; unix supported gate targets",
+          "source_context": "    }\n}\n\n#[tokio::test]\nasync fn all_original_boundary_cases_lossless_full_outputs_and_outbound() {\n    replay_boundary_cases("
+        },
+        {
+          "name": "adapters::vulnerability::tests::supplemental_unicode_slice_and_huge_empty_cases_full_path",
+          "function": "supplemental_unicode_slice_and_huge_empty_cases_full_path",
+          "source": "crates/ssx-infra/src/adapters/vulnerability_tests.rs",
+          "line": 845,
+          "sha256": "71c351bb896af5091fc0c79d50b823438456d39a05e5ad30321ce3853cc98d3f",
+          "cfg": "test; unix supported gate targets",
+          "source_context": "    )\n    .await\n}\n#[tokio::test]\nasync fn supplemental_unicode_slice_and_huge_empty_cases_full_path() {\n    replay_boundary_cases("
+        },
+        {
+          "name": "adapters::vulnerability::tests::direct_api_configured_deadline_uses_exact_owner_250us_and_preserves_system_context",
+          "function": "direct_api_configured_deadline_uses_exact_owner_250us_and_preserves_system_context",
+          "source": "crates/ssx-infra/src/adapters/vulnerability_tests.rs",
+          "line": 865,
+          "sha256": "71c351bb896af5091fc0c79d50b823438456d39a05e5ad30321ce3853cc98d3f",
+          "cfg": "test; unix supported gate targets",
+          "source_context": "#[path = \"vulnerability_ledger_tests.rs\"]\nmod ledger;\n\n#[test]\nfn direct_api_configured_deadline_uses_exact_owner_250us_and_preserves_system_context() {\n    let replay = Arc::new(Replay {"
+        },
+        {
+          "name": "adapters::vulnerability_wire::tests::complete_frames_keep_layout_utf8_boundaries_and_reject_every_truncation_and_mutation",
+          "function": "complete_frames_keep_layout_utf8_boundaries_and_reject_every_truncation_and_mutation",
+          "source": "crates/ssx-infra/src/adapters/vulnerability_wire_tests.rs",
+          "line": 29,
+          "sha256": "81948469632494600f84df349ecefaf110115aeebea848df482753bc13d17544",
+          "cfg": "test; unix supported gate targets",
+          "source_context": "    }\n    bytes\n}\n#[tokio::test]\nasync fn complete_frames_keep_layout_utf8_boundaries_and_reject_every_truncation_and_mutation() {\n    let op = operation().await;"
+        },
+        {
+          "name": "adapters::vulnerability_wire::tests::metadata_only_rows_and_large_fields_yield_then_obey_deadline_and_cancel",
+          "function": "metadata_only_rows_and_large_fields_yield_then_obey_deadline_and_cancel",
+          "source": "crates/ssx-infra/src/adapters/vulnerability_wire_tests.rs",
+          "line": 123,
+          "sha256": "81948469632494600f84df349ecefaf110115aeebea848df482753bc13d17544",
+          "cfg": "test; unix supported gate targets",
+          "source_context": "        println!(\"A10_WIRE_COMPLETE layout={layout:?}:valid-truncation-mutation\");\n    }\n}\n#[tokio::test]\nasync fn metadata_only_rows_and_large_fields_yield_then_obey_deadline_and_cancel() {\n    for empty in [false, true] {"
+        },
+        {
+          "name": "process_pool::cleanup_tests::held_writer_refuses_direct_exec_but_script_interpreter_preserves_protocol_and_cleanup",
+          "function": "held_writer_refuses_direct_exec_but_script_interpreter_preserves_protocol_and_cleanup",
+          "source": "crates/ssx-infra/src/process_pool.rs",
+          "line": 825,
+          "sha256": "48aa72c6daea89469da559ce319952fb1e7da32a798296472e8bbdaffd34fea6",
+          "cfg": "target_os=linux",
+          "source_context": "        }\n    }\n    #[cfg(target_os = \"linux\")]\n    #[tokio::test]\n    async fn held_writer_refuses_direct_exec_but_script_interpreter_preserves_protocol_and_cleanup()\n    {"
+        },
+        {
+          "name": "process_pool::cleanup_tests::missing_direct_helper_returns_spawn_error_and_releases_payload_and_lease",
+          "function": "missing_direct_helper_returns_spawn_error_and_releases_payload_and_lease",
+          "source": "crates/ssx-infra/src/process_pool.rs",
+          "line": 879,
+          "sha256": "48aa72c6daea89469da559ce319952fb1e7da32a798296472e8bbdaffd34fea6",
+          "cfg": "test; unix supported gate targets",
+          "source_context": "        );\n    }\n    #[cfg(unix)]\n    #[tokio::test]\n    async fn missing_direct_helper_returns_spawn_error_and_releases_payload_and_lease() {\n        let (path, pidfile) = fixture(\"exit 99\");"
+        },
+        {
+          "name": "http::a10_owner_clock_tests::manual_session_survives_elapsed_tokio_after_confirmed_post_exchange_decoder_wait",
+          "function": "manual_session_survives_elapsed_tokio_after_confirmed_post_exchange_decoder_wait",
+          "source": "crates/ssx-infra/tests/support/a10_http_clock.rs",
+          "line": 187,
+          "sha256": "b850833e2cac860cce876858fdff32130640b07fd2192f4f74b34f8729676c72",
+          "cfg": "test; unix supported gate targets",
+          "source_context": "        assert_eq!(driver.owners(), 2);\n    }\n}\n#[tokio::test]\nasync fn manual_session_survives_elapsed_tokio_after_confirmed_post_exchange_decoder_wait() {\n    staged_session(true).await;"
+        },
+        {
+          "name": "http::a10_owner_clock_tests::system_session_expires_after_confirmed_post_exchange_decoder_wait",
+          "function": "system_session_expires_after_confirmed_post_exchange_decoder_wait",
+          "source": "crates/ssx-infra/tests/support/a10_http_clock.rs",
+          "line": 192,
+          "sha256": "b850833e2cac860cce876858fdff32130640b07fd2192f4f74b34f8729676c72",
+          "cfg": "test; unix supported gate targets",
+          "source_context": "    staged_session(true).await;\n    println!(\"A10_OWNER_CLOCK_COMPLETE manual-session-after-decoder-wait\");\n}\n#[tokio::test]\nasync fn system_session_expires_after_confirmed_post_exchange_decoder_wait() {\n    staged_session(false).await;"
+        },
+        {
+          "name": "http::a10_owner_clock_tests::identity_decoder_uses_owner_after_confirmed_worker_start_and_elapsed_wall_time",
+          "function": "identity_decoder_uses_owner_after_confirmed_worker_start_and_elapsed_wall_time",
+          "source": "crates/ssx-infra/tests/support/a10_http_clock.rs",
+          "line": 211,
+          "sha256": "b850833e2cac860cce876858fdff32130640b07fd2192f4f74b34f8729676c72",
+          "cfg": "test; unix supported gate targets",
+          "source_context": "        self.release();\n    }\n}\n#[tokio::test]\nasync fn identity_decoder_uses_owner_after_confirmed_worker_start_and_elapsed_wall_time() {\n    let (transport, request) = captured();"
+        },
+        {
+          "name": "http::a10_owner_clock_tests::manual_pending_exchange_expires_at_exact_250us_and_drops_once",
+          "function": "manual_pending_exchange_expires_at_exact_250us_and_drops_once",
+          "source": "crates/ssx-infra/tests/support/a10_http_clock.rs",
+          "line": 300,
+          "sha256": "b850833e2cac860cce876858fdff32130640b07fd2192f4f74b34f8729676c72",
+          "cfg": "test; unix supported gate targets",
+          "source_context": "        })\n    }\n}\n#[tokio::test]\nasync fn manual_pending_exchange_expires_at_exact_250us_and_drops_once() {\n    let transport = Arc::new(Pending::default());"
+        },
+        {
+          "name": "http::a10_owner_clock_tests::unmocked_system_expiry_and_expired_search_context_dispatch_nothing",
+          "function": "unmocked_system_expiry_and_expired_search_context_dispatch_nothing",
+          "source": "crates/ssx-infra/tests/support/a10_http_clock.rs",
+          "line": 333,
+          "sha256": "b850833e2cac860cce876858fdff32130640b07fd2192f4f74b34f8729676c72",
+          "cfg": "test; unix supported gate targets",
+          "source_context": "    drop(http);\n    println!(\"A10_OWNER_CLOCK_COMPLETE pending-exact-250us\");\n}\n#[tokio::test]\nasync fn unmocked_system_expiry_and_expired_search_context_dispatch_nothing() {\n    use ssx_application::SearchEngine;"
+        },
+        {
+          "name": "http::a10_owner_clock_tests::manual_direct_replay_rejects_absolute_search_context",
+          "function": "manual_direct_replay_rejects_absolute_search_context",
+          "source": "crates/ssx-infra/tests/support/a10_http_clock.rs",
+          "line": 386,
+          "sha256": "b850833e2cac860cce876858fdff32130640b07fd2192f4f74b34f8729676c72",
+          "cfg": "test; unix supported gate targets",
+          "source_context": "    drop(http);\n    println!(\"A10_OWNER_CLOCK_COMPLETE system-unmocked-and-context-expiry\");\n}\n#[tokio::test]\nasync fn manual_direct_replay_rejects_absolute_search_context() {\n    use ssx_application::SearchEngine;"
+        }
+      ],
+      "all_old214_names_preserved": true,
+      "compiled_inventory_not_yet_observed_for_union": true
+    }
   },
   "sources": [
     {
@@ -94,8 +415,8 @@
     },
     {
       "path": "crates/ssx-infra/src/adapters/clinicaltrials.rs",
-      "sha256": "d85151ac6399ee72cf0372840b648a7aa810ed2a1c1d1f46978f236448c6acc3",
-      "bytes": 33274
+      "sha256": "f7f74938aafe9ce7560f74fbddf907baf8ead53b8b6c0f22a7435de66372c5b7",
+      "bytes": 33943
     },
     {
       "path": "crates/ssx-infra/src/adapters/crates_io.rs",
@@ -119,8 +440,8 @@
     },
     {
       "path": "crates/ssx-infra/src/adapters/mod.rs",
-      "sha256": "9098a48f8f059a7a8da16b734b52734ecfd5b88d7b114027b0da8f5b8bc28f14",
-      "bytes": 31229
+      "sha256": "ac4a8f406e050e466fc66d401c3347b5ca2b69c44423a64c3175fec423406c94",
+      "bytes": 32013
     },
     {
       "path": "crates/ssx-infra/src/adapters/source_json.rs",
@@ -129,8 +450,8 @@
     },
     {
       "path": "crates/ssx-infra/src/adapters/source_payload.rs",
-      "sha256": "19d7e3cb4a94c1e4f3445f7afa9d1b05ca56eaf02f55de38f6896acfd52493a0",
-      "bytes": 48344
+      "sha256": "826006a11ef93c6c6127cdaa7f340d5f8aa1261941d388b38c2437d5ea7f89fb",
+      "bytes": 53896
     },
     {
       "path": "crates/ssx-infra/src/adapters/source_repr.rs",
@@ -144,8 +465,8 @@
     },
     {
       "path": "crates/ssx-infra/src/http.rs",
-      "sha256": "53f617dc02aca29a3a6db418c9c6f90e965f8498d8f154dbe9301344d15e9ed0",
-      "bytes": 39288
+      "sha256": "131cc1313b96f36bfbd9cf865a2e1857a6120ef3a2736ebee0b0b9565f80ac6b",
+      "bytes": 41754
     },
     {
       "path": "crates/ssx-infra/src/search.rs",
@@ -154,7 +475,7 @@
     },
     {
       "path": "crates/ssx-infra/tests/a13_dehashed.rs",
-      "sha256": "0daa2cc4c30843f9afbd5b50987bec9b73e447960b4d7d6f9d3f38b721082e00",
+      "sha256": "4456568c4974901e6d985cc3ef8fed9c9d1ad3e1d4656f7671237bbe87d92305",
       "bytes": 61928
     },
     {
@@ -169,7 +490,7 @@
     },
     {
       "path": "crates/ssx-infra/tests/a13_remaining_fixture/mod.rs",
-      "sha256": "8468e083419b45450959fc237f5607493362888681ae330a10a20c8aa8ad92c4",
+      "sha256": "2efc95f3c905b63a2af3da3441e48a490e07f126d5ae10848c62f2be5ac57cfa",
       "bytes": 40406
     },
     {
@@ -229,8 +550,8 @@
     },
     {
       "path": "docs/rust-rewrite/a13/PERMANENT_GATE.md",
-      "sha256": "f12d2e424169b80faf14fc6819473dac7279885a9134b74e7a38d02d6c7fdeb6",
-      "bytes": 2903
+      "sha256": "53260685337d365969758d35d545e8d06a6b90a8855a6df4697c13d8e2fd5018",
+      "bytes": 2969
     },
     {
       "path": "docs/rust-rewrite/a13/PORTAL_IMPACT.md",
@@ -244,7 +565,7 @@
     },
     {
       "path": "docs/rust-rewrite/a13/dehashed-source-map-v1.json",
-      "sha256": "ae1b040efe41ce268a762294147381e51b765ac5dc7c09b33c034d3c6fb45bf5",
+      "sha256": "96fa552b11936849b669c029599e663d7bdb3ff8613f0c02f6b618a98c3f6407",
       "bytes": 20516
     },
     {
@@ -289,7 +610,7 @@
     },
     {
       "path": "docs/rust-rewrite/a13/remaining/source-map.json",
-      "sha256": "445495f27d9645035a771bd588d564e676bc4f1ecc0a9895a272ffa44f5508bf",
+      "sha256": "d2e2d21929a49c2027c1a1bc46f0ea1907b3582fdcf22b0f8bfc517d8c2599d6",
       "bytes": 18405
     },
     {
@@ -391,6 +712,61 @@
       "path": "tests/test_mcp_security.py",
       "sha256": "24347d97e63a623440803f7c41bbab0391f7f75831faa2ce1d90ec3a211a8935",
       "bytes": 4388
+    },
+    {
+      "path": "crates/ssx-infra/src/adapters/source_payload/batch.rs",
+      "sha256": "f75c77b3e43e307a758a6af685ab39cc3ccd6eec9c1eb4d8f68824114a789bf6",
+      "bytes": 18020
+    },
+    {
+      "path": "crates/ssx-infra/src/adapters/vulnerability.rs",
+      "sha256": "5b8852e45bd4b7bd63be0c9fdebf1c245ddd270d2fc3965fddb73dfd4c1f7db4",
+      "bytes": 22046
+    },
+    {
+      "path": "crates/ssx-infra/src/adapters/vulnerability_child_tests.rs",
+      "sha256": "d11ef813a00357a465e21ba302c6a46ac6eebeb89ccd66008215c2eefd12c3e7",
+      "bytes": 20523
+    },
+    {
+      "path": "crates/ssx-infra/src/adapters/vulnerability_equal.rs",
+      "sha256": "77c33a637d2fd012d21f9a1e51e73676c3d3dfa6f45629591158d7a6aacc63f5",
+      "bytes": 17460
+    },
+    {
+      "path": "crates/ssx-infra/src/adapters/vulnerability_ledger_tests.rs",
+      "sha256": "08b0b1e0f1b5c1256f080c8d7bb2b0f2924e7aae382b8584af0a323019f53da5",
+      "bytes": 15911
+    },
+    {
+      "path": "crates/ssx-infra/src/adapters/vulnerability_property_tests.rs",
+      "sha256": "539dbba7b3f45804458f992bacf456829db3502b1d2640bd25ba4337677f63ac",
+      "bytes": 8490
+    },
+    {
+      "path": "crates/ssx-infra/src/adapters/vulnerability_tests.rs",
+      "sha256": "71c351bb896af5091fc0c79d50b823438456d39a05e5ad30321ce3853cc98d3f",
+      "bytes": 36757
+    },
+    {
+      "path": "crates/ssx-infra/src/adapters/vulnerability_wire.rs",
+      "sha256": "48562f72c3f2a015b64797d23e1019e0c68c3060cb67353fc1916e6189198f28",
+      "bytes": 9652
+    },
+    {
+      "path": "crates/ssx-infra/src/adapters/vulnerability_wire_tests.rs",
+      "sha256": "81948469632494600f84df349ecefaf110115aeebea848df482753bc13d17544",
+      "bytes": 5640
+    },
+    {
+      "path": "crates/ssx-infra/src/process_pool.rs",
+      "sha256": "48aa72c6daea89469da559ce319952fb1e7da32a798296472e8bbdaffd34fea6",
+      "bytes": 41419
+    },
+    {
+      "path": "crates/ssx-infra/tests/support/a10_http_clock.rs",
+      "sha256": "b850833e2cac860cce876858fdff32130640b07fd2192f4f74b34f8729676c72",
+      "bytes": 15970
     }
   ],
   "suites": [
@@ -612,7 +988,40 @@
         "search::tests::cooperative_completion_collection_preserves_real_health_origin",
         "search::tests::zero_remaining_budget_never_polls_engine",
         "tests::injected_sinks_observe_real_readiness",
-        "tests::unavailable_is_not_missing_or_ready"
+        "tests::unavailable_is_not_missing_or_ready",
+        "adapters::source_payload::batch::tests::expired_terminal_handoff_refuses_rows_and_drains_without_success_stamp",
+        "adapters::source_payload::selected_source_object_tests::selected_nested_sources_preserve_exact_values_order_and_null",
+        "adapters::source_payload::selected_source_object_tests::selected_sources_refuse_budget_deadline_and_release_cancelled_storage",
+        "adapters::vulnerability::equal::object_index_tests::actual_nvd_cwe_parse_path_enters_borrowed_object_index_then_retains_source_error",
+        "adapters::vulnerability::equal::object_index_tests::actual_object_index_work_cancels_expires_and_releases_charged_borrows",
+        "adapters::vulnerability::equal::object_index_tests::charged_object_index_comparison_count_scales_n_log_n_and_keeps_exact_values",
+        "adapters::vulnerability::tests::all_original_boundary_cases_lossless_full_outputs_and_outbound",
+        "adapters::vulnerability::tests::child_tests::entered_native_extraction_cancel_deadline_shutdown_reap_and_release",
+        "adapters::vulnerability::tests::child_tests::linux_owned_process_cpu_parser_handles_command_spaces_and_refuses_invalid_counters",
+        "adapters::vulnerability::tests::child_tests::production_same_html_root_charges_frame_projection_and_public_handoff",
+        "adapters::vulnerability::tests::child_tests::real_child_frame_and_projection_keep_owned_storage_until_handoff_and_refuse_partial_copies",
+        "adapters::vulnerability::tests::child_tests::real_helper_request_matrix_preserves_old_empty_bytes_and_rejects_cross_layout_and_malformed_input",
+        "adapters::vulnerability::tests::child_tests::real_large_field_projection_cancel_and_operation_deadline_release_all_owned_storage",
+        "adapters::vulnerability::tests::direct_api_configured_deadline_uses_exact_owner_250us_and_preserves_system_context",
+        "adapters::vulnerability::tests::every_frozen_original_observation_full_outputs_and_outbound",
+        "adapters::vulnerability::tests::exploitdb_actual_header_reader_deadline_retains_timeout",
+        "adapters::vulnerability::tests::html_adapters_retain_absolute_context_and_expired_context_never_dispatches",
+        "adapters::vulnerability::tests::ledger::finite_tiny_variants_require_exact_correlated_tuple_and_success_deadline_witness",
+        "adapters::vulnerability::tests::ledger::tiny_and_ordinary_mutations_cannot_hide_wrong_requests_partial_results_or_unused_exchanges",
+        "adapters::vulnerability::tests::nvd_adversarial_cwe_work_yields_expires_and_releases_cancelled_storage",
+        "adapters::vulnerability::tests::property_tests::original_regex_cases_all_unicode16_decimal_families_greedy_limits_and_mitre_priority",
+        "adapters::vulnerability::tests::property_tests::source_metadata_factory_auth_contracts_and_original_case_identities",
+        "adapters::vulnerability::tests::source_loaded_equality_keeps_numeric_structural_and_unicode_semantics",
+        "adapters::vulnerability::tests::supplemental_unicode_slice_and_huge_empty_cases_full_path",
+        "adapters::vulnerability_wire::tests::complete_frames_keep_layout_utf8_boundaries_and_reject_every_truncation_and_mutation",
+        "adapters::vulnerability_wire::tests::metadata_only_rows_and_large_fields_yield_then_obey_deadline_and_cancel",
+        "http::a10_owner_clock_tests::identity_decoder_uses_owner_after_confirmed_worker_start_and_elapsed_wall_time",
+        "http::a10_owner_clock_tests::manual_direct_replay_rejects_absolute_search_context",
+        "http::a10_owner_clock_tests::manual_pending_exchange_expires_at_exact_250us_and_drops_once",
+        "http::a10_owner_clock_tests::manual_session_survives_elapsed_tokio_after_confirmed_post_exchange_decoder_wait",
+        "http::a10_owner_clock_tests::system_session_expires_after_confirmed_post_exchange_decoder_wait",
+        "http::a10_owner_clock_tests::unmocked_system_expiry_and_expired_search_context_dispatch_nothing",
+        "process_pool::cleanup_tests::missing_direct_helper_returns_spawn_error_and_releases_payload_and_lease"
       ]
     },
     {
@@ -745,7 +1154,7 @@
         "--test-threads=1"
       ],
       "source": "crates/ssx-infra/tests/a13_dehashed.rs",
-      "source_sha256": "0daa2cc4c30843f9afbd5b50987bec9b73e447960b4d7d6f9d3f38b721082e00",
+      "source_sha256": "4456568c4974901e6d985cc3ef8fed9c9d1ad3e1d4656f7671237bbe87d92305",
       "source_line": 217,
       "inline_payloads": [],
       "markers": [
@@ -774,7 +1183,7 @@
         "--test-threads=1"
       ],
       "source": "crates/ssx-infra/tests/a13_dehashed.rs",
-      "source_sha256": "0daa2cc4c30843f9afbd5b50987bec9b73e447960b4d7d6f9d3f38b721082e00",
+      "source_sha256": "4456568c4974901e6d985cc3ef8fed9c9d1ad3e1d4656f7671237bbe87d92305",
       "source_line": 236,
       "inline_payloads": [],
       "markers": [
@@ -805,7 +1214,7 @@
         "--test-threads=1"
       ],
       "source": "crates/ssx-infra/tests/a13_dehashed.rs",
-      "source_sha256": "0daa2cc4c30843f9afbd5b50987bec9b73e447960b4d7d6f9d3f38b721082e00",
+      "source_sha256": "4456568c4974901e6d985cc3ef8fed9c9d1ad3e1d4656f7671237bbe87d92305",
       "source_line": 269,
       "inline_payloads": [],
       "markers": [
@@ -841,7 +1250,7 @@
         "--test-threads=1"
       ],
       "source": "crates/ssx-infra/tests/a13_dehashed.rs",
-      "source_sha256": "0daa2cc4c30843f9afbd5b50987bec9b73e447960b4d7d6f9d3f38b721082e00",
+      "source_sha256": "4456568c4974901e6d985cc3ef8fed9c9d1ad3e1d4656f7671237bbe87d92305",
       "source_line": 320,
       "inline_payloads": [],
       "markers": [
@@ -876,7 +1285,7 @@
         "--test-threads=1"
       ],
       "source": "crates/ssx-infra/tests/a13_dehashed.rs",
-      "source_sha256": "0daa2cc4c30843f9afbd5b50987bec9b73e447960b4d7d6f9d3f38b721082e00",
+      "source_sha256": "4456568c4974901e6d985cc3ef8fed9c9d1ad3e1d4656f7671237bbe87d92305",
       "source_line": 342,
       "inline_payloads": [],
       "markers": [
@@ -913,7 +1322,7 @@
         "--test-threads=1"
       ],
       "source": "crates/ssx-infra/tests/a13_dehashed.rs",
-      "source_sha256": "0daa2cc4c30843f9afbd5b50987bec9b73e447960b4d7d6f9d3f38b721082e00",
+      "source_sha256": "4456568c4974901e6d985cc3ef8fed9c9d1ad3e1d4656f7671237bbe87d92305",
       "source_line": 418,
       "inline_payloads": [],
       "markers": [
@@ -951,7 +1360,7 @@
         "--test-threads=1"
       ],
       "source": "crates/ssx-infra/tests/a13_dehashed.rs",
-      "source_sha256": "0daa2cc4c30843f9afbd5b50987bec9b73e447960b4d7d6f9d3f38b721082e00",
+      "source_sha256": "4456568c4974901e6d985cc3ef8fed9c9d1ad3e1d4656f7671237bbe87d92305",
       "source_line": 501,
       "inline_payloads": [],
       "markers": [
@@ -980,7 +1389,7 @@
         "--test-threads=1"
       ],
       "source": "crates/ssx-infra/tests/a13_dehashed.rs",
-      "source_sha256": "0daa2cc4c30843f9afbd5b50987bec9b73e447960b4d7d6f9d3f38b721082e00",
+      "source_sha256": "4456568c4974901e6d985cc3ef8fed9c9d1ad3e1d4656f7671237bbe87d92305",
       "source_line": 544,
       "inline_payloads": [],
       "markers": [
@@ -1014,7 +1423,7 @@
         "--test-threads=1"
       ],
       "source": "crates/ssx-infra/tests/a13_dehashed.rs",
-      "source_sha256": "0daa2cc4c30843f9afbd5b50987bec9b73e447960b4d7d6f9d3f38b721082e00",
+      "source_sha256": "4456568c4974901e6d985cc3ef8fed9c9d1ad3e1d4656f7671237bbe87d92305",
       "source_line": 614,
       "inline_payloads": [],
       "markers": [
@@ -1046,7 +1455,7 @@
         "--test-threads=1"
       ],
       "source": "crates/ssx-infra/tests/a13_dehashed.rs",
-      "source_sha256": "0daa2cc4c30843f9afbd5b50987bec9b73e447960b4d7d6f9d3f38b721082e00",
+      "source_sha256": "4456568c4974901e6d985cc3ef8fed9c9d1ad3e1d4656f7671237bbe87d92305",
       "source_line": 651,
       "inline_payloads": [],
       "markers": [
@@ -1079,7 +1488,7 @@
         "--test-threads=1"
       ],
       "source": "crates/ssx-infra/tests/a13_dehashed.rs",
-      "source_sha256": "0daa2cc4c30843f9afbd5b50987bec9b73e447960b4d7d6f9d3f38b721082e00",
+      "source_sha256": "4456568c4974901e6d985cc3ef8fed9c9d1ad3e1d4656f7671237bbe87d92305",
       "source_line": 705,
       "inline_payloads": [],
       "markers": [
@@ -1108,7 +1517,7 @@
         "--test-threads=1"
       ],
       "source": "crates/ssx-infra/tests/a13_dehashed.rs",
-      "source_sha256": "0daa2cc4c30843f9afbd5b50987bec9b73e447960b4d7d6f9d3f38b721082e00",
+      "source_sha256": "4456568c4974901e6d985cc3ef8fed9c9d1ad3e1d4656f7671237bbe87d92305",
       "source_line": 767,
       "inline_payloads": [],
       "markers": [
@@ -1137,7 +1546,7 @@
         "--test-threads=1"
       ],
       "source": "crates/ssx-infra/tests/a13_dehashed.rs",
-      "source_sha256": "0daa2cc4c30843f9afbd5b50987bec9b73e447960b4d7d6f9d3f38b721082e00",
+      "source_sha256": "4456568c4974901e6d985cc3ef8fed9c9d1ad3e1d4656f7671237bbe87d92305",
       "source_line": 802,
       "inline_payloads": [],
       "markers": [
@@ -1166,7 +1575,7 @@
         "--test-threads=1"
       ],
       "source": "crates/ssx-infra/tests/a13_dehashed.rs",
-      "source_sha256": "0daa2cc4c30843f9afbd5b50987bec9b73e447960b4d7d6f9d3f38b721082e00",
+      "source_sha256": "4456568c4974901e6d985cc3ef8fed9c9d1ad3e1d4656f7671237bbe87d92305",
       "source_line": 924,
       "inline_payloads": [],
       "markers": [
@@ -1201,7 +1610,7 @@
         "--test-threads=1"
       ],
       "source": "crates/ssx-infra/tests/a13_dehashed.rs",
-      "source_sha256": "0daa2cc4c30843f9afbd5b50987bec9b73e447960b4d7d6f9d3f38b721082e00",
+      "source_sha256": "4456568c4974901e6d985cc3ef8fed9c9d1ad3e1d4656f7671237bbe87d92305",
       "source_line": 1005,
       "inline_payloads": [],
       "markers": [
@@ -1230,7 +1639,7 @@
         "--test-threads=1"
       ],
       "source": "crates/ssx-infra/tests/a13_dehashed.rs",
-      "source_sha256": "0daa2cc4c30843f9afbd5b50987bec9b73e447960b4d7d6f9d3f38b721082e00",
+      "source_sha256": "4456568c4974901e6d985cc3ef8fed9c9d1ad3e1d4656f7671237bbe87d92305",
       "source_line": 1128,
       "inline_payloads": [],
       "markers": [
@@ -1261,7 +1670,7 @@
         "--test-threads=1"
       ],
       "source": "crates/ssx-infra/tests/a13_dehashed.rs",
-      "source_sha256": "0daa2cc4c30843f9afbd5b50987bec9b73e447960b4d7d6f9d3f38b721082e00",
+      "source_sha256": "4456568c4974901e6d985cc3ef8fed9c9d1ad3e1d4656f7671237bbe87d92305",
       "source_line": 1221,
       "inline_payloads": [],
       "markers": [
@@ -1290,7 +1699,7 @@
         "--test-threads=1"
       ],
       "source": "crates/ssx-infra/tests/a13_dehashed.rs",
-      "source_sha256": "0daa2cc4c30843f9afbd5b50987bec9b73e447960b4d7d6f9d3f38b721082e00",
+      "source_sha256": "4456568c4974901e6d985cc3ef8fed9c9d1ad3e1d4656f7671237bbe87d92305",
       "source_line": 1444,
       "inline_payloads": [],
       "markers": [
@@ -1320,7 +1729,7 @@
         "--test-threads=1"
       ],
       "source": "crates/ssx-infra/tests/a13_dehashed.rs",
-      "source_sha256": "0daa2cc4c30843f9afbd5b50987bec9b73e447960b4d7d6f9d3f38b721082e00",
+      "source_sha256": "4456568c4974901e6d985cc3ef8fed9c9d1ad3e1d4656f7671237bbe87d92305",
       "source_line": 1486,
       "inline_payloads": [],
       "markers": [
@@ -1351,7 +1760,7 @@
         "--test-threads=1"
       ],
       "source": "crates/ssx-infra/tests/a13_dehashed.rs",
-      "source_sha256": "0daa2cc4c30843f9afbd5b50987bec9b73e447960b4d7d6f9d3f38b721082e00",
+      "source_sha256": "4456568c4974901e6d985cc3ef8fed9c9d1ad3e1d4656f7671237bbe87d92305",
       "source_line": 1526,
       "inline_payloads": [],
       "markers": [
@@ -1380,7 +1789,7 @@
         "--test-threads=1"
       ],
       "source": "crates/ssx-infra/tests/a13_dehashed.rs",
-      "source_sha256": "0daa2cc4c30843f9afbd5b50987bec9b73e447960b4d7d6f9d3f38b721082e00",
+      "source_sha256": "4456568c4974901e6d985cc3ef8fed9c9d1ad3e1d4656f7671237bbe87d92305",
       "source_line": 1553,
       "inline_payloads": [],
       "markers": [

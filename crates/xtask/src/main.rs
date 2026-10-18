@@ -7,6 +7,7 @@ mod a05;
 mod a07;
 mod a08;
 mod a09;
+mod a10;
 mod a11;
 mod a13;
 mod a14;
@@ -465,6 +466,7 @@ fn execute(root: &Path, id: &str, records: &mut Vec<Value>) -> Result<()> {
         "A07" => a07::check(root, records),
         "A08" => a08::check(root, records),
         "A09" => a09::check(root, records),
+        "A10" => a10::check(root, records),
         "A11" => a11::check(root, records),
         "A13" => a13::check(root, records),
         "A14" => a14::check(root, records),
@@ -626,7 +628,9 @@ fn main() {
         }
     }
     let a08_scope = a08::report_scope(&records);
-    let scope = if id == "A13" {
+    let scope = if id == "A10" {
+        "source-bound five vulnerability adapters; full471 source observations/74 original test identities; exact reviewed differences and four correlated real-deadline IDs; private loopback/native helper; no production/W09/global RSS claim"
+    } else if id == "A13" {
         "source-bound native DeHashed/HIBP/IntelX factories and Unicode primitives; 75 exact selectors, closed parent cases and three lossless private child lifecycles; no original Python/provider/full production/portal/global RSS claim"
     } else if id == "A11" {
         "source-bound threat-intelligence factories and full original tuples; actual private wire/ownership, closed F05/F06 differences; no providers/full production composition/global RSS"

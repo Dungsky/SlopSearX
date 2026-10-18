@@ -77,8 +77,8 @@
     },
     {
       "path": "crates/ssx-infra/src/adapters/clinicaltrials.rs",
-      "sha256": "d85151ac6399ee72cf0372840b648a7aa810ed2a1c1d1f46978f236448c6acc3",
-      "bytes": 33274
+      "sha256": "f7f74938aafe9ce7560f74fbddf907baf8ead53b8b6c0f22a7435de66372c5b7",
+      "bytes": 33943
     },
     {
       "path": "crates/ssx-infra/src/adapters/crates_io.rs",
@@ -97,8 +97,8 @@
     },
     {
       "path": "crates/ssx-infra/src/adapters/mod.rs",
-      "sha256": "9098a48f8f059a7a8da16b734b52734ecfd5b88d7b114027b0da8f5b8bc28f14",
-      "bytes": 31229
+      "sha256": "ac4a8f406e050e466fc66d401c3347b5ca2b69c44423a64c3175fec423406c94",
+      "bytes": 32013
     },
     {
       "path": "crates/ssx-infra/src/adapters/source_json.rs",
@@ -107,8 +107,8 @@
     },
     {
       "path": "crates/ssx-infra/src/adapters/source_payload.rs",
-      "sha256": "19d7e3cb4a94c1e4f3445f7afa9d1b05ca56eaf02f55de38f6896acfd52493a0",
-      "bytes": 48344
+      "sha256": "826006a11ef93c6c6127cdaa7f340d5f8aa1261941d388b38c2437d5ea7f89fb",
+      "bytes": 53896
     },
     {
       "path": "crates/ssx-infra/src/adapters/source_repr.rs",
@@ -122,8 +122,8 @@
     },
     {
       "path": "crates/ssx-infra/src/http.rs",
-      "sha256": "53f617dc02aca29a3a6db418c9c6f90e965f8498d8f154dbe9301344d15e9ed0",
-      "bytes": 39288
+      "sha256": "131cc1313b96f36bfbd9cf865a2e1857a6120ef3a2736ebee0b0b9565f80ac6b",
+      "bytes": 41754
     },
     {
       "path": "crates/ssx-infra/src/search.rs",
@@ -172,12 +172,12 @@
     },
     {
       "path": "crates/xtask/src/a09.rs",
-      "sha256": "68f556fde9d2894d99ac1d622092af5c7fe99f7d45266b660e71ccd17deaf875",
+      "sha256": "51cfbd5ceebfcafeb5cad5ccfeaea2ac3e32d471c6ae9adf8caae1ab9c318225",
       "bytes": 21552
     },
     {
       "path": "crates/xtask/src/a11.rs",
-      "sha256": "55425c6929ef0f1405bac450fd34bc3db912b150fad44bd7037f88e56e7e337e",
+      "sha256": "99923492a3f7cc3354c7f735b6a056f320ba610e44280f88f49b22199f1b4b19",
       "bytes": 19879
     },
     {
