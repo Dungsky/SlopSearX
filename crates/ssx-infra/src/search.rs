@@ -282,6 +282,8 @@ struct Inner {
     flights: Mutex<HashMap<String, Arc<Flight>>>,
     health: Mutex<BTreeMap<String, HealthState>>,
     closed: AtomicBool,
+    #[cfg(test)]
+    collection_pause: Mutex<Option<Arc<CollectionPause>>>,
 }
 #[derive(Clone)]
 pub struct SearchService(Arc<Inner>);
@@ -498,6 +500,8 @@ impl SearchService {
             flights: Mutex::new(HashMap::new()),
             health: Mutex::new(BTreeMap::new()),
             closed: AtomicBool::new(false),
+            #[cfg(test)]
+            collection_pause: Mutex::new(None),
         })))
     }
     pub fn health(&self) -> BTreeMap<String, HealthState> {
@@ -1245,8 +1249,35 @@ fn synthetic(status: EngineStatus, message: &str) -> AdapterResponse {
         ..Default::default()
     }
 }
+#[cfg(test)]
+#[derive(Default)]
+struct CollectionPause {
+    entered: Notify,
+    release: Notify,
+    tasks: Mutex<Vec<tokio::task::AbortHandle>>,
+    hold_completion: Mutex<Option<usize>>,
+    completion_entered: Notify,
+    completion_release: Notify,
+    cancelled_joins: std::sync::atomic::AtomicUsize,
+}
 struct Finished(usize, AdapterResponse, bool);
 impl Finished {
+    fn undispatched(index: usize, response: AdapterResponse, service_deadline: Instant) -> Self {
+        Self(index, response, Instant::now() >= service_deadline)
+    }
+
+    fn before_dispatch_deadline(index: usize, deadline: Instant) -> Option<Self> {
+        (Instant::now() >= deadline).then(|| {
+            Self(
+                index,
+                synthetic(
+                    EngineStatus::Unavailable,
+                    "not started before the search deadline",
+                ),
+                true,
+            )
+        })
+    }
     fn dispatched(
         index: usize,
         mut response: AdapterResponse,
@@ -1256,8 +1287,7 @@ impl Finished {
     ) -> Self {
         // Completion time, not collection time, determines origin. Service wins ties.
         let completed_at = Instant::now();
-        let service_expired =
-            execution_deadline == service_deadline && completed_at >= service_deadline;
+        let service_expired = completed_at >= service_deadline;
         if !service_expired && completed_at >= execution_deadline {
             response = timeout_response(binding_timeout);
         }
@@ -1270,6 +1300,29 @@ impl Finished {
             *truncated = true;
         } else {
             responses[index] = Some(response);
+        }
+    }
+}
+
+fn collect_engine_join(
+    result: Result<(tokio::task::Id, Finished), tokio::task::JoinError>,
+    owner_aborted: bool,
+    task_ids: &HashMap<tokio::task::Id, usize>,
+    responses: &mut [Option<AdapterResponse>],
+    truncated: &mut bool,
+    internal_failures: &mut std::collections::BTreeSet<usize>,
+) {
+    match result {
+        Ok((_, finished)) => finished.collect(responses, truncated),
+        Err(error) if owner_aborted && error.is_cancelled() => {}
+        Err(error) => {
+            if let Some(index) = task_ids.get(&error.id()) {
+                internal_failures.insert(*index);
+                responses[*index] = Some(synthetic(
+                    EngineStatus::Error,
+                    "internal adapter task failure",
+                ));
+            }
         }
     }
 }
@@ -1373,6 +1426,8 @@ async fn execute(
     let started = Arc::new(Mutex::new(vec![false; names.len()]));
     let mut tasks = JoinSet::new();
     let mut task_ids = HashMap::new();
+    #[cfg(test)]
+    let collection_pause = inner.collection_pause.lock().unwrap().clone();
     for (index, name) in names.iter().enumerate() {
         let binding = inner.deps.engines[name].clone();
         let semaphore = inner.engines.clone();
@@ -1380,16 +1435,11 @@ async fn execute(
         let started = started.clone();
         let owner = inner.clone();
         let name = name.clone();
+        #[cfg(test)]
+        let task_pause = collection_pause.clone();
         let task = tasks.spawn(async move {
-            if Instant::now() >= deadline {
-                return Finished(
-                    index,
-                    synthetic(
-                        EngineStatus::Unavailable,
-                        "not started before the search deadline",
-                    ),
-                    false,
-                );
+            if let Some(expired) = Finished::before_dispatch_deadline(index, deadline) {
+                return expired;
             }
             if let Some(cooldowns) = &owner.deps.cooldowns
                 && let Ok(key) = ssx_domain::rate::EngineKey::new(&name)
@@ -1397,31 +1447,24 @@ async fn execute(
                     cooldowns.cooldown(&key).await
                 && seconds > 0
             {
-                return Finished(
+                return Finished::undispatched(
                     index,
                     synthetic(
                         EngineStatus::RateLimited,
                         &format!("upstream cooldown active; retry in {seconds}s"),
                     ),
-                    false,
+                    deadline,
                 );
             }
             let Ok(_permit) = semaphore.acquire_owned().await else {
-                return Finished(
+                return Finished::undispatched(
                     index,
                     synthetic(EngineStatus::Unavailable, "service closed"),
-                    false,
+                    deadline,
                 );
             };
-            if Instant::now() >= deadline {
-                return Finished(
-                    index,
-                    synthetic(
-                        EngineStatus::Unavailable,
-                        "not started before the search deadline",
-                    ),
-                    false,
-                );
+            if let Some(expired) = Finished::before_dispatch_deadline(index, deadline) {
+                return expired;
             }
             if owner
                 .health
@@ -1430,7 +1473,11 @@ async fn execute(
                 .get(&name)
                 .is_some_and(|h| !h.circuit_allowed(owner.deps.clock.capture().0))
             {
-                return Finished(index, synthetic(EngineStatus::Error, "circuit open"), false);
+                return Finished::undispatched(
+                    index,
+                    synthetic(EngineStatus::Error, "circuit open"),
+                    deadline,
+                );
             }
             started.lock().unwrap()[index] = true;
             // Overflow adds no tighter binding limit to the checked service bound.
@@ -1447,6 +1494,16 @@ async fn execute(
             )
             .await
             .unwrap_or_else(|_| timeout_response(binding.timeout));
+            // Test scheduling seam: retain an actually owned task until the real
+            // owner aborts it; do not alter deadline selection or classification.
+            #[cfg(test)]
+            if let Some(pause) = &task_pause {
+                let hold = *pause.hold_completion.lock().unwrap() == Some(index);
+                if hold {
+                    pause.completion_entered.notify_one();
+                    pause.completion_release.notified().await;
+                }
+            }
             Finished::dispatched(
                 index,
                 response,
@@ -1456,6 +1513,10 @@ async fn execute(
             )
         });
         task_ids.insert(task.id(), index);
+        #[cfg(test)]
+        if let Some(pause) = &collection_pause {
+            pause.tasks.lock().unwrap().push(task);
+        }
     }
     let mut suggestion_tasks = JoinSet::new();
     if request.generate_suggestions
@@ -1470,8 +1531,13 @@ async fn execute(
                 .unwrap_or_default()
         });
     }
+    #[cfg(test)]
+    if let Some(pause) = &collection_pause {
+        pause.entered.notify_one();
+        pause.release.notified().await;
+    }
     let mut responses: Vec<Option<AdapterResponse>> = vec![None; names.len()];
-    // JoinError is a service-owned defect, never an adapter-returned outcome.
+    // Unexpected JoinError is a service defect; owner-requested cancellation is not.
     let mut internal_failures = std::collections::BTreeSet::new();
     let mut truncated = false;
     let mut was_cancelled = false;
@@ -1479,15 +1545,36 @@ async fn execute(
         tokio::select! {
             biased;
             _ = cancelled(&mut cancel) => { was_cancelled = true; break; }
-            _ = tokio::time::sleep_until(deadline) => { truncated = true; break; }
-            result = tasks.join_next_with_id() => match result {
-                Some(Ok((_, finished))) => finished.collect(&mut responses, &mut truncated),
-                Some(Err(error)) => { if let Some(i) = task_ids.get(&error.id()) { internal_failures.insert(*i); responses[*i] = Some(synthetic(EngineStatus::Error, "internal adapter task failure")); } },
-                _ => {},
+            _ = tokio::time::sleep_until(deadline) => { break; }
+            result = tasks.join_next_with_id() => {
+                if let Some(result) = result {
+                    collect_engine_join(result, false, &task_ids, &mut responses, &mut truncated, &mut internal_failures);
+                }
             }
         }
     }
-    tasks.shutdown().await;
+    // Abort does not discard already completed outputs. Join every owned task,
+    // retaining its completion-time decision and waiting for cancellation cleanup.
+    tasks.abort_all();
+    while let Some(result) = tasks.join_next_with_id().await {
+        #[cfg(test)]
+        if result
+            .as_ref()
+            .is_err_and(tokio::task::JoinError::is_cancelled)
+            && let Some(pause) = &collection_pause
+        {
+            pause.cancelled_joins.fetch_add(1, Ordering::SeqCst);
+        }
+        collect_engine_join(
+            result,
+            true,
+            &task_ids,
+            &mut responses,
+            &mut truncated,
+            &mut internal_failures,
+        );
+    }
+    truncated |= responses.iter().any(Option::is_none);
     if was_cancelled {
         suggestion_tasks.shutdown().await;
         return Err(SearchError::Cancelled);
@@ -1843,6 +1930,7 @@ mod tests {
                 true,
                 OutcomeOrigin::DispatchedSyntheticTimeout,
             ),
+            (200, 100, 200, true, OutcomeOrigin::CallerCancelled),
             (200, 100, 50, true, OutcomeOrigin::AdapterReturned),
         ] {
             let start = Instant::now();
@@ -1865,7 +1953,7 @@ mod tests {
             let mut responses = vec![None];
             let mut truncated = false;
             finished.collect(&mut responses, &mut truncated);
-            let service_expired = service_ms <= binding_ms && completed_ms >= service_ms;
+            let service_expired = completed_ms >= service_ms;
             assert_eq!(truncated, service_expired);
             assert_eq!(responses[0].is_none(), service_expired);
             let (response, origin) = resolve_outcome(
@@ -2028,3 +2116,43 @@ mod f15_sensitive_tests {
         ));
     }
 }
+
+#[cfg(test)]
+mod deadline1010_tests {
+    use super::*;
+    #[tokio::test(start_paused = true)]
+    async fn expired_undispatched_service_deadline_keeps_interactive_origin() {
+        let start = Instant::now();
+        let budget = Duration::from_millis(1);
+        let deadline = start + budget;
+        assert!(Finished::before_dispatch_deadline(0, deadline).is_none());
+        tokio::time::advance(budget).await;
+        let observed = Instant::now();
+        assert_eq!(observed, deadline);
+        let expired = Finished::before_dispatch_deadline(0, deadline)
+            .expect("actual original deadline reached");
+        let mut responses = vec![None];
+        let mut truncated = false;
+        expired.collect(&mut responses, &mut truncated);
+        assert!(
+            truncated,
+            "expired undispatched work must carry service-deadline origin independently of timer collection"
+        );
+        assert!(responses[0].is_none());
+        let (response, origin) = resolve_outcome(responses[0].take(), false, true, budget, false);
+        assert!(response.synthetic);
+        assert_eq!(response.status, EngineStatus::Unavailable);
+        assert_eq!(
+            response.error_message.as_deref(),
+            Some("interactive deadline reached")
+        );
+        assert_eq!(response.latency_ms.get(), 0.0);
+        assert_eq!(origin, Some(OutcomeOrigin::Undispatched));
+        assert!(response.results.is_empty());
+        println!("T06_1010_COMPONENT_COMPLETE expired-undispatched-deadline-origin");
+    }
+}
+
+#[cfg(test)]
+#[path = "search_deadline_drain_tests.rs"]
+mod deadline_drain_tests;
