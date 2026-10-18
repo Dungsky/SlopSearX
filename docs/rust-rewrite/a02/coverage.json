@@ -133,7 +133,6 @@
     "package_admission_denials_and_unavailability_dispatch_zero_requests",
     "cancelling_package_search_drops_work_and_prevents_followup_dispatch",
     "package_factories_complete_catalog_without_changing_metadata",
-    "pypi_uses_fresh_per_operation_timeouts_on_the_caller_pool",
     "explicit_empty_pypi_and_rubygems_urls_fail_before_transport_dispatch",
     "resetting_operation_deadline_preserves_request_and_cancellation_guards"
   ],
@@ -164,7 +163,8 @@
     "supplemental_path": "docs/rust-rewrite/a02/oracle/export_extra.py"
   },
   "native_unit_tests": [
-    "adapters::dockerhub::tests::default_route_scope_and_percent_encoding_match_source"
+    "adapters::dockerhub::tests::default_route_scope_and_percent_encoding_match_source",
+    "http::pypi_operation_timeout_tests::pypi_uses_fresh_per_operation_timeouts_on_the_caller_pool"
   ],
   "supplemental_corpus_sha256": "5df0064281e5cf633b700e30866de2a1a410b1771a509638a45e01cad061b1d5",
   "supplemental_capture_reason": "Add actual Location-header redirect contracts, detail-shape failures, duplicate/cap semantics, configured query replacement and Docker iterable shape cases without replacing immutable initial corpus.",

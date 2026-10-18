@@ -379,6 +379,16 @@ impl AdapterHttp {
     pub(crate) fn deadline_now(&self) -> Instant {
         self.clock.now()
     }
+    /// Construct a real-pool owner with a manually advanced deadline clock.
+    /// This is private to unit tests; it does not install a transport or expose
+    /// a production clock-selection path.
+    #[cfg(test)]
+    fn clocked_real_pool_owner() -> (Self, monotonic::Driver) {
+        let (clock, driver) = DeadlineClock::replay();
+        let mut owner = Self::default();
+        owner.clock = clock;
+        (owner, driver)
+    }
     #[cfg(test)]
     pub(crate) fn assert_direct_replay_context(&self, context: Option<Instant>) {
         assert!(
@@ -1263,3 +1273,123 @@ mod f15_header_tests {
 #[cfg(test)]
 #[path = "../tests/support/a10_http_clock.rs"]
 mod a10_owner_clock_tests;
+
+#[cfg(test)]
+mod pypi_operation_timeout_tests {
+    use super::AdapterHttp;
+    use crate::adapters::{AllowAllAdmission, PackageConfig, PyPIConfig, register_packages};
+    use ssx_domain::{EngineStatus, SearchRequest};
+    use ssx_registry::Registry;
+    use std::{sync::Arc, time::Duration};
+    use tokio::{
+        io::{AsyncReadExt, AsyncWriteExt},
+        net::TcpListener,
+    };
+
+    async fn run_pypi_per_operation_timeout_scenario() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let base = format!("http://{}", listener.local_addr().unwrap());
+        let (owner, driver) = AdapterHttp::clocked_real_pool_owner();
+        let http = Arc::new(owner);
+        let server = tokio::spawn(async move {
+            let mut requests = Vec::new();
+            for (index, body) in [
+                "",
+                "<a href='/simple/python-one/'>x</a><a href='/simple/python-two/'>y</a>",
+                "{\"info\":{}}",
+                "{\"info\":{}}",
+            ]
+            .iter()
+            .enumerate()
+            {
+                let (mut stream, _) = listener.accept().await.unwrap();
+                let mut buf = [0; 4096];
+                let mut read = 0;
+                while !buf[..read].windows(4).any(|window| window == b"\r\n\r\n") {
+                    assert!(read < buf.len(), "bounded HTTP request headers");
+                    let count = stream.read(&mut buf[read..]).await.unwrap();
+                    assert!(count > 0, "loopback request closed before its headers");
+                    read += count;
+                }
+                let request = std::str::from_utf8(&buf[..read])
+                    .unwrap()
+                    .lines()
+                    .next()
+                    .unwrap()
+                    .to_owned();
+                requests.push(request);
+                if index > 0 {
+                    // Model a logical 180 ms server operation without letting
+                    // host scheduling consume part of the HTTP timeout budget.
+                    driver.advance_to(Duration::from_millis(180 * index as u64));
+                }
+                let status = if index == 0 { 404 } else { 200 };
+                let head = format!(
+                    "HTTP/1.1 {status} Response\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                    body.len()
+                );
+                stream.write_all(head.as_bytes()).await.unwrap();
+                stream.write_all(body.as_bytes()).await.unwrap();
+            }
+            requests
+        });
+
+        let mut registry = Registry::builtins().unwrap();
+        register_packages(
+            &mut registry,
+            http.clone(),
+            Arc::new(AllowAllAdmission),
+            PackageConfig {
+                pypi: PyPIConfig {
+                    base_url: base,
+                    timeout_ms: 400,
+                    max_results: 2,
+                },
+                ..PackageConfig::default()
+            },
+        )
+        .unwrap();
+        let response = registry
+            .instantiate("pypi")
+            .unwrap()
+            .search(&SearchRequest {
+                query: "python".into(),
+                ..SearchRequest::default()
+            })
+            .await;
+        assert_eq!(response.status, EngineStatus::Ok);
+        assert_eq!(
+            response
+                .results
+                .iter()
+                .map(|result| result.title.as_str())
+                .collect::<Vec<_>>(),
+            ["python-one ", "python-two "]
+        );
+        assert_eq!(
+            server.await.unwrap(),
+            [
+                "GET /pypi/python/json HTTP/1.1",
+                "GET /simple/ HTTP/1.1",
+                "GET /pypi/python-one/json HTTP/1.1",
+                "GET /pypi/python-two/json HTTP/1.1",
+            ]
+        );
+        {
+            let state = http.state.lock().unwrap();
+            assert!(state.used, "the caller-owned HTTP pool was exercised");
+            assert!(state.injected.is_none(), "the real transport was retained");
+        }
+        http.shutdown();
+    }
+
+    #[tokio::test]
+    async fn pypi_uses_fresh_per_operation_timeouts_on_the_caller_pool() {
+        tokio::time::timeout(
+            Duration::from_secs(35),
+            run_pypi_per_operation_timeout_scenario(),
+        )
+        .await
+        .expect("loopback timeout scenario exceeded its wall-clock watchdog");
+    }
+}
