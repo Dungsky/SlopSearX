@@ -408,7 +408,7 @@
     },
     {
       "path": "docs/rust-rewrite/inventory/DRIFT.md",
-      "git_blob": "2780943bc85fb84544b64c31abd5807ffa834c93"
+      "git_blob": "b31d1969fd0207043c5b96fe98563a1a415aacab"
     },
     {
       "path": "docs/rust-rewrite/inventory/README.md",
@@ -432,7 +432,7 @@
     },
     {
       "path": "docs/rust-rewrite/inventory/python-disposition.json",
-      "git_blob": "99da9e165bf53f6b860337238fb37eb7a5387ae1"
+      "git_blob": "a3b95b173c54cc5683d30fb144188708e94db9a3"
     },
     {
       "path": "docs/rust-rewrite/inventory/python-invocations.json",
