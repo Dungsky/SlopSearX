@@ -8,7 +8,7 @@ use std::{
     path::Path,
     process::Command,
 };
-const COVERAGE_SHA: &str = "261ace11e64bd4a1efdf06bc6fce3500cebfd3cb868581ae75a49cc87568560f";
+const COVERAGE_SHA: &str = "c1bf4c439a17a8d2b88baabafaba8e7c755e51dc76cf93b1eabd42701b404ef6";
 fn require(ok: bool, why: &str) -> Result<()> {
     if ok { Ok(()) } else { Err(why.into()) }
 }

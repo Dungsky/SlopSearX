@@ -51,6 +51,19 @@ impl PlanningRegistry {
         self.wire = Some(wire);
         self
     }
+    // Serialized with other starts and registry close. Clones share this one
+    // JoinSet; it contains at most one pool supervisor, never one task per job.
+    async fn ensure_workers(&self) {
+        let mut tasks = self.tasks.lock().await;
+        while tasks.try_join_next().is_some() {}
+        if tasks.is_empty() && !*self.stop.borrow() {
+            let planning = self.planning.clone();
+            let stop = self.stop.subscribe();
+            tasks.spawn(async move {
+                planning.run_workers(stop).await;
+            });
+        }
+    }
     pub async fn close(&self) {
         self.stop.send_replace(true);
         let mut closed = self.closed.write().await;
@@ -129,14 +142,9 @@ impl PlanningRegistry {
                 Ok((job,created)) => {
                     let mut output = job_summary(&job);
                     output["note"]=ssx_json::json!(if created{"job queued; cancellation stops owned work and preserves completed evidence"}else{"returned existing job for idempotency_key"});
-                    if !created{return Ok(output);}
-                    let service = self.planning.clone();
-                    let stop = self.stop.subscribe();
-                    let mut tasks = self.tasks.lock().await;
-                    while tasks.try_join_next().is_some() {}
-                    tasks.spawn(async move {
-                        let _ = service.run(tenant, &job.job_id, stop).await;
-                    });
+                    // Successful replay can recover durable queued work after restart.
+                    // Admission and its existing output/error contract stay ahead of workers.
+                    self.ensure_workers().await;
                     Ok(output)
                 }
                 Err(e) => Err(e),

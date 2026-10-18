@@ -53,3 +53,9 @@ passing outputs, source hashes and exact commands are retained in
 The old-runtime failure is the undeclared-argument assertion, after successful
 compilation; it is not a watchdog or compiler failure. No original capture or
 intentional-difference ledger was changed.
+
+## Configured worker bounds
+
+Initial research starts use one registry-owned supervisor for the existing durable worker pool. Admission queues work durably; it does not spawn a worker task for every job. Idempotent replay starts an absent pool so already-admitted work can recover. Registry clones share the supervisor lock and shutdown fence.
+
+The authenticated two-session regression exercises configured worker counts one and two, queued and active cancellation, idempotency, cold replay, shutdown and successful recovery with exact provider calls and conserved charges. The old implementation reached four provider calls with one worker configured; the unchanged regression failed after explicit cleanup. The corrected implementation passed, together with all six MCP tests, W02/W03, formatting, full workspace/all-target build and strict Clippy. See evidence/worker-bounds/manifest.json for exact source hashes and compressed raw receipts. These private checks precede publication; fresh hosted checks remain required. Independent registries, direct extend/retry and global admission bounds remain separate integration obligations. Simultaneous initialization contention is synchronized by the shared mutex and reviewed statically; the test submits sequential starts.

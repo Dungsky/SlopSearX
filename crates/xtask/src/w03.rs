@@ -51,7 +51,7 @@ const EVIDENCE: &[(&str, &str)] = &[
     ),
     (
         "docs/rust-rewrite/w03/native-tests.json",
-        "83518f20eedf04d3cb1184f8239197291ad8f926aee772e84daf07f14a74ff86",
+        "db4337dbdafb35edebe3f980b4ca9a795e9bd456d8daabb68f3cc771b94df5eb",
     ),
     (
         "docs/rust-rewrite/w03/capture_source.py.frozen",

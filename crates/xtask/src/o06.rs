@@ -362,11 +362,22 @@ fn checkout_with(
         "trusted harness revision mismatch",
     )
 }
-// Exact reviewed A05 assets: binary formats are never treated as UTF8 source.
+// Exact reviewed source assets: binary formats are never treated as UTF8 source.
 const A05_ASSET_MANIFEST: &str = "docs/rust-rewrite/a05/source-assets.json";
 const A05_ASSET_MANIFEST_SHA256: &str =
-    "0b5ec029dd10c9ec225d40e67700b9993141272f07434d61291384fec04eeeef";
+    "a04b55d47739d0caab79a25df573346850594849baa5e9265071f758a8053afa";
 const A05_MAX_ASSET_BYTES: u64 = 5_869_813;
+// Finite CPython Unicode16 source provenance; no directory-prefix exemption.
+const F05_PYTHON_TEXT_ASSET_PATHS: [&str; 8] = [
+    "contracts/unicode/python-text-source/Modules___sre__sre.c.txt",
+    "contracts/unicode/python-text-source/Include__cpython__unicodeobject.h.txt",
+    "contracts/unicode/python-text-source/Objects__unicodectype.c.txt",
+    "contracts/unicode/python-text-source/Objects__unicodetype_db.h.txt",
+    "contracts/unicode/python-text-source/Objects__unicodeobject.c.txt",
+    "contracts/unicode/python-text-source/Include__patchlevel.h.txt",
+    "contracts/unicode/python-text-source/Modules__unicodedata_db.h.txt",
+    "contracts/unicode/python-text-source/LICENSE.txt",
+];
 #[derive(Clone, Copy, Default, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 struct AssetTextRules {
@@ -428,7 +439,8 @@ fn source_assets(
                 .any(|part| matches!(part, "" | "." | ".."))
                 && (asset.path.starts_with("crates/ssx-source-codecs/")
                     || asset.path
-                        == "crates/ssx-domain/tests/fixtures/a05_previous_media_sanitizer.rs"),
+                        == "crates/ssx-domain/tests/fixtures/a05_previous_media_sanitizer.rs"
+                    || F05_PYTHON_TEXT_ASSET_PATHS.contains(&asset.path.as_str())),
             "invalid source asset path",
         )?;
         ensure(
@@ -476,7 +488,9 @@ fn source_assets(
         )?;
         let rules = asset.text_rules;
         ensure(
-            !rules.license_separator || asset.path == "crates/ssx-source-codecs/LICENSE-PYTHON",
+            !rules.license_separator
+                || asset.path == "crates/ssx-source-codecs/LICENSE-PYTHON"
+                || asset.path == "contracts/unicode/python-text-source/LICENSE.txt",
             "unreviewed license separator",
         )?;
         ensure(
@@ -600,7 +614,7 @@ fn hygiene(root: &Path) -> Result<()> {
         AssetPolicy {
             path: A05_ASSET_MANIFEST,
             digest: A05_ASSET_MANIFEST_SHA256,
-            count: 200,
+            count: 208,
         },
     )
 }
@@ -620,7 +634,8 @@ fn hygiene_with_policy(root: &Path, policy: AssetPolicy<'_>) -> Result<()> {
         &mut vec![],
     )?;
     for file in files.split('\0').filter(|p| !p.is_empty()).filter(|p| {
-        p.starts_with("crates/")
+        assets.contains_key(*p)
+            || p.starts_with("crates/")
             || p.starts_with(".github/workflows/")
             || p.starts_with("docs/rust-rewrite/ci/")
             || matches!(

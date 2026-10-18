@@ -30,15 +30,27 @@ pub async fn setup(url: &str) -> (PlanningRegistry, fixture::Fixture) {
         &[],
     )
     .await;
-    let planning = AdaptiveResearch::new(
-        ResearchStore::new(fixture.store.clone(), TenantId::new("default").unwrap()),
+    let planning = planning(&fixture);
+    (
+        PlanningRegistry::new(planning, fixture.surface.clone()),
+        fixture,
+    )
+}
+
+/// Trusted fixture composition tenant, shared by the runner and lease observers.
+pub fn tenant() -> TenantId {
+    TenantId::new("default").unwrap()
+}
+pub fn planning(fixture: &fixture::Fixture) -> AdaptiveResearch {
+    AdaptiveResearch::new(
+        ResearchStore::new(fixture.store.clone(), tenant()),
         fixture.service.clone(),
         fixture.surface.state().snapshots.clone(),
         RunnerConfig {
             owner: "w03-wire".into(),
             lease_seconds: NonZeroU64::new(2).unwrap(),
             poll_interval: Duration::from_millis(20),
-            workers: NonZeroU64::new(2).unwrap(),
+            workers: NonZeroU64::new(1).unwrap(),
             ceilings: ResearchCeilings {
                 queries: 20,
                 engines_per_query: 10,
@@ -47,9 +59,5 @@ pub async fn setup(url: &str) -> (PlanningRegistry, fixture::Fixture) {
         },
         500,
     )
-    .unwrap();
-    (
-        PlanningRegistry::new(planning, fixture.surface.clone()),
-        fixture,
-    )
+    .unwrap()
 }

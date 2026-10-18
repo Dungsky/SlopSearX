@@ -3228,3 +3228,106 @@ async fn start_and_preview_preserve_distinct_source_limit_validation_order() {
     assert_eq!(e.calls.load(Ordering::SeqCst), 0);
     search.shutdown().await;
 }
+
+#[tokio::test]
+async fn legacy_retry_public_preserves_unknown_attempt_and_known_artifact() {
+    for failed in [false, true] {
+        let server = Server::start();
+        let e = engine(false);
+        e.count.store(0, Ordering::SeqCst);
+        let (_, jobs, search, snapshots) = setup(&server, e.clone());
+        let p = adaptive(jobs, search.clone(), snapshots);
+        let initial = first(&p, start_args()).await;
+        assert_eq!(initial.queries[0].state, "done");
+        assert_eq!(initial.queries[0].result_count, 0);
+        assert_eq!(initial.queries[0].attempts.len(), 1);
+        mutate_job(&server, &initial, |v| {
+            v["queries"].as_array_mut().unwrap()[0]["attempts"] = json!([]);
+            if failed {
+                v["state"] = json!("partial");
+                v["queries"].as_array_mut().unwrap()[0]["state"] = json!("failed");
+                v["queries"].as_array_mut().unwrap()[0]["error"] =
+                    json!("retained legacy adapter failure");
+                v["queries"].as_array_mut().unwrap()[0]["engine_coverage"] =
+                    json!([classify_coverage(
+                        "fake".into(),
+                        true,
+                        Some("error"),
+                        0,
+                        false
+                    )]);
+            }
+        });
+        let legacy = p
+            .get_job(tenant("org:test"), &initial.job_id)
+            .await
+            .unwrap();
+        let prior = legacy.queries[0].clone();
+        assert!(prior.attempts.is_empty());
+        assert_eq!(prior.state, if failed { "failed" } else { "done" });
+        assert_eq!(
+            prior.error.as_deref(),
+            failed.then_some("retained legacy adapter failure")
+        );
+        assert_eq!(
+            prior.engine_coverage[0].bucket,
+            if failed { "failed" } else { "empty" }
+        );
+        let calls = e.calls.load(Ordering::SeqCst);
+        e.count.store(3, Ordering::SeqCst);
+        let (_stop, rx) = shutdown();
+        let public = p
+            .retry_public(tenant("org:test"), &initial.job_id, rx)
+            .await
+            .unwrap();
+        let persisted = p
+            .get_job(tenant("org:test"), &initial.job_id)
+            .await
+            .unwrap();
+        let attempts = &persisted.queries[0].attempts;
+        assert_eq!(attempts.len(), 2);
+        let unknown = &attempts[0];
+        assert!(unknown.attempt_id.is_empty());
+        assert_eq!(unknown.attempted_at.get(), 0.0);
+        assert!(unknown.finished_at.is_none());
+        assert_eq!(unknown.state, prior.state);
+        assert_eq!(unknown.cursor, prior.cursor);
+        assert_eq!(unknown.query_id, prior.query_id);
+        assert_eq!(unknown.result_count, prior.result_count);
+        assert_eq!(unknown.error, prior.error);
+        assert_eq!(unknown.engine_coverage, prior.engine_coverage);
+        assert_eq!(unknown.enforcement, prior.enforcement);
+        assert!(unknown.admitted_result_ids.is_empty());
+        assert!(unknown.new_lead_ids.is_empty());
+        assert!(!attempts[1].attempt_id.is_empty());
+        assert_eq!(attempts[1].state, "done");
+        assert_eq!(attempts[1].result_count, 3);
+        assert_eq!(e.calls.load(Ordering::SeqCst), calls + 1);
+        assert_eq!(persisted.budget_used["attempts"], 2);
+        assert_eq!(persisted.budget_used["engine_attempts"], 2);
+        assert_eq!(public["queries"][0]["attempts"][0]["artifact"], Value::Null);
+        let serialized = ssx_json::to_value(unknown).unwrap();
+        for (key, expected) in serialized.as_object().unwrap() {
+            assert_eq!(
+                &public["queries"][0]["attempts"][0][key.as_str()],
+                expected,
+                "legacy field {key}"
+            );
+        }
+        assert_eq!(public["queries"][0]["attempts"][0]["snapshot_artifact"], prior.cursor.as_ref().map_or(Value::Null, |id| json!({"contract":"slopsearx.artifact_ref","version":1,"kind":"snapshot","id":id})));
+        let known_id = ssx_domain::canonical::composite_artifact_id(&[
+            &persisted.job_id,
+            &attempts[1].attempt_id,
+        ])
+        .unwrap();
+        assert_eq!(
+            public["queries"][0]["attempts"][1]["artifact"],
+            json!({"contract":"slopsearx.artifact_ref","version":1,"kind":"research_attempt","id":known_id})
+        );
+        assert_eq!(
+            job_summary(&persisted)["queries"][0]["attempts"],
+            public["queries"][0]["attempts"]
+        );
+        search.shutdown().await;
+    }
+}
