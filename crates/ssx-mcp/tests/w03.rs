@@ -39,15 +39,83 @@ async fn call<S: rmcp::Service<rmcp::RoleClient>>(
     );
     body
 }
+fn bounded_body(value: &Value) -> String {
+    let body = serde_json::to_string(value).expect("wire body serialization");
+    let mut chars = body.chars();
+    let mut bounded: String = chars.by_ref().take(16_384).collect();
+    if chars.next().is_some() {
+        bounded.push_str("...[truncated]");
+    }
+    bounded
+}
+fn require_job(job: &Value) {
+    assert!(
+        job.get("error").is_none(),
+        "expected job, complete business response={}",
+        bounded_body(job)
+    );
+    assert!(
+        job["job_id"].as_str().is_some(),
+        "missing job identity, response={}",
+        bounded_body(job)
+    );
+    assert!(
+        matches!(
+            job["state"].as_str(),
+            Some(
+                "queued" | "running" | "succeeded" | "partial" | "failed" | "cancelled" | "expired"
+            )
+        ),
+        "invalid job state, response={}",
+        bounded_body(job)
+    );
+}
+/// A terminal job can still be owned while its worker joins/clears/releases.
+/// Only a real missing source lease is retirement; read errors fail closed.
+async fn lease_released(
+    store: &ssx_infra::valkey::Valkey,
+    key: &str,
+    mut held_seen: Option<(std::sync::Arc<tokio::sync::Semaphore>, Vec<u8>)>,
+) -> bool {
+    loop {
+        match store.get(key).await {
+            ssx_infra::valkey::Read::Missing => return true,
+            ssx_infra::valkey::Read::Found(bytes) => {
+                if let Some((seen, expected)) = held_seen.take() {
+                    assert_eq!(bytes, expected, "controlled held lease token changed");
+                    seen.add_permits(1);
+                }
+            }
+            other => panic!("lease observation failed: {other:?}"),
+        }
+        tokio::task::yield_now().await;
+    }
+}
 async fn settled<S: rmcp::Service<rmcp::RoleClient>>(
     client: &rmcp::service::RunningService<rmcp::RoleClient, S>,
+    fixture: &w03_support::fixture::Fixture,
     mut job: Value,
 ) -> Value {
     tokio::time::timeout(Duration::from_secs(10), async {
+        require_job(&job);
+        let id = job["job_id"].as_str().unwrap().to_owned();
         while [Some("queued"), Some("running")].contains(&job["state"].as_str()) {
             tokio::time::sleep(Duration::from_millis(10)).await;
-            job = call(client, "slopsearx_get_job", json!({"job_id":job["job_id"]})).await;
+            job = call(client, "slopsearx_get_job", json!({"job_id":id})).await;
+            require_job(&job);
+            assert_eq!(
+                job["job_id"].as_str(),
+                Some(id.as_str()),
+                "job identity changed: {}",
+                bounded_body(&job)
+            );
         }
+        let tenant = w03_support::tenant();
+        let key = ssx_infra::valkey::keys::research("lease", &tenant, &id).unwrap();
+        assert!(
+            lease_released(&fixture.store, &key, None).await,
+            "terminal job lease was not observed released"
+        );
         job
     })
     .await
@@ -222,7 +290,7 @@ async fn actual_authenticated_http_preview_execute_followup_replay_and_completio
         preview["execution"]["arguments"].clone(),
     )
     .await;
-    let job = settled(&client, job).await;
+    let job = settled(&client, &fixture, job).await;
     assert_eq!(fixture.calls(), 3);
     let original = job["queries"][1]["attempts"][0].clone();
     let captured = call(
@@ -291,7 +359,7 @@ async fn actual_authenticated_http_preview_execute_followup_replay_and_completio
         variant_job["queries"][1]["planning_method"],
         json!("terminology_expansion")
     );
-    let variant_job = settled(&client, variant_job).await;
+    let variant_job = settled(&client, &fixture, variant_job).await;
     assert_eq!(variant_job["stop_reason"], json!("query_budget_exhausted"));
     assert_eq!(fixture.calls(), 6);
     client.cancel().await?;
@@ -326,12 +394,17 @@ async fn budget_exhaustion_completion_and_exact_cap_replay_over_actual_http() ->
         (1, 20, "query_budget_exhausted"),
     ] {
         let job=call(&client,"slopsearx_start_research",json!({"question":"bounded","max_queries":max_queries,"max_results":max_results,"initial_plan":[{"query":"bounded","engines":["wikipedia"]}]})).await;
-        let job = settled(&client, job).await;
+        let job = settled(&client, &fixture, job).await;
         assert_eq!(job["stop_reason"], json!(reason));
         assert_eq!(job["caller_completed"], json!(false));
         let request = json!({"job_id":job["job_id"],"subquestion_states":{},"complete":true,"rationale":"bounded evidence is sufficient"});
         let done = call(&client, "slopsearx_update_research", request.clone()).await;
-        assert_eq!(done["stop_reason"], json!(reason));
+        assert_eq!(
+            done["stop_reason"],
+            json!(reason),
+            "completion_response={}",
+            bounded_body(&done)
+        );
         assert_eq!(done["caller_completed"], json!(true));
         assert_eq!(
             call(&client, "slopsearx_update_research", request.clone()).await,
@@ -589,7 +662,7 @@ async fn actual_http_default_strategies_deadline_and_idempotent_admission() -> R
         assert_eq!(initial["strategy"], json!(strategy), "{initial:?}");
         assert_eq!(initial["queries"].as_array().unwrap().len(), 1);
         assert_eq!(initial["deadline"].as_str().unwrap().len(), 32);
-        let done = settled(&client, initial).await;
+        let done = settled(&client, &fixture, initial).await;
         assert_eq!(fixture.calls(), i + 1);
         let mut replay = call(&client, "slopsearx_start_research", args).await;
         assert_eq!(
@@ -1124,4 +1197,161 @@ mod bounded_workers {
         }
         Ok(())
     }
+}
+
+/// Terminal outcome is distinct from a released authoritative lease.
+#[tokio::test]
+async fn terminal_budget_completion_waits_for_actual_lease_release_over_http() -> Result<()> {
+    use ssx_domain::{AttemptId, JobId, LeaseToken};
+    use ssx_infra::{
+        search::{SearchClock as _, SystemSearchClock},
+        valkey::{Read, TokenSource, research::ResearchStore},
+    };
+    use std::{num::NonZeroU64, sync::Arc};
+    let server = private_valkey::Server::start();
+    let (registry, fixture) = w03_support::setup(server.url()).await;
+    // Direct execution joins the actual worker retirement before this control
+    // takes its independent real lease. No initial observer race can mask red.
+    let planning = w03_support::planning(&fixture);
+    let tenant = w03_support::tenant();
+    let args = json!({"question":"bounded held retirement","max_queries":4,"max_results":1,"initial_plan":[{"query":"bounded","engines":["wikipedia"]}]});
+    let admitted = planning
+        .start(tenant.clone(), &ssx_json::from_str(&args.to_string())?)
+        .await
+        .unwrap();
+    let (_stop, rx) = tokio::sync::watch::channel(false);
+    let terminal = planning
+        .run(tenant.clone(), &admitted.job_id, rx)
+        .await
+        .unwrap();
+    assert_eq!(
+        terminal.stop_reason.as_deref(),
+        Some("result_budget_exhausted")
+    );
+    let cancel = CancellationToken::new();
+    let host = Host::start(
+        http_router_for(
+            registry.clone(),
+            PlanningRegistry::catalogs(),
+            cancel.clone(),
+        ),
+        cancel,
+    )
+    .await?;
+    let client = ()
+        .serve(StreamableHttpClientTransport::with_client(
+            reqwest::Client::builder().no_proxy().build()?,
+            StreamableHttpClientTransportConfig::with_uri(format!("http://{}/mcp", host.address)),
+        ))
+        .await?;
+    let jobs = ResearchStore::new(fixture.store.clone(), tenant);
+    let id = JobId::new(&terminal.job_id).unwrap();
+    let job_key = ssx_infra::valkey::keys::research("job", jobs.tenant(), id.as_str()).unwrap();
+    let lease_key = ssx_infra::valkey::keys::research("lease", jobs.tenant(), id.as_str()).unwrap();
+    struct HeldTokens;
+    impl TokenSource<JobId> for HeldTokens {
+        fn next_token(&mut self) -> LeaseToken<JobId> {
+            LeaseToken::new("w03-terminal-retirement-held").unwrap()
+        }
+    }
+    let held = jobs
+        .claim_prepared(
+            &id,
+            "w03-retirement-control",
+            NonZeroU64::new(60).unwrap(),
+            &mut HeldTokens,
+            SystemSearchClock.capture().0,
+            || AttemptId::new("w03-retirement-unused-attempt").unwrap(),
+            true,
+            |_| Ok(()),
+        )
+        .await
+        .unwrap()
+        .unwrap();
+    let job_before = fixture.store.get(&job_key).await;
+    let lease_before = fixture.store.get(&lease_key).await;
+    let request = json!({"job_id":terminal.job_id,"subquestion_states":{},"complete":true,"rationale":"bounded evidence is sufficient"});
+    let calls_before = fixture.calls();
+    let busy = call(&client, "slopsearx_update_research", request.clone()).await;
+    let job_after_busy = fixture.store.get(&job_key).await;
+    let lease_after_busy = fixture.store.get(&lease_key).await;
+    let calls_after_busy = fixture.calls();
+    let seen = Arc::new(tokio::sync::Semaphore::new(0));
+    let task = {
+        let store = fixture.store.clone();
+        let key = lease_key.clone();
+        let seen = seen.clone();
+        let expected = held.token.as_str().as_bytes().to_vec();
+        tokio::spawn(async move { lease_released(&store, &key, Some((seen, expected))).await })
+    };
+    tokio::time::timeout(Duration::from_secs(10), seen.acquire())
+        .await
+        .unwrap()
+        .unwrap()
+        .forget();
+    jobs.clear_ownership(&id, &held.token).await.unwrap();
+    let released = jobs.release(&id, &held.token).await.unwrap();
+    let observed_missing = tokio::time::timeout(Duration::from_secs(10), task)
+        .await
+        .unwrap()
+        .unwrap();
+    let lease_after_release = fixture.store.get(&lease_key).await;
+    let done = call(&client, "slopsearx_update_research", request.clone()).await;
+    let replay = call(&client, "slopsearx_update_research", request).await;
+    let calls_after_complete = fixture.calls();
+    client.cancel().await?;
+    registry.close().await;
+    host.shutdown().await?;
+    fixture.service.shutdown().await;
+    // Primary semantic assertions occur only after release, observer join and
+    // transport/worker/search cleanup, including in the omission control.
+    assert_eq!(released, ssx_infra::valkey::Ownership::Applied);
+    assert_eq!(lease_after_release, Read::Missing);
+    println!(
+        "W03_LEASE_RETIREMENT_CLEANUP token_released=true lease_missing=true observer_joined=true transport_closed=true workers_joined=true search_closed=true"
+    );
+    assert!(
+        observed_missing,
+        "terminal completion requires an actual missing-lease witness after release and join"
+    );
+    assert!(matches!(job_before, Read::Found(_)));
+    assert_eq!(
+        lease_before,
+        Read::Found(held.token.as_str().as_bytes().to_vec())
+    );
+    assert_eq!(
+        busy,
+        json!({"error":{"code":"job_busy","message":"job is owned by a live worker; retry the progress update later"}}),
+        "busy_response={}",
+        bounded_body(&busy)
+    );
+    assert_eq!(job_after_busy, job_before);
+    assert_eq!(lease_after_busy, lease_before);
+    assert_eq!(calls_after_busy, calls_before);
+    assert_eq!(
+        done["stop_reason"],
+        json!("result_budget_exhausted"),
+        "completion_response={}",
+        bounded_body(&done)
+    );
+    assert_eq!(
+        done["caller_completed"],
+        json!(true),
+        "completion_response={}",
+        bounded_body(&done)
+    );
+    assert_eq!(
+        done["queries"],
+        serde_json::to_value(ssx_infra::research_planning::job_summary(&terminal))?["queries"]
+    );
+    assert_eq!(
+        done["budgets"],
+        serde_json::to_value(ssx_infra::research_planning::job_summary(&terminal))?["budgets"]
+    );
+    assert_eq!(replay, done);
+    assert_eq!(calls_after_complete, calls_before);
+    println!(
+        "W03_TERMINAL_LEASE_RELEASE actual_held_token_observed=true busy_exact=true busy_record_and_lease_unchanged=true missing_observed=true observer_joined=true completion_replayed=true cleanup_complete=true"
+    );
+    Ok(())
 }
