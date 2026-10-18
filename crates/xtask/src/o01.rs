@@ -3,7 +3,7 @@ use crate::{Result, command};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::{collections::BTreeSet, fs, path::Path};
-const COVERAGE_SHA: &str = "add7293c5ee3baf651536ec8eabe572145a3775a88e2277252f4824505c6ec30";
+const COVERAGE_SHA: &str = "76d216907f00ac637505101e83454f43d9a812213432e1c40a20d5a8d75934b0";
 fn require(ok: bool, message: &str) -> Result<()> {
     if ok { Ok(()) } else { Err(message.into()) }
 }

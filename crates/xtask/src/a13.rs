@@ -8,7 +8,7 @@ use std::{
     fs,
     path::Path,
 };
-const QUALIFICATION_SHA: &str = "bc7633f9bb38ba3427c6d77df264b91a75d5c2a84afd205ec51213904ca27fe5";
+const QUALIFICATION_SHA: &str = "e2d9249fbadd0eca06a10215f796defc5845722c63fcf9f409ab9eac8a85f74e";
 const QUALIFICATION: &str = "docs/rust-rewrite/a13/qualification-v1.json";
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -376,7 +376,7 @@ fn validate(q: &Qualification) -> Result<()> {
         "A13 five complete compiled suites required",
     )?;
     let expected = [
-        ("ssx-infra", "lib", "ssx_infra", 247),
+        ("ssx-infra", "lib", "ssx_infra", 253),
         ("ssx-json", "lib", "ssx_json", 16),
         ("ssx-infra", "test", "a13_dehashed", 21),
         ("ssx-infra", "test", "a13_hibp", 20),

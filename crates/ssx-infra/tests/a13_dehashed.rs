@@ -1561,7 +1561,7 @@ fn source_inventory_is_closed_and_bound_without_original_execution() {
         .collect::<String>();
     assert_eq!(
         digest,
-        "96fa552b11936849b669c029599e663d7bdb3ff8613f0c02f6b618a98c3f6407"
+        "226174da4be26ff9e902e73dc79a6d5344e5405abfae3a051ed19339a51a4b2d"
     );
     let map: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
     assert_eq!(map["kind"], "STATIC_SOURCE_DERIVATION_AND_NATIVE_COMPONENT");

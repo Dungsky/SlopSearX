@@ -24,6 +24,57 @@
     "full_library_linux_only_names": [
       "process_pool::cleanup_tests::held_writer_refuses_direct_exec_but_script_interpreter_preserves_protocol_and_cleanup"
     ],
+    "full_library_supplement_from_main06": {
+      "baseline_common_names": 247,
+      "additional_common_names": 6,
+      "common_total": 253,
+      "linux_total": 254,
+      "bindings": [
+        {
+          "name": "search::deadline_drain_tests::predeadline_completed_outputs_survive_delayed_owner_drain",
+          "source": "crates/ssx-infra/src/search_deadline_drain_tests.rs",
+          "source_sha256": "46cfdee019bb3922e6bff0997c0b5e7067d12554e3ca98c775254df40289081d",
+          "function": "predeadline_completed_outputs_survive_delayed_owner_drain",
+          "source_line": 427
+        },
+        {
+          "name": "search::deadline_drain_tests::deadline_abort_drains_pending_without_internal_failure",
+          "source": "crates/ssx-infra/src/search_deadline_drain_tests.rs",
+          "source_sha256": "46cfdee019bb3922e6bff0997c0b5e7067d12554e3ca98c775254df40289081d",
+          "function": "deadline_abort_drains_pending_without_internal_failure",
+          "source_line": 431
+        },
+        {
+          "name": "search::deadline_drain_tests::earlier_binding_timeout_completed_after_service_deadline_is_truncated",
+          "source": "crates/ssx-infra/src/search_deadline_drain_tests.rs",
+          "source_sha256": "46cfdee019bb3922e6bff0997c0b5e7067d12554e3ca98c775254df40289081d",
+          "function": "earlier_binding_timeout_completed_after_service_deadline_is_truncated",
+          "source_line": 435
+        },
+        {
+          "name": "search::deadline_drain_tests::cooldown_completed_after_service_deadline_is_truncated",
+          "source": "crates/ssx-infra/src/search_deadline_drain_tests.rs",
+          "source_sha256": "46cfdee019bb3922e6bff0997c0b5e7067d12554e3ca98c775254df40289081d",
+          "function": "cooldown_completed_after_service_deadline_is_truncated",
+          "source_line": 439
+        },
+        {
+          "name": "search::deadline_drain_tests::completed_task_panic_is_not_hidden_by_owner_abort",
+          "source": "crates/ssx-infra/src/search_deadline_drain_tests.rs",
+          "source_sha256": "46cfdee019bb3922e6bff0997c0b5e7067d12554e3ca98c775254df40289081d",
+          "function": "completed_task_panic_is_not_hidden_by_owner_abort",
+          "source_line": 443
+        },
+        {
+          "name": "search::deadline1010_tests::expired_undispatched_service_deadline_keeps_interactive_origin",
+          "source": "crates/ssx-infra/src/search.rs",
+          "source_sha256": "9391917f1d3bd3c94fe5114342164be2bc8d821856e5441139ec09ce52cbede8",
+          "function": "expired_undispatched_service_deadline_keeps_interactive_origin",
+          "source_line": 2124
+        }
+      ],
+      "derivation": "Exact six source-declared tests added by merged deadline PR1020; prior library names and source observations retained. No observed-count substitution."
+    },
     "full_library_supplement_from_main4bc": {
       "base_common_names": 214,
       "additional_common_names": 33,
@@ -440,8 +491,8 @@
     },
     {
       "path": "crates/ssx-infra/src/adapters/mod.rs",
-      "sha256": "ac4a8f406e050e466fc66d401c3347b5ca2b69c44423a64c3175fec423406c94",
-      "bytes": 32013
+      "sha256": "6e7d83bc62eb4b6134e1c7d04f178668950c7e7c11bd835c6fc5f923454b5791",
+      "bytes": 32368
     },
     {
       "path": "crates/ssx-infra/src/adapters/source_json.rs",
@@ -470,12 +521,12 @@
     },
     {
       "path": "crates/ssx-infra/src/search.rs",
-      "sha256": "320e69aaf20e5e3c301a21e519fb27ec4a4a5e8c1723649e1a9bec57adbd1dd0",
-      "bytes": 78294
+      "sha256": "9391917f1d3bd3c94fe5114342164be2bc8d821856e5441139ec09ce52cbede8",
+      "bytes": 82956
     },
     {
       "path": "crates/ssx-infra/tests/a13_dehashed.rs",
-      "sha256": "4456568c4974901e6d985cc3ef8fed9c9d1ad3e1d4656f7671237bbe87d92305",
+      "sha256": "49a7857775c07e6d89cdd26d72e25a47a63f84e7694e3d569c3edca3b8a3b1a2",
       "bytes": 61928
     },
     {
@@ -490,7 +541,7 @@
     },
     {
       "path": "crates/ssx-infra/tests/a13_remaining_fixture/mod.rs",
-      "sha256": "2efc95f3c905b63a2af3da3441e48a490e07f126d5ae10848c62f2be5ac57cfa",
+      "sha256": "f79ab11ded4e6d214c16b9f9bedc75b8d57b00f7cfd3e60386ae575ae10f12fc",
       "bytes": 40406
     },
     {
@@ -565,8 +616,8 @@
     },
     {
       "path": "docs/rust-rewrite/a13/dehashed-source-map-v1.json",
-      "sha256": "96fa552b11936849b669c029599e663d7bdb3ff8613f0c02f6b618a98c3f6407",
-      "bytes": 20516
+      "sha256": "226174da4be26ff9e902e73dc79a6d5344e5405abfae3a051ed19339a51a4b2d",
+      "bytes": 20934
     },
     {
       "path": "docs/rust-rewrite/a13/dehashed-static-fixture-v1.json",
@@ -610,8 +661,8 @@
     },
     {
       "path": "docs/rust-rewrite/a13/remaining/source-map.json",
-      "sha256": "d2e2d21929a49c2027c1a1bc46f0ea1907b3582fdcf22b0f8bfc517d8c2599d6",
-      "bytes": 18405
+      "sha256": "af359782abc772c727a885e66a87d519aea5393bcec31e0e105b2de46a8c5d22",
+      "bytes": 18823
     },
     {
       "path": "docs/rust-rewrite/a13/remaining/unicode-derivation-proof.json",
@@ -767,6 +818,11 @@
       "path": "crates/ssx-infra/tests/support/a10_http_clock.rs",
       "sha256": "b850833e2cac860cce876858fdff32130640b07fd2192f4f74b34f8729676c72",
       "bytes": 15970
+    },
+    {
+      "path": "crates/ssx-infra/src/search_deadline_drain_tests.rs",
+      "sha256": "46cfdee019bb3922e6bff0997c0b5e7067d12554e3ca98c775254df40289081d",
+      "bytes": 14360
     }
   ],
   "suites": [
@@ -1021,7 +1077,13 @@
         "http::a10_owner_clock_tests::manual_session_survives_elapsed_tokio_after_confirmed_post_exchange_decoder_wait",
         "http::a10_owner_clock_tests::system_session_expires_after_confirmed_post_exchange_decoder_wait",
         "http::a10_owner_clock_tests::unmocked_system_expiry_and_expired_search_context_dispatch_nothing",
-        "process_pool::cleanup_tests::missing_direct_helper_returns_spawn_error_and_releases_payload_and_lease"
+        "process_pool::cleanup_tests::missing_direct_helper_returns_spawn_error_and_releases_payload_and_lease",
+        "search::deadline_drain_tests::predeadline_completed_outputs_survive_delayed_owner_drain",
+        "search::deadline_drain_tests::deadline_abort_drains_pending_without_internal_failure",
+        "search::deadline_drain_tests::earlier_binding_timeout_completed_after_service_deadline_is_truncated",
+        "search::deadline_drain_tests::cooldown_completed_after_service_deadline_is_truncated",
+        "search::deadline_drain_tests::completed_task_panic_is_not_hidden_by_owner_abort",
+        "search::deadline1010_tests::expired_undispatched_service_deadline_keeps_interactive_origin"
       ]
     },
     {
@@ -1154,7 +1216,7 @@
         "--test-threads=1"
       ],
       "source": "crates/ssx-infra/tests/a13_dehashed.rs",
-      "source_sha256": "4456568c4974901e6d985cc3ef8fed9c9d1ad3e1d4656f7671237bbe87d92305",
+      "source_sha256": "49a7857775c07e6d89cdd26d72e25a47a63f84e7694e3d569c3edca3b8a3b1a2",
       "source_line": 217,
       "inline_payloads": [],
       "markers": [
@@ -1183,7 +1245,7 @@
         "--test-threads=1"
       ],
       "source": "crates/ssx-infra/tests/a13_dehashed.rs",
-      "source_sha256": "4456568c4974901e6d985cc3ef8fed9c9d1ad3e1d4656f7671237bbe87d92305",
+      "source_sha256": "49a7857775c07e6d89cdd26d72e25a47a63f84e7694e3d569c3edca3b8a3b1a2",
       "source_line": 236,
       "inline_payloads": [],
       "markers": [
@@ -1214,7 +1276,7 @@
         "--test-threads=1"
       ],
       "source": "crates/ssx-infra/tests/a13_dehashed.rs",
-      "source_sha256": "4456568c4974901e6d985cc3ef8fed9c9d1ad3e1d4656f7671237bbe87d92305",
+      "source_sha256": "49a7857775c07e6d89cdd26d72e25a47a63f84e7694e3d569c3edca3b8a3b1a2",
       "source_line": 269,
       "inline_payloads": [],
       "markers": [
@@ -1250,7 +1312,7 @@
         "--test-threads=1"
       ],
       "source": "crates/ssx-infra/tests/a13_dehashed.rs",
-      "source_sha256": "4456568c4974901e6d985cc3ef8fed9c9d1ad3e1d4656f7671237bbe87d92305",
+      "source_sha256": "49a7857775c07e6d89cdd26d72e25a47a63f84e7694e3d569c3edca3b8a3b1a2",
       "source_line": 320,
       "inline_payloads": [],
       "markers": [
@@ -1285,7 +1347,7 @@
         "--test-threads=1"
       ],
       "source": "crates/ssx-infra/tests/a13_dehashed.rs",
-      "source_sha256": "4456568c4974901e6d985cc3ef8fed9c9d1ad3e1d4656f7671237bbe87d92305",
+      "source_sha256": "49a7857775c07e6d89cdd26d72e25a47a63f84e7694e3d569c3edca3b8a3b1a2",
       "source_line": 342,
       "inline_payloads": [],
       "markers": [
@@ -1322,7 +1384,7 @@
         "--test-threads=1"
       ],
       "source": "crates/ssx-infra/tests/a13_dehashed.rs",
-      "source_sha256": "4456568c4974901e6d985cc3ef8fed9c9d1ad3e1d4656f7671237bbe87d92305",
+      "source_sha256": "49a7857775c07e6d89cdd26d72e25a47a63f84e7694e3d569c3edca3b8a3b1a2",
       "source_line": 418,
       "inline_payloads": [],
       "markers": [
@@ -1360,7 +1422,7 @@
         "--test-threads=1"
       ],
       "source": "crates/ssx-infra/tests/a13_dehashed.rs",
-      "source_sha256": "4456568c4974901e6d985cc3ef8fed9c9d1ad3e1d4656f7671237bbe87d92305",
+      "source_sha256": "49a7857775c07e6d89cdd26d72e25a47a63f84e7694e3d569c3edca3b8a3b1a2",
       "source_line": 501,
       "inline_payloads": [],
       "markers": [
@@ -1389,7 +1451,7 @@
         "--test-threads=1"
       ],
       "source": "crates/ssx-infra/tests/a13_dehashed.rs",
-      "source_sha256": "4456568c4974901e6d985cc3ef8fed9c9d1ad3e1d4656f7671237bbe87d92305",
+      "source_sha256": "49a7857775c07e6d89cdd26d72e25a47a63f84e7694e3d569c3edca3b8a3b1a2",
       "source_line": 544,
       "inline_payloads": [],
       "markers": [
@@ -1423,7 +1485,7 @@
         "--test-threads=1"
       ],
       "source": "crates/ssx-infra/tests/a13_dehashed.rs",
-      "source_sha256": "4456568c4974901e6d985cc3ef8fed9c9d1ad3e1d4656f7671237bbe87d92305",
+      "source_sha256": "49a7857775c07e6d89cdd26d72e25a47a63f84e7694e3d569c3edca3b8a3b1a2",
       "source_line": 614,
       "inline_payloads": [],
       "markers": [
@@ -1455,7 +1517,7 @@
         "--test-threads=1"
       ],
       "source": "crates/ssx-infra/tests/a13_dehashed.rs",
-      "source_sha256": "4456568c4974901e6d985cc3ef8fed9c9d1ad3e1d4656f7671237bbe87d92305",
+      "source_sha256": "49a7857775c07e6d89cdd26d72e25a47a63f84e7694e3d569c3edca3b8a3b1a2",
       "source_line": 651,
       "inline_payloads": [],
       "markers": [
@@ -1488,7 +1550,7 @@
         "--test-threads=1"
       ],
       "source": "crates/ssx-infra/tests/a13_dehashed.rs",
-      "source_sha256": "4456568c4974901e6d985cc3ef8fed9c9d1ad3e1d4656f7671237bbe87d92305",
+      "source_sha256": "49a7857775c07e6d89cdd26d72e25a47a63f84e7694e3d569c3edca3b8a3b1a2",
       "source_line": 705,
       "inline_payloads": [],
       "markers": [
@@ -1517,7 +1579,7 @@
         "--test-threads=1"
       ],
       "source": "crates/ssx-infra/tests/a13_dehashed.rs",
-      "source_sha256": "4456568c4974901e6d985cc3ef8fed9c9d1ad3e1d4656f7671237bbe87d92305",
+      "source_sha256": "49a7857775c07e6d89cdd26d72e25a47a63f84e7694e3d569c3edca3b8a3b1a2",
       "source_line": 767,
       "inline_payloads": [],
       "markers": [
@@ -1546,7 +1608,7 @@
         "--test-threads=1"
       ],
       "source": "crates/ssx-infra/tests/a13_dehashed.rs",
-      "source_sha256": "4456568c4974901e6d985cc3ef8fed9c9d1ad3e1d4656f7671237bbe87d92305",
+      "source_sha256": "49a7857775c07e6d89cdd26d72e25a47a63f84e7694e3d569c3edca3b8a3b1a2",
       "source_line": 802,
       "inline_payloads": [],
       "markers": [
@@ -1575,7 +1637,7 @@
         "--test-threads=1"
       ],
       "source": "crates/ssx-infra/tests/a13_dehashed.rs",
-      "source_sha256": "4456568c4974901e6d985cc3ef8fed9c9d1ad3e1d4656f7671237bbe87d92305",
+      "source_sha256": "49a7857775c07e6d89cdd26d72e25a47a63f84e7694e3d569c3edca3b8a3b1a2",
       "source_line": 924,
       "inline_payloads": [],
       "markers": [
@@ -1610,7 +1672,7 @@
         "--test-threads=1"
       ],
       "source": "crates/ssx-infra/tests/a13_dehashed.rs",
-      "source_sha256": "4456568c4974901e6d985cc3ef8fed9c9d1ad3e1d4656f7671237bbe87d92305",
+      "source_sha256": "49a7857775c07e6d89cdd26d72e25a47a63f84e7694e3d569c3edca3b8a3b1a2",
       "source_line": 1005,
       "inline_payloads": [],
       "markers": [
@@ -1639,7 +1701,7 @@
         "--test-threads=1"
       ],
       "source": "crates/ssx-infra/tests/a13_dehashed.rs",
-      "source_sha256": "4456568c4974901e6d985cc3ef8fed9c9d1ad3e1d4656f7671237bbe87d92305",
+      "source_sha256": "49a7857775c07e6d89cdd26d72e25a47a63f84e7694e3d569c3edca3b8a3b1a2",
       "source_line": 1128,
       "inline_payloads": [],
       "markers": [
@@ -1670,7 +1732,7 @@
         "--test-threads=1"
       ],
       "source": "crates/ssx-infra/tests/a13_dehashed.rs",
-      "source_sha256": "4456568c4974901e6d985cc3ef8fed9c9d1ad3e1d4656f7671237bbe87d92305",
+      "source_sha256": "49a7857775c07e6d89cdd26d72e25a47a63f84e7694e3d569c3edca3b8a3b1a2",
       "source_line": 1221,
       "inline_payloads": [],
       "markers": [
@@ -1699,7 +1761,7 @@
         "--test-threads=1"
       ],
       "source": "crates/ssx-infra/tests/a13_dehashed.rs",
-      "source_sha256": "4456568c4974901e6d985cc3ef8fed9c9d1ad3e1d4656f7671237bbe87d92305",
+      "source_sha256": "49a7857775c07e6d89cdd26d72e25a47a63f84e7694e3d569c3edca3b8a3b1a2",
       "source_line": 1444,
       "inline_payloads": [],
       "markers": [
@@ -1729,7 +1791,7 @@
         "--test-threads=1"
       ],
       "source": "crates/ssx-infra/tests/a13_dehashed.rs",
-      "source_sha256": "4456568c4974901e6d985cc3ef8fed9c9d1ad3e1d4656f7671237bbe87d92305",
+      "source_sha256": "49a7857775c07e6d89cdd26d72e25a47a63f84e7694e3d569c3edca3b8a3b1a2",
       "source_line": 1486,
       "inline_payloads": [],
       "markers": [
@@ -1760,7 +1822,7 @@
         "--test-threads=1"
       ],
       "source": "crates/ssx-infra/tests/a13_dehashed.rs",
-      "source_sha256": "4456568c4974901e6d985cc3ef8fed9c9d1ad3e1d4656f7671237bbe87d92305",
+      "source_sha256": "49a7857775c07e6d89cdd26d72e25a47a63f84e7694e3d569c3edca3b8a3b1a2",
       "source_line": 1526,
       "inline_payloads": [],
       "markers": [
@@ -1789,7 +1851,7 @@
         "--test-threads=1"
       ],
       "source": "crates/ssx-infra/tests/a13_dehashed.rs",
-      "source_sha256": "4456568c4974901e6d985cc3ef8fed9c9d1ad3e1d4656f7671237bbe87d92305",
+      "source_sha256": "49a7857775c07e6d89cdd26d72e25a47a63f84e7694e3d569c3edca3b8a3b1a2",
       "source_line": 1553,
       "inline_payloads": [],
       "markers": [

@@ -5,6 +5,13 @@
   "python_executed": false,
   "provider_calls": 0,
   "source_runs": [],
+  "current_source_binding": {
+    "head": "601a46a0697a05f063e3ae084f68e798607e360f",
+    "pending_merge_head": "dfb434381af32826fdbee6bc484db71c887e0df6",
+    "scope": "sources rows bind actual current candidate bytes; source_base/baseline and per-row identity labels retain historical derivation classifications, not current Git revision claims",
+    "original_backend_executed": false,
+    "provider_calls": 0
+  },
   "sources": [
     {
       "path": "engines/dehashed.py",
@@ -86,8 +93,8 @@
     },
     {
       "path": "crates/ssx-infra/src/search.rs",
-      "sha256": "320e69aaf20e5e3c301a21e519fb27ec4a4a5e8c1723649e1a9bec57adbd1dd0",
-      "bytes": 78294,
+      "sha256": "9391917f1d3bd3c94fe5114342164be2bc8d821856e5441139ec09ce52cbede8",
+      "bytes": 82956,
       "identity": "BASE_GIT_SOURCE"
     },
     {
@@ -152,8 +159,8 @@
     },
     {
       "path": "crates/ssx-infra/src/adapters/mod.rs",
-      "sha256": "ac4a8f406e050e466fc66d401c3347b5ca2b69c44423a64c3175fec423406c94",
-      "bytes": 32013,
+      "sha256": "6e7d83bc62eb4b6134e1c7d04f178668950c7e7c11bd835c6fc5f923454b5791",
+      "bytes": 32368,
       "identity": "APPLIED_DEVELOPMENT_MODULE_EXPORT"
     },
     {
