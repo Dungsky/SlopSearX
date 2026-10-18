@@ -43,7 +43,7 @@
     },
     {
       "path": "crates/ssx-infra/src/adapters/mod.rs",
-      "sha256": "73cc3f54379639accaa496e485901bf938962b5cf90a6d7091ab11a59f4108fc"
+      "sha256": "9098a48f8f059a7a8da16b734b52734ecfd5b88d7b114027b0da8f5b8bc28f14"
     },
     {
       "path": "crates/ssx-infra/src/adapters/otx.rs",
@@ -87,7 +87,7 @@
     },
     {
       "path": "crates/ssx-json/src/lib.rs",
-      "sha256": "c6b63384a38bf346cc96dfc50acf60b54b860d929259e2dae1896e5575844044"
+      "sha256": "f856e408af1eacd41dbfb57e5e34cf59f9245ee7045cf82e4edb7909c10f0ef8"
     },
     {
       "path": "crates/ssx-owned-budget/src/lib.rs",

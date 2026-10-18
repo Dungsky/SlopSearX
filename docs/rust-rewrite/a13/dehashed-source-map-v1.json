@@ -86,14 +86,14 @@
     },
     {
       "path": "crates/ssx-infra/src/search.rs",
-      "sha256": "6ea189dc3c5e1c8fa23f1094184c47a828b86e387fb43325923b7c897bc3e9a4",
-      "bytes": 77056,
+      "sha256": "320e69aaf20e5e3c301a21e519fb27ec4a4a5e8c1723649e1a9bec57adbd1dd0",
+      "bytes": 78294,
       "identity": "BASE_GIT_SOURCE"
     },
     {
       "path": "crates/ssx-application/src/policy.rs",
-      "sha256": "d6f7b6286eca23c38bc6392b6f5437551153fd7e2a008f5b0b456fe7a522bb71",
-      "bytes": 35717,
+      "sha256": "5aa864100000ce0625540db4771cc5b8d2ce650beff1457b2a6b840277011681",
+      "bytes": 38237,
       "identity": "BASE_GIT_SOURCE"
     },
     {
@@ -146,14 +146,14 @@
     },
     {
       "path": "docs/rust-rewrite/f09/README.md",
-      "sha256": "7ac8ca66bbb33a858e68f443802c87d4ec83b4f175f49b211cc14a20e9ced039",
-      "bytes": 8098,
+      "sha256": "24ee261a6c3effcb506524d50dcecfa08fc6ea7920f58b98ba46993ac94a74b7",
+      "bytes": 8194,
       "identity": "BASE_GIT_SOURCE"
     },
     {
       "path": "crates/ssx-infra/src/adapters/mod.rs",
-      "sha256": "73cc3f54379639accaa496e485901bf938962b5cf90a6d7091ab11a59f4108fc",
-      "bytes": 31117,
+      "sha256": "9098a48f8f059a7a8da16b734b52734ecfd5b88d7b114027b0da8f5b8bc28f14",
+      "bytes": 31229,
       "identity": "APPLIED_DEVELOPMENT_MODULE_EXPORT"
     },
     {

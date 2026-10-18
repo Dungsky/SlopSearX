@@ -8,6 +8,7 @@ mod a07;
 mod a08;
 mod a09;
 mod a11;
+mod a13;
 mod a14;
 mod date_amendment;
 mod f05;
@@ -33,6 +34,7 @@ mod t09;
 mod w00;
 mod w01;
 mod w02;
+mod w03;
 mod w04;
 mod w05;
 mod w06;
@@ -464,6 +466,7 @@ fn execute(root: &Path, id: &str, records: &mut Vec<Value>) -> Result<()> {
         "A08" => a08::check(root, records),
         "A09" => a09::check(root, records),
         "A11" => a11::check(root, records),
+        "A13" => a13::check(root, records),
         "A14" => a14::check(root, records),
         "A03" => a03::check(root, records),
         "A02" => a02::check(root, records),
@@ -484,6 +487,7 @@ fn execute(root: &Path, id: &str, records: &mut Vec<Value>) -> Result<()> {
         "W00" => w00::check(root, records),
         "W01" => w01::check(root, records),
         "W02" => w02::check(root, records),
+        "W03" => w03::check(root, records),
         "W04" => w04::check(root, records),
         "W05" => w05::check(root, records),
         "W06" => w06::check(root, records),
@@ -622,7 +626,9 @@ fn main() {
         }
     }
     let a08_scope = a08::report_scope(&records);
-    let scope = if id == "A11" {
+    let scope = if id == "A13" {
+        "source-bound native DeHashed/HIBP/IntelX factories and Unicode primitives; 75 exact selectors, closed parent cases and three lossless private child lifecycles; no original Python/provider/full production/portal/global RSS claim"
+    } else if id == "A11" {
         "source-bound threat-intelligence factories and full original tuples; actual private wire/ownership, closed F05/F06 differences; no providers/full production composition/global RSS"
     } else if id == "A09" {
         "source-bound catalog/media adapters; actual assertions plus guarded private loopback; qualification excludes incident calls and full portal/transport/global RSS"

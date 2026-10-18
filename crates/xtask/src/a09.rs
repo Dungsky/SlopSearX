@@ -7,7 +7,7 @@ use std::{
     fs,
     path::Path,
 };
-const COVERAGE_SHA: &str = "587453b35be1b1e09987f1b7d80f93257f4bf3a6c598047fc6583583c8a1a841";
+const COVERAGE_SHA: &str = "0dc307f7392ead2e5576f79af0efeaa4f67ee8f96d1a1695940b8cf2d098c626";
 fn digest(bytes: &[u8]) -> String {
     Sha256::digest(bytes)
         .iter()

@@ -925,3 +925,7 @@ pub use threat_intel::{ThreatIntelConfig, ThreatIntelSettings, register_threat_i
 
 // A13 first slice: a real sensitive factory, mounted explicitly by its owner.
 pub mod dehashed;
+
+// A13 remaining threat intelligence; construction is explicit and policy-owned.
+pub mod hibp;
+pub mod intelx;
