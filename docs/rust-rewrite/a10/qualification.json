@@ -63,7 +63,7 @@
     },
     {
       "path": "crates/ssx-infra/src/adapters/mod.rs",
-      "sha256": "8b619887dc05e6f4900341b41a18aec8f7e0c89185c9a7f48cf91964a714c623"
+      "sha256": "6e7d83bc62eb4b6134e1c7d04f178668950c7e7c11bd835c6fc5f923454b5791"
     },
     {
       "path": "crates/ssx-infra/src/adapters/nvd.rs",

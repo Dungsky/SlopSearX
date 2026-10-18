@@ -958,3 +958,9 @@ pub use infrastructure_security::{
     Kind as InfrastructureSecurityKind, SecurityConfig, SecuritySettings,
     register_infrastructure_security,
 };
+// A13 first slice: a real sensitive factory, mounted explicitly by its owner.
+pub mod dehashed;
+
+// A13 remaining threat intelligence; construction is explicit and policy-owned.
+pub mod hibp;
+pub mod intelx;

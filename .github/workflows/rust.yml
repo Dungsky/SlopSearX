@@ -416,6 +416,9 @@ jobs:
       - name: Native threat intelligence adapters
         run: cargo xtask check A11 --output target/rust-evidence/A11.json
 
+      - name: Native sensitive and async intelligence adapters
+        run: cargo xtask check A13 --output target/rust-evidence/A13.json
+
       - name: Native jobs adapters
         run: cargo xtask check A14 --output target/rust-evidence/A14.json
 
@@ -473,6 +476,7 @@ jobs:
             target/rust-evidence/A10-linux-control/${{ github.run_id }}-${{ github.run_attempt }}-${{ runner.arch }}.*/
             target/rust-evidence/A11.json
             target/rust-evidence/A12.json
+            target/rust-evidence/A13.json
             target/rust-evidence/A14.json
             target/rust-feature-graph.txt
           if-no-files-found: warn

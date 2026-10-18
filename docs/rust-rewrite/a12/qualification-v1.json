@@ -47,7 +47,7 @@
     },
     {
       "path": "crates/ssx-infra/src/adapters/mod.rs",
-      "sha256": "8b619887dc05e6f4900341b41a18aec8f7e0c89185c9a7f48cf91964a714c623"
+      "sha256": "6e7d83bc62eb4b6134e1c7d04f178668950c7e7c11bd835c6fc5f923454b5791"
     },
     {
       "path": "crates/ssx-infra/src/adapters/shodan.rs",
@@ -87,7 +87,7 @@
     },
     {
       "path": "crates/xtask/src/main.rs",
-      "sha256": "13d51169ecb5ed8d6fe9a9393ae5c726d9683d1747415e757711060564a49886"
+      "sha256": "0c60e728c3e5783f4ff01c98a3dd3b8232699b3bf0e7b35620f8fa4643ea53c1"
     },
     {
       "path": "docs/rust-rewrite/CASE_STUDY.md",
