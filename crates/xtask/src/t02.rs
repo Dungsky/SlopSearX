@@ -36,6 +36,42 @@ fn completions(output: &str) -> Result<Vec<Value>> {
         .map(|s| serde_json::from_str(s).map_err(|e| e.to_string()))
         .collect()
 }
+// The source producer prefixes family completion IDs with the scenario directory,
+// but keeps the raw request ID inside the receipt. Date-proof IDs are unprefixed.
+fn verify_assertion_receipt_identity(
+    kind: &str,
+    id: &str,
+    path: &Path,
+    receipt: &Value,
+) -> Result<()> {
+    let raw_id = if kind == "family" {
+        let (scenario, raw_id) = id
+            .split_once(':')
+            .ok_or("family completion source mapping missing")?;
+        require(
+            !scenario.is_empty() && !raw_id.is_empty(),
+            "empty family source mapping",
+        )?;
+        require(
+            path.parent()
+                .and_then(Path::file_name)
+                .and_then(|name| name.to_str())
+                == Some(scenario),
+            "family receipt scenario differs from source mapping",
+        )?;
+        raw_id
+    } else {
+        id
+    };
+    require(
+        receipt["id"].as_str() == Some(raw_id),
+        "assertion receipt identity differs from source mapping",
+    )?;
+    require(
+        path.file_name().and_then(|name| name.to_str()) == Some(format!("{raw_id}.json").as_str()),
+        "assertion receipt filename differs from source mapping",
+    )
+}
 fn verify_records(actual: &[Value], expected: &[Value], read_receipts: bool) -> Result<()> {
     let expected_count = expected.len();
     let expected = expected
@@ -158,11 +194,21 @@ fn verify_records(actual: &[Value], expected: &[Value], read_receipts: bool) -> 
                         "HTML source-owned wire bodies/headers missing",
                     )?;
                 }
-                "family" | "date-proof" => require(
-                    receipt["body"].is_string()
-                        && receipt["status"].as_u64().is_some_and(|s| s >= 200),
-                    "actual assertion-family response missing",
-                )?,
+                "family" | "date-proof" => {
+                    verify_assertion_receipt_identity(
+                        row["kind"].as_str().unwrap(),
+                        wanted["id"]
+                            .as_str()
+                            .ok_or("source completion ID missing")?,
+                        path,
+                        &receipt,
+                    )?;
+                    require(
+                        receipt["body"].is_string()
+                            && receipt["status"].as_u64().is_some_and(|s| s >= 200),
+                        "actual assertion-family response missing",
+                    )?;
+                }
                 _ => return Err("unknown receipt kind".into()),
             }
         }
@@ -510,6 +556,68 @@ mod tests {
 #[cfg(test)]
 mod receipt_tests {
     use super::*;
+    #[test]
+    fn assertion_receipt_identity_rejects_swaps_and_preserves_family_prefix() {
+        let family = json!({"id":"health"});
+        assert!(
+            verify_assertion_receipt_identity(
+                "family",
+                "mock3:health",
+                Path::new("/owned/mock3/health.json"),
+                &family
+            )
+            .is_ok()
+        );
+        // Same status/body/dispatch do not make another scenario/request equivalent.
+        for (id, path, receipt) in [
+            ("mock3:health", "/owned/grants/health.json", family.clone()),
+            (
+                "mock3:health",
+                "/owned/mock3/other.json",
+                json!({"id":"other"}),
+            ),
+            (
+                "mock3:health",
+                "/owned/mock3/health.json",
+                json!({"id":"other"}),
+            ),
+            ("mock3:health", "/owned/mock3/other.json", family.clone()),
+            ("health", "/owned/mock3/health.json", family.clone()),
+            ("mock3:", "/owned/mock3/.json", json!({"id":""})),
+        ] {
+            assert!(
+                verify_assertion_receipt_identity("family", id, Path::new(path), &receipt).is_err()
+            );
+        }
+        let proof = json!({"id":"date-proof-00"});
+        assert!(
+            verify_assertion_receipt_identity(
+                "date-proof",
+                "date-proof-00",
+                Path::new("/owned/date-proof/date-proof-00.json"),
+                &proof
+            )
+            .is_ok()
+        );
+        assert!(
+            verify_assertion_receipt_identity(
+                "date-proof",
+                "date-proof-01",
+                Path::new("/owned/date-proof/date-proof-00.json"),
+                &proof
+            )
+            .is_err()
+        );
+        assert!(
+            verify_assertion_receipt_identity(
+                "date-proof",
+                "date-proof-00",
+                Path::new("/owned/date-proof/date-proof-01.json"),
+                &proof
+            )
+            .is_err()
+        );
+    }
     #[test]
     fn missing_wire_receipt_fails_closed() {
         for kind in ["http", "fault", "review", "html", "family", "date-proof"] {
