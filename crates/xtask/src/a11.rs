@@ -336,11 +336,15 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
         .ok_or("A11 source bindings missing")?
     {
         let path = row["path"].as_str().ok_or("A11 source path absent")?;
-        require(
-            row["sha256"]
-                == digest(&fs::read(root.join(path)).map_err(|e| format!("{path}: {e}"))?),
-            &format!("A11 source/fixture differs: {path}"),
-        )?;
+        crate::a13::check_source_pin(
+            root,
+            "docs/rust-rewrite/a11/qualification.json",
+            &digest(&bytes),
+            path,
+            row["sha256"].as_str().ok_or("A11 source digest absent")?,
+            row["bytes"].as_u64().map(|value| value as usize),
+        )
+        .map_err(|_| format!("A11 source/fixture differs: {path}"))?;
     }
     let tests = pack["native_tests"]
         .as_array()

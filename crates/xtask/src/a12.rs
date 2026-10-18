@@ -55,13 +55,15 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
             !Path::new(p).is_absolute() && !p.split('/').any(|v| v == "..") && pins.insert(p),
             "A12 duplicate/unsafe path",
         )?;
-        require(
-            pin["sha256"].as_str()
-                == Some(&digest(
-                    &fs::read(root.join(p)).map_err(|e| format!("{p}: {e}"))?,
-                )),
-            "A12 source pin stale",
-        )?;
+        crate::a13::check_source_pin(
+            root,
+            "docs/rust-rewrite/a12/qualification-v1.json",
+            &digest(&bytes),
+            p,
+            pin["sha256"].as_str().ok_or("A12 source digest absent")?,
+            pin["bytes"].as_u64().map(|value| value as usize),
+        )
+        .map_err(|_| "A12 source pin stale".to_owned())?;
     }
     require(pins.len() >= 20, "A12 source coverage absent")?;
     let map: Value = serde_json::from_slice(

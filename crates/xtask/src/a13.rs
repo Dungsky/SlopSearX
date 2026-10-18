@@ -8,6 +8,8 @@ use std::{
     fs,
     path::Path,
 };
+#[path = "../../../docs/rust-rewrite/a13/source-amendments/validator.rs"]
+mod source_amendment;
 const QUALIFICATION_SHA: &str = "e2d9249fbadd0eca06a10215f796defc5845722c63fcf9f409ab9eac8a85f74e";
 const QUALIFICATION: &str = "docs/rust-rewrite/a13/qualification-v1.json";
 #[derive(Deserialize)]
@@ -60,6 +62,23 @@ fn digest(bytes: &[u8]) -> String {
         .iter()
         .map(|b| format!("{b:02x}"))
         .collect()
+}
+pub(super) fn check_source_pin(
+    root: &Path,
+    container_path: &str,
+    container_sha: &str,
+    path: &str,
+    expected_sha: &str,
+    expected_bytes: Option<usize>,
+) -> Result<()> {
+    source_amendment::verify(
+        root,
+        container_path,
+        container_sha,
+        path,
+        expected_sha,
+        expected_bytes,
+    )
 }
 fn counter<'a>(items: impl IntoIterator<Item = &'a str>) -> BTreeMap<&'a str, usize> {
     let mut counts = BTreeMap::new();
@@ -464,6 +483,12 @@ fn validate(q: &Qualification) -> Result<()> {
 // Preserve the full common214+33 inventory; this single source-gated Linux test is additional.
 fn compiled_suite_names(suite: &Suite) -> Vec<String> {
     let mut names = suite.names.clone();
+    if suite.package == "ssx-infra" && suite.kind == "lib" && suite.target == "ssx_infra" {
+        names.push(
+            "http::pypi_operation_timeout_tests::pypi_uses_fresh_per_operation_timeouts_on_the_caller_pool"
+                .into(),
+        );
+    }
     if cfg!(target_os = "linux")
         && suite.package == "ssx-infra"
         && suite.kind == "lib"
@@ -474,6 +499,8 @@ fn compiled_suite_names(suite: &Suite) -> Vec<String> {
     names
 }
 pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
+    #[cfg(test)]
+    source_amendment::rejects_mutants(root)?;
     let bytes = fs::read(root.join(QUALIFICATION)).map_err(|e| e.to_string())?;
     require(
         digest(&bytes) == QUALIFICATION_SHA,
@@ -489,11 +516,15 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
                 && source_paths.insert(&pin.path),
             "A13 duplicate/unsafe source pin",
         )?;
-        let bytes = fs::read(root.join(&pin.path)).map_err(|e| e.to_string())?;
-        require(
-            bytes.len() == pin.bytes && digest(&bytes) == pin.sha256,
-            "A13 source/provenance drift",
-        )?;
+        check_source_pin(
+            root,
+            QUALIFICATION,
+            &digest(&bytes),
+            &pin.path,
+            &pin.sha256,
+            Some(pin.bytes),
+        )
+        .map_err(|_| "A13 source/provenance drift".to_owned())?;
     }
     require(
         source_paths.len() >= 40,

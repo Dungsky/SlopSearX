@@ -261,11 +261,15 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
         .ok_or("A10 owned source bindings missing")?
     {
         let path = row["path"].as_str().unwrap();
-        let bytes = fs::read(root.join(path)).map_err(|e| e.to_string())?;
-        require(
-            sha(&bytes) == row["sha256"].as_str().unwrap(),
-            "A10 candidate source/fixture/ledger changed",
-        )?;
+        crate::a13::check_source_pin(
+            root,
+            "docs/rust-rewrite/a10/qualification.json",
+            &sha(&bytes),
+            path,
+            row["sha256"].as_str().unwrap(),
+            row["bytes"].as_u64().map(|value| value as usize),
+        )
+        .map_err(|_| "A10 candidate source/fixture/ledger changed".to_owned())?;
     }
     for row in pack["original_sources"]
         .as_array()
