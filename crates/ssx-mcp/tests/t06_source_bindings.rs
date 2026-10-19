@@ -62,14 +62,40 @@ fn original_profiles_strategies_tool_surface_and_observations_match_reviewed_sou
             "crates/ssx-mcp/tests/t06_transport.rs",
         ])
     );
+    let storage_raw = include_bytes!(
+        "../../../docs/rust-rewrite/t06/storage-amendment/current-storage-amendment-v1.json"
+    );
+    let digest = |bytes: &[u8]| {
+        Sha256::digest(bytes)
+            .iter()
+            .map(|b| format!("{b:02x}"))
+            .collect::<String>()
+    };
+    assert_eq!(
+        digest(storage_raw),
+        "cc5ec0678ef0a54bc21068ad1ea2a230e0283356f3138cc4424b624b0acc6a23",
+        "reviewed storage amendment drift"
+    );
+    let storage: serde_json::Value = serde_json::from_slice(storage_raw).unwrap();
+    assert_eq!(storage["schema_version"], 1);
+    assert_eq!(
+        storage["file"],
+        "crates/ssx-mcp/tests/t06_support/server.rs"
+    );
+    let archive =
+        include_bytes!("../../../docs/rust-rewrite/t06/storage-amendment/server.rs.7f8d.frozen");
+    assert_eq!(digest(archive), storage["before_sha256"].as_str().unwrap());
     for row in native["files"].as_array().unwrap() {
         let name = row["file"].as_str().unwrap();
+        let expected = if row["file"] == storage["file"] {
+            assert_eq!(row["sha256"], storage["before_sha256"]);
+            storage["after_sha256"].as_str().unwrap()
+        } else {
+            row["sha256"].as_str().unwrap()
+        };
         assert_eq!(
-            Sha256::digest(std::fs::read(root.join(name)).unwrap())
-                .iter()
-                .map(|b| format!("{b:02x}"))
-                .collect::<String>(),
-            row["sha256"].as_str().unwrap(),
+            digest(&std::fs::read(root.join(name)).unwrap()),
+            expected,
             "reviewed native fixture drift: {name}"
         );
     }
