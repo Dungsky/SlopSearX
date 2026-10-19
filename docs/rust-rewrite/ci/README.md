@@ -1,5 +1,7 @@
 # Native CI and protected review successors (O06)
 
+For the measured AMD64/ARM64 Foundation runtime observation, implemented timeout budget, and qualification rule, see [Foundation CI runtime budget](FOUNDATION_RUNTIME_BUDGET.md).
+
 O06 prepares additive successors. Existing Python checks, release workflows,
 protected review analysis and publication remain enabled and unchanged. O09
 owns activation after each semantic lane is accepted. A green O06 result means

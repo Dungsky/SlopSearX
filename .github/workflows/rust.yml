@@ -13,7 +13,7 @@ jobs:
   foundation:
     name: Foundation (${{ matrix.runner }})
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 60
+    timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
