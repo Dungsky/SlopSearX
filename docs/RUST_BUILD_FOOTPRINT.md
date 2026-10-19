@@ -10,10 +10,51 @@ It records where build material goes, who owns it, and when it can be removed.
   `/Volumes/tank01/magnus/rust-builds/slopsearx/<issue-or-pr>/<run>/`; on
   another host, configure an equivalent persistent root. Place Cargo targets
   and caches, source copies, overlays, archives, logs, receipts, handoffs, and
-  `TMPDIR` under that root. Set tool-specific paths such as `CARGO_TARGET_DIR`,
-  `CARGO_HOME`, and `TMPDIR` explicitly. Do not fall back to `/private/tmp`,
+  temporary and tool-cache paths under that root. Set `CARGO_TARGET_DIR`,
+  `CARGO_HOME`, `TMPDIR`, `TMP`, `TEMP`, and `XDG_CACHE_HOME` explicitly. Set
+  `PRE_COMMIT_HOME` for hook environments, Ruff's `RUFF_CACHE_DIR` (or
+  `--cache-dir`), and mypy's `--cache-dir` or `cache_dir` configuration to
+  owned paths under the build root. Record shared caches with their owner,
+  size, reuse reason, and review/prune date. Do not fall back to `/private/tmp`,
   `/tmp`, or `.codex` worktree locations without explicit user consent. CI may
   use its designated ephemeral job directory when the job cleans it up.
+- **Unix-domain socket fixtures on macOS:** the test fixture enforces a
+  `sockaddr_un` path shorter than 104 bytes. macOS's per-user default `TMPDIR`
+  may be too long once the fixture UUID directory and `s.sock` are appended.
+  For socket-backed test commands, have the bounded run own the short Tank
+  temporary base `/Volumes/tank01/magnus/rust-builds/slopsearx/tmp` and pass it
+  explicitly as `SLOPSEARX_TEST_TEMP_ROOT`, `TMPDIR`, `TMP`, and `TEMP`; the
+  fixture-specific override takes precedence over the process temporary
+  directory. Do not fall back to the macOS default, `/private/tmp`, or `/tmp`.
+  The reviewed T06 helper's `/ssx-t06-<32-hex>/s.sock` suffix makes
+  the complete path 96 UTF-8 bytes under that base, below the fixture's bound.
+  The base is exclusive to one task/run: the owner creates it only when absent,
+  rejects symlinks or pre-existing paths, records its inode and mode, and holds
+  the owner lease through test-process retirement. Let the fixture remove its
+  UUID child; remove the base only after process-group absence and matching
+  inode ownership are verified. If either proof is unavailable, retain it and
+  report the cleanup failure.
+
+  Example targeted local invocation, run inside the bounded task runner that
+  provides the exclusive short base. Set `SLOPSEARX_BUILD_RUN` to the registered
+  absolute run directory under the persistent build root first:
+
+  ```sh
+  : "${SLOPSEARX_BUILD_RUN:?Set the registered absolute run directory}"
+  SLOPSEARX_TEST_TEMP_ROOT=/Volumes/tank01/magnus/rust-builds/slopsearx/tmp \
+    TMPDIR=/Volumes/tank01/magnus/rust-builds/slopsearx/tmp \
+    TMP=/Volumes/tank01/magnus/rust-builds/slopsearx/tmp \
+    TEMP=/Volumes/tank01/magnus/rust-builds/slopsearx/tmp \
+    cargo test --locked --target-dir "$SLOPSEARX_BUILD_RUN/target" \
+      -p ssx-mcp --test t06_discovery
+  SLOPSEARX_TEST_TEMP_ROOT=/Volumes/tank01/magnus/rust-builds/slopsearx/tmp \
+    TMPDIR=/Volumes/tank01/magnus/rust-builds/slopsearx/tmp \
+    TMP=/Volumes/tank01/magnus/rust-builds/slopsearx/tmp \
+    TEMP=/Volumes/tank01/magnus/rust-builds/slopsearx/tmp \
+    cargo test --locked --target-dir "$SLOPSEARX_BUILD_RUN/target" \
+      -p ssx-mcp --test t06_transport
+  ```
+
 - Record the owner, issue or PR, each absolute artifact path, artifact class,
   current bytes, and its retain/delete condition in the persistent task ledger
   under `<build-root>/storage-ledger/`. Mark shared or live paths with owner,

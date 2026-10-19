@@ -26,16 +26,7 @@ impl Server {
         // before execution. Defaults remain compatible with ordinary CI tests.
         let base = std::env::var_os("SLOPSEARX_TEST_TEMP_ROOT")
             .map(PathBuf::from)
-            .unwrap_or_else(|| {
-                #[cfg(target_os = "macos")]
-                {
-                    PathBuf::from("/private/tmp")
-                }
-                #[cfg(not(target_os = "macos"))]
-                {
-                    std::env::temp_dir()
-                }
-            });
+            .unwrap_or_else(std::env::temp_dir);
         let dir = base.join(format!("ssx-t06-{id}"));
         // sockaddr_un has room for 104 bytes on macOS and 108 on Linux.
         use std::os::unix::{ffi::OsStrExt, fs::PermissionsExt};
