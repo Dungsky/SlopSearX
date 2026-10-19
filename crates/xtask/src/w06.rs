@@ -246,7 +246,11 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
         HUGE_INTEGER_PRODUCER_SHA,
     )?;
     for (path, expected) in &qualification.owned_sources {
-        frozen(root, path, expected)?;
+        if path == "crates/ssx-application/src/lib.rs" {
+            super::w06_source_amendment::verify(root, expected, records)?;
+        } else {
+            frozen(root, path, expected)?;
+        }
     }
     if qualification.schema_version != 2
         || qualification.plan_id != "W06"
@@ -450,7 +454,7 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
         .concat(),
         records,
     )?;
-    records.push(json!({"plan_id":"W06","status":"passed","source_sha256":CORPUS_SHA,"qualification_sha256":COVERAGE_SHA,"provider_calls":0,"source_cases":qualification.source_cases,"native_cases":qualification.native_cases,"source_only_reference_controls":qualification.reference_controls,"owned_sources":qualification.owned_sources,"authority":"full source outcomes and canonical bytes; actual native semantic assertions; private Valkey; loopback; killed native worker","limitations":"No production/hot reload/transport composition or exactly-once remote dispatch claim; source differences require explicit review"}));
+    records.push(json!({"plan_id":"W06","status":"passed","source_sha256":CORPUS_SHA,"qualification_sha256":COVERAGE_SHA,"provider_calls":0,"source_cases":qualification.source_cases,"native_cases":qualification.native_cases,"source_only_reference_controls":qualification.reference_controls,"owned_sources":qualification.owned_sources,"owned_source_amendments":[{"source_path":"crates/ssx-application/src/lib.rs","historical_pin_sha256":"a7102f8c75244e74680cf8773c527d21fb2dcd177a29f0bd27abeef2beeb880e","successor_sha256":"1ff0647013d66e6711587bbd103659959ab860bd3bd2d2b42d10b7a640a5544e","allowed_append":"pub mod lineage; + pub mod receipts;","negative_controls":5}],"authority":"full source outcomes and canonical bytes; actual native semantic assertions; private Valkey; loopback; killed native worker","limitations":"No production/hot reload/transport composition or exactly-once remote dispatch claim; source differences require explicit review"}));
     Ok(())
 }
 
