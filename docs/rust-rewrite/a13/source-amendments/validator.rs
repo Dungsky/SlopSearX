@@ -3,6 +3,8 @@ use serde_json::Value;
 use sha2::{Digest, Sha256};
 use std::{fs, path::Path};
 
+#[path = "../../storage-document-amendment/validator.rs"]
+mod storage_document;
 const MANIFEST_PATH: &str =
     "docs/rust-rewrite/a13/source-amendments/a13-current-source-amendment-v5.json";
 const MANIFEST_SHA256: &str = "4b64a708e58858425e4f7758333caef9ad4a4037e48c083702c3c3da0c71f3a8";
@@ -339,6 +341,21 @@ pub fn verify(
     validate_scope(&manifest)?;
     let current_path = root.join(source_path);
     let current = fs::read(&current_path).map_err(|error| format!("{source_path}: {error}"))?;
+    if storage_document::is_path(source_path) {
+        require(
+            digest(&container) == container_sha,
+            "A13 storage document container changed",
+        )?;
+        let archive = fs::read(root.join(storage_document::archive_path(source_path)?))
+            .map_err(|error| error.to_string())?;
+        return storage_document::verify(
+            source_path,
+            historical_sha,
+            historical_bytes,
+            &current,
+            &archive,
+        );
+    }
     let amendments = manifest["amendments"].as_array().unwrap();
     if let Some(amendment) = amendments
         .iter()
