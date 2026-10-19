@@ -21,3 +21,11 @@ The qualification fixtures support the Linux AMD64/ARM64 CI targets and macOS; W
 Reproduce the native surface gate with `cargo xtask check T06 --output target/rust-evidence/T06.json`, using Rust1.99.0 and disposable Valkey8.1.10 on `PATH` or selected by `SLOPSEARX_TEST_VALKEY_SERVER`. The gate validates the pinned original bytes, frozen observations and exact named tests in `crates/xtask/src/t06.rs`; it executes the actual service, authenticated transports, ownership and source-drift assertions without Python or provider calls. The existing T01 gate additionally runs the full MCP package.
 
 The configured `.github/workflows/rust.yml` foundation matrix runs this same T06 command on Linux AMD64 and ARM64. It retains `target/rust-evidence/T06.json` in `rust-foundation-<target>-<github.sha>`. Each native report records the actual head, working tree/diff/file bindings, toolchain, exact commands, statuses and test output. A delivery claim requires those reports on the final candidate; local review receipts supplement the repository-native commands and assertions.
+
+The additive `storage-amendment/current-storage-amendment-v1.json` binds the
+current T06 server fixture to the retained PR1026 preimage in
+`storage-amendment/server.rs.7f8d.frozen`. It preserves the original native
+fixture binding container and all source captures; the only fixture change
+is to honor the registered root and process temporary directory on macOS.
+The gate verifies the archived preimage and exact current source, and keeps
+all other native fixture pins unchanged.

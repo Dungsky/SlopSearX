@@ -1,4 +1,5 @@
 //! Native A07 qualification: historical evidence is read-only; no Python runtime.
+use crate::a13::source_amendment::storage_document;
 use crate::{Result, command};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
@@ -7,6 +8,9 @@ use std::{
     fs,
     path::Path,
 };
+#[cfg(test)]
+#[path = "../../../docs/rust-rewrite/storage-document-amendment/tests.rs"]
+mod storage_document_tests;
 const ARTIFACTS: &[(&str, &str)] = &[
     (
         "docs/rust-rewrite/a07/cases.json",
@@ -274,6 +278,24 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
         .ok_or("A07 source inventory missing")?
     {
         let path = source["path"].as_str().ok_or("A07 malformed source path")?;
+        if storage_document::is_path(path) {
+            storage_document::verify(
+                path,
+                source["sha256"]
+                    .as_str()
+                    .ok_or("A07 malformed source hash")?,
+                source["bytes"]
+                    .as_u64()
+                    .map(usize::try_from)
+                    .transpose()
+                    .map_err(|_| "A07 source length overflow")?,
+                &fs::read(root.join(path)).map_err(|error| error.to_string())?,
+                &fs::read(root.join(storage_document::archive_path(path)?))
+                    .map_err(|error| error.to_string())?,
+            )?;
+            records.push(json!({"A07_source_binding":{"path":path,"kind":"exact original document archive plus reviewed storage-policy successor"}}));
+            continue;
+        }
         if path.starts_with("crates/") || path == "docs/rust-rewrite/ci/gates.json" {
             let blob = source["git_blob"]
                 .as_str()

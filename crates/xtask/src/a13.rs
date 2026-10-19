@@ -9,7 +9,7 @@ use std::{
     path::Path,
 };
 #[path = "../../../docs/rust-rewrite/a13/source-amendments/validator.rs"]
-mod source_amendment;
+pub(crate) mod source_amendment;
 const QUALIFICATION_SHA: &str = "e2d9249fbadd0eca06a10215f796defc5845722c63fcf9f409ab9eac8a85f74e";
 const QUALIFICATION: &str = "docs/rust-rewrite/a13/qualification-v1.json";
 #[derive(Deserialize)]

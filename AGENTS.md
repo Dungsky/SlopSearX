@@ -157,6 +157,43 @@ class MyEngine(EngineAdapter):
 - Run `pre-commit run --all-files` before pushing to catch lint, type, and dead-code issues locally
 - One feature or fix per PR
 
+## Rust Build Footprint and Post-Merge Cleanup
+
+Keep new Rust build and scratch artifacts outside the checkout. On this Mac,
+use `/Volumes/tank01/magnus/rust-builds/slopsearx/`; on another host, configure
+an equivalent persistent build root. Put Cargo targets and caches, `TMPDIR`,
+source copies, overlays, archives, logs, receipts, and handoffs under that
+root. Do not fall back to `/private/tmp`, `/tmp`, or `.codex` worktree
+locations without explicit user consent. A CI runner may use its designated
+ephemeral job directory if the job cleans it up. Give each task/run a specific
+directory and record its absolute paths, owner, issue or PR, artifact class,
+measured bytes, and retain/delete condition in the persistent task ledger
+under that root's `storage-ledger/` before starting work.
+
+Before a build, record `df` availability, the task directory's current `du`
+usage, and an estimate based on a comparable prior build or the planned inputs.
+Reuse an exclusive target or an approved shared cache when safe; for shared
+caches, record the owner, size, reuse justification, and review/prune date.
+Avoid duplicate targets and concurrent writers to a shared target. See
+[`docs/RUST_BUILD_FOOTPRINT.md`](docs/RUST_BUILD_FOOTPRINT.md) for the run and
+cleanup checklist.
+
+Treat post-merge cleanup as a PR acceptance step. Audit active processes and
+open-file handles and search receipts/handoffs for references before removing
+owned build-only scratch and duplicate or superseded task targets/source
+copies. Preserve the baseline SHA, patch/lock/toolchain/commands and exits, and
+unique raw outputs needed to review the result. Compiled binaries and full
+source copies are reproducible build artifacts; retain them only for an
+explicit active investigation or release obligation with a review date. A
+receipt reference alone does not require indefinite retention: after checking
+references, record where an artifact was moved or that it was retired. Keep a
+shared cache only with its owner, size, reuse reason, and review/prune date.
+Archive a worktree with the Codex app tool when it is app-managed. For other
+worktrees, inspect branch state and local changes before any removal. After
+cleanup, record `du` and `df` again and report measured logical reduction,
+available-space change, and any remaining artifacts with their retention
+reasons.
+
 ## Design Documents
 
 - `spec.md` — full architecture spec, API contract, deployment topology, caching strategy
