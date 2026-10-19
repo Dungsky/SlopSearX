@@ -6,6 +6,7 @@ use std::{collections::BTreeSet, fs, path::Path};
 const BASELINE: &str = "6c44976444340cc8f343fef61e2e8d723b189c19";
 const BINDINGS: &str = "11660374ae3fd544590cb014b532eda4d6f3a95ef8f0bc062b308bd7911fc771";
 const NATIVE_BINDINGS: &str = "16edd8d4c89f463a12e9c1bf4863086ed0268a42736c9a31df5a181b421284e2";
+const STORAGE_AMENDMENT: &str = "cc5ec0678ef0a54bc21068ad1ea2a230e0283356f3138cc4424b624b0acc6a23";
 fn digest(bytes: &[u8]) -> String {
     Sha256::digest(bytes)
         .iter()
@@ -38,6 +39,36 @@ fn validate_native(bytes: &[u8]) -> Result<Value> {
         return Err("T06 incomplete native fixture provenance".into());
     }
     Ok(value)
+}
+fn validate_storage(bytes: &[u8], archive: &[u8]) -> Result<Value> {
+    if digest(bytes) != STORAGE_AMENDMENT {
+        return Err("T06 reviewed storage amendment differs".into());
+    }
+    let value: Value = serde_json::from_slice(bytes).map_err(|e| e.to_string())?;
+    if value["schema_version"] != 1
+        || value["file"] != "crates/ssx-mcp/tests/t06_support/server.rs"
+        || value["before_sha256"].as_str() != Some(digest(archive).as_str())
+    {
+        return Err("T06 incomplete storage amendment provenance".into());
+    }
+    Ok(value)
+}
+fn validate_native_file(row: &Value, bytes: &[u8], storage: &Value) -> Result<()> {
+    let expected = if row["file"] == storage["file"] {
+        if row["sha256"] != storage["before_sha256"] {
+            return Err("T06 storage amendment preimage differs".into());
+        }
+        &storage["after_sha256"]
+    } else {
+        &row["sha256"]
+    };
+    if Some(digest(bytes).as_str()) != expected.as_str() {
+        return Err(format!(
+            "T06 reviewed native fixture drift: {}",
+            row["file"]
+        ));
+    }
+    Ok(())
 }
 const NATIVE_FIXTURE_TESTS: &[&str] = &[
     "tests::receipt_write_latency_is_outside_the_ready_fake_engine_future",
@@ -168,12 +199,18 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
         &fs::read(root.join("docs/rust-rewrite/t06/native_fixture_bindings.json"))
             .map_err(|e| e.to_string())?,
     )?;
+    let storage_raw = fs::read(
+        root.join("docs/rust-rewrite/t06/storage-amendment/current-storage-amendment-v1.json"),
+    )
+    .map_err(|e| e.to_string())?;
+    let storage_archive =
+        fs::read(root.join("docs/rust-rewrite/t06/storage-amendment/server.rs.7f8d.frozen"))
+            .map_err(|e| e.to_string())?;
+    let storage = validate_storage(&storage_raw, &storage_archive)?;
     for row in native["files"].as_array().unwrap() {
         let path = row["file"].as_str().ok_or("T06 native fixture path")?;
         let bytes = fs::read(root.join(path)).map_err(|e| format!("T06 {path}: {e}"))?;
-        if Some(digest(&bytes).as_str()) != row["sha256"].as_str() {
-            return Err(format!("T06 reviewed native fixture drift: {path}"));
-        }
+        validate_native_file(row, &bytes, &storage)?;
     }
 
     for key in ["sources", "artifacts"] {
@@ -244,6 +281,29 @@ mod tests {
         validate(raw).unwrap();
         let native = include_bytes!("../../../docs/rust-rewrite/t06/native_fixture_bindings.json");
         validate_native(native).unwrap();
+        let storage_raw = include_bytes!(
+            "../../../docs/rust-rewrite/t06/storage-amendment/current-storage-amendment-v1.json"
+        );
+        let archive = include_bytes!(
+            "../../../docs/rust-rewrite/t06/storage-amendment/server.rs.7f8d.frozen"
+        );
+        let storage = validate_storage(storage_raw, archive).unwrap();
+        assert!(validate_storage(b"{}", archive).is_err());
+        assert!(validate_storage(storage_raw, b"changed archive").is_err());
+        let approved = validate_native(native).unwrap();
+        let server = approved["files"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|row| row["file"] == storage["file"])
+            .unwrap();
+        let current = include_bytes!("../../ssx-mcp/tests/t06_support/server.rs");
+        validate_native_file(server, current, &storage).unwrap();
+        assert!(validate_native_file(server, b"changed current source", &storage).is_err());
+        assert!(validate_native_file(server, archive, &storage).is_err());
+        let mut changed_preimage = server.clone();
+        changed_preimage["sha256"] = json!("0".repeat(64));
+        assert!(validate_native_file(&changed_preimage, current, &storage).is_err());
         let mut altered: Value = serde_json::from_slice(native).unwrap();
         altered["files"][0]["sha256"] = json!("0".repeat(64));
         assert!(validate_native(&serde_json::to_vec(&altered).unwrap()).is_err());

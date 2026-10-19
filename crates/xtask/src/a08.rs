@@ -1,4 +1,5 @@
 //! Source-bound A08 engine qualification. No interpreter or provider invocation.
+use crate::a13::source_amendment::storage_document;
 use crate::{Result, command};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
@@ -244,6 +245,22 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
             let path = pin["path"].as_str().ok_or("A08 pin path missing")?;
             require(seen.insert(path), "A08 duplicate pinned artifact")?;
             let bytes = fs::read(root.join(path)).map_err(|e| format!("{path}: {e}"))?;
+            if kind == "source_inventory" && storage_document::is_path(path) {
+                storage_document::verify(
+                    path,
+                    pin["sha256"].as_str().ok_or("A08 malformed source hash")?,
+                    pin["bytes"]
+                        .as_u64()
+                        .map(usize::try_from)
+                        .transpose()
+                        .map_err(|_| "A08 source length overflow")?,
+                    &bytes,
+                    &fs::read(root.join(storage_document::archive_path(path)?))
+                        .map_err(|error| error.to_string())?,
+                )?;
+                records.push(json!({"A08_pin":path,"kind":"exact original document archive plus reviewed storage-policy successor","sha256":digest(&bytes)}));
+                continue;
+            }
             require(
                 pin["sha256"].as_str() == Some(digest(&bytes).as_str()),
                 &format!("A08 source/artifact changed: {path}"),
