@@ -6,11 +6,11 @@ use std::{fs, path::Path};
 #[path = "../../storage-document-amendment/validator.rs"]
 pub(crate) mod storage_document;
 const MANIFEST_PATH: &str =
-    "docs/rust-rewrite/a13/source-amendments/a13-current-source-amendment-v5.json";
-const MANIFEST_SHA256: &str = "4b64a708e58858425e4f7758333caef9ad4a4037e48c083702c3c3da0c71f3a8";
+    "docs/rust-rewrite/a13/source-amendments/a13-current-source-amendment-v6.json";
+const MANIFEST_SHA256: &str = "69abef686c432ca207a5a3905bc5d3829763d879e227dbebeaf9f01fc27b79e5";
 const PREDECESSOR_PATH: &str =
-    "docs/rust-rewrite/a13/source-amendments/a13-current-source-amendment-v4.json";
-const PREDECESSOR_SHA256: &str = "0126da6005a6cbab910d07779a8c2a3d9076d4823d49c08f8cca64b7e791207a";
+    "docs/rust-rewrite/a13/source-amendments/a13-current-source-amendment-v5.json";
+const PREDECESSOR_SHA256: &str = "4b64a708e58858425e4f7758333caef9ad4a4037e48c083702c3c3da0c71f3a8";
 const AMENDED_PATHS: [&str; 9] = [
     "crates/ssx-infra/src/http.rs",
     "crates/ssx-infra/tests/a13_dehashed.rs",
@@ -54,7 +54,7 @@ fn mode(_path: &Path) -> Result<String, String> {
 
 fn validate_scope(manifest: &Value) -> Result<(), String> {
     require(
-        manifest["kind"] == "A13_CURRENT_SOURCE_AMENDMENT_V5"
+        manifest["kind"] == "A13_CURRENT_SOURCE_AMENDMENT_V6"
             && manifest["amended_source_paths"] == serde_json::json!(AMENDED_PATHS),
         "A13 amendment path scope changed",
     )?;
@@ -69,6 +69,30 @@ fn validate_scope(manifest: &Value) -> Result<(), String> {
                 .eq(AMENDED_PATHS),
         "A13 amendment membership changed",
     )
+}
+
+fn verify_additional_source(
+    manifest: &Value,
+    bytes: &[u8],
+    source_mode: &str,
+) -> Result<(), String> {
+    let bindings = manifest["additional_sources"]
+        .as_array()
+        .ok_or("A13 additional source bindings absent")?;
+    require(
+        bindings.len() == 1
+            && bindings[0]["path"] == "crates/ssx-infra/tests/support/http_expired_startup.rs"
+            && bindings[0]["bytes"].as_u64() == Some(bytes.len() as u64)
+            && bindings[0]["sha256"].as_str() == Some(digest(bytes).as_str())
+            && bindings[0]["mode"] == source_mode,
+        "A13 exact HTTP startup control source differs",
+    )
+}
+
+fn verify_additional_source_file(root: &Path, manifest: &Value) -> Result<(), String> {
+    let path = root.join("crates/ssx-infra/tests/support/http_expired_startup.rs");
+    let bytes = fs::read(&path).map_err(|error| error.to_string())?;
+    verify_additional_source(manifest, &bytes, &mode(&path)?)
 }
 
 struct PinCheck<'a> {
@@ -305,9 +329,26 @@ pub fn verify(
             && manifest["predecessor_manifest"]["sha256"] == PREDECESSOR_SHA256,
         "A13 amendment predecessor manifest differs",
     )?;
-    // Preserve the exact V4->V3->V2 chain in addition to the new V5->V4
-    // binding. Prior manifests are not merely retained on disk.
-    let v4: Value = serde_json::from_slice(&predecessor).map_err(|error| error.to_string())?;
+    // Preserve V5's exact V4 binding and archive obligations when V6 advances
+    // only HTTP. Prior accepted manifests are verified, not merely retained.
+    let v5: Value = serde_json::from_slice(&predecessor).map_err(|error| error.to_string())?;
+    let v4_path = "docs/rust-rewrite/a13/source-amendments/a13-current-source-amendment-v4.json";
+    let v4_sha = "0126da6005a6cbab910d07779a8c2a3d9076d4823d49c08f8cca64b7e791207a";
+    let v4_bytes = fs::read(root.join(v4_path)).map_err(|error| error.to_string())?;
+    require(
+        digest(&v4_bytes) == v4_sha
+            && v5["predecessor_manifest"]["path"] == v4_path
+            && v5["predecessor_manifest"]["sha256"] == v4_sha,
+        "A13 V5 predecessor binding differs",
+    )?;
+    if let Some(prior) = v5["amendments"].as_array().and_then(|entries| {
+        entries
+            .iter()
+            .find(|entry| entry["source_path"] == source_path)
+    }) {
+        verify_previous_successor(root, prior, None)?;
+    }
+    let v4: Value = serde_json::from_slice(&v4_bytes).map_err(|error| error.to_string())?;
     let v3_path = "docs/rust-rewrite/a13/source-amendments/a13-current-source-amendment-v3.json";
     let v3_sha = "bb24fceef429f6e4084dcfa242936b3993b9da5e9bae66c9dcc84580fd7d8212";
     let v3 = fs::read(root.join(v3_path)).map_err(|error| error.to_string())?;
@@ -329,7 +370,7 @@ pub fn verify(
     )?;
     // Keep V4's previous-successor archive obligation live after the HTTP
     // current pin advances again. For HTTP this is the exact 48e9 archive;
-    // V5 separately verifies the new 7d5d predecessor below.
+    // V5 above verifies 7d5d; V6 below verifies the exact 24ee HTTP predecessor.
     let prior_amendment = v4["amendments"].as_array().and_then(|entries| {
         entries
             .iter()
@@ -339,6 +380,7 @@ pub fn verify(
         verify_previous_successor(root, prior, None)?;
     }
     validate_scope(&manifest)?;
+    verify_additional_source_file(root, &manifest)?;
     let current_path = root.join(source_path);
     let current = fs::read(&current_path).map_err(|error| format!("{source_path}: {error}"))?;
     if storage_document::is_path(source_path) {
@@ -398,6 +440,20 @@ pub fn rejects_mutants(root: &Path) -> Result<(), String> {
     let mut manifest: Value =
         serde_json::from_slice(&manifest_bytes).map_err(|error| error.to_string())?;
     validate_scope(&manifest)?;
+    verify_additional_source_file(root, &manifest)?;
+    let added_path = root.join("crates/ssx-infra/tests/support/http_expired_startup.rs");
+    let mut added_bytes = fs::read(&added_path).map_err(|error| error.to_string())?;
+    added_bytes.push(0);
+    require(
+        verify_additional_source(&manifest, &added_bytes, &mode(&added_path)?).is_err(),
+        "A13 altered HTTP startup control source was accepted",
+    )?;
+    let mut changed_addition = manifest.clone();
+    changed_addition["additional_sources"][0]["path"] = serde_json::json!("unreviewed.rs");
+    require(
+        verify_additional_source_file(root, &changed_addition).is_err(),
+        "A13 substituted HTTP startup control binding was accepted",
+    )?;
     let path = AMENDED_PATHS[0];
     let amendment = manifest["amendments"]
         .as_array()

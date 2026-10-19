@@ -566,6 +566,12 @@ impl Session {
         if *self.cancel.0.borrow() {
             return Err(Error::Cancelled);
         }
+        // Timer readiness may lag the owner's clock (for example within a
+        // Tokio timer tick). Reject expired startup before request accounting,
+        // transport dispatch or client checkout, retaining stop/cancel priority.
+        if self.clock.now() >= self.deadline.into_std() {
+            return Err(Error::Deadline);
+        }
         let cancel = self.cancel.clone();
         let stop = self.stop.clone();
         let deadline = self.deadline;
@@ -1402,3 +1408,7 @@ mod pypi_operation_timeout_tests {
 #[cfg(test)]
 #[path = "../tests/support/f10_peer_timeout.rs"]
 mod f10_peer_timeout_tests;
+
+#[cfg(test)]
+#[path = "../tests/support/http_expired_startup.rs"]
+mod expired_startup_tests;

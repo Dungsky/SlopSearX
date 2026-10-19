@@ -504,6 +504,11 @@ fn compiled_suite_names(suite: &Suite) -> Vec<String> {
         names.push("search::deadline_drain_tests::renewed_context_mutant_does_not_match_original_absolute_deadline".into());
         names.push("search::deadline_drain_tests::manual_owner_clock_does_not_pause_unrelated_real_tokio_timeouts".into());
         names.push("http::f10_peer_timeout_tests::actual_peer_started_timeout_records_failure_with_null_latency".into());
+        // Add the exact #1032 controls without changing the historical suite.
+        names.push("http::expired_startup_tests::system_expired_startup_rejects_even_while_its_timer_is_pending".into());
+        names.push("http::expired_startup_tests::manual_expired_startup_includes_exact_deadline_and_past_deadline".into());
+        names.push("http::expired_startup_tests::expired_startup_preserves_stop_then_cancel_then_deadline_precedence".into());
+        names.push("http::expired_startup_tests::unexpired_startup_dispatches_with_system_and_manual_owner_clocks".into());
     }
     if cfg!(target_os = "linux")
         && suite.package == "ssx-infra"
