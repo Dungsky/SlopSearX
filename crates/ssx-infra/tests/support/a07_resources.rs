@@ -239,10 +239,21 @@ async fn all_eight_prepared_bodies_fit_candidate_quota_and_transfer_without_clon
         ("pm-200-realistic", 200),
     ] {
         let (name, bodies) = prepared(id);
-        let (engine, http, _) = harness(&name, bodies);
+        // This control measures quota/transfer, not default-budget throughput.
+        // A finite 60s fixture timeout gives PubMed its unchanged 90% (54s) aggregate.
+        let (engine, http, _) = harness_config(&name, bodies, 1000, 60_000);
         let budget = Budget::new(ROW_BYTES).unwrap();
         let q = query();
-        let batch = engine.run(&q, None, &budget, None).await.unwrap();
+        let started = Instant::now();
+        let batch = engine
+            .run(&q, None, &budget, None)
+            .await
+            .unwrap_or_else(|failure| {
+                panic!(
+                    "{id}: {failure:?}; fixture_elapsed_ms={}",
+                    started.elapsed().as_millis()
+                )
+            });
         assert_eq!(batch.results().len(), count, "{id}");
         assert_eq!(
             budget.snapshot().unwrap().used,

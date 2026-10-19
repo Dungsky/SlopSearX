@@ -46,6 +46,11 @@ five through admission, requests and normalization. One 32 MiB invocation budget
 charges first-phase scratch, payload projection and ProducedBatch ownership.
 Quota failure is terminal Error with no partial successful output. Shared Python
 repr/digit/casefold behavior is reused without a Unicode/JSON library fork.
+
+The quota-success fixture uses a 60-second test timeout, giving PubMed its unchanged
+90% (54-second) aggregate budget. It verifies quota and transfer behavior; it is not
+default-budget throughput or performance evidence. Production defaults, the aggregate deadline
+calculation and deadline controls are unchanged.
 Provider-sized CID, digit-scan and stable-rank phases yield cooperatively; actual
 pending-phase cancellation/deadline tests and removed-checkpoint mutations prove
 cleanup. See BOUNDED_RUNTIME.md for allocation measurements and exclusions.
