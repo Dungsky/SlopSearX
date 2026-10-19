@@ -687,3 +687,195 @@ fn rejects_additive_mutants(root: &Path) -> Result<(), String> {
     }
     Ok(())
 }
+
+// Appended PR1034 draft only: each direct include owns this same nested module.
+#[path = "../../a04/source-amendments/scoped-successor.rs"]
+pub(crate) mod causal_successor;
+pub(crate) use causal_successor::verify_current;
+
+/// Historical-only legacy controls; default current-read entrypoint remains unchanged.
+#[cfg(test)]
+pub(crate) fn rejects_mutants_on_historical_evidence(
+    root: &Path,
+    historical: &causal_successor::HistoricalControlEvidence,
+) -> Result<(), String> {
+    let manifest_bytes = fs::read(root.join(MANIFEST_PATH)).map_err(|error| error.to_string())?;
+    let mut manifest: Value =
+        serde_json::from_slice(&manifest_bytes).map_err(|error| error.to_string())?;
+    validate_scope(&manifest)?;
+    verify_additional_source_file(root, &manifest)?;
+    let added_path = root.join("crates/ssx-infra/tests/support/http_expired_startup.rs");
+    let mut added_bytes = fs::read(&added_path).map_err(|error| error.to_string())?;
+    added_bytes.push(0);
+    require(
+        verify_additional_source(&manifest, &added_bytes, &mode(&added_path)?).is_err(),
+        "A13 altered HTTP startup control source was accepted",
+    )?;
+    let mut changed_addition = manifest.clone();
+    changed_addition["additional_sources"][0]["path"] = serde_json::json!("unreviewed.rs");
+    require(
+        verify_additional_source_file(root, &changed_addition).is_err(),
+        "A13 substituted HTTP startup control binding was accepted",
+    )?;
+    let path = AMENDED_PATHS[0];
+    let amendment = manifest["amendments"]
+        .as_array()
+        .unwrap()
+        .first()
+        .unwrap()
+        .clone();
+    let pin = &amendment["historical_pins"][0];
+    let container_path = pin["container_path"].as_str().unwrap();
+    let container_sha = pin["container_sha256"].as_str().unwrap();
+    let container = fs::read(root.join(container_path)).map_err(|error| error.to_string())?;
+    // Explicit accepted-V6 historical operand for unchanged pure legacy assertions.
+    let current = historical.accepted_v6_successor_bytes().to_vec();
+    let archive_path = amendment["archive"]["path"].as_str().unwrap();
+    let archive_file = root.join(archive_path);
+    let archive = fs::read(&archive_file).map_err(|error| error.to_string())?;
+    let old_sha = pin["source_sha256"].as_str().unwrap();
+    let old_bytes = pin["source_bytes"].as_u64().unwrap() as usize;
+    let current_mode = mode(&root.join(path))?;
+    let archive_mode = mode(&archive_file)?;
+    let accepts = |entry: &Value,
+                   path: &str,
+                   container_sha: &str,
+                   container: &[u8],
+                   current: &[u8],
+                   archive: &[u8]| {
+        verify_payload(PinCheck {
+            amendment: entry,
+            container_path,
+            container_sha,
+            container_bytes: container,
+            source_path: path,
+            historical_sha: old_sha,
+            historical_bytes: Some(old_bytes),
+            current_bytes: current,
+            archive_bytes: archive,
+            current_mode: &current_mode,
+            archive_mode: &archive_mode,
+        })
+        .is_ok()
+    };
+    require(
+        accepts(
+            &amendment,
+            path,
+            container_sha,
+            &container,
+            &current,
+            &archive,
+        ),
+        "A13 amendment positive control failed",
+    )?;
+    let mut changed_successor = amendment.clone();
+    changed_successor["successor"]["sha256"] = serde_json::json!("changed-successor");
+    require(
+        !accepts(
+            &changed_successor,
+            path,
+            container_sha,
+            &container,
+            &current,
+            &archive,
+        ),
+        "A13 successor mutation was accepted",
+    )?;
+    let mut changed_archive = amendment.clone();
+    changed_archive["archive"]["sha256"] = serde_json::json!("changed-archive");
+    require(
+        !accepts(
+            &changed_archive,
+            path,
+            container_sha,
+            &container,
+            &current,
+            &archive,
+        ),
+        "A13 archive mutation was accepted",
+    )?;
+    let mut changed_archive_bytes = archive.clone();
+    changed_archive_bytes.push(0);
+    require(
+        !accepts(
+            &amendment,
+            path,
+            container_sha,
+            &container,
+            &current,
+            &changed_archive_bytes,
+        ),
+        "A13 archive byte mutation was accepted",
+    )?;
+    let mut changed_container = container.clone();
+    changed_container.push(0);
+    require(
+        !accepts(
+            &amendment,
+            path,
+            container_sha,
+            &changed_container,
+            &current,
+            &archive,
+        ),
+        "A13 container mutation was accepted",
+    )?;
+    let mut changed_current = current.clone();
+    changed_current.push(0);
+    require(
+        !accepts(
+            &amendment,
+            path,
+            container_sha,
+            &container,
+            &changed_current,
+            &archive,
+        ),
+        "A13 source mutation was accepted",
+    )?;
+    require(
+        !accepts(
+            &amendment,
+            "crates/ssx-infra/src/search.rs",
+            container_sha,
+            &container,
+            &current,
+            &archive,
+        ),
+        "A13 path substitution was accepted",
+    )?;
+    manifest["amended_source_paths"]
+        .as_array_mut()
+        .unwrap()
+        .push(serde_json::json!("crates/ssx-infra/src/search.rs"));
+    require(
+        verify_previous_successor(root, &amendment, None).is_ok(),
+        "A13 prior HTTP successor positive control failed",
+    )?;
+    let prior = &amendment["previous_successor_archive"];
+    let prior_path = root.join(
+        prior["path"]
+            .as_str()
+            .ok_or("A13 prior HTTP archive path absent")?,
+    );
+    let prior_bytes = fs::read(&prior_path).map_err(|error| error.to_string())?;
+    let mut mutated_prior_bytes = prior_bytes.clone();
+    mutated_prior_bytes.push(0);
+    require(
+        verify_previous_successor(root, &amendment, Some(&mutated_prior_bytes)).is_err(),
+        "A13 prior HTTP archive byte mutation was accepted",
+    )?;
+    let mut mutated_prior_pin = amendment.clone();
+    mutated_prior_pin["previous_successor_archive"]["sha256"] = serde_json::json!("mutated-prior");
+    require(
+        verify_previous_successor(root, &mutated_prior_pin, None).is_err(),
+        "A13 prior HTTP archive digest mutation was accepted",
+    )?;
+    rejects_additive_mutants(root)?;
+    rejects_clinicaltrials_mutants(root)?;
+    require(
+        validate_scope(&manifest).is_err(),
+        "A13 unlisted amendment was accepted",
+    )
+}

@@ -3,6 +3,8 @@ use crate::{Result, command};
 use serde::Deserialize;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
+#[cfg(test)]
+pub(crate) use source_amendment::causal_successor;
 use std::{
     collections::{BTreeMap, BTreeSet},
     fs,
@@ -71,7 +73,7 @@ pub(super) fn check_source_pin(
     expected_sha: &str,
     expected_bytes: Option<usize>,
 ) -> Result<()> {
-    source_amendment::verify(
+    source_amendment::verify_current(
         root,
         container_path,
         container_sha,
@@ -504,6 +506,50 @@ fn compiled_suite_names(suite: &Suite) -> Vec<String> {
         names.push("search::deadline_drain_tests::renewed_context_mutant_does_not_match_original_absolute_deadline".into());
         names.push("search::deadline_drain_tests::manual_owner_clock_does_not_pause_unrelated_real_tokio_timeouts".into());
         names.push("http::f10_peer_timeout_tests::actual_peer_started_timeout_records_failure_with_null_latency".into());
+        // Exact A04 integration-to-private-unit relocation; original capture inventory retained.
+        names.push("http::a04_broad_api::replay_headers_accumulate_fragments_and_reject_early_eof_and_oversize".into());
+        names.push("http::a04_broad_api::actual_source_edge_matrix_replays_full_output_and_ordered_requests".into());
+        names.push("http::a04_broad_api::every_complete_source_record_replays_full_normalized_output_and_wire_contract".into());
+        names.push("http::a04_broad_api::unrepresentable_reddit_subreddit_values_are_explicit_typed_boundaries".into());
+        names.push(
+            "http::a04_broad_api::batch_registration_alone_controls_runtime_availability".into(),
+        );
+        names.push(
+            "http::a04_broad_api::brave_web_answers_and_images_are_parsed_from_loopback_http"
+                .into(),
+        );
+        names.push("http::a04_broad_api::wikipedia_two_stages_preserve_request_order_corrections_and_infobox".into());
+        names.push(
+            "http::a04_broad_api::wikipedia_no_titles_and_missing_page_ids_match_captured_source"
+                .into(),
+        );
+        names.push("http::a04_broad_api::reddit_token_precedence_auth_host_and_subreddit_routing_are_explicit".into());
+        names.push(
+            "http::a04_broad_api::reddit_default_oauth_rewrite_targets_source_host_without_network"
+                .into(),
+        );
+        names.push(
+            "http::a04_broad_api::wikipedia_deadline_is_per_operation_and_session_is_reused".into(),
+        );
+        names.push("http::a04_broad_api::reddit_listing_preserves_source_filter_content_dates_and_thumbnail_rules".into());
+        names.push("http::a04_broad_api::reddit_empty_permalink_prefix_and_python_truthiness_follow_captured_source".into());
+        names.push("http::a04_broad_api::reddit_subreddit_missing_empty_and_path_special_inputs_match_source_urls".into());
+        names.push(
+            "http::a04_broad_api::all_three_classify_http_errors_bad_json_and_timeout".into(),
+        );
+        names.push("http::a04_broad_api::dropped_search_cancels_outstanding_loopback_request_for_each_adapter".into());
+        names.push(
+            "http::a04_broad_api::empty_and_wrong_shape_responses_keep_engine_specific_outcomes"
+                .into(),
+        );
+        names.push("http::a04_broad_api::missing_brave_credentials_fail_before_dispatch_and_reddit_401_is_unavailable".into());
+        names.push("http::a04_broad_api::nonfinite_source_records_preserve_full_source_list_and_native_typed_refusal".into());
+        names.push("http::a04_broad_api::representation_boundaries_preserve_source_outcomes_and_refuse_whole_native_response".into());
+        names.push("http::a04_broad_api::source_json_byte_numeric_and_unicode_contracts_replay_every_record".into());
+        names.push("http::a04_broad_api::subreddit_scopes_keep_shared_service_dispatch_cache_and_flights_separate".into());
+        names.push("http::a04_broad_api::timeout_replay_aligns_accumulated_virtual_offset_before_native_request".into());
+        names.push("http::loopback_timeout_replay_controls::manual_network_owner_rejects_remote_and_service_context".into());
+        names.push("http::loopback_timeout_replay_controls::manual_network_session_rejects_different_endpoint_before_wire".into());
         // Add the exact #1032 controls without changing the historical suite.
         names.push("http::expired_startup_tests::system_expired_startup_rejects_even_while_its_timer_is_pending".into());
         names.push("http::expired_startup_tests::manual_expired_startup_includes_exact_deadline_and_past_deadline".into());
@@ -521,7 +567,7 @@ fn compiled_suite_names(suite: &Suite) -> Vec<String> {
 }
 pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
     #[cfg(test)]
-    source_amendment::rejects_mutants(root)?;
+    causal_successor::control_bridge(root)?;
     let bytes = fs::read(root.join(QUALIFICATION)).map_err(|e| e.to_string())?;
     require(
         digest(&bytes) == QUALIFICATION_SHA,

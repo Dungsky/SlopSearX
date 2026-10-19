@@ -1627,7 +1627,7 @@ fn source_inventory_is_closed_and_bound_without_original_execution() {
     missing.pop();
     assert!(!closed(&missing, &expected_paths));
     for source in sources {
-        source_amendment::verify(
+        source_amendment::verify_current(
             &root,
             expected_container,
             expected_container_sha,
@@ -1637,7 +1637,7 @@ fn source_inventory_is_closed_and_bound_without_original_execution() {
         )
         .unwrap();
     }
-    source_amendment::rejects_mutants(&root).unwrap();
+    source_amendment::causal_successor::control_bridge(&root).unwrap();
     let remaining_path = "docs/rust-rewrite/a13/remaining/source-map.json";
     let remaining_sha = "af359782abc772c727a885e66a87d519aea5393bcec31e0e105b2de46a8c5d22";
     let remaining = std::fs::read(root.join(remaining_path)).unwrap();
@@ -1649,7 +1649,7 @@ fn source_inventory_is_closed_and_bound_without_original_execution() {
         .iter()
         .find(|source| source["path"] == "crates/ssx-infra/src/http.rs")
         .unwrap();
-    source_amendment::verify(
+    source_amendment::verify_current(
         &root,
         remaining_path,
         remaining_sha,
