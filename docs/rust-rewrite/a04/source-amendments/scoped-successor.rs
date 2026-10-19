@@ -4,6 +4,13 @@ use sha2::{Digest, Sha256};
 use std::{fs, path::Path};
 const MANIFEST: &str = "docs/rust-rewrite/a04/source-amendments/scoped-successor-v1.json";
 const MANIFEST_SHA: &str = "31d418472c38c2bf5182f7deb76fafab4876cbd3dd58d332fa2e64fc9bb6b18c";
+// V1 remains the immutable predecessor, also referenced by A13 composition.
+const CURRENT_MANIFEST: &str = "docs/rust-rewrite/a04/source-amendments/scoped-successor-v2.json";
+const CURRENT_MANIFEST_SHA: &str =
+    "13b6e48152b4316693159995d9179350605326a57b0fed0dee01d8413efcfdf5";
+const CURRENT_HTTP_SHA: &str = "c5116d9a0081a0497a12643440053f001b6d68b48e9b4bf8c5feabf81eed5d10";
+const HTTP_GUARD_BEFORE: &[u8] = b"            #[cfg(test)]\n            if let Some(endpoint) = &self.replay_endpoint {\n                if request.url.scheme() != endpoint.scheme()\n                    || request.url.host() != endpoint.host()\n                    || request.url.port_or_known_default() != endpoint.port_or_known_default()\n                {\n                    return Err(Error::InvalidRequest);\n                }\n            }\n";
+const HTTP_GUARD_AFTER: &[u8] = b"            #[cfg(test)]\n            if let Some(endpoint) = &self.replay_endpoint\n                && (request.url.scheme() != endpoint.scheme()\n                    || request.url.host() != endpoint.host()\n                    || request.url.port_or_known_default() != endpoint.port_or_known_default())\n            {\n                return Err(Error::InvalidRequest);\n            }\n";
 const HTTP: &str = "crates/ssx-infra/src/http.rs";
 const DEHASHED: &str = "crates/ssx-infra/tests/a13_dehashed.rs";
 const REMAINING: &str = "crates/ssx-infra/tests/a13_remaining_fixture/mod.rs";
@@ -74,6 +81,182 @@ fn read_material(root: &Path, row: &Value, stage: &str) -> Result<Vec<u8>, Strin
     check_material(row, &bytes, &mode(&path)?, stage)?;
     Ok(bytes)
 }
+// This one V1 material acquired W07's reviewed wrapper prefix on main. Its
+// original row remains historical premerge evidence; actual CURRENT is read
+// independently from the merged source path, never from an archive.
+const XTASK_A13: &str = "crates/xtask/src/a13.rs";
+const A13_COMPOSITION: &str = "docs/rust-rewrite/a04/source-amendments/a13-w07-composition-v1.json";
+const A13_COMPOSITION_SHA: &str =
+    "98263270d3e7386eafe9dd78d0abc13f0fd8a3cfa48e0b3b7b845dd4fc4daa4b";
+const W07_A13_INSERT: &[u8] = b"    if let Some(result) = crate::w06_source_amendment::verify_shared(\n        root,\n        container_path,\n        container_sha,\n        path,\n        expected_sha,\n        expected_bytes,\n    ) {\n        return result;\n    }\n";
+struct CurrentMergedA13 {
+    bytes: Vec<u8>,
+}
+struct HistoricalPremergeMaterial {
+    bytes: Vec<u8>,
+}
+fn a13_composition_payload(
+    v1_row: &Value,
+    composition: &Value,
+    actual_current: &[u8],
+    actual_mode: &str,
+) -> Result<(CurrentMergedA13, HistoricalPremergeMaterial), String> {
+    require(
+        composition["kind"] == "PR1034_W07_A13_EXACT_COMPOSITION_V1"
+            && composition["frozen_http_manifest"]["path"] == MANIFEST
+            && composition["frozen_http_manifest"]["sha256"] == MANIFEST_SHA
+            && composition["historical_revision"] == "c253e60438a4750512089fb11fae412ca28a4f8a"
+            && v1_row["path"] == XTASK_A13
+            && composition["historical_premerge"] == *v1_row
+            && composition["current"]["path"] == XTASK_A13,
+        "PR1034 A13 composition scope or historical V1 relation changed",
+    )?;
+    check_material(
+        &composition["current"],
+        actual_current,
+        actual_mode,
+        "PR1034 actual CURRENT merged A13 bytes/mode",
+    )?;
+    let current = CurrentMergedA13 {
+        bytes: actual_current.to_vec(),
+    };
+    let insertion = text(&composition["insertion"], "utf8")?.as_bytes();
+    require(
+        insertion == W07_A13_INSERT
+            && insertion.len() == 228
+            && composition["insertion"]["bytes"].as_u64() == Some(228)
+            && composition["insertion"]["sha256"] == digest(insertion),
+        "PR1034 A13 composition exact W07 insertion changed",
+    )?;
+    let at = composition["insertion"]["at"]
+        .as_u64()
+        .and_then(|n| usize::try_from(n).ok())
+        .ok_or("PR1034 A13 composition offset absent/overflow")?;
+    let end = at
+        .checked_add(insertion.len())
+        .ok_or("PR1034 A13 insertion overflow")?;
+    require(
+        current.bytes.get(at..end) == Some(insertion)
+            && current
+                .bytes
+                .windows(insertion.len())
+                .filter(|w| *w == insertion)
+                .count()
+                == 1,
+        "PR1034 A13 current must contain exactly one insertion at the reviewed offset",
+    )?;
+    let mut historical_bytes = current.bytes[..at].to_vec();
+    historical_bytes.extend_from_slice(&current.bytes[end..]);
+    // V1 seals this historical identity and mode. This reconstructed operand
+    // proves the premerge byte relation; it is never read as live/current code.
+    require(
+        v1_row["sha256"] == "81b358ff63a0dceb773cdd353f99fb9322d017897af007e290409ac598a10465"
+            && v1_row["bytes"].as_u64() == Some(35360)
+            && v1_row["mode"] == "0644"
+            && digest(&historical_bytes) == v1_row["sha256"]
+            && historical_bytes.len() == 35360,
+        "PR1034 HISTORICAL premerge A13 is not the sealed V1 operand",
+    )?;
+    Ok((
+        current,
+        HistoricalPremergeMaterial {
+            bytes: historical_bytes,
+        },
+    ))
+}
+fn a13_composition_document(raw: &[u8]) -> Result<Value, String> {
+    require(
+        digest(raw) == A13_COMPOSITION_SHA,
+        "PR1034 A13 composition manifest changed",
+    )?;
+    serde_json::from_slice(raw).map_err(|e| e.to_string())
+}
+fn read_a13_composition(
+    root: &Path,
+    v1_row: &Value,
+) -> Result<(Value, CurrentMergedA13, HistoricalPremergeMaterial), String> {
+    let raw = fs::read(root.join(A13_COMPOSITION)).map_err(|e| e.to_string())?;
+    let composition = a13_composition_document(&raw)?;
+    require(
+        composition["current"]["path"] == XTASK_A13,
+        "PR1034 A13 actual current path changed",
+    )?;
+    let actual = read_material(root, &composition["current"], "PR1034 CURRENT merged A13")?;
+    let actual_mode = mode(&root.join(XTASK_A13))?;
+    let (current, historical) =
+        a13_composition_payload(v1_row, &composition, &actual, &actual_mode)?;
+    Ok((composition, current, historical))
+}
+fn verify_merged_a13(root: &Path, v1_row: &Value) -> Result<(), String> {
+    let (composition, current, historical) = read_a13_composition(root, v1_row)?;
+    eprintln!(
+        "PR1034_MAIN_COMPOSITION_PROOF {}",
+        serde_json::json!({"current_path":XTASK_A13,"current_sha256":digest(&current.bytes),
+            "current_bytes":current.bytes.len(),"historical_premerge_sha256":digest(&historical.bytes),
+            "historical_premerge_bytes":historical.bytes.len(),"insertion":composition["insertion"]["sha256"],
+            "frozen_http_manifest_sha256":MANIFEST_SHA})
+    );
+    Ok(())
+}
+#[cfg(test)]
+fn a13_composition_controls(root: &Path, manifest: &Value) -> Result<(), String> {
+    let rows: Vec<_> = manifest["additional_current_materials"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|row| row["path"] == XTASK_A13)
+        .collect();
+    require(
+        rows.len() == 1,
+        "PR1034 A13 composition V1 membership changed",
+    )?;
+    let row = rows[0];
+    let (composition, current, historical) = read_a13_composition(root, row)?;
+    let mut changed_manifest = fs::read(root.join(A13_COMPOSITION)).map_err(|e| e.to_string())?;
+    changed_manifest.push(0);
+    require(
+        a13_composition_document(&changed_manifest).is_err(),
+        "PR1034 A13 changed composition manifest accepted",
+    )?;
+    let rejects = |candidate: &Value, bytes: &[u8], permissions: &str| {
+        require(
+            a13_composition_payload(row, candidate, bytes, permissions).is_err(),
+            "PR1034 A13 composition negative control accepted",
+        )
+    };
+    let mut changed = current.bytes.clone();
+    changed[0] ^= 1;
+    rejects(&composition, &changed, "0644")?;
+    rejects(&composition, &historical.bytes, "0644")?;
+    rejects(&composition, &current.bytes, "0755")?;
+    for replacement in ["", "unreviewed insertion"] {
+        let mut changed_delta = composition.clone();
+        changed_delta["insertion"]["utf8"] = serde_json::json!(replacement);
+        rejects(&changed_delta, &current.bytes, "0644")?;
+    }
+    let mut moved_delta = composition.clone();
+    moved_delta["insertion"]["at"] =
+        serde_json::json!(composition["insertion"]["at"].as_u64().unwrap() + 1);
+    rejects(&moved_delta, &current.bytes, "0644")?;
+    let mut wrong_scope = composition.clone();
+    wrong_scope["current"]["path"] = serde_json::json!(HTTP);
+    rejects(&wrong_scope, &current.bytes, "0644")?;
+    // Recompute the claimed current digest to exercise the relation itself:
+    // pin checks alone must not hide an unrelated addition or duplicate prefix.
+    for extra in [&b"unreviewed"[..], W07_A13_INSERT] {
+        let mut extra_current = current.bytes.clone();
+        extra_current.extend_from_slice(extra);
+        let mut changed_claim = composition.clone();
+        changed_claim["current"]["sha256"] = serde_json::json!(digest(&extra_current));
+        changed_claim["current"]["bytes"] = serde_json::json!(extra_current.len());
+        rejects(&changed_claim, &extra_current, "0644")?;
+    }
+    eprintln!(
+        "PR1034_COMPOSITION_CONTROLS actual_current_positive=true historical_as_current_rejected=true altered_byte_delta_offset_mode_scope_and_relation_negatives=passed"
+    );
+    Ok(())
+}
+
 /// Always loaded from the actual source path, never from historical evidence.
 struct CurrentSuccessor {
     path: String,
@@ -237,6 +420,133 @@ fn verify_history(
         "PR1034 V6 historical source relation",
     )
 }
+/// The only V1 -> V2 changes are kind, actual HTTP SHA/length, and the exact
+/// equivalent test-only guard inserted at the existing historical edit offset.
+fn validate_manifest_transition(previous: &Value, current: &Value) -> Result<(), String> {
+    require(
+        previous["kind"] == "PR1034_SCOPED_CURRENT_AND_HISTORY_V1"
+            && current["kind"] == "PR1034_SCOPED_CURRENT_AND_HISTORY_V2"
+            && previous["successors"][0]["current"]["path"] == HTTP
+            && previous["successors"][0]["current"]["sha256"]
+                == "3f47a040aa52b4e26260b055e0f31bbe1022fb6974fb97b493d0ebdb5f2b1d91"
+            && previous["successors"][0]["current"]["bytes"].as_u64() == Some(54800)
+            && previous["successors"][0]["edits"][7]["at"].as_u64() == Some(19532)
+            && previous["successors"][0]["edits"][7]["insert"]
+                == serde_json::json!(HTTP_GUARD_BEFORE)
+            && current["successors"][0]["current"]["sha256"] == CURRENT_HTTP_SHA
+            && current["successors"][0]["current"]["bytes"].as_u64() == Some(54774)
+            && current["successors"][0]["current"]["mode"] == "0644"
+            && current["successors"][0]["edits"][7]["insert"]
+                == serde_json::json!(HTTP_GUARD_AFTER),
+        "PR1034 finite V1/V2 HTTP guard transition differs",
+    )?;
+    let mut reverted = current.clone();
+    reverted["kind"] = previous["kind"].clone();
+    reverted["successors"][0]["current"]["sha256"] =
+        previous["successors"][0]["current"]["sha256"].clone();
+    reverted["successors"][0]["current"]["bytes"] =
+        previous["successors"][0]["current"]["bytes"].clone();
+    reverted["successors"][0]["edits"][7]["insert"] =
+        previous["successors"][0]["edits"][7]["insert"].clone();
+    require(
+        reverted == *previous,
+        "PR1034 unrelated V1/V2 manifest material changed",
+    )
+}
+fn current_manifest_document(raw: &[u8]) -> Result<Value, String> {
+    require(
+        digest(raw) == CURRENT_MANIFEST_SHA,
+        "PR1034 V2 manifest changed",
+    )?;
+    serde_json::from_slice(raw).map_err(|e| e.to_string())
+}
+#[cfg(test)]
+fn manifest_transition_controls(root: &Path, current: &Value) -> Result<(), String> {
+    let previous_raw = fs::read(root.join(MANIFEST)).map_err(|e| e.to_string())?;
+    require(
+        digest(&previous_raw) == MANIFEST_SHA,
+        "PR1034 V1 controls identity changed",
+    )?;
+    let previous: Value = serde_json::from_slice(&previous_raw).map_err(|e| e.to_string())?;
+    validate_manifest_transition(&previous, current)?;
+    let rejects = |mutant: &Value| {
+        require(
+            validate_manifest_transition(&previous, mutant).is_err(),
+            "PR1034 finite V2 transition negative control accepted",
+        )
+    };
+    rejects(&previous)?; // A frozen V1 manifest cannot describe actual V2 current.
+    let mut changed_kind = current.clone();
+    changed_kind["kind"] = previous["kind"].clone();
+    rejects(&changed_kind)?;
+    let mut changed_current_sha = current.clone();
+    changed_current_sha["successors"][0]["current"]["sha256"] = serde_json::json!("unreviewed");
+    rejects(&changed_current_sha)?;
+    let mut changed_current_length = current.clone();
+    changed_current_length["successors"][0]["current"]["bytes"] = serde_json::json!(54800);
+    rejects(&changed_current_length)?;
+    let mut old_nested_guard = current.clone();
+    old_nested_guard["successors"][0]["edits"][7]["insert"] =
+        previous["successors"][0]["edits"][7]["insert"].clone();
+    rejects(&old_nested_guard)?;
+    let mut wrong_index = current.clone();
+    wrong_index["successors"][0]["edits"]
+        .as_array_mut()
+        .unwrap()
+        .swap(6, 7);
+    rejects(&wrong_index)?;
+    let mut changed_remove = current.clone();
+    changed_remove["successors"][0]["edits"][7]["remove"] = serde_json::json!([1]);
+    rejects(&changed_remove)?;
+    let mut extra_edit = current.clone();
+    extra_edit["successors"][0]["edits"]
+        .as_array_mut()
+        .unwrap()
+        .push(serde_json::json!({"at":0,"remove":[],"insert":[]}));
+    rejects(&extra_edit)?;
+    let mut changed_binding = current.clone();
+    changed_binding["bindings"][0]["container_sha256"] = serde_json::json!("unreviewed");
+    rejects(&changed_binding)?;
+    let mut changed_other_source = current.clone();
+    changed_other_source["successors"][1]["current"]["bytes"] = serde_json::json!(0);
+    rejects(&changed_other_source)?;
+    let mut changed_mode = current.clone();
+    changed_mode["successors"][0]["current"]["mode"] = serde_json::json!("0755");
+    rejects(&changed_mode)?;
+    let mut changed_delta = current.clone();
+    changed_delta["successors"][0]["edits"][7]["insert"]
+        .as_array_mut()
+        .unwrap()
+        .push(serde_json::json!(0));
+    rejects(&changed_delta)?;
+    let mut moved_delta = current.clone();
+    moved_delta["successors"][0]["edits"][7]["at"] = serde_json::json!(19533);
+    rejects(&moved_delta)?;
+    let mut changed_capture = current.clone();
+    changed_capture["frozen_captures"][0]["sha256"] = serde_json::json!("unreviewed");
+    rejects(&changed_capture)?;
+    let mut changed_history = current.clone();
+    changed_history["historical_chain_materials"][0]["sha256"] = serde_json::json!("unreviewed");
+    rejects(&changed_history)?;
+    let mut changed_additional = current.clone();
+    changed_additional["additional_current_materials"][0]["sha256"] =
+        serde_json::json!("unreviewed");
+    rejects(&changed_additional)?;
+    require(
+        current_manifest_document(&previous_raw).is_err(),
+        "PR1034 frozen V1 bytes accepted as V2 current manifest",
+    )?;
+    let mut changed_manifest = fs::read(root.join(CURRENT_MANIFEST)).map_err(|e| e.to_string())?;
+    changed_manifest.push(0);
+    require(
+        current_manifest_document(&changed_manifest).is_err(),
+        "PR1034 altered V2 bytes accepted",
+    )?;
+    eprintln!(
+        "PR1034_V2_TRANSITION_CONTROLS positive=true unrelated_bindings_sources_mode_delta_offset_capture_history_additional_and_manifest_negatives=passed"
+    );
+    Ok(())
+}
 fn load(root: &Path) -> Result<Value, String> {
     let raw = fs::read(root.join(MANIFEST)).map_err(|e| e.to_string())?;
     require(
@@ -250,7 +560,10 @@ fn load(root: &Path) -> Result<Value, String> {
             && value["successors"].as_array().is_some_and(|a| a.len() == 4),
         "PR1034 fixed source membership",
     )?;
-    Ok(value)
+    let current_raw = fs::read(root.join(CURRENT_MANIFEST)).map_err(|e| e.to_string())?;
+    let current = current_manifest_document(&current_raw)?;
+    validate_manifest_transition(&value, &current)?;
+    Ok(current)
 }
 /// Unlisted pairs return None before reading any successor material. Existing
 /// verification is called unchanged by the proposed wrapper for that branch.
@@ -286,7 +599,11 @@ pub(crate) fn try_verify(
                 .as_array()
                 .ok_or("PR1034 payload set absent")?
             {
-                read_material(root, row, "PR1034 current/capture payload")?;
+                if key == "additional_current_materials" && row["path"] == XTASK_A13 {
+                    verify_merged_a13(root, row)?;
+                } else {
+                    read_material(root, row, "PR1034 current/capture payload")?;
+                }
             }
         }
         let mut proof = Vec::new();
@@ -309,6 +626,8 @@ pub(crate) fn try_verify(
 #[cfg(test)]
 pub(crate) fn controls(root: &Path) -> Result<(), String> {
     let manifest = load(root)?;
+    manifest_transition_controls(root, &manifest)?;
+    a13_composition_controls(root, &manifest)?;
     for binding in manifest["bindings"].as_array().unwrap() {
         let container_path = text(binding, "container_path")?;
         let source = text(binding, "source_path")?;
@@ -410,7 +729,7 @@ impl HistoricalControlEvidence {
 #[cfg(test)]
 pub(crate) fn control_bridge(root: &Path) -> Result<(), String> {
     let actual = fs::read(root.join(HTTP)).map_err(|e| e.to_string())?;
-    if digest(&actual) != "3f47a040aa52b4e26260b055e0f31bbe1022fb6974fb97b493d0ebdb5f2b1d91" {
+    if digest(&actual) != CURRENT_HTTP_SHA {
         return super::rejects_mutants(root);
     }
     let manifest = load(root)?;

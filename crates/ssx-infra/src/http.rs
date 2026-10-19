@@ -711,13 +711,12 @@ impl Session {
         let mut redirects = 0;
         loop {
             #[cfg(test)]
-            if let Some(endpoint) = &self.replay_endpoint {
-                if request.url.scheme() != endpoint.scheme()
+            if let Some(endpoint) = &self.replay_endpoint
+                && (request.url.scheme() != endpoint.scheme()
                     || request.url.host() != endpoint.host()
-                    || request.url.port_or_known_default() != endpoint.port_or_known_default()
-                {
-                    return Err(Error::InvalidRequest);
-                }
+                    || request.url.port_or_known_default() != endpoint.port_or_known_default())
+            {
+                return Err(Error::InvalidRequest);
             }
             if self.requests >= self.options.bounds.requests {
                 return Err(Error::RequestLimit);
