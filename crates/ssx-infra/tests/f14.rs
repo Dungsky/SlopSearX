@@ -146,13 +146,15 @@ async fn typed_unavailable_preserves_policy_precedence_without_side_effects() {
     }
 }
 
-#[tokio::test]
+#[tokio::test(start_paused = true)]
 async fn optional_routing_timeout_falls_back_and_unavailable_implementation_is_typed() {
     let provider = Loopback::start(vec![json!({})], Duration::from_secs(1)).await;
-    let config = ssx_infra::jev::JevConfig::from_environment(&BTreeMap::from([(
-        "TYPESAFE_API_KEY".into(),
-        "synthetic-key".into(),
-    )]))
+    let config = ssx_infra::jev::JevConfig::from_environment(&BTreeMap::from([
+        ("TYPESAFE_API_KEY".into(), "synthetic-key".into()),
+        // Supplemental HTTP owner bound: this test advances only the shorter
+        // service timer. Pausing Tokio does not stop the HTTP System clock.
+        ("JEV_TIMEOUT_MS".into(), "60000".into()),
+    ]))
     .unwrap();
     let engine = Arc::new(FixedEngine::new("brave"));
     let specialist = Arc::new(FixedEngine::new("pubmed"));
@@ -163,14 +165,6 @@ async fn optional_routing_timeout_falls_back_and_unavailable_implementation_is_t
         provider.endpoint.clone(),
     )));
     deps.policy.resolver.topics = Some(vec![]);
-    // Warm only the owned transport before measuring the shorter service
-    // backstop; the stalled first exchange expires at Jev's accepted bound.
-    deps.jev
-        .as_ref()
-        .unwrap()
-        .route(&proposal("warm routing transport"), &deps.policy, None)
-        .await;
-    let before = provider.requests.lock().unwrap().len();
     let service = SearchService::new(
         SearchConfig {
             optional_port_timeout: Duration::from_millis(50),
@@ -179,12 +173,31 @@ async fn optional_routing_timeout_falls_back_and_unavailable_implementation_is_t
         deps,
     )
     .unwrap();
-    let prepared = service
-        .prepare_scope(&proposal("routing timeout"))
-        .await
-        .unwrap();
+    let request = proposal("routing timeout");
+    let preparation = service.prepare_scope(&request);
+    tokio::pin!(preparation);
+    let setup = std::time::Instant::now();
+    let frozen = Instant::now();
+    // Keep a runnable yield branch while driving real loopback I/O. This
+    // prevents automatic virtual-time advancement before the complete request
+    // is recorded, instead of assuming 50 wall-clock milliseconds suffice.
+    loop {
+        tokio::select! {
+            result = &mut preparation => panic!("routing completed before the request witness: {result:?}"),
+            _ = tokio::task::yield_now() => {
+                assert!(setup.elapsed() < Duration::from_secs(5), "loopback request setup exceeded its real bound");
+                assert_eq!(Instant::now(), frozen);
+                if provider.requests.lock().unwrap().len() == 1 {
+                    break;
+                }
+            }
+        }
+    }
+    tokio::time::advance(Duration::from_millis(50)).await;
+    let prepared = preparation.await.unwrap();
+    assert_eq!(Instant::now() - frozen, Duration::from_millis(50));
     assert!(prepared.preview().scope.jev_added_engines.is_empty());
-    assert_eq!(provider.requests.lock().unwrap().len(), before + 1);
+    assert_eq!(provider.requests.lock().unwrap().len(), 1);
     service
         .search_prepared(prepared, SearchCancellation::default())
         .await

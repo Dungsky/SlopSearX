@@ -48,8 +48,101 @@ struct StoredSnapshot<'a> {
     lineage: &'a [Value],
 }
 
-/// Read the Python legacy projection while retaining accepted F05 invariants.
-pub fn decode(value: Value) -> Result<SearchSnapshot, StorageError> {
+/// A strict readonly header, with validated original result count. This is not
+/// a SearchSnapshot with an empty/fabricated result vector.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SnapshotSummary {
+    id: SnapshotId,
+    query: String,
+    query_id: QueryId,
+    scope: crate::ScopeDecision,
+    tenant: TenantId,
+    created_at: WallClockTimestamp,
+    expires_at: Option<WallClockExpiry>,
+    ranking_explanation: String,
+    lineage: Vec<Value>,
+    lineage_available: bool,
+    total: usize,
+}
+impl SnapshotSummary {
+    pub fn from_snapshot(snapshot: &SearchSnapshot) -> Self {
+        Self {
+            id: snapshot.id().clone(),
+            query: snapshot.query().into(),
+            query_id: snapshot.query_id().clone(),
+            scope: snapshot.scope().clone(),
+            tenant: snapshot.tenant().clone(),
+            created_at: snapshot.created_at(),
+            expires_at: snapshot.expires_at(),
+            ranking_explanation: snapshot.ranking_explanation().into(),
+            lineage: snapshot.lineage().to_vec(),
+            lineage_available: snapshot.lineage_available(),
+            total: snapshot.total(),
+        }
+    }
+    pub fn id(&self) -> &SnapshotId {
+        &self.id
+    }
+    pub fn query(&self) -> &str {
+        &self.query
+    }
+    pub fn query_id(&self) -> &QueryId {
+        &self.query_id
+    }
+    pub fn scope(&self) -> &crate::ScopeDecision {
+        &self.scope
+    }
+    pub fn tenant(&self) -> &TenantId {
+        &self.tenant
+    }
+    pub fn created_at(&self) -> WallClockTimestamp {
+        self.created_at
+    }
+    pub fn expires_at(&self) -> Option<WallClockExpiry> {
+        self.expires_at
+    }
+    pub fn ranking_explanation(&self) -> &str {
+        &self.ranking_explanation
+    }
+    pub fn lineage(&self) -> &[Value] {
+        &self.lineage
+    }
+    pub fn lineage_available(&self) -> bool {
+        self.lineage_available
+    }
+    pub fn total(&self) -> usize {
+        self.total
+    }
+    fn into_snapshot(
+        self,
+        results: Vec<crate::SearchResult>,
+    ) -> Result<SearchSnapshot, StorageError> {
+        if results.len() != self.total {
+            return Err(StorageError::InvalidResponse);
+        }
+        SearchSnapshot::new(
+            self.id,
+            self.query,
+            self.query_id,
+            results,
+            self.scope,
+            self.tenant,
+            self.created_at,
+            self.expires_at,
+        )
+        .map(|s| {
+            s.with_lineage(
+                self.ranking_explanation,
+                self.lineage,
+                self.lineage_available,
+            )
+        })
+        .map_err(|_| StorageError::InvalidResponse)
+    }
+}
+type Object = ssx_json::Map<String, Value>;
+type SnapshotParts<'a> = (&'a Object, Option<&'a Object>, &'a [Value]);
+fn parts(value: &Value) -> Result<SnapshotParts<'_>, StorageError> {
     let object = value
         .as_object()
         .ok_or(StorageError::ExpectedObject("snapshot"))?;
@@ -68,16 +161,18 @@ pub fn decode(value: Value) -> Result<SearchSnapshot, StorageError> {
             .as_slice(),
         _ => &[],
     };
-    let results = raw_results
-        .iter()
-        .cloned()
-        .map(decode_result)
-        .collect::<Result<Vec<_>, _>>()?;
+    Ok((object, scope, raw_results))
+}
+fn header(
+    object: &ssx_json::Map<String, Value>,
+    scope: Option<&ssx_json::Map<String, Value>>,
+    result_count: usize,
+) -> Result<SnapshotSummary, StorageError> {
     if object.get("total").is_some_and(Value::is_null) {
         return Err(StorageError::InvalidNumber("total"));
     }
     let total = parse_i64(object.get("total"), 0, "total")?;
-    if usize::try_from(total).ok() != Some(results.len()) {
+    if usize::try_from(total).ok() != Some(result_count) {
         return Err(StorageError::InvalidResponse);
     }
     let created = object
@@ -110,20 +205,16 @@ pub fn decode(value: Value) -> Result<SearchSnapshot, StorageError> {
     scope.routing_fallback = false;
     scope.routing_budget_applied = false;
     scope.routing_tradeoffs.clear();
-    let snapshot = SearchSnapshot::new(
-        SnapshotId::new(source_string(object.get("snapshot_id"), "")).map_err(map_error)?,
-        source_string(object.get("query"), ""),
-        QueryId::new(source_string(object.get("query_id"), "")).map_err(map_error)?,
-        results,
-        scope,
-        TenantId::new(source_string(object.get("tenant"), "")).map_err(map_error)?,
-        WallClockTimestamp::new(created).map_err(map_error)?,
-        expiry
-            .map(WallClockExpiry::new)
-            .transpose()
-            .map_err(map_error)?,
-    )
-    .map_err(map_error)?;
+    let id = SnapshotId::new(source_string(object.get("snapshot_id"), "")).map_err(map_error)?;
+    let query = source_string(object.get("query"), "");
+    let query_id = QueryId::new(source_string(object.get("query_id"), "")).map_err(map_error)?;
+    let tenant = TenantId::new(source_string(object.get("tenant"), "")).map_err(map_error)?;
+    let created_at = WallClockTimestamp::new(created).map_err(map_error)?;
+    let expires_at = expiry
+        .map(WallClockExpiry::new)
+        .transpose()
+        .map_err(map_error)?;
+    crate::identity::validate_snapshot_expiry(created_at, expires_at).map_err(map_error)?;
     if object.get("lineage").is_some_and(|v| {
         python_truthy(v) && !matches!(v, Value::Array(_) | Value::String(_) | Value::Object(_))
     }) {
@@ -134,14 +225,66 @@ pub fn decode(value: Value) -> Result<SearchSnapshot, StorageError> {
         .filter(|v| v.is_object())
         .cloned()
         .collect();
-    Ok(snapshot.with_lineage(
-        source_string(
+    Ok(SnapshotSummary {
+        id,
+        query,
+        query_id,
+        scope,
+        tenant,
+        created_at,
+        expires_at,
+        total: result_count,
+        ranking_explanation: source_string(
             object.get("ranking_explanation"),
             "tier_then_cross_engine_presence",
         ),
         lineage,
-        object.contains_key("lineage"),
-    ))
+        lineage_available: object.contains_key("lineage"),
+    })
+}
+/// Read the Python legacy projection while retaining accepted F05 invariants.
+pub fn decode(value: Value) -> Result<SearchSnapshot, StorageError> {
+    let (object, scope, raw_results) = parts(&value)?;
+    let results = raw_results
+        .iter()
+        .cloned()
+        .map(decode_result)
+        .collect::<Result<Vec<_>, _>>()?;
+    header(object, scope, results.len())?.into_snapshot(results)
+}
+/// First pass validates EVERY row through the existing F05 decoder, then the
+/// identical header grammar/order. Each typed result drops before the next row.
+/// No callback runs here, including on expired/misdirected/corrupt records.
+pub fn decode_rows(value: Value) -> Result<DecodedSnapshotRows, StorageError> {
+    let (object, scope, raw_results) = parts(&value)?;
+    for row in raw_results {
+        drop(decode_result_ref(row)?);
+    }
+    let summary = header(object, scope, raw_results.len())?;
+    Ok(DecodedSnapshotRows { value, summary })
+}
+/// Owns one parsed bounded record, not Vec<SearchResult>. The second CPU pass is
+/// explicit. Callers must apply their authority/expiry/policy fence before visit.
+/// The input tree cannot mutate between the two validation passes.
+pub struct DecodedSnapshotRows {
+    value: Value,
+    summary: SnapshotSummary,
+}
+impl DecodedSnapshotRows {
+    pub fn summary(&self) -> &SnapshotSummary {
+        &self.summary
+    }
+    pub fn visit_results(
+        &self,
+        visitor: &mut dyn FnMut(usize, &crate::SearchResult),
+    ) -> Result<(), StorageError> {
+        let (_, _, rows) = parts(&self.value)?;
+        for (index, row) in rows.iter().enumerate() {
+            let decoded = decode_result_ref(row)?;
+            visitor(index, &decoded);
+        }
+        Ok(())
+    }
 }
 
 // SnapshotStore explicitly uses list(value or []), unlike the general F05

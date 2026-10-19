@@ -173,3 +173,6 @@ pub mod rerank;
 pub mod advisories;
 
 pub mod staged;
+
+pub mod lineage;
+pub mod receipts;
