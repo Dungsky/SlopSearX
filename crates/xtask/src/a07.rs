@@ -1,4 +1,5 @@
 //! Native A07 qualification: historical evidence is read-only; no Python runtime.
+use crate::a13::source_amendment::storage_document;
 use crate::{Result, command};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
@@ -7,8 +8,6 @@ use std::{
     fs,
     path::Path,
 };
-#[path = "../../../docs/rust-rewrite/storage-document-amendment/validator.rs"]
-mod storage_document;
 #[cfg(test)]
 #[path = "../../../docs/rust-rewrite/storage-document-amendment/tests.rs"]
 mod storage_document_tests;

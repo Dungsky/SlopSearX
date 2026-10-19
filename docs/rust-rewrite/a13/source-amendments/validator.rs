@@ -4,7 +4,7 @@ use sha2::{Digest, Sha256};
 use std::{fs, path::Path};
 
 #[path = "../../storage-document-amendment/validator.rs"]
-mod storage_document;
+pub(crate) mod storage_document;
 const MANIFEST_PATH: &str =
     "docs/rust-rewrite/a13/source-amendments/a13-current-source-amendment-v5.json";
 const MANIFEST_SHA256: &str = "4b64a708e58858425e4f7758333caef9ad4a4037e48c083702c3c3da0c71f3a8";

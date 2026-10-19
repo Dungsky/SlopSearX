@@ -1,4 +1,5 @@
 //! Source-bound A08 engine qualification. No interpreter or provider invocation.
+use crate::a13::source_amendment::storage_document;
 use crate::{Result, command};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
@@ -7,8 +8,6 @@ use std::{
     fs,
     path::Path,
 };
-#[path = "../../../docs/rust-rewrite/storage-document-amendment/validator.rs"]
-mod storage_document;
 const COVERAGE_SHA: &str = "4bd65113eded80d605b3fede32f9cb5e97d12b47c4b1756314ed28757f653856";
 fn digest(bytes: &[u8]) -> String {
     Sha256::digest(bytes)
