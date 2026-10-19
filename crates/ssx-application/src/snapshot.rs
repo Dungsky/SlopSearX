@@ -31,6 +31,79 @@ pub trait SnapshotRepository: Send + Sync {
         tenant: &'a TenantId,
         id: &'a SnapshotId,
     ) -> PortFuture<'a, Result<Option<SearchSnapshot>, SnapshotFailure>>;
+    /// Additive readonly path; existing injected ports retain their read behavior.
+    fn read_projected<'a>(
+        &'a self,
+        tenant: &'a TenantId,
+        id: &'a SnapshotId,
+    ) -> PortFuture<'a, Result<Option<Box<dyn SnapshotRows>>, SnapshotFailure>> {
+        Box::pin(async move {
+            Ok(self.read(tenant, id).await?.map(|snapshot| {
+                let summary = SnapshotSummary::from_snapshot(&snapshot);
+                Box::new(TypedSnapshotRows { snapshot, summary }) as Box<dyn SnapshotRows>
+            }))
+        })
+    }
+}
+pub use ssx_domain::storage::snapshot::SnapshotSummary;
+/// Trusted repository-owned readonly rows. Service checks identity/expiry before
+/// publishing this owner; the consumer checks current policy before visitation.
+pub trait SnapshotRows: Send + Sync {
+    fn summary(&self) -> &SnapshotSummary;
+    fn visit_results(
+        &self,
+        visitor: &mut dyn FnMut(usize, &SearchResult),
+    ) -> Result<(), SnapshotFailure>;
+}
+struct TypedSnapshotRows {
+    snapshot: SearchSnapshot,
+    summary: SnapshotSummary,
+}
+impl SnapshotRows for TypedSnapshotRows {
+    fn summary(&self) -> &SnapshotSummary {
+        &self.summary
+    }
+    fn visit_results(
+        &self,
+        visitor: &mut dyn FnMut(usize, &SearchResult),
+    ) -> Result<(), SnapshotFailure> {
+        for (index, row) in self.snapshot.results().iter().enumerate() {
+            visitor(index, row);
+        }
+        Ok(())
+    }
+}
+impl SnapshotRows for ssx_domain::storage::snapshot::DecodedSnapshotRows {
+    fn summary(&self) -> &SnapshotSummary {
+        self.summary()
+    }
+    fn visit_results(
+        &self,
+        visitor: &mut dyn FnMut(usize, &SearchResult),
+    ) -> Result<(), SnapshotFailure> {
+        self.visit_results(visitor)
+            .map_err(|_| SnapshotFailure::Malformed)
+    }
+}
+pub struct ValidatedSnapshotRead {
+    rows: Box<dyn SnapshotRows>,
+}
+impl ValidatedSnapshotRead {
+    pub fn summary(&self) -> &SnapshotSummary {
+        self.rows.summary()
+    }
+    pub fn visit_results(
+        &self,
+        visitor: &mut dyn FnMut(usize, &SearchResult),
+    ) -> Result<(), SnapshotFailure> {
+        self.rows.visit_results(visitor)
+    }
+}
+pub enum SnapshotProjectionLookup {
+    Found(ValidatedSnapshotRead),
+    Missing,
+    Expired { expires_at: WallClockExpiry },
+    Unavailable,
 }
 pub trait SnapshotClock: Send + Sync {
     fn now(&self) -> WallClockTimestamp;
@@ -144,6 +217,35 @@ impl SnapshotService {
             SnapshotLookup::Expired { expires_at } => SnapshotResultLookup::Expired { expires_at },
             SnapshotLookup::Unavailable => SnapshotResultLookup::Unavailable,
         }
+    }
+    /// Same repository read and independent F13 authority/expiry mapping. No
+    /// visitor can run before all validation and these checks complete.
+    pub async fn read_projected(&self, id: &SnapshotId) -> SnapshotProjectionLookup {
+        let rows = match self.store.read_projected(&self.tenant, id).await {
+            Ok(Some(rows)) => rows,
+            Ok(None)
+            | Err(
+                SnapshotFailure::Malformed
+                | SnapshotFailure::InvalidInput
+                | SnapshotFailure::Collision,
+            ) => return SnapshotProjectionLookup::Missing,
+            Err(
+                SnapshotFailure::Unavailable
+                | SnapshotFailure::Closed
+                | SnapshotFailure::CompletionUnknown,
+            ) => return SnapshotProjectionLookup::Unavailable,
+        };
+        let summary = rows.summary();
+        if summary.tenant() != &self.tenant || summary.id() != id {
+            return SnapshotProjectionLookup::Missing;
+        }
+        if let Some(expiry) = summary
+            .expires_at()
+            .filter(|expiry| expiry.expired_at(self.clock.now()))
+        {
+            return SnapshotProjectionLookup::Expired { expires_at: expiry };
+        }
+        SnapshotProjectionLookup::Found(ValidatedSnapshotRead { rows })
     }
     pub async fn read(&self, id: &SnapshotId) -> SnapshotLookup {
         let snapshot = match self.store.read(&self.tenant, id).await {

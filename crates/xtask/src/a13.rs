@@ -71,6 +71,16 @@ pub(super) fn check_source_pin(
     expected_sha: &str,
     expected_bytes: Option<usize>,
 ) -> Result<()> {
+    if let Some(result) = crate::w06_source_amendment::verify_shared(
+        root,
+        container_path,
+        container_sha,
+        path,
+        expected_sha,
+        expected_bytes,
+    ) {
+        return result;
+    }
     source_amendment::verify(
         root,
         container_path,

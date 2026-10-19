@@ -40,6 +40,7 @@ mod w03;
 mod w04;
 mod w05;
 mod w06;
+mod w06_source_amendment;
 mod w11;
 use serde::Deserialize;
 use serde_json::{Value, json};
