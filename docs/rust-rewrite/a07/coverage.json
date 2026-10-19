@@ -1503,6 +1503,11 @@
     "original172_unchanged": true
   },
   "native_case_bindings": {
+    "queue_time_consumes_absolute_context_instead_of_original_request_timeout": {
+      "package": "ssx-infra",
+      "target": "lib",
+      "qualified_name": "adapters::clinicaltrials::deadline_tests::queue_time_consumes_absolute_context_instead_of_original_request_timeout"
+    },
     "pubmed_two_stage_success_and_complete_payload": {
       "package": "ssx-infra",
       "target": "test:a07_biomedical",

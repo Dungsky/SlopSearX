@@ -1,6 +1,8 @@
 //! Adapter-owned sockets and search-owned identity. No provider retries or parsers.
 mod monotonic;
 use monotonic::Clock as DeadlineClock;
+#[cfg(test)]
+pub(crate) use monotonic::Driver;
 use reqwest::{
     Client, Method, Url,
     cookie::{CookieStore, Jar},
@@ -379,11 +381,14 @@ impl AdapterHttp {
     pub(crate) fn deadline_now(&self) -> Instant {
         self.clock.now()
     }
+    pub(crate) async fn deadline_sleep_until(&self, deadline: Instant) {
+        self.clock.sleep_until(deadline).await;
+    }
     /// Construct a real-pool owner with a manually advanced deadline clock.
     /// This is private to unit tests; it does not install a transport or expose
     /// a production clock-selection path.
     #[cfg(test)]
-    fn clocked_real_pool_owner() -> (Self, monotonic::Driver) {
+    pub(crate) fn clocked_real_pool_owner() -> (Self, Driver) {
         let (clock, driver) = DeadlineClock::replay();
         let mut owner = Self::default();
         owner.clock = clock;

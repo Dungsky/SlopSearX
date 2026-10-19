@@ -488,6 +488,10 @@ fn compiled_suite_names(suite: &Suite) -> Vec<String> {
             "http::pypi_operation_timeout_tests::pypi_uses_fresh_per_operation_timeouts_on_the_caller_pool"
                 .into(),
         );
+        names.push(
+            "adapters::clinicaltrials::deadline_tests::queue_time_consumes_absolute_context_instead_of_original_request_timeout"
+                .into(),
+        );
     }
     if cfg!(target_os = "linux")
         && suite.package == "ssx-infra"
