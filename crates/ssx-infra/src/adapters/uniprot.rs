@@ -45,7 +45,7 @@ impl UniProtAdapter {
     ) -> Result<ProducedBatch<'b>> {
         admit_with_context(&self.admission, "uniprot", context).await?;
         let candidate = candidate(&self.config.max_results)?;
-        let d = network_deadline(&self.config, false, context)?;
+        let d = network_deadline_for_http(&self.http, &self.config, context)?;
         let plan = query_plan(&q.query);
         let intent = plan.intent;
         let upstream = if let Some(identifier) = plan.expanded {
@@ -80,9 +80,18 @@ impl UniProtAdapter {
             true,
         )?;
         let mut session = session(&self.http, d)?;
-        let data = get_observed(&mut session, req, d, false, false, context, observer)
-            .await?
-            .unwrap();
+        let data = get_observed_for_http(
+            &self.http,
+            &mut session,
+            req,
+            d,
+            false,
+            false,
+            context,
+            observer,
+        )
+        .await?
+        .unwrap();
         let l = list();
         let proteins = result_rows(field(&data, "results", &l)?, &candidate)?;
         let mut ranked = OwnedVec::with_capacity(budget, proteins.len()).map_err(owned_error)?;

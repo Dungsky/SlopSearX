@@ -4,14 +4,18 @@ use sha2::{Digest, Sha256};
 use std::{fs, path::Path};
 
 const MANIFEST_PATH: &str =
+    "docs/rust-rewrite/a13/source-amendments/a13-current-source-amendment-v3.json";
+const MANIFEST_SHA256: &str = "bb24fceef429f6e4084dcfa242936b3993b9da5e9bae66c9dcc84580fd7d8212";
+const PREDECESSOR_PATH: &str =
     "docs/rust-rewrite/a13/source-amendments/a13-current-source-amendment-v2.json";
-const MANIFEST_SHA256: &str = "da84e17cb8e96491e3c9f353f540aa9b17770fe6bd95b5081a3895f830a50dd8";
-const AMENDED_PATHS: [&str; 5] = [
+const PREDECESSOR_SHA256: &str = "da84e17cb8e96491e3c9f353f540aa9b17770fe6bd95b5081a3895f830a50dd8";
+const AMENDED_PATHS: [&str; 6] = [
     "crates/ssx-infra/src/http.rs",
     "crates/ssx-infra/tests/a13_dehashed.rs",
     "crates/ssx-infra/tests/a13_remaining_fixture/mod.rs",
     "crates/xtask/src/a11.rs",
     "crates/ssx-infra/src/adapters/clinicaltrials.rs",
+    "crates/ssx-infra/src/adapters/mod.rs",
 ];
 
 fn digest(bytes: &[u8]) -> String {
@@ -45,7 +49,7 @@ fn mode(_path: &Path) -> Result<String, String> {
 
 fn validate_scope(manifest: &Value) -> Result<(), String> {
     require(
-        manifest["kind"] == "A13_CURRENT_SOURCE_AMENDMENT_V2"
+        manifest["kind"] == "A13_CURRENT_SOURCE_AMENDMENT_V3"
             && manifest["amended_source_paths"] == serde_json::json!(AMENDED_PATHS),
         "A13 amendment path scope changed",
     )?;
@@ -289,6 +293,13 @@ pub fn verify(
     )?;
     let manifest: Value =
         serde_json::from_slice(&manifest_bytes).map_err(|error| error.to_string())?;
+    let predecessor = fs::read(root.join(PREDECESSOR_PATH)).map_err(|error| error.to_string())?;
+    require(
+        digest(&predecessor) == PREDECESSOR_SHA256
+            && manifest["predecessor_manifest"]["path"] == PREDECESSOR_PATH
+            && manifest["predecessor_manifest"]["sha256"] == PREDECESSOR_SHA256,
+        "A13 amendment predecessor manifest differs",
+    )?;
     validate_scope(&manifest)?;
     let current_path = root.join(source_path);
     let current = fs::read(&current_path).map_err(|error| format!("{source_path}: {error}"))?;

@@ -419,7 +419,7 @@ async fn get_observed_using_clock(
     Ok(Some(value))
 }
 #[allow(clippy::too_many_arguments)] // Same private HTTP request policy with its owner clock.
-async fn get_observed_for_http(
+pub(super) async fn get_observed_for_http(
     http: &AdapterHttp,
     session: &mut crate::http::Session,
     req: Request,
@@ -846,6 +846,7 @@ mod deadline_tests {
                 })
             })
             .await;
+            let returned_at_deadline = at_deadline.is_some();
             driver.advance_to(Duration::from_millis(135));
             release_response_tx.send(()).unwrap();
             let (server_received_at, response_at, request_lines, request_headers, write_error) =
@@ -853,19 +854,23 @@ mod deadline_tests {
                     .await
                     .expect("bounded loopback server completion")
                     .unwrap();
-            assert_eq!(server_received_at, received_at);
-            assert_eq!(response_at.duration_since(received_at), Duration::from_millis(100));
-            assert_eq!(request_lines.len(), 1);
-            assert!(request_lines[0].starts_with("GET /?query.term=context"));
-            assert!(request_headers.starts_with(&request_lines[0]));
-            assert!(request_headers.to_ascii_lowercase().contains("host: 127.0.0.1:"));
-
             let response = match at_deadline {
                 Some(response) => response,
                 None => tokio::time::timeout(Duration::from_secs(5), client)
                     .await
                     .expect("bounded client completion after response release"),
             };
+            http.shutdown_and_wait().await;
+            assert!(
+                returned_at_deadline,
+                "client must complete at the absolute context deadline"
+            );
+            assert_eq!(server_received_at, received_at);
+            assert_eq!(response_at.duration_since(received_at), Duration::from_millis(100));
+            assert_eq!(request_lines.len(), 1);
+            assert!(request_lines[0].starts_with("GET /?query.term=context"));
+            assert!(request_headers.starts_with(&request_lines[0]));
+            assert!(request_headers.to_ascii_lowercase().contains("host: 127.0.0.1:"));
             assert_eq!(response.status, EngineStatus::Timeout);
             assert!(matches!(
                 write_error,
@@ -873,7 +878,6 @@ mod deadline_tests {
             ));
             assert!(response.results.is_empty());
             assert!(http.deadline_now().duration_since(start) < Duration::from_millis(180));
-            http.shutdown_and_wait().await;
         })
         .await
         .expect("real-wall-clock watchdog for the complete loopback scenario");

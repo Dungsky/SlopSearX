@@ -492,6 +492,10 @@ fn compiled_suite_names(suite: &Suite) -> Vec<String> {
             "adapters::clinicaltrials::deadline_tests::queue_time_consumes_absolute_context_instead_of_original_request_timeout"
                 .into(),
         );
+        names.push(
+            "adapters::a07_matrix_replay::actual_source_matrix_preserves_requests_and_full_normalized_results"
+                .into(),
+        );
     }
     if cfg!(target_os = "linux")
         && suite.package == "ssx-infra"
