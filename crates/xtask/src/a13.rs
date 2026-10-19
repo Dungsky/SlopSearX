@@ -497,6 +497,13 @@ fn compiled_suite_names(suite: &Suite) -> Vec<String> {
                 .into(),
         );
     }
+    if suite.package == "ssx-infra" && suite.kind == "lib" && suite.target == "ssx_infra" {
+        names.push("search::deadline_drain_tests::owner_manual_clock_preserves_completion_before_original_one_ms_deadline".into());
+        names.push("search::deadline_drain_tests::owner_manual_clock_rejects_completion_at_original_one_ms_deadline".into());
+        names.push("search::deadline_drain_tests::owner_manual_clock_rejects_completion_after_original_one_ms_deadline".into());
+        names.push("search::deadline_drain_tests::renewed_context_mutant_does_not_match_original_absolute_deadline".into());
+        names.push("search::deadline_drain_tests::manual_owner_clock_does_not_pause_unrelated_real_tokio_timeouts".into());
+    }
     if cfg!(target_os = "linux")
         && suite.package == "ssx-infra"
         && suite.kind == "lib"

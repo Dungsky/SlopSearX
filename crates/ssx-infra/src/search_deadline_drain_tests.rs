@@ -443,3 +443,194 @@ async fn cooldown_completed_after_service_deadline_is_truncated() {
 async fn completed_task_panic_is_not_hidden_by_owner_abort() {
     owner_case(Case::Panic).await;
 }
+
+// Owner-only clock controls use normal Tokio time for all unrelated timers.
+struct ManualTime(watch::Sender<Instant>);
+impl ManualTime {
+    fn new() -> Arc<Self> {
+        Arc::new(Self(watch::channel(Instant::now()).0))
+    }
+    fn advance_to(&self, instant: Instant) {
+        assert!(instant >= *self.0.borrow());
+        self.0.send_replace(instant);
+    }
+}
+impl SearchDeadlineClock for ManualTime {
+    fn now(&self) -> Instant {
+        *self.0.borrow()
+    }
+    fn sleep_until(&self, deadline: Instant) -> PortFuture<'_, ()> {
+        Box::pin(async move {
+            let mut now = self.0.subscribe();
+            loop {
+                if *now.borrow_and_update() >= deadline {
+                    return;
+                }
+                now.changed().await.expect("owner clock retained");
+            }
+        })
+    }
+}
+struct HeldEngine {
+    witness: Arc<Witness>,
+    release: Arc<Notify>,
+}
+impl SearchEngine for HeldEngine {
+    fn search<'a>(&'a self, _: &'a SearchRequest) -> PortFuture<'a, AdapterResponse> {
+        panic!("context-aware boundary control")
+    }
+    fn search_with_context<'a>(
+        &'a self,
+        request: &'a SearchRequest,
+        context: SearchContext,
+    ) -> PortFuture<'a, AdapterResponse> {
+        assert_eq!(request.interactive_timeout_ms, Some(1));
+        Box::pin(async move {
+            let _terminal = Terminal(self.witness.clone());
+            *self.witness.context.lock().unwrap() = Some(Instant::from_std(context.deadline));
+            self.witness.entered.notify_one();
+            self.release.notified().await;
+            AdapterResponse {
+                status: EngineStatus::Ok,
+                results: (0..3)
+                    .map(|i| ssx_domain::SearchResult {
+                        url: format!("https://clock-control.invalid/{i}"),
+                        title: format!("control {i}"),
+                        engine: "wikipedia".into(),
+                        ..Default::default()
+                    })
+                    .collect(),
+                ..Default::default()
+            }
+        })
+    }
+}
+fn original_context_witness(
+    actual: Option<Instant>,
+    original: Instant,
+) -> Result<(), &'static str> {
+    match actual {
+        Some(actual) if actual == original => Ok(()),
+        Some(_) => Err("adapter received a renewed or changed context deadline"),
+        None => Err("adapter did not receive the original context deadline"),
+    }
+}
+async fn manual_boundary(elapsed: Duration) {
+    let clock = ManualTime::new();
+    let start = clock.now();
+    let deadline = start + Duration::from_millis(1);
+    let witness = Arc::new(Witness::default());
+    let release = Arc::new(Notify::new());
+    let service = service(
+        BTreeMap::from([(
+            "wikipedia".into(),
+            EngineBinding {
+                engine: Arc::new(HeldEngine {
+                    witness: witness.clone(),
+                    release: release.clone(),
+                }),
+                generation: "manual-boundary".into(),
+                timeout: Duration::from_secs(3),
+                scrape: false,
+            },
+        )]),
+        Arc::new(Sink::default()),
+        None,
+    )
+    .with_deadline_clock(clock.clone())
+    .unwrap();
+    let owner = service.0.clone();
+    let (_stop, stopped) = watch::channel(false);
+    let task = tokio::spawn(async move {
+        execute(
+            &owner,
+            SearchRequest {
+                query: "q".into(),
+                interactive_timeout_ms: Some(1),
+                ..Default::default()
+            },
+            ScopeDecision {
+                selected_engines: vec!["wikipedia".into()],
+                ..Default::default()
+            },
+            start,
+            stopped,
+        )
+        .await
+    });
+    // Unrelated Tokio timeout remains a real System timer; it is never paused.
+    tokio::time::timeout(Duration::from_secs(2), witness.entered.notified())
+        .await
+        .unwrap();
+    original_context_witness(*witness.context.lock().unwrap(), deadline)
+        .expect("original absolute deadline witness");
+    assert_eq!(Instant::from_std(deadline.into_std()), deadline);
+    clock.advance_to(start + elapsed);
+    release.notify_one();
+    let (canonical, admission) = tokio::time::timeout(Duration::from_secs(2), task)
+        .await
+        .unwrap()
+        .unwrap()
+        .unwrap();
+    let response = canonical.response();
+    assert_eq!(response.dispatched_engine_count, 1);
+    if elapsed < Duration::from_millis(1) {
+        assert_eq!(response.results.len(), 3);
+        assert!(!response.deadline_exceeded);
+        assert_eq!(admission, CacheAdmission::Complete);
+    } else {
+        assert!(response.results.is_empty());
+        assert!(response.deadline_exceeded);
+        assert_eq!(admission, CacheAdmission::DeadlineTruncated);
+    }
+    assert_eq!(witness.terminal.load(Ordering::SeqCst), 1);
+    service.shutdown().await;
+}
+#[tokio::test]
+async fn owner_manual_clock_preserves_completion_before_original_one_ms_deadline() {
+    manual_boundary(Duration::from_micros(500)).await;
+}
+#[tokio::test]
+async fn owner_manual_clock_rejects_completion_at_original_one_ms_deadline() {
+    manual_boundary(Duration::from_millis(1)).await;
+}
+#[tokio::test]
+async fn owner_manual_clock_rejects_completion_after_original_one_ms_deadline() {
+    manual_boundary(Duration::from_micros(1500)).await;
+}
+#[tokio::test]
+async fn renewed_context_mutant_does_not_match_original_absolute_deadline() {
+    let clock = ManualTime::new();
+    let start = clock.now();
+    let original = start + Duration::from_millis(1);
+    clock.advance_to(start + Duration::from_micros(500));
+    let broken = clock.now() + Duration::from_millis(1);
+    assert_eq!(original_context_witness(Some(original), original), Ok(()));
+    assert_eq!(
+        original_context_witness(Some(broken), original),
+        Err("adapter received a renewed or changed context deadline")
+    );
+    assert_eq!(
+        original_context_witness(None, original),
+        Err("adapter did not receive the original context deadline")
+    );
+    // Same Finished classifier rejects original deadline while renewed mutant
+    // would incorrectly accept this otherwise identical completion.
+    clock.advance_to(original);
+    assert!(Finished::before_dispatch_deadline_at(0, original, clock.now()).is_some());
+    assert!(Finished::before_dispatch_deadline_at(0, broken, clock.now()).is_none());
+}
+
+#[tokio::test]
+async fn manual_owner_clock_does_not_pause_unrelated_real_tokio_timeouts() {
+    let clock = ManualTime::new();
+    let captured = clock.now();
+    let real_start = std::time::Instant::now();
+    assert!(
+        tokio::time::timeout(Duration::from_millis(10), std::future::pending::<()>())
+            .await
+            .is_err()
+    );
+    assert_eq!(clock.now(), captured);
+    assert!(real_start.elapsed() < Duration::from_secs(2));
+}

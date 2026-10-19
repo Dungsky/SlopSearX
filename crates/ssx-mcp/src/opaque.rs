@@ -904,24 +904,90 @@ pub async fn stdio_with_factory_and_limits<H: rmcp::ServerHandler>(
     let wire = std::sync::Arc::new(std::sync::Mutex::new(WireState::default()));
     stdio_handler(factory(wire.clone()), catalogs, wire, limits).await
 }
+/// Explicit caller stop; owns cancellation/join of the SDK service waiting task.
+/// Service waiting completion alone is not proof of arbitrary handler completion.
+pub async fn stdio_with_factory_owned<H: rmcp::ServerHandler>(
+    factory: impl FnOnce(std::sync::Arc<std::sync::Mutex<WireState>>) -> H,
+    catalogs: std::sync::Arc<Catalogs>,
+    cancel: tokio_util::sync::CancellationToken,
+) -> Result<()> {
+    let wire = std::sync::Arc::new(std::sync::Mutex::new(WireState::default()));
+    stdio_handler_owned(
+        factory(wire.clone()),
+        catalogs,
+        wire,
+        crate::output_limits::OutputLimits::HTTP,
+        cancel,
+    )
+    .await
+}
 async fn stdio_handler<H: rmcp::ServerHandler>(
     handler: H,
     catalogs: std::sync::Arc<Catalogs>,
     wire: std::sync::Arc<std::sync::Mutex<WireState>>,
     output_limits: crate::output_limits::OutputLimits,
 ) -> Result<()> {
+    stdio_handler_owned(
+        handler,
+        catalogs,
+        wire,
+        output_limits,
+        tokio_util::sync::CancellationToken::new(),
+    )
+    .await
+}
+async fn stdio_handler_owned<H: rmcp::ServerHandler>(
+    handler: H,
+    catalogs: std::sync::Arc<Catalogs>,
+    wire: std::sync::Arc<std::sync::Mutex<WireState>>,
+    output_limits: crate::output_limits::OutputLimits,
+    cancel: tokio_util::sync::CancellationToken,
+) -> Result<()> {
+    stdio_handler_io(
+        handler,
+        catalogs,
+        wire,
+        output_limits,
+        cancel,
+        tokio::io::stdin(),
+        tokio::io::stdout(),
+    )
+    .await
+}
+/// Internal transport seam: production passes OS stdio, tests pass owned duplex IO.
+/// The SDK initialization future stays inline so dropping this owner drops it too.
+async fn stdio_handler_io<H, I, O>(
+    handler: H,
+    catalogs: std::sync::Arc<Catalogs>,
+    wire: std::sync::Arc<std::sync::Mutex<WireState>>,
+    output_limits: crate::output_limits::OutputLimits,
+    cancel: tokio_util::sync::CancellationToken,
+    input_io: I,
+    mut stdout: O,
+) -> Result<()>
+where
+    H: rmcp::ServerHandler,
+    I: tokio::io::AsyncRead + Unpin,
+    O: tokio::io::AsyncWrite + Unpin,
+{
     use rmcp::ServiceExt;
     let (server, io) = tokio::io::duplex(65536);
     let (read, mut write) = tokio::io::split(io);
-    let serving = async {
-        handler.serve(server).await?.waiting().await?;
+    let stop = tokio_util::sync::CancellationToken::new();
+    let service_stop = stop.clone();
+    let serving = async move {
+        let service = tokio::select! {biased;_=service_stop.cancelled()=>return Ok::<(),crate::Error>(()),service=handler.serve(server)=>service?};
+        let service_cancel = service.cancellation_token();
+        let waiting = service.waiting();
+        tokio::pin!(waiting);
+        tokio::select! {result=&mut waiting=>{result?;},_=service_stop.cancelled()=>{service_cancel.cancel();waiting.await?;}}
         Ok::<(), crate::Error>(())
     };
+    tokio::pin!(serving);
     let pump = async {
         let completed = wire.lock().unwrap().completion_notification();
-        let mut input = Frames::new(tokio::io::stdin());
+        let mut input = Frames::new(input_io);
         let mut output = Frames::with_limit(read, output_limits);
-        let mut stdout = tokio::io::stdout();
         let mut overlay = Overlay::default();
         let mut lifecycle = Lifecycle::default();
         loop {
@@ -934,7 +1000,10 @@ async fn stdio_handler<H: rmcp::ServerHandler>(
         }
         Ok::<(), crate::Error>(())
     };
-    tokio::select! {r=serving=>r,r=pump=>r}
+    let (result, joined) = tokio::select! {biased;_=cancel.cancelled()=>(Ok(()),false),r=&mut serving=>(r,true),r=pump=>(r,false)};
+    stop.cancel();
+    let cleanup = if joined { Ok(()) } else { serving.await };
+    result.and(cleanup)
 }
 fn validate_reply(fields: &BTreeMap<String, Box<RawValue>>, expected: Option<&str>) -> Result<()> {
     if fields.get("jsonrpc").map(|v| v.get()) != Some("\"2.0\"")
@@ -1352,6 +1421,223 @@ impl rmcp::ServerHandler for RawForwarder {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    struct InitProbe {
+        entered: std::sync::Arc<tokio::sync::Notify>,
+        dropped: std::sync::Arc<std::sync::atomic::AtomicBool>,
+        hold: bool,
+        owner_dropped: std::sync::Arc<tokio::sync::Notify>,
+    }
+    impl Drop for InitProbe {
+        fn drop(&mut self) {
+            self.owner_dropped.notify_one();
+        }
+    }
+    struct InitDrop(std::sync::Arc<std::sync::atomic::AtomicBool>);
+    impl Drop for InitDrop {
+        fn drop(&mut self) {
+            self.0.store(true, std::sync::atomic::Ordering::SeqCst);
+        }
+    }
+    impl rmcp::ServerHandler for InitProbe {
+        async fn initialize(
+            &self,
+            request: rmcp::model::InitializeRequestParams,
+            context: rmcp::service::RequestContext<rmcp::RoleServer>,
+        ) -> std::result::Result<rmcp::model::InitializeResult, rmcp::ErrorData> {
+            let _drop = InitDrop(self.dropped.clone());
+            self.entered.notify_one();
+            if self.hold {
+                std::future::pending::<()>().await;
+            }
+            context.peer.set_peer_info(request.clone());
+            self.negotiate_initialize(&request)
+        }
+    }
+    const OWNED_INIT: &[u8] = b"{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2024-11-05\",\"capabilities\":{},\"clientInfo\":{\"name\":\"owned-stdio-test\",\"version\":\"1\"}}}\n";
+    fn owned_probe(
+        hold: bool,
+    ) -> (
+        InitProbe,
+        std::sync::Arc<tokio::sync::Notify>,
+        std::sync::Arc<std::sync::atomic::AtomicBool>,
+        std::sync::Arc<tokio::sync::Notify>,
+    ) {
+        let entered = std::sync::Arc::new(tokio::sync::Notify::new());
+        let dropped = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let owner_dropped = std::sync::Arc::new(tokio::sync::Notify::new());
+        (
+            InitProbe {
+                entered: entered.clone(),
+                dropped: dropped.clone(),
+                hold,
+                owner_dropped: owner_dropped.clone(),
+            },
+            entered,
+            dropped,
+            owner_dropped,
+        )
+    }
+    // This uses the production stdio owner and real SDK initialization, not a
+    // synthetic pending future. A spawned/detached initialization fails dropped.
+    #[tokio::test]
+    async fn owned_stdio_outer_abort_drops_held_sdk_initialization() -> Result<()> {
+        let (handler, entered, dropped, _) = owned_probe(true);
+        let (input, mut caller) = tokio::io::duplex(4096);
+        let task = tokio::spawn(stdio_handler_io(
+            handler,
+            Default::default(),
+            Default::default(),
+            crate::output_limits::OutputLimits::HTTP,
+            tokio_util::sync::CancellationToken::new(),
+            input,
+            tokio::io::sink(),
+        ));
+        caller.write_all(OWNED_INIT).await?;
+        tokio::time::timeout(Duration::from_secs(2), entered.notified()).await?;
+        task.abort();
+        assert!(task.await.unwrap_err().is_cancelled());
+        assert!(
+            dropped.load(std::sync::atomic::Ordering::SeqCst),
+            "held SDK initialization detached after owner abort"
+        );
+        Ok(())
+    }
+    #[tokio::test]
+    async fn owned_stdio_eof_drops_held_sdk_initialization() -> Result<()> {
+        let (handler, entered, dropped, _) = owned_probe(true);
+        let (input, mut caller) = tokio::io::duplex(4096);
+        let task = tokio::spawn(stdio_handler_io(
+            handler,
+            Default::default(),
+            Default::default(),
+            crate::output_limits::OutputLimits::HTTP,
+            tokio_util::sync::CancellationToken::new(),
+            input,
+            tokio::io::sink(),
+        ));
+        caller.write_all(OWNED_INIT).await?;
+        tokio::time::timeout(Duration::from_secs(2), entered.notified()).await?;
+        drop(caller);
+        tokio::time::timeout(Duration::from_secs(2), task).await???;
+        assert!(dropped.load(std::sync::atomic::Ordering::SeqCst));
+        Ok(())
+    }
+    #[tokio::test]
+    async fn owned_stdio_explicit_cancel_drops_held_sdk_initialization() -> Result<()> {
+        let (handler, entered, dropped, _) = owned_probe(true);
+        let (input, mut caller) = tokio::io::duplex(4096);
+        let cancel = tokio_util::sync::CancellationToken::new();
+        let task = tokio::spawn(stdio_handler_io(
+            handler,
+            Default::default(),
+            Default::default(),
+            crate::output_limits::OutputLimits::HTTP,
+            cancel.clone(),
+            input,
+            tokio::io::sink(),
+        ));
+        caller.write_all(OWNED_INIT).await?;
+        tokio::time::timeout(Duration::from_secs(2), entered.notified()).await?;
+        cancel.cancel();
+        tokio::time::timeout(Duration::from_secs(2), task).await???;
+        assert!(dropped.load(std::sync::atomic::Ordering::SeqCst));
+        Ok(())
+    }
+    #[tokio::test]
+    async fn owned_stdio_normal_eof_and_running_service_cancel_join() -> Result<()> {
+        for explicit_cancel in [false, true] {
+            let (handler, _, _, owner_dropped) = owned_probe(false);
+            let (input, mut caller) = tokio::io::duplex(4096);
+            let (output, reader) = tokio::io::duplex(4096);
+            let cancel = tokio_util::sync::CancellationToken::new();
+            let task = tokio::spawn(stdio_handler_io(
+                handler,
+                Default::default(),
+                Default::default(),
+                crate::output_limits::OutputLimits::HTTP,
+                cancel.clone(),
+                input,
+                output,
+            ));
+            caller.write_all(OWNED_INIT).await?;
+            let mut reader = BufReader::new(reader);
+            let mut response = String::new();
+            tokio::time::timeout(Duration::from_secs(2), reader.read_line(&mut response)).await??;
+            let response: Value = serde_json::from_str(&response)?;
+            assert!(response.get("result").is_some());
+            if explicit_cancel {
+                cancel.cancel();
+            } else {
+                drop(caller);
+            }
+            tokio::time::timeout(Duration::from_secs(2), task).await???;
+            tokio::time::timeout(Duration::from_secs(2), owner_dropped.notified()).await?;
+        }
+        Ok(())
+    }
+    // SDK DropGuard requests asynchronous internal cancellation on outer-drop.
+    // This checks idle owner release, not synchronous join or arbitrary handlers.
+    #[tokio::test]
+    async fn owned_stdio_initialized_outer_abort_releases_idle_sdk_owner() -> Result<()> {
+        let (handler, _, _, owner_dropped) = owned_probe(false);
+        let (input, mut caller) = tokio::io::duplex(4096);
+        let (output, reader) = tokio::io::duplex(4096);
+        let task = tokio::spawn(stdio_handler_io(
+            handler,
+            Default::default(),
+            Default::default(),
+            crate::output_limits::OutputLimits::HTTP,
+            tokio_util::sync::CancellationToken::new(),
+            input,
+            output,
+        ));
+        caller.write_all(OWNED_INIT).await?;
+        let mut response = String::new();
+        tokio::time::timeout(
+            Duration::from_secs(2),
+            BufReader::new(reader).read_line(&mut response),
+        )
+        .await??;
+        assert!(
+            serde_json::from_str::<Value>(&response)?
+                .get("result")
+                .is_some()
+        );
+        task.abort();
+        assert!(task.await.unwrap_err().is_cancelled());
+        tokio::time::timeout(Duration::from_secs(2), owner_dropped.notified()).await?;
+        Ok(())
+    }
+    #[tokio::test]
+    async fn owned_stdio_pre_cancel_does_not_dispatch_initialize() -> Result<()> {
+        let (handler, entered, _, owner_dropped) = owned_probe(true);
+        let (input, mut caller) = tokio::io::duplex(4096);
+        caller.write_all(OWNED_INIT).await?;
+        let cancel = tokio_util::sync::CancellationToken::new();
+        cancel.cancel();
+        tokio::time::timeout(
+            Duration::from_secs(2),
+            stdio_handler_io(
+                handler,
+                Default::default(),
+                Default::default(),
+                crate::output_limits::OutputLimits::HTTP,
+                cancel,
+                input,
+                tokio::io::sink(),
+            ),
+        )
+        .await??;
+        tokio::time::timeout(Duration::from_secs(2), owner_dropped.notified()).await?;
+        assert!(
+            tokio::time::timeout(Duration::from_millis(10), entered.notified())
+                .await
+                .is_err()
+        );
+        Ok(())
+    }
+
     #[test]
     fn rejected_requests_do_not_leak_admission_capacity() -> Result<()> {
         let mut wire = WireState::default();

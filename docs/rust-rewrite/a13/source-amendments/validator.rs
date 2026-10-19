@@ -4,18 +4,21 @@ use sha2::{Digest, Sha256};
 use std::{fs, path::Path};
 
 const MANIFEST_PATH: &str =
-    "docs/rust-rewrite/a13/source-amendments/a13-current-source-amendment-v3.json";
-const MANIFEST_SHA256: &str = "bb24fceef429f6e4084dcfa242936b3993b9da5e9bae66c9dcc84580fd7d8212";
+    "docs/rust-rewrite/a13/source-amendments/a13-current-source-amendment-v4.json";
+const MANIFEST_SHA256: &str = "0126da6005a6cbab910d07779a8c2a3d9076d4823d49c08f8cca64b7e791207a";
 const PREDECESSOR_PATH: &str =
-    "docs/rust-rewrite/a13/source-amendments/a13-current-source-amendment-v2.json";
-const PREDECESSOR_SHA256: &str = "da84e17cb8e96491e3c9f353f540aa9b17770fe6bd95b5081a3895f830a50dd8";
-const AMENDED_PATHS: [&str; 6] = [
+    "docs/rust-rewrite/a13/source-amendments/a13-current-source-amendment-v3.json";
+const PREDECESSOR_SHA256: &str = "bb24fceef429f6e4084dcfa242936b3993b9da5e9bae66c9dcc84580fd7d8212";
+const AMENDED_PATHS: [&str; 9] = [
     "crates/ssx-infra/src/http.rs",
     "crates/ssx-infra/tests/a13_dehashed.rs",
     "crates/ssx-infra/tests/a13_remaining_fixture/mod.rs",
     "crates/xtask/src/a11.rs",
     "crates/ssx-infra/src/adapters/clinicaltrials.rs",
     "crates/ssx-infra/src/adapters/mod.rs",
+    "crates/ssx-infra/src/search.rs",
+    "crates/ssx-infra/src/search_deadline_drain_tests.rs",
+    "crates/xtask/src/a09.rs",
 ];
 
 fn digest(bytes: &[u8]) -> String {
@@ -49,7 +52,7 @@ fn mode(_path: &Path) -> Result<String, String> {
 
 fn validate_scope(manifest: &Value) -> Result<(), String> {
     require(
-        manifest["kind"] == "A13_CURRENT_SOURCE_AMENDMENT_V3"
+        manifest["kind"] == "A13_CURRENT_SOURCE_AMENDMENT_V4"
             && manifest["amended_source_paths"] == serde_json::json!(AMENDED_PATHS),
         "A13 amendment path scope changed",
     )?;
@@ -300,6 +303,19 @@ pub fn verify(
             && manifest["predecessor_manifest"]["sha256"] == PREDECESSOR_SHA256,
         "A13 amendment predecessor manifest differs",
     )?;
+    // Preserve V3's verification of its own exact V2 predecessor, in addition
+    // to the new V4->V3 binding. Prior manifests are not merely retained on disk.
+    let previous: Value =
+        serde_json::from_slice(&predecessor).map_err(|error| error.to_string())?;
+    let v2_path = "docs/rust-rewrite/a13/source-amendments/a13-current-source-amendment-v2.json";
+    let v2_sha = "da84e17cb8e96491e3c9f353f540aa9b17770fe6bd95b5081a3895f830a50dd8";
+    let v2 = fs::read(root.join(v2_path)).map_err(|error| error.to_string())?;
+    require(
+        digest(&v2) == v2_sha
+            && previous["predecessor_manifest"]["path"] == v2_path
+            && previous["predecessor_manifest"]["sha256"] == v2_sha,
+        "A13 V3 predecessor binding differs",
+    )?;
     validate_scope(&manifest)?;
     let current_path = root.join(source_path);
     let current = fs::read(&current_path).map_err(|error| format!("{source_path}: {error}"))?;
@@ -499,9 +515,82 @@ pub fn rejects_mutants(root: &Path) -> Result<(), String> {
         verify_previous_successor(root, &mutated_prior_pin, None).is_err(),
         "A13 prior HTTP archive digest mutation was accepted",
     )?;
+    rejects_additive_mutants(root)?;
     rejects_clinicaltrials_mutants(root)?;
     require(
         validate_scope(&manifest).is_err(),
         "A13 unlisted amendment was accepted",
     )
+}
+
+#[cfg(test)]
+fn rejects_additive_mutants(root: &Path) -> Result<(), String> {
+    let manifest: Value =
+        serde_json::from_slice(&fs::read(root.join(MANIFEST_PATH)).map_err(|e| e.to_string())?)
+            .map_err(|e| e.to_string())?;
+    for path in [
+        "crates/ssx-infra/src/search.rs",
+        "crates/ssx-infra/src/search_deadline_drain_tests.rs",
+        "crates/ssx-infra/src/adapters/mod.rs",
+        "crates/xtask/src/a09.rs",
+    ] {
+        let entry = manifest["amendments"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|v| v["source_path"] == path)
+            .ok_or("A13 additive amendment missing")?;
+        for pin in entry["historical_pins"].as_array().unwrap() {
+            let container_path = pin["container_path"].as_str().unwrap();
+            let container = fs::read(root.join(container_path)).map_err(|e| e.to_string())?;
+            let archive_path = root.join(entry["archive"]["path"].as_str().unwrap());
+            let archive = fs::read(&archive_path).map_err(|e| e.to_string())?;
+            let current_path = root.join(path);
+            let current = fs::read(&current_path).map_err(|e| e.to_string())?;
+            let check = |payload: &Value, archive: &[u8], current: &[u8], container: &[u8]| {
+                verify_payload(PinCheck {
+                    amendment: payload,
+                    container_path,
+                    container_sha: pin["container_sha256"].as_str().unwrap(),
+                    container_bytes: container,
+                    source_path: path,
+                    historical_sha: pin["source_sha256"].as_str().unwrap(),
+                    historical_bytes: pin["source_bytes"].as_u64().map(|v| v as usize),
+                    current_bytes: current,
+                    archive_bytes: archive,
+                    current_mode: &mode(&current_path)?,
+                    archive_mode: &mode(&archive_path)?,
+                })
+            };
+            require(
+                check(entry, &archive, &current, &container).is_ok(),
+                "A13 additive amendment positive control failed",
+            )?;
+            let mut bad = current.clone();
+            bad.push(0);
+            require(
+                check(entry, &archive, &bad, &container).is_err(),
+                "A13 additive successor mutation accepted",
+            )?;
+            let mut bad_archive = archive.clone();
+            bad_archive.push(0);
+            require(
+                check(entry, &bad_archive, &current, &container).is_err(),
+                "A13 additive historical archive mutation accepted",
+            )?;
+            let mut bad_container = container.clone();
+            bad_container.push(0);
+            require(
+                check(entry, &archive, &current, &bad_container).is_err(),
+                "A13 additive container mutation accepted",
+            )?;
+            let mut bad_pin = entry.clone();
+            bad_pin["successor"]["sha256"] = serde_json::json!("changed");
+            require(
+                check(&bad_pin, &archive, &current, &container).is_err(),
+                "A13 additive successor pin mutation accepted",
+            )?;
+        }
+    }
+    Ok(())
 }
