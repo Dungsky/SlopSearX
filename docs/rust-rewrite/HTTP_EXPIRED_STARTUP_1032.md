@@ -2,7 +2,9 @@
 
 The locally qualified Rust candidate is committed as `c253e604` and normally
 merged with the fetched `origin/main` at `ff3a6ede` in merge commit
-`ba710dcc`. Root acceptance for the bounded causal and restoration run is
+`ba710dcc`. A subsequent normal merge of current `origin/main` at
+`4b7156d3` is recorded in merge commit `714d83fc`. Root acceptance for the
+bounded causal and restoration run is
 recorded at
 `/Volumes/tank01/magnus/rust-builds/slopsearx/storage-ledger/pr1034-wikipedia-reset-causal-root-acceptance-v1.json`
 (SHA-256 `c4688030c4d84c089fbee98391edd3869ecf54e43ff1a891efa867c97da3260f`).
@@ -34,8 +36,8 @@ it does not expose the precise timer-wheel state on that ARM poll.
 
 The candidate guard compares the same owner clock directly to the unchanged
 caller deadline after stop/cancellation checks and before header work or the
-select. The select continues to own in-flight expiry. No timeout was
-increased, no public request/response contract changed, and no performance
+select. The select continues to own in-flight expiry. No production timeout
+was increased, no public request/response contract changed, and no performance
 claim is made.
 
 ## Local causal and restoration evidence
@@ -67,6 +69,15 @@ startup failure or identify its timer-wheel state. A fresh compile and
 complete 291-name library inventory check then passed. The 291 names are an
 inventory listing, not evidence that all 291 tests ran.
 
+Separate historical evidence covers removal of the original startup guard.
+The earlier root acceptance receipt is
+`/Volumes/tank01/magnus/rust-builds/slopsearx/storage-ledger/http-1032-native-v2-root-acceptance.json`
+(SHA-256 `bfcaac2daf4a8597684aad5758beecafa53b04eac87f468a6f373b84a111db13`).
+It records seven commands with exits `0, 0, 101, 0, 0, 0, 0`, including the
+expected mutant failure and source restoration. This is distinct from the
+Wikipedia second-stage deadline mutant above; it is historical local macOS
+evidence, not a replay of the later Linux ARM failure.
+
 After restoration, all 35 distinct HTTP controls passed: 23 A04 tests, two
 endpoint controls, four startup controls, and six A10 controls. The selected
 Wikipedia deadline control also passed when run separately; it is one of the
@@ -91,7 +102,7 @@ qualification JSON was repinned. The four added test names are in the full
 compiled inventory; historical names remain required.
 
 The 23-test A04 unit was moved under `tests/support/` without pruning test
-names or capturing existing names. The preserved source amendment records
+names or changing frozen captures. The preserved source amendment records
 the relocation and exact source bytes. Typed control bindings distinguish
 current source from historical source. `SystemOperationTrace` and its
 recording hook are guarded by `#[cfg(test)]`; they provide deterministic test
