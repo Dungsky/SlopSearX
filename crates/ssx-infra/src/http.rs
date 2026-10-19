@@ -1398,3 +1398,7 @@ mod pypi_operation_timeout_tests {
         .expect("loopback timeout scenario exceeded its wall-clock watchdog");
     }
 }
+
+#[cfg(test)]
+#[path = "../tests/support/f10_peer_timeout.rs"]
+mod f10_peer_timeout_tests;

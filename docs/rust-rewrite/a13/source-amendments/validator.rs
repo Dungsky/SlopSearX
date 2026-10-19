@@ -4,11 +4,11 @@ use sha2::{Digest, Sha256};
 use std::{fs, path::Path};
 
 const MANIFEST_PATH: &str =
-    "docs/rust-rewrite/a13/source-amendments/a13-current-source-amendment-v4.json";
-const MANIFEST_SHA256: &str = "0126da6005a6cbab910d07779a8c2a3d9076d4823d49c08f8cca64b7e791207a";
+    "docs/rust-rewrite/a13/source-amendments/a13-current-source-amendment-v5.json";
+const MANIFEST_SHA256: &str = "4b64a708e58858425e4f7758333caef9ad4a4037e48c083702c3c3da0c71f3a8";
 const PREDECESSOR_PATH: &str =
-    "docs/rust-rewrite/a13/source-amendments/a13-current-source-amendment-v3.json";
-const PREDECESSOR_SHA256: &str = "bb24fceef429f6e4084dcfa242936b3993b9da5e9bae66c9dcc84580fd7d8212";
+    "docs/rust-rewrite/a13/source-amendments/a13-current-source-amendment-v4.json";
+const PREDECESSOR_SHA256: &str = "0126da6005a6cbab910d07779a8c2a3d9076d4823d49c08f8cca64b7e791207a";
 const AMENDED_PATHS: [&str; 9] = [
     "crates/ssx-infra/src/http.rs",
     "crates/ssx-infra/tests/a13_dehashed.rs",
@@ -52,7 +52,7 @@ fn mode(_path: &Path) -> Result<String, String> {
 
 fn validate_scope(manifest: &Value) -> Result<(), String> {
     require(
-        manifest["kind"] == "A13_CURRENT_SOURCE_AMENDMENT_V4"
+        manifest["kind"] == "A13_CURRENT_SOURCE_AMENDMENT_V5"
             && manifest["amended_source_paths"] == serde_json::json!(AMENDED_PATHS),
         "A13 amendment path scope changed",
     )?;
@@ -303,10 +303,19 @@ pub fn verify(
             && manifest["predecessor_manifest"]["sha256"] == PREDECESSOR_SHA256,
         "A13 amendment predecessor manifest differs",
     )?;
-    // Preserve V3's verification of its own exact V2 predecessor, in addition
-    // to the new V4->V3 binding. Prior manifests are not merely retained on disk.
-    let previous: Value =
-        serde_json::from_slice(&predecessor).map_err(|error| error.to_string())?;
+    // Preserve the exact V4->V3->V2 chain in addition to the new V5->V4
+    // binding. Prior manifests are not merely retained on disk.
+    let v4: Value = serde_json::from_slice(&predecessor).map_err(|error| error.to_string())?;
+    let v3_path = "docs/rust-rewrite/a13/source-amendments/a13-current-source-amendment-v3.json";
+    let v3_sha = "bb24fceef429f6e4084dcfa242936b3993b9da5e9bae66c9dcc84580fd7d8212";
+    let v3 = fs::read(root.join(v3_path)).map_err(|error| error.to_string())?;
+    require(
+        digest(&v3) == v3_sha
+            && v4["predecessor_manifest"]["path"] == v3_path
+            && v4["predecessor_manifest"]["sha256"] == v3_sha,
+        "A13 V4 predecessor binding differs",
+    )?;
+    let previous: Value = serde_json::from_slice(&v3).map_err(|error| error.to_string())?;
     let v2_path = "docs/rust-rewrite/a13/source-amendments/a13-current-source-amendment-v2.json";
     let v2_sha = "da84e17cb8e96491e3c9f353f540aa9b17770fe6bd95b5081a3895f830a50dd8";
     let v2 = fs::read(root.join(v2_path)).map_err(|error| error.to_string())?;
@@ -316,6 +325,17 @@ pub fn verify(
             && previous["predecessor_manifest"]["sha256"] == v2_sha,
         "A13 V3 predecessor binding differs",
     )?;
+    // Keep V4's previous-successor archive obligation live after the HTTP
+    // current pin advances again. For HTTP this is the exact 48e9 archive;
+    // V5 separately verifies the new 7d5d predecessor below.
+    let prior_amendment = v4["amendments"].as_array().and_then(|entries| {
+        entries
+            .iter()
+            .find(|entry| entry["source_path"] == source_path)
+    });
+    if let Some(prior) = prior_amendment {
+        verify_previous_successor(root, prior, None)?;
+    }
     validate_scope(&manifest)?;
     let current_path = root.join(source_path);
     let current = fs::read(&current_path).map_err(|error| format!("{source_path}: {error}"))?;
