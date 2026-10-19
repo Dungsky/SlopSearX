@@ -18,7 +18,7 @@ const ARTIFACTS: &[(&str, &str)] = &[
     ),
     (
         "docs/rust-rewrite/a07/coverage.json",
-        "b3cfff83d19d76148e6e5e5a48630e2c3926fe4b5b1009a971cf47dfb40fd748",
+        "3356fa8d6933418a666af2642d1c95705f76d60cf1d8306024a7e7f82d0718d2",
     ),
     (
         "docs/rust-rewrite/a07/fixtures/clinicaltrials-success.json",

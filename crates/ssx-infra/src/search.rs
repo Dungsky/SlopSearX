@@ -74,6 +74,46 @@ pub trait SearchClock: Send + Sync {
     /// One captured instant supplies both epoch and process-local calendar date.
     fn capture(&self) -> (WallClockTimestamp, String);
 }
+/// Monotonic search-execution clock, separate from calendar/epoch capture.
+/// The default is System. Only trusted construction can supply an alternate;
+/// public server startup has no operator/environment/request selection path.
+pub trait SearchDeadlineClock: Send + Sync {
+    fn now(&self) -> Instant;
+    fn sleep_until(&self, deadline: Instant) -> PortFuture<'_, ()>;
+}
+#[derive(Clone, Default)]
+enum DeadlineClock {
+    #[default]
+    System,
+    Injected(Arc<dyn SearchDeadlineClock>),
+}
+impl DeadlineClock {
+    fn now(&self) -> Instant {
+        match self {
+            Self::System => Instant::now(),
+            Self::Injected(clock) => clock.now(),
+        }
+    }
+    async fn sleep_until(&self, deadline: Instant) {
+        match self {
+            Self::System => tokio::time::sleep_until(deadline).await,
+            Self::Injected(clock) => clock.sleep_until(deadline).await,
+        }
+    }
+    async fn timeout_at<T>(
+        &self,
+        deadline: Instant,
+        future: impl std::future::Future<Output = T>,
+    ) -> Option<T> {
+        match self {
+            // Preserve Tokio's exact existing poll/deadline semantics by default.
+            Self::System => tokio::time::timeout_at(deadline, future).await.ok(),
+            Self::Injected(clock) => {
+                tokio::select! { biased; _ = clock.sleep_until(deadline) => None, value = future => Some(value) }
+            }
+        }
+    }
+}
 pub struct SystemSearchClock;
 impl SearchClock for SystemSearchClock {
     fn capture(&self) -> (WallClockTimestamp, String) {
@@ -271,6 +311,7 @@ pub trait AdvisoryCatalog: Send + Sync {
     fn snapshot(&self) -> ssx_application::scope::CatalogSnapshot;
 }
 struct Inner {
+    deadline_clock: DeadlineClock,
     advisory_catalog: Option<Arc<dyn AdvisoryCatalog>>,
     registry: Arc<ssx_registry::Registry>,
     config: SearchConfig,
@@ -447,6 +488,18 @@ impl SearchReadCapture {
     }
 }
 impl SearchService {
+    /// Construction-only injection. Refuse replacement after the owner is shared.
+    /// Normal constructors and production startup always retain the System clock.
+    pub fn with_deadline_clock(
+        mut self,
+        clock: Arc<dyn SearchDeadlineClock>,
+    ) -> Result<Self, SearchError> {
+        Arc::get_mut(&mut self.0)
+            .ok_or(SearchError::InvalidConfiguration)?
+            .deadline_clock = DeadlineClock::Injected(clock);
+        Ok(self)
+    }
+
     pub fn new(config: SearchConfig, deps: SearchDependencies) -> Result<Self, SearchError> {
         let registry =
             ssx_registry::Registry::builtins().map_err(|_| SearchError::InvalidConfiguration)?;
@@ -489,6 +542,7 @@ impl SearchService {
             return Err(SearchError::InvalidConfiguration);
         }
         Ok(Self(Arc::new(Inner {
+            deadline_clock: DeadlineClock::System,
             advisory_catalog,
             registry,
             callers: Arc::new(Semaphore::new(config.max_callers)),
@@ -1018,7 +1072,7 @@ impl SearchService {
                         &owner,
                         req,
                         selected,
-                        Instant::now(),
+                        owner.deadline_clock.now(),
                         worker.cancel.subscribe(),
                     )
                     .await;
@@ -1262,12 +1316,25 @@ struct CollectionPause {
 }
 struct Finished(usize, AdapterResponse, bool);
 impl Finished {
-    fn undispatched(index: usize, response: AdapterResponse, service_deadline: Instant) -> Self {
-        Self(index, response, Instant::now() >= service_deadline)
+    fn undispatched(
+        index: usize,
+        response: AdapterResponse,
+        service_deadline: Instant,
+        observed: Instant,
+    ) -> Self {
+        Self(index, response, observed >= service_deadline)
     }
 
+    #[cfg(test)]
     fn before_dispatch_deadline(index: usize, deadline: Instant) -> Option<Self> {
-        (Instant::now() >= deadline).then(|| {
+        Self::before_dispatch_deadline_at(index, deadline, Instant::now())
+    }
+    fn before_dispatch_deadline_at(
+        index: usize,
+        deadline: Instant,
+        observed: Instant,
+    ) -> Option<Self> {
+        (observed >= deadline).then(|| {
             Self(
                 index,
                 synthetic(
@@ -1278,15 +1345,32 @@ impl Finished {
             )
         })
     }
+    #[cfg(test)]
     fn dispatched(
+        index: usize,
+        response: AdapterResponse,
+        execution_deadline: Instant,
+        service_deadline: Instant,
+        binding_timeout: Duration,
+    ) -> Self {
+        Self::dispatched_at(
+            index,
+            response,
+            execution_deadline,
+            service_deadline,
+            binding_timeout,
+            Instant::now(),
+        )
+    }
+    fn dispatched_at(
         index: usize,
         mut response: AdapterResponse,
         execution_deadline: Instant,
         service_deadline: Instant,
         binding_timeout: Duration,
+        completed_at: Instant,
     ) -> Self {
         // Completion time, not collection time, determines origin. Service wins ties.
-        let completed_at = Instant::now();
         let service_expired = completed_at >= service_deadline;
         if !service_expired && completed_at >= execution_deadline {
             response = timeout_response(binding_timeout);
@@ -1438,7 +1522,9 @@ async fn execute(
         #[cfg(test)]
         let task_pause = collection_pause.clone();
         let task = tasks.spawn(async move {
-            if let Some(expired) = Finished::before_dispatch_deadline(index, deadline) {
+            if let Some(expired) =
+                Finished::before_dispatch_deadline_at(index, deadline, owner.deadline_clock.now())
+            {
                 return expired;
             }
             if let Some(cooldowns) = &owner.deps.cooldowns
@@ -1454,6 +1540,7 @@ async fn execute(
                         &format!("upstream cooldown active; retry in {seconds}s"),
                     ),
                     deadline,
+                    owner.deadline_clock.now(),
                 );
             }
             let Ok(_permit) = semaphore.acquire_owned().await else {
@@ -1461,9 +1548,12 @@ async fn execute(
                     index,
                     synthetic(EngineStatus::Unavailable, "service closed"),
                     deadline,
+                    owner.deadline_clock.now(),
                 );
             };
-            if let Some(expired) = Finished::before_dispatch_deadline(index, deadline) {
+            if let Some(expired) =
+                Finished::before_dispatch_deadline_at(index, deadline, owner.deadline_clock.now())
+            {
                 return expired;
             }
             if owner
@@ -1477,23 +1567,26 @@ async fn execute(
                     index,
                     synthetic(EngineStatus::Error, "circuit open"),
                     deadline,
+                    owner.deadline_clock.now(),
                 );
             }
             started.lock().unwrap()[index] = true;
             // Overflow adds no tighter binding limit to the checked service bound.
-            let engine_deadline = Instant::now().checked_add(binding.timeout);
+            let engine_deadline = owner.deadline_clock.now().checked_add(binding.timeout);
             let execution_deadline = engine_deadline.map_or(deadline, |d| d.min(deadline));
-            let response = tokio::time::timeout_at(
-                execution_deadline,
-                binding.engine.search_with_context(
-                    &request,
-                    SearchContext {
-                        deadline: execution_deadline.into_std(),
-                    },
-                ),
-            )
-            .await
-            .unwrap_or_else(|_| timeout_response(binding.timeout));
+            let response = owner
+                .deadline_clock
+                .timeout_at(
+                    execution_deadline,
+                    binding.engine.search_with_context(
+                        &request,
+                        SearchContext {
+                            deadline: execution_deadline.into_std(),
+                        },
+                    ),
+                )
+                .await
+                .unwrap_or_else(|| timeout_response(binding.timeout));
             // Test scheduling seam: retain an actually owned task until the real
             // owner aborts it; do not alter deadline selection or classification.
             #[cfg(test)]
@@ -1504,12 +1597,13 @@ async fn execute(
                     pause.completion_release.notified().await;
                 }
             }
-            Finished::dispatched(
+            Finished::dispatched_at(
                 index,
                 response,
                 execution_deadline,
                 deadline,
                 binding.timeout,
+                owner.deadline_clock.now(),
             )
         });
         task_ids.insert(task.id(), index);
@@ -1520,7 +1614,7 @@ async fn execute(
     }
     let mut suggestion_tasks = JoinSet::new();
     if request.generate_suggestions
-        && Instant::now() < deadline
+        && inner.deadline_clock.now() < deadline
         && let Some(suggestions) = inner.deps.suggestions.clone()
     {
         let query = request.query.clone();
@@ -1545,7 +1639,7 @@ async fn execute(
         tokio::select! {
             biased;
             _ = cancelled(&mut cancel) => { was_cancelled = true; break; }
-            _ = tokio::time::sleep_until(deadline) => { break; }
+            _ = inner.deadline_clock.sleep_until(deadline) => { break; }
             result = tasks.join_next_with_id() => {
                 if let Some(result) = result {
                     collect_engine_join(result, false, &task_ids, &mut responses, &mut truncated, &mut internal_failures);
@@ -1720,11 +1814,11 @@ async fn execute(
             && rerank_scope_and_results_public(&names, &response.results, sensitive)
         {
             let rerank_deadline = if interactive {
-                deadline.min(Instant::now() + Duration::from_secs(1))
+                deadline.min(inner.deadline_clock.now() + Duration::from_secs(1))
             } else {
-                Instant::now() + Duration::from_secs(1)
+                inner.deadline_clock.now() + Duration::from_secs(1)
             };
-            if rerank_deadline > Instant::now() {
+            if rerank_deadline > inner.deadline_clock.now() {
                 let mut rerank_tasks = JoinSet::new();
                 let stage = reranker.clone();
                 let stage_request = request.clone();
@@ -1734,7 +1828,7 @@ async fn execute(
                         .rerank(&stage_request, &stage_results, rerank_deadline)
                         .await
                 });
-                let decision = tokio::select! { _ = cancelled(&mut cancel) => { rerank_tasks.shutdown().await; suggestion_tasks.shutdown().await; return Err(SearchError::Cancelled); }, decision = rerank_tasks.join_next() => decision, _ = tokio::time::sleep_until(rerank_deadline) => None };
+                let decision = tokio::select! { _ = cancelled(&mut cancel) => { rerank_tasks.shutdown().await; suggestion_tasks.shutdown().await; return Err(SearchError::Cancelled); }, decision = rerank_tasks.join_next() => decision, _ = inner.deadline_clock.sleep_until(rerank_deadline) => None };
                 rerank_tasks.shutdown().await;
                 match decision {
                     Some(Ok(Ok(decision))) => {
@@ -1758,7 +1852,7 @@ async fn execute(
         tokio::select! {
             _ = cancelled(&mut cancel) => { suggestion_tasks.shutdown().await; return Err(SearchError::Cancelled); }
             result = suggestion_tasks.join_next() => { if let Some(Ok(suggestions)) = result { response.suggestions = suggestions; } }
-            _ = tokio::time::sleep_until(deadline), if interactive => { response.deadline_exceeded = true; }
+            _ = inner.deadline_clock.sleep_until(deadline), if interactive => { response.deadline_exceeded = true; }
         }
     }
     suggestion_tasks.shutdown().await;

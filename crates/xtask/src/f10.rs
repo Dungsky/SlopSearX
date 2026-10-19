@@ -84,6 +84,73 @@ fn inventory(
     }
     Ok(())
 }
+const PEER_TIMEOUT_CONTROL: &str =
+    "http::f10_peer_timeout_tests::actual_peer_started_timeout_records_failure_with_null_latency";
+const PEER_TIMEOUT_SOURCE_SHA: &str =
+    "7a438af0d7cc26bfcd014f062aef78be05748a7611e84af53eda7c4eecf49a27";
+fn peer_timeout_control(root: &Path, records: &mut Vec<Value>) -> Result<()> {
+    if digest(
+        &fs::read(root.join("crates/ssx-infra/tests/support/f10_peer_timeout.rs"))
+            .map_err(|error| error.to_string())?,
+    ) != PEER_TIMEOUT_SOURCE_SHA
+    {
+        return Err("F10 reviewed causal peer control source changed".into());
+    }
+    let args = [
+        "test",
+        "--locked",
+        "-p",
+        "ssx-infra",
+        "--lib",
+        PEER_TIMEOUT_CONTROL,
+    ];
+    let mut list_args = args.to_vec();
+    list_args.extend(["--", "--exact", "--list"]);
+    let listed = command(root, "cargo", &list_args, records)?;
+    let names = listed
+        .lines()
+        .filter_map(|line| line.strip_suffix(": test"))
+        .collect::<Vec<_>>();
+    if names != [PEER_TIMEOUT_CONTROL]
+        || listed
+            .lines()
+            .filter(|line| *line == "1 test, 0 benchmarks")
+            .count()
+            != 1
+    {
+        return Err("F10 relocated real-peer control inventory differs".into());
+    }
+    let mut run_args = args.to_vec();
+    run_args.extend(["--", "--exact", "--nocapture"]);
+    let output = command(root, "cargo", &run_args, records)?;
+    let completed = output
+        .lines()
+        .filter_map(|line| line.strip_prefix("test ")?.strip_suffix(" ... ok"))
+        .collect::<Vec<_>>();
+    let prefix = "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; ";
+    if completed != [PEER_TIMEOUT_CONTROL]
+        || output
+            .lines()
+            .filter(|line| line.starts_with("test result:"))
+            .count()
+            != 1
+        || !output.lines().any(|line| {
+            line.strip_prefix(prefix)
+                .and_then(|tail| tail.split_once(" filtered out; finished in "))
+                .is_some_and(|(filtered, elapsed)| {
+                    filtered.parse::<usize>().is_ok()
+                        && elapsed
+                            .strip_suffix('s')
+                            .and_then(|value| value.parse::<f64>().ok())
+                            .is_some_and(|seconds| seconds.is_finite() && seconds >= 0.)
+                })
+        })
+    {
+        return Err("F10 relocated real-peer control was missing, ignored, or did not pass".into());
+    }
+    records.push(json!({"F10_real_peer_timeout_control":PEER_TIMEOUT_CONTROL,"logical_timeout_ms":150,"original_synthetic_latency_ms":150.0,"transport":"real caller-owned pool; full request headers before clock advance"}));
+    Ok(())
+}
 pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
     let read = |path: &str| fs::read(root.join(path)).map_err(|e| e.to_string());
     let data = validate(
@@ -133,7 +200,6 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
         &[
             "absent_url_warmup_is_noop_and_fail_setting_is_explicit",
             "actual_f08_429_cooldown_prevents_redispatch_and_health_stays_observed",
-            "actual_peer_started_timeout_records_failure_with_null_latency",
             "actual_quota_law_zero_cost_fractional_rate_and_expiry",
             "explicit_fail_open_is_separate_from_authority_and_terminal_close",
             "invalid_requests_do_not_write_and_persistent_counter_is_repaired",
@@ -151,6 +217,7 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
         &["test", "--locked", "-p", "ssx-application", "--test", "f10"],
         records,
     )?;
+    peer_timeout_control(root, records)?;
     crate::f07::check(root, records)?;
     if !records.iter().any(|r| {
         r["version"]

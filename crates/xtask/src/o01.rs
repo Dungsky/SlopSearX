@@ -76,11 +76,17 @@ pub fn check(root: &Path, commands: &mut Vec<Value>) -> Result<()> {
         let path = artifact["path"]
             .as_str()
             .ok_or("O01 artifact path missing")?;
-        let bytes = fs::read(root.join(path)).map_err(|e| format!("{path}: {e}"))?;
-        require(
-            artifact["sha256"] == digest(&bytes),
-            &format!("O01 artifact differs: {path}"),
-        )?;
+        crate::a13::check_source_pin(
+            root,
+            "docs/rust-rewrite/o01/coverage.json",
+            COVERAGE_SHA,
+            path,
+            artifact["sha256"]
+                .as_str()
+                .ok_or("O01 artifact digest absent")?,
+            artifact["bytes"].as_u64().map(|v| v as usize),
+        )
+        .map_err(|_| format!("O01 artifact differs: {path}"))?;
     }
     let source: Value = serde_json::from_slice(
         &fs::read(

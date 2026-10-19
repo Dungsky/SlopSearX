@@ -53,6 +53,13 @@ fn original_profiles_strategies_tool_surface_and_observations_match_reviewed_sou
             "crates/ssx-mcp/src/bin/search-qualification.rs",
             "crates/ssx-mcp/tests/t06_support/fixture.rs",
             "crates/ssx-mcp/tests/t06_support/observer.rs",
+            "crates/ssx-mcp/tests/t06_support/server.rs",
+            "crates/ssx-infra/src/search.rs",
+            "crates/ssx-infra/src/search_deadline_drain_tests.rs",
+            "crates/ssx-mcp/src/opaque.rs",
+            "crates/ssx-mcp/tests/t06_support/deadline_clock.rs",
+            "crates/ssx-mcp/tests/t06_support/wall_guard.rs",
+            "crates/ssx-mcp/tests/t06_transport.rs",
         ])
     );
     for row in native["files"].as_array().unwrap() {

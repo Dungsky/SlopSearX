@@ -1553,14 +1553,20 @@ async fn unsupported_request_filters_do_not_change_wire_or_claim_media() {
 fn source_inventory_is_closed_and_bound_without_original_execution() {
     use sha2::{Digest, Sha256};
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let hash = |data: &[u8]| {
+        Sha256::digest(data)
+            .iter()
+            .map(|b| format!("{b:02x}"))
+            .collect::<String>()
+    };
+    let closed = |paths: &[&str], expected: &BTreeSet<&str>| {
+        let actual: BTreeSet<_> = paths.iter().copied().collect();
+        paths.len() == expected.len() && actual.len() == paths.len() && actual == *expected
+    };
     let bytes =
         std::fs::read(root.join("docs/rust-rewrite/a13/dehashed-source-map-v1.json")).unwrap();
-    let digest = Sha256::digest(&bytes)
-        .iter()
-        .map(|b| format!("{b:02x}"))
-        .collect::<String>();
     assert_eq!(
-        digest,
+        hash(&bytes),
         "226174da4be26ff9e902e73dc79a6d5344e5405abfae3a051ed19339a51a4b2d"
     );
     let map: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
@@ -1604,20 +1610,54 @@ fn source_inventory_is_closed_and_bound_without_original_execution() {
     .into_iter()
     .collect();
     let sources = map["sources"].as_array().unwrap();
-    assert_eq!(sources.len(), expected_paths.len());
-    let mut actual = BTreeSet::new();
+    let paths: Vec<_> = sources
+        .iter()
+        .map(|source| source["path"].as_str().unwrap())
+        .collect();
+    let expected_container = "docs/rust-rewrite/a13/dehashed-source-map-v1.json";
+    let expected_container_sha = "226174da4be26ff9e902e73dc79a6d5344e5405abfae3a051ed19339a51a4b2d";
+    assert!(closed(&paths, &expected_paths));
+    let mut duplicate = paths.clone();
+    duplicate.push(paths[0]);
+    assert!(!closed(&duplicate, &expected_paths));
+    let mut unlisted = paths.clone();
+    unlisted.push("crates/ssx-infra/src/not-in-the-frozen-map.rs");
+    assert!(!closed(&unlisted, &expected_paths));
+    let mut missing = paths.clone();
+    missing.pop();
+    assert!(!closed(&missing, &expected_paths));
     for source in sources {
-        let path = source["path"].as_str().unwrap();
-        assert!(actual.insert(path));
-        assert!(expected_paths.contains(path));
-        let data = std::fs::read(root.join(path)).unwrap();
-        let hash = Sha256::digest(&data)
-            .iter()
-            .map(|b| format!("{b:02x}"))
-            .collect::<String>();
-        assert_eq!(source["sha256"], hash);
+        source_amendment::verify(
+            &root,
+            expected_container,
+            expected_container_sha,
+            source["path"].as_str().unwrap(),
+            source["sha256"].as_str().unwrap(),
+            source["bytes"].as_u64().map(|bytes| bytes as usize),
+        )
+        .unwrap();
     }
-    assert_eq!(actual, expected_paths);
+    source_amendment::rejects_mutants(&root).unwrap();
+    let remaining_path = "docs/rust-rewrite/a13/remaining/source-map.json";
+    let remaining_sha = "af359782abc772c727a885e66a87d519aea5393bcec31e0e105b2de46a8c5d22";
+    let remaining = std::fs::read(root.join(remaining_path)).unwrap();
+    assert_eq!(hash(&remaining), remaining_sha);
+    let remaining_map: serde_json::Value = serde_json::from_slice(&remaining).unwrap();
+    let remaining_http = remaining_map["sources"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|source| source["path"] == "crates/ssx-infra/src/http.rs")
+        .unwrap();
+    source_amendment::verify(
+        &root,
+        remaining_path,
+        remaining_sha,
+        "crates/ssx-infra/src/http.rs",
+        remaining_http["sha256"].as_str().unwrap(),
+        remaining_http["bytes"].as_u64().map(|bytes| bytes as usize),
+    )
+    .unwrap();
     let originals = map["original_tests"].as_array().unwrap();
     assert_eq!(originals.len(), 4);
     let expected_originals: BTreeSet<&str> = [
@@ -1772,3 +1812,8 @@ fn source_inventory_is_closed_and_bound_without_original_execution() {
     assert_eq!(fixture["native_expected_content"], success_row().content);
     complete("source-bindings-closed");
 }
+
+// Keep the frozen selector line identities above stable; this shared verifier
+// declaration is intentionally at the end of the module.
+#[path = "../../../docs/rust-rewrite/a13/source-amendments/validator.rs"]
+mod source_amendment;

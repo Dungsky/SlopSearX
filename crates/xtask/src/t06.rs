@@ -5,7 +5,7 @@ use sha2::{Digest, Sha256};
 use std::{collections::BTreeSet, fs, path::Path};
 const BASELINE: &str = "6c44976444340cc8f343fef61e2e8d723b189c19";
 const BINDINGS: &str = "11660374ae3fd544590cb014b532eda4d6f3a95ef8f0bc062b308bd7911fc771";
-const NATIVE_BINDINGS: &str = "ccfbc5859c5b1c95f4c8f779b3630fd45e643ec64dd341f00e96af594609131e";
+const NATIVE_BINDINGS: &str = "16edd8d4c89f463a12e9c1bf4863086ed0268a42736c9a31df5a181b421284e2";
 fn digest(bytes: &[u8]) -> String {
     Sha256::digest(bytes)
         .iter()
@@ -34,13 +34,18 @@ fn validate_native(bytes: &[u8]) -> Result<Value> {
         return Err("T06 reviewed native fixture bindings differ".into());
     }
     let value: Value = serde_json::from_slice(bytes).map_err(|e| e.to_string())?;
-    if value["schema_version"] != 1 || value["files"].as_array().map(Vec::len) != Some(3) {
+    if value["schema_version"] != 1 || value["files"].as_array().map(Vec::len) != Some(10) {
         return Err("T06 incomplete native fixture provenance".into());
     }
     Ok(value)
 }
-const NATIVE_FIXTURE_TESTS: &[&str] =
-    &["tests::receipt_write_latency_is_outside_the_ready_fake_engine_future"];
+const NATIVE_FIXTURE_TESTS: &[&str] = &[
+    "tests::receipt_write_latency_is_outside_the_ready_fake_engine_future",
+    "wall_guard::tests::operation_errors_preserve_error_and_join_watchdog",
+    "wall_guard::tests::real_wall_timeout_cancels_and_drains_operation",
+    "wall_guard::tests::stuck_cancel_negative_is_failed_cleanup_with_finite_return",
+    "wall_guard::tests::watchdog_drop_wakes_and_joins_actual_worker",
+];
 const LIB_TESTS: &[&str] = &[
     "search_surface::validation::tests::actual_source_argument_matrix_preserves_validation_text_and_coercions",
     "search_surface::entities::tests::frozen_source_entity_grammar_conserves_indices_facts_edges_and_unicode16",
@@ -60,6 +65,10 @@ const T06_SERVICE: &[&str] = &[
 const T06_SOURCE_BINDINGS: &[&str] =
     &["original_profiles_strategies_tool_surface_and_observations_match_reviewed_source_bindings"];
 const T06_TRANSPORT: &[&str] = &[
+    "wall_guard::tests::operation_errors_preserve_error_and_join_watchdog",
+    "wall_guard::tests::real_wall_timeout_cancels_and_drains_operation",
+    "wall_guard::tests::stuck_cancel_negative_is_failed_cleanup_with_finite_return",
+    "wall_guard::tests::watchdog_drop_wakes_and_joins_actual_worker",
     "actual_entity_payloads_survive_search_cache_snapshot_and_member_reads",
     "comparison::comparator_preserves_literal_adapter_fields_and_requires_issued_cursor_identity",
     "comparison::comparator_rejects_dynamic_protocol_type_and_shape_corruption",
@@ -86,13 +95,42 @@ const T06_WIRE: &[&str] = &[
     "typed_output_budget_preserves_default_and_rejects_one_byte_over",
     "unknown_result_and_unmarked_metadata_remain_literal",
 ];
+const T06_STDIO_OWNER: &[&str] = &[
+    "opaque::tests::owned_stdio_outer_abort_drops_held_sdk_initialization",
+    "opaque::tests::owned_stdio_eof_drops_held_sdk_initialization",
+    "opaque::tests::owned_stdio_explicit_cancel_drops_held_sdk_initialization",
+    "opaque::tests::owned_stdio_normal_eof_and_running_service_cancel_join",
+    "opaque::tests::owned_stdio_initialized_outer_abort_releases_idle_sdk_owner",
+    "opaque::tests::owned_stdio_pre_cancel_does_not_dispatch_initialize",
+];
+const T06_OWNER_CLOCK: &[&str] = &[
+    "search::deadline_drain_tests::predeadline_completed_outputs_survive_delayed_owner_drain",
+    "search::deadline_drain_tests::deadline_abort_drains_pending_without_internal_failure",
+    "search::deadline_drain_tests::earlier_binding_timeout_completed_after_service_deadline_is_truncated",
+    "search::deadline_drain_tests::cooldown_completed_after_service_deadline_is_truncated",
+    "search::deadline_drain_tests::completed_task_panic_is_not_hidden_by_owner_abort",
+    "search::deadline_drain_tests::owner_manual_clock_preserves_completion_before_original_one_ms_deadline",
+    "search::deadline_drain_tests::owner_manual_clock_rejects_completion_at_original_one_ms_deadline",
+    "search::deadline_drain_tests::owner_manual_clock_rejects_completion_after_original_one_ms_deadline",
+    "search::deadline_drain_tests::renewed_context_mutant_does_not_match_original_absolute_deadline",
+    "search::deadline_drain_tests::manual_owner_clock_does_not_pause_unrelated_real_tokio_timeouts",
+];
 fn run_suite(
     root: &Path,
     target: &[&str],
     expected: &[&str],
     records: &mut Vec<Value>,
 ) -> Result<()> {
-    let mut args = vec!["test", "--locked", "-p", "ssx-mcp"];
+    run_suite_for(root, "ssx-mcp", target, expected, records)
+}
+fn run_suite_for(
+    root: &Path,
+    package: &str,
+    target: &[&str],
+    expected: &[&str],
+    records: &mut Vec<Value>,
+) -> Result<()> {
+    let mut args = vec!["test", "--locked", "-p", package];
     args.extend_from_slice(target);
     let mut listing = args.clone();
     listing.extend_from_slice(&["--", "--list"]);
@@ -179,7 +217,20 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
     )?;
     run_suite(root, &["--test", "t06_transport"], T06_TRANSPORT, records)?;
     run_suite(root, &["--test", "t06_wire"], T06_WIRE, records)?;
-    records.push(json!({"plan_id":"T06","status":"passed","source_bindings_sha256":BINDINGS,"source_baseline":BASELINE,"source_files":19,"frozen_artifacts":24,"native_fixture_files":3,"native_fixture_tests":1,"native_fixture_bindings_sha256":NATIVE_BINDINGS,"tools":11,"resource_registrations":4,"prompts":5,"provider_calls":0,"scope":"actual native handler/service/snapshots/passive discovery through authenticated HTTP, stdio and legacy; bounded cancellation and lossless input/output; exactly two accepted outer-params diagnostic differences; production startup T02/W09 separate"}));
+    run_suite_for(
+        root,
+        "ssx-infra",
+        &["--lib", "search::deadline_drain_tests::"],
+        T06_OWNER_CLOCK,
+        records,
+    )?;
+    run_suite(
+        root,
+        &["--lib", "opaque::tests::owned_stdio_"],
+        T06_STDIO_OWNER,
+        records,
+    )?;
+    records.push(json!({"plan_id":"T06","status":"passed","source_bindings_sha256":BINDINGS,"source_baseline":BASELINE,"source_files":19,"frozen_artifacts":24,"native_fixture_files":10,"native_fixture_tests":5,"owner_clock_tests":10,"stdio_owner_tests":6,"native_fixture_bindings_sha256":NATIVE_BINDINGS,"tools":11,"resource_registrations":4,"prompts":5,"provider_calls":0,"scope":"actual native handler/service/snapshots/passive discovery through authenticated HTTP, stdio and legacy; bounded cancellation and lossless input/output; exactly two accepted outer-params diagnostic differences; production startup T02/W09 separate"}));
     Ok(())
 }
 #[cfg(test)]

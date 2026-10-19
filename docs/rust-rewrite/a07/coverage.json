@@ -1503,6 +1503,11 @@
     "original172_unchanged": true
   },
   "native_case_bindings": {
+    "queue_time_consumes_absolute_context_instead_of_original_request_timeout": {
+      "package": "ssx-infra",
+      "target": "lib",
+      "qualified_name": "adapters::clinicaltrials::deadline_tests::queue_time_consumes_absolute_context_instead_of_original_request_timeout"
+    },
     "pubmed_two_stage_success_and_complete_payload": {
       "package": "ssx-infra",
       "target": "test:a07_biomedical",
@@ -1525,8 +1530,8 @@
     },
     "actual_source_matrix_preserves_requests_and_full_normalized_results": {
       "package": "ssx-infra",
-      "target": "test:a07_biomedical",
-      "qualified_name": "actual_source_matrix_preserves_requests_and_full_normalized_results"
+      "target": "lib",
+      "qualified_name": "adapters::a07_matrix_replay::actual_source_matrix_preserves_requests_and_full_normalized_results"
     },
     "all_engines_classify_http_failures_and_timeout": {
       "package": "ssx-infra",

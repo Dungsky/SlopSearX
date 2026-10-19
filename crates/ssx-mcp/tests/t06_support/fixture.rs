@@ -1,5 +1,7 @@
 #![allow(dead_code)] // Reused qualification helpers intentionally expose more than each target uses.
 //! Qualification-only engines and wiring. Never selected by a public server.
+#[path = "deadline_clock.rs"]
+mod deadline_clock;
 use ssx_application::{
     NoopSink, PortFuture, SearchEngine,
     cache::*,
@@ -165,6 +167,63 @@ impl Fixture {
         search_config: SearchConfig,
         jev: Option<Arc<ssx_infra::jev::JevRouter>>,
     ) -> Self {
+        Self::with_options_and_clock(
+            url,
+            search_policy,
+            engines,
+            disabled,
+            search_config,
+            jev,
+            None,
+        )
+        .await
+    }
+    /// Same fixed fake-engine work and declarations as new(); only execution time
+    /// is manually scheduled. No public server/configuration imports this method.
+    pub async fn frozen(url: &str, grants: bool) -> Self {
+        let engines = ["wikipedia", "brave", "duckduckgo"]
+            .into_iter()
+            .map(|name| FakeEngine {
+                name: name.into(),
+                calls: Default::default(),
+                dispatch_receipt: None,
+                count: 3,
+                status: EngineStatus::Ok,
+                delay: Duration::ZERO,
+                results: None,
+            })
+            .collect();
+        Self::with_options_and_clock(
+            url,
+            SearchPolicy {
+                grants: if grants {
+                    ["jobs", "security", "science"]
+                        .into_iter()
+                        .map(str::to_owned)
+                        .collect()
+                } else {
+                    BTreeSet::new()
+                },
+                ..Default::default()
+            },
+            engines,
+            &[],
+            SearchConfig::default(),
+            None,
+            Some(deadline_clock::ManualDeadlineClock::frozen()),
+        )
+        .await
+    }
+    #[allow(clippy::too_many_arguments)] // Explicit qualification construction, not caller input.
+    async fn with_options_and_clock(
+        url: &str,
+        search_policy: SearchPolicy,
+        engines: Vec<FakeEngine>,
+        disabled: &[&str],
+        search_config: SearchConfig,
+        jev: Option<Arc<ssx_infra::jev::JevRouter>>,
+        deadline_clock: Option<Arc<dyn SearchDeadlineClock>>,
+    ) -> Self {
         let store = Arc::new(Valkey::new(url, Duration::from_secs(2)).unwrap());
         store.ping().await.unwrap();
         let mut configuration = ssx_config::load_config_with(
@@ -314,6 +373,12 @@ impl Fixture {
             Some(catalog.clone()),
         )
         .unwrap();
+        let service = match deadline_clock {
+            Some(clock) => service
+                .with_deadline_clock(clock)
+                .expect("unshared fixture search owner"),
+            None => service,
+        };
         let diagnostics = Arc::new(Diagnostics(RuntimeDiagnostics {
             version: "0.0.0".into(),
             valkey_connected: false,
