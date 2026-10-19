@@ -145,3 +145,17 @@ observations and the source-exact publishing Lua remain unchanged.
 The loopback HTTP fixture tolerates connections closed before any request bytes
 (for example when an expired deadline wins during connection setup), rejects
 partial requests, and still requires exactly two complete requests.
+
+### Deterministic peer-started timeout witness
+
+The real-peer timeout control keeps its 150 ms operation budget and 150.0
+synthetic latency field. It is a library unit test so it can reuse the existing
+private real-pool manual clock without a public clock-selection API. The clock
+advances only after the actual loopback peer receives complete request headers;
+no response bytes are released. A five-second wall watchdog detects fixture
+hangs and does not change the logical timeout. Peer abort is joined and the
+HTTP owner is shut down before assertions. F10 requires the exact relocated
+`http::f10_peer_timeout_tests::actual_peer_started_timeout_records_failure_with_null_latency`
+identity plus the remaining 11 integration controls; the whole workspace gate
+executes the library test normally. Historical captures and health outcomes stay
+unchanged. Source-pin successor composition and fresh exact-head CI are required.

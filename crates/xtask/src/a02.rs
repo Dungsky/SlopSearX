@@ -4,7 +4,7 @@ use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::{collections::BTreeSet, path::Path};
 const CORPUS_SHA256: &str = "1d6d4a2937dca03dfe8f281c13481c9112b7317c389fc1226e6b78605c16ff45";
-const COVERAGE_SHA256: &str = "99f1a39b4f2e3066eef2fa62531231ccbfe583c866c05041292939c7c5d571f7";
+const COVERAGE_SHA256: &str = "e7946ca18c68e2b3143977c5a0e564d5d1e23ac2ccfe0bb640752a40e2385818";
 const NATIVE_PATHS: &[&str] = &[
     "crates/xtask/fixtures/F01.json",
     "docs/rust-rewrite/inventory/python-disposition.json",
@@ -167,7 +167,7 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
         .iter()
         .filter_map(|v| v.as_str().map(str::to_owned))
         .collect();
-    if tests.len() != 7 {
+    if tests.len() != 6 {
         return Err("A02 integration test inventory incomplete".into());
     }
     let mappings = coverage["source_tests"]
@@ -220,7 +220,16 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
         .iter()
         .filter_map(|v| v.as_str().map(str::to_owned))
         .collect();
-    if unit.len() != 1 {
+    let dockerhub_unit = BTreeSet::from([
+        "adapters::dockerhub::tests::default_route_scope_and_percent_encoding_match_source"
+            .to_owned(),
+    ]);
+    let pypi_unit = BTreeSet::from([
+        "http::pypi_operation_timeout_tests::pypi_uses_fresh_per_operation_timeouts_on_the_caller_pool"
+            .to_owned(),
+    ]);
+    let expected_unit: BTreeSet<String> = dockerhub_unit.union(&pypi_unit).cloned().collect();
+    if unit != expected_unit {
         return Err("A02 unit test inventory incomplete".into());
     }
     test_inventory(
@@ -233,7 +242,20 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
             "--lib",
             "adapters::dockerhub::",
         ],
-        &unit,
+        &dockerhub_unit,
+        records,
+    )?;
+    test_inventory(
+        root,
+        &[
+            "test",
+            "--locked",
+            "-p",
+            "ssx-infra",
+            "--lib",
+            "http::pypi_operation_timeout_tests::pypi_uses_fresh_per_operation_timeouts_on_the_caller_pool",
+        ],
+        &pypi_unit,
         records,
     )?;
     // F06 registry completeness remains separate from adapter factory availability.

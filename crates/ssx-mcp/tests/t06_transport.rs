@@ -5,6 +5,8 @@ mod comparison;
 mod fixture;
 #[path = "t06_support/server.rs"]
 mod private_valkey;
+#[path = "t06_support/wall_guard.rs"]
+mod wall_guard;
 use comparison::Comparison;
 use ssx_json::{Value, json};
 use ssx_mcp::{
@@ -474,7 +476,7 @@ async fn verify(client: &mut Client, fixture: Option<&fixture::Fixture>) -> Resu
 #[tokio::test]
 async fn full_frozen_subset_and_argument_calls_over_authenticated_http() -> Result<()> {
     let server = private_valkey::Server::start();
-    let fixture = fixture::Fixture::new(server.url(), false).await;
+    let fixture = fixture::Fixture::frozen(server.url(), false).await;
     let cancel = CancellationToken::new();
     let auth = NetworkAuth::Static(ssx_domain::oauth::Secret::new("t06-token".into()).unwrap());
     let router = http_router_for(
@@ -483,7 +485,7 @@ async fn full_frozen_subset_and_argument_calls_over_authenticated_http() -> Resu
         cancel.clone(),
     )
     .map(|r| auth.mount(r));
-    let host = Host::start(router, cancel).await?;
+    let host = Host::start(router, cancel.clone()).await?;
     let url = format!("http://{}/mcp", host.address);
     let http = reqwest::Client::builder().no_proxy().build()?;
     for token in [None, Some("wrong")] {
@@ -507,7 +509,7 @@ async fn full_frozen_subset_and_argument_calls_over_authenticated_http() -> Resu
         url,
         id: 0,
     };
-    let result = verify(&mut client, Some(&fixture)).await;
+    let result = wall_guard::run(verify(&mut client, Some(&fixture)), Some(cancel.clone())).await;
     client.stop().await?;
     host.shutdown().await?;
     fixture.service.shutdown().await;
@@ -517,7 +519,7 @@ async fn full_frozen_subset_and_argument_calls_over_authenticated_http() -> Resu
 async fn full_frozen_subset_and_argument_calls_over_native_stdio_process() -> Result<()> {
     let server = private_valkey::Server::start();
     let mut child = tokio::process::Command::new(env!("CARGO_BIN_EXE_search-qualification"))
-        .args(["stdio", server.url()])
+        .args(["stdio-frozen", server.url()])
         .env_clear()
         .env("PATH", "")
         .stdin(std::process::Stdio::piped())
@@ -552,7 +554,8 @@ async fn full_frozen_subset_and_argument_calls_over_native_stdio_process() -> Re
         dispatch_receipt: Box::new(redis::Client::open(server.url())?),
         id: 0,
     };
-    let result = verify(&mut client, None).await;
+    let result =
+        wall_guard::run_with_limit(verify(&mut client, None), None, Duration::from_secs(240)).await;
     client.stop().await?;
     result
 }
@@ -562,7 +565,7 @@ async fn full_frozen_subset_and_argument_calls_over_authenticated_legacy() -> Re
     use ssx_mcp::legacy::Legacy;
     use std::sync::Arc;
     let server = private_valkey::Server::start();
-    let fixture = fixture::Fixture::new(server.url(), false).await;
+    let fixture = fixture::Fixture::frozen(server.url(), false).await;
     let cancel = CancellationToken::new();
     let surface = fixture.surface.clone();
     let legacy = Legacy::with_factory(
@@ -574,7 +577,7 @@ async fn full_frozen_subset_and_argument_calls_over_authenticated_legacy() -> Re
     )?;
     let observed = legacy.clone();
     let auth = NetworkAuth::Static(ssx_domain::oauth::Secret::new("t06-token".into())?);
-    let host = Host::start(auth.mount(legacy.router("/sse")?), cancel).await?;
+    let host = Host::start(auth.mount(legacy.router("/sse")?), cancel.clone()).await?;
     let base = format!("http://{}", host.address);
     let http = reqwest::Client::builder().no_proxy().build()?;
     assert_eq!(http.get(format!("{base}/sse")).send().await?.status(), 401);
@@ -597,7 +600,7 @@ async fn full_frozen_subset_and_argument_calls_over_authenticated_legacy() -> Re
         pending,
         id: 0,
     };
-    let result = verify(&mut client, Some(&fixture)).await;
+    let result = wall_guard::run(verify(&mut client, Some(&fixture)), Some(cancel.clone())).await;
     client.stop().await?;
     host.shutdown().await?;
     assert_eq!(observed.available_permits(), 128);

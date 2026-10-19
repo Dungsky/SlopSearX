@@ -3,6 +3,8 @@
 mod fixture;
 #[path = "../../tests/t06_support/observer.rs"]
 mod observer;
+#[path = "../../tests/t06_support/wall_guard.rs"]
+mod wall_guard;
 use ssx_mcp::{Result, search_surface::SearchSurface};
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -15,7 +17,9 @@ async fn main() -> Result<()> {
                 .into(),
         ),
     };
-    if mode != "stdio" {
+    if !matches!(mode.as_str(), "stdio" | "stdio-frozen")
+        || (mode == "stdio-frozen" && endpoint.is_some())
+    {
         return Err("qualification requires stdio".into());
     }
     // Accept only this test suite's exclusive private directory, including a
@@ -107,22 +111,32 @@ async fn main() -> Result<()> {
                 })
             })
             .collect::<Result<Vec<_>>>()?;
-        fixture::Fixture::with_engines(url, false, engines).await
+        if mode == "stdio-frozen" {
+            fixture::Fixture::frozen(url, false).await
+        } else {
+            fixture::Fixture::with_engines(url, false, engines).await
+        }
     };
     let receipts = endpoint
         .is_none()
         .then(|| observer::DispatchReceipts::new(fixture.engines.clone(), dispatch_receipt));
     let surface = fixture.surface.clone();
-    ssx_mcp::opaque::stdio_with_factory(
+    let cancel = tokio_util::sync::CancellationToken::new();
+    let serving = ssx_mcp::opaque::stdio_with_factory_owned(
         move |wire| observer::ObservedSurface {
             inner: surface.bind_connection(wire, None),
             receipts,
         },
         SearchSurface::catalogs(),
-    )
-    .await?;
+        cancel.clone(),
+    );
+    let result = if mode == "stdio-frozen" {
+        wall_guard::run_owned(serving, cancel).await
+    } else {
+        serving.await
+    };
     fixture.service.shutdown().await;
-    Ok(())
+    result
 }
 
 #[cfg(test)]

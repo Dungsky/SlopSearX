@@ -15,6 +15,8 @@ use std::{
     sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
+#[path = "../../../../docs/rust-rewrite/a13/source-amendments/validator.rs"]
+mod source_amendment;
 pub const KEY: &str = "synthetic-a13-key";
 pub const HIBP_BODY: &[u8] = br#"[{"Name":"FabricatedBreach","Domain":"fabricated.example.test","BreachDate":"2024-01-02","PwnCount":1234567,"DataClasses":["Synthetic email","Synthetic password"],"Description":"Synthetic description."}]"#;
 pub const INTELX_BODY: &[u8] = br#"{"records":[{"record":{"systemid":"synthetic-system","name":"Synthetic record","type":2,"date":"2024-02-03T00:00:00Z","preview":"Synthetic preview","bucket":"synthetic.bucket"}}]}"#;
@@ -943,6 +945,7 @@ pub fn inventory(engine: &str) {
     use sha2::{Digest, Sha256};
     use std::collections::BTreeSet;
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    source_amendment::rejects_mutants(&root).unwrap();
     let bytes =
         std::fs::read(root.join("docs/rust-rewrite/a13/remaining/source-map.json")).unwrap();
     let digest = |bytes: &[u8]| {
@@ -1034,10 +1037,15 @@ pub fn inventory(engine: &str) {
     for source in map["sources"].as_array().unwrap() {
         let p = source["path"].as_str().unwrap();
         assert!(seen.insert(p));
-        assert_eq!(
-            source["sha256"],
-            digest(&std::fs::read(root.join(p)).unwrap())
-        );
+        source_amendment::verify(
+            &root,
+            "docs/rust-rewrite/a13/remaining/source-map.json",
+            "af359782abc772c727a885e66a87d519aea5393bcec31e0e105b2de46a8c5d22",
+            p,
+            source["sha256"].as_str().unwrap(),
+            source["bytes"].as_u64().map(|bytes| bytes as usize),
+        )
+        .unwrap();
     }
     assert_eq!(seen, expected);
     let originals = map["original_tests"].as_array().unwrap();

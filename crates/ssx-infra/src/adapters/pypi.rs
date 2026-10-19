@@ -74,7 +74,9 @@ impl PyPIAdapter {
                     follow_redirects,
                     ..Options::default()
                 },
-                tokio::time::Instant::now() + Duration::from_millis(self.config.timeout_ms),
+                tokio::time::Instant::from_std(
+                    self.http.deadline_now() + Duration::from_millis(self.config.timeout_ms),
+                ),
                 Cancellation::default(),
             )
             .map_err(|_| error("HTTP session unavailable"))
@@ -142,9 +144,9 @@ impl PyPIAdapter {
         for name in matched {
             // Every failed detail lookup is skipped, without replacing the candidate.
             let result = async {
-                fallback.set_deadline(
-                    tokio::time::Instant::now() + Duration::from_millis(self.config.timeout_ms),
-                );
+                fallback.set_deadline(tokio::time::Instant::from_std(
+                    self.http.deadline_now() + Duration::from_millis(self.config.timeout_ms),
+                ));
                 let response = fallback
                     .execute(outbound(&format!("{base}/pypi/{name}/json"))?)
                     .await

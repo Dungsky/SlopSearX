@@ -332,33 +332,6 @@ async fn pubchem_second_request_renewal_and_pubmed_pipeline_cannot_extend_contex
         assert!(server_join.unwrap().is_ok());
     }
 }
-#[tokio::test]
-async fn queue_time_consumes_absolute_context_instead_of_original_request_timeout() {
-    let (base, seen, task) = server(vec![(
-        r#"{"studies":[]}"#.into(),
-        Duration::from_millis(100),
-    )])
-    .await;
-    let http = Arc::new(AdapterHttp::default());
-    let engine = adapter(
-        "clinicaltrials",
-        http.clone(),
-        Arc::new(AllowAllAdmission),
-        BiomedicalConfig::defaults(&base),
-    );
-    let start = Instant::now();
-    let context = SearchContext {
-        deadline: start + Duration::from_millis(70),
-    };
-    tokio::time::sleep(Duration::from_millis(35)).await;
-    let out = engine.search_with_context(&request(), context).await;
-    assert_eq!(out.status, EngineStatus::Timeout);
-    assert!(start.elapsed() < Duration::from_millis(180));
-    assert_eq!(seen.lock().unwrap().len(), 1);
-    task.abort();
-    let _ = task.await;
-    http.shutdown_and_wait().await;
-}
 struct SlowAdmission;
 impl SearchAdmission for SlowAdmission {
     fn admit<'a>(&'a self, _: &'static str) -> PortFuture<'a, AdmissionDecision> {

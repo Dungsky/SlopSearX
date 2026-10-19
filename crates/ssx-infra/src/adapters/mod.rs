@@ -665,6 +665,8 @@ pub(crate) fn html_extract_rows(
 pub mod http_charset;
 pub mod http_headers;
 // A07 native biomedical implementations; selection remains resolved policy.
+#[cfg(test)]
+mod a07_matrix_replay;
 pub mod clinicaltrials;
 pub mod europepmc;
 pub mod pubchem;
