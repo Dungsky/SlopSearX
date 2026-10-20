@@ -308,3 +308,5 @@ EXP-119 readout:not-supported at development. Metadata-conditioned selector nP@5
 - [2026-10-18 delivery](daily-delivery-2026-10-18.md): refreshed and reviewed existing warning fix [#1014](https://github.com/magnus919/SlopSearX/pull/1014); local T06/F01/O06 passed, fresh ARM CI reproduced the unresolved tiny-deadline mismatch [#1010](https://github.com/magnus919/SlopSearX/issues/1010). Implementation remains open/unmerged; no product change claimed.
 
 - [2026-10-19 delivery](daily-delivery-2026-10-19.md): integrated the accepted deadline/session qualification corrections into [#1014](https://github.com/magnus919/SlopSearX/pull/1014). Prior failure gates passed on both architectures; full AMD64 CI passed, ARM hit the60-minute job timeout. [CI prerequisite1030](https://github.com/magnus919/SlopSearX/issues/1030); implementation retained/open, no runtime change to main.
+
+- [2026-10-20 delivery closeout](daily-delivery-2026-10-20.md): verified #1014 merged as `ff3a6ede` after #1033 resolved the CI budget prerequisite; both architecture jobs and applicable checks passed. Prior blocked records remain historical. No new implementation or trial today.
