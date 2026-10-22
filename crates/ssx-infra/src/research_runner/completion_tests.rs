@@ -38,10 +38,9 @@ impl Server {
         bytes[6] = (bytes[6] & 15) | 64;
         bytes[8] = (bytes[8] & 63) | 128;
         let id: String = bytes.iter().map(|b| format!("{b:02x}")).collect();
-        #[cfg(target_os = "macos")]
-        let base = PathBuf::from("/private/tmp");
-        #[cfg(not(target_os = "macos"))]
-        let base = std::env::temp_dir();
+        let base = std::env::var_os("SLOPSEARX_TEST_TEMP_ROOT")
+            .map(PathBuf::from)
+            .unwrap_or_else(std::env::temp_dir);
         let dir = base.join(format!("ssx-w02-{id}"));
         use std::os::unix::{ffi::OsStrExt, fs::PermissionsExt};
         assert!(dir.join("s.sock").as_os_str().as_bytes().len() < 104);

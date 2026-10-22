@@ -168,6 +168,14 @@ const ARTIFACTS: &[(&str, &str)] = &[
         "docs/rust-rewrite/a06/source-payload-controls.json",
         "293796c517e7c6f41d9c427e76f2af1f892edd208f276a93af305a63b6d0e69e",
     ),
+    (
+        "docs/rust-rewrite/a07/source-amendments/pubchem-independent-budget-original-v1.json",
+        "25418d4e67381955d14275e37f9c52b2eafde81c3ee372ca2473017d73f52f96",
+    ),
+    (
+        "docs/rust-rewrite/a07/source-amendments/pubchem-independent-budget-owner-clock-v1.json",
+        "c2961952a5b8e0bdc0fbad51dabdb4227cac9c119378af009a3bda5f14fc9fa3",
+    ),
 ];
 
 fn digest(bytes: &[u8]) -> String {
@@ -260,8 +268,94 @@ fn verify_executed(output: &str, expected: &BTreeSet<String>) -> Result<()> {
         "A07 listed native tests were missing, ignored, or did not pass",
     )
 }
+
+fn pubchem_clock_binding(
+    amendment: &Value,
+    available: &BTreeMap<(String, String), BTreeSet<String>>,
+) -> Result<()> {
+    require(
+        amendment["schema"] == "slopsearx.a07.explicit-pubchem-budget-control.v1",
+        "A07 PubChem amendment schema",
+    )?;
+    let integration = amendment["original_integration19"]
+        .as_array()
+        .ok_or("A07 original19 inventory absent")?;
+    let expected: BTreeSet<String> = integration
+        .iter()
+        .map(|n| {
+            n.as_str()
+                .map(str::to_owned)
+                .ok_or("A07 malformed original19 identity")
+        })
+        .collect::<std::result::Result<_, _>>()?;
+    require(
+        integration.len() == 19
+            && expected.len() == 19
+            && available.get(&("ssx-infra".into(), "test:a07_biomedical".into()))
+                == Some(&expected),
+        "A07 original19 integration identities changed",
+    )?;
+    let controls = amendment["original_resource17"]
+        .as_array()
+        .ok_or("A07 original17 controls absent")?;
+    let mut distinct = BTreeSet::new();
+    for name in controls {
+        let name = name.as_str().ok_or("A07 malformed original17 identity")?;
+        require(distinct.insert(name), "A07 duplicate original17 identity")?;
+        exact_test_present(
+            &json!({"package":"ssx-infra","target":"lib","qualified_name":name}),
+            available,
+        )?;
+    }
+    require(
+        distinct.len() == 17,
+        "A07 original17 resource controls changed",
+    )?;
+    require(
+        amendment["private_control"]
+            == json!({"package":"ssx-infra","target":"lib","qualified_name":"adapters::clinicaltrials::resource_tests::pubchem_second_request_renews_500ms_budget_on_the_same_manual_owner"}),
+        "A07 PubChem private control aliased",
+    )?;
+    exact_test_present(&amendment["private_control"], available)
+}
+
 pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
     verify(root, ARTIFACTS)?;
+    let pubchem_amendment: Value = serde_json::from_slice(&fs::read(root.join("docs/rust-rewrite/a07/source-amendments/pubchem-independent-budget-owner-clock-v1.json" )).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
+    let pubchem_original: Value = serde_json::from_slice(
+        &fs::read(root.join(
+            "docs/rust-rewrite/a07/source-amendments/pubchem-independent-budget-original-v1.json",
+        ))
+        .map_err(|e| e.to_string())?,
+    )
+    .map_err(|e| e.to_string())?;
+    let original = pubchem_original["original_source_utf8"]
+        .as_str()
+        .ok_or("A07 frozen PubChem source absent")?;
+    require(
+        digest(original.as_bytes())
+            == pubchem_amendment["original_source_sha256"]
+                .as_str()
+                .ok_or("A07 original PubChem SHA absent")?,
+        "A07 frozen PubChem source changed",
+    )?;
+    for row in pubchem_amendment["candidate_sources"]
+        .as_array()
+        .ok_or("A07 PubChem current source inventory absent")?
+    {
+        let path = row["path"]
+            .as_str()
+            .ok_or("A07 PubChem source path absent")?;
+        let bytes = fs::read(root.join(path)).map_err(|e| e.to_string())?;
+        require(
+            bytes.len() as u64
+                == row["bytes"]
+                    .as_u64()
+                    .ok_or("A07 PubChem source size absent")?
+                && Some(digest(&bytes).as_str()) == row["sha256"].as_str(),
+            "A07 PubChem candidate source drift",
+        )?;
+    }
     let ids = primary_ids(root)?;
     let coverage: Value = serde_json::from_slice(
         &fs::read(root.join("docs/rust-rewrite/a07/coverage.json")).map_err(|e| e.to_string())?,
@@ -351,6 +445,20 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
         require(!names.is_empty(), "A07 native binary contains no tests")?;
         available.insert((package.to_owned(), target.to_owned()), names);
     }
+    pubchem_clock_binding(&pubchem_amendment, &available)?;
+    let mut missing_pubchem_control = available.clone();
+    missing_pubchem_control.get_mut(&("ssx-infra".into(), "lib".into())).ok_or("A07 lib inventory absent")?.remove("adapters::clinicaltrials::resource_tests::pubchem_second_request_renews_500ms_budget_on_the_same_manual_owner");
+    require(
+        pubchem_clock_binding(&pubchem_amendment, &missing_pubchem_control).is_err(),
+        "A07 missing private PubChem control accepted",
+    )?;
+    let mut aliased_pubchem = pubchem_amendment.clone();
+    aliased_pubchem["private_control"]["qualified_name"] =
+        json!("alias_not_the_owner_clock_control");
+    require(
+        pubchem_clock_binding(&aliased_pubchem, &available).is_err(),
+        "A07 aliased private PubChem control accepted",
+    )?;
     for mapping in coverage["regression_mapping"]
         .as_array()
         .ok_or("A07 mappings missing")?
