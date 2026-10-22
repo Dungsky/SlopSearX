@@ -22,6 +22,22 @@ const AMENDED_PATHS: [&str; 9] = [
     "crates/ssx-infra/src/search_deadline_drain_tests.rs",
     "crates/xtask/src/a09.rs",
 ];
+const LOCK_MANIFEST_PATH: &str =
+    "docs/rust-rewrite/a13/source-amendments/a13-security-lock-amendment-v1.json";
+const LOCK_MANIFEST_SHA256: &str =
+    "e0186db3ff2ef6db560b4e8b75c70b094987ff68b72d780844a5ba81588e9bb3";
+const LOCK_AMENDED_PATHS: [&str; 10] = [
+    "crates/ssx-infra/src/http.rs",
+    "crates/ssx-infra/tests/a13_dehashed.rs",
+    "crates/ssx-infra/tests/a13_remaining_fixture/mod.rs",
+    "crates/xtask/src/a11.rs",
+    "crates/ssx-infra/src/adapters/clinicaltrials.rs",
+    "crates/ssx-infra/src/adapters/mod.rs",
+    "crates/ssx-infra/src/search.rs",
+    "crates/ssx-infra/src/search_deadline_drain_tests.rs",
+    "crates/xtask/src/a09.rs",
+    "Cargo.lock",
+];
 
 fn digest(bytes: &[u8]) -> String {
     Sha256::digest(bytes)
@@ -152,6 +168,109 @@ fn verify_payload(check: PinCheck<'_>) -> Result<(), String> {
     )
 }
 
+fn replace_lock_package(
+    lock: &str,
+    name: &str,
+    old_version: &str,
+    new_version: &str,
+    old_checksum: &str,
+    new_checksum: &str,
+) -> Result<String, String> {
+    let blocks: Vec<&str> = lock.split("[[package]]\n").collect();
+    let mut found = 0;
+    let mut result = String::new();
+    for (index, block) in blocks.iter().enumerate() {
+        if index > 0 {
+            result.push_str("[[package]]\n");
+        }
+        let name_line = format!(r#"name = "{name}""#);
+        if block.lines().any(|line| line == name_line) {
+            found += 1;
+            let old_ver = format!(r#"version = "{old_version}""#);
+            let new_ver = format!(r#"version = "{new_version}""#);
+            let old_sum = format!(r#"checksum = "{old_checksum}""#);
+            let new_sum = format!(r#"checksum = "{new_checksum}""#);
+            let registry = r#"source = "registry+https://github.com/rust-lang/crates.io-index""#;
+            require(
+                block.matches(&name_line).count() == 1
+                    && block.matches(&old_ver).count() == 1
+                    && block.matches(&old_sum).count() == 1
+                    && block.matches(registry).count() == 1,
+                "A13 lock archived package identity differs",
+            )?;
+            let changed = block
+                .replace(&old_ver, &new_ver)
+                .replace(&old_sum, &new_sum);
+            require(
+                changed.matches(&new_ver).count() == 1 && changed.matches(&new_sum).count() == 1,
+                "A13 lock package replacement ambiguous",
+            )?;
+            result.push_str(&changed);
+        } else {
+            result.push_str(block);
+        }
+    }
+    require(found == 1, "A13 lock package missing/duplicate")?;
+    Ok(result)
+}
+
+fn verify_lock_reconstruction(archive: &[u8], current: &[u8]) -> Result<(), String> {
+    let old = std::str::from_utf8(archive).map_err(|error| error.to_string())?;
+    let current = std::str::from_utf8(current).map_err(|error| error.to_string())?;
+    let first = replace_lock_package(
+        old,
+        "rustls-webpki",
+        "0.103.15",
+        "0.103.16",
+        "f3c3cf1d8b1e7d4927e2d154c3fcb02979afb9939629c62cd9048d4f07b60ac2",
+        "4443b1b6d39d7c663139942cc4558262562d2c84123bb6282ef177009ca8b281",
+    )?;
+    let expected = replace_lock_package(
+        &first,
+        "webpki-root-certs",
+        "1.0.9",
+        "1.0.10",
+        "b96554aa2acc8ccdb7e1c9a58a7a68dd5d13bccc69cd124cb09406db612a1c9b",
+        "58ec80e73fd8baf57bf0d9615554c75348bda990d6d5bbeab964dd068319fecb",
+    )?;
+    require(
+        expected.as_bytes() == current.as_bytes(),
+        "A13 Cargo.lock contains an unapproved delta",
+    )
+}
+
+fn read_archive(root: &Path, rel: &str) -> Result<(std::path::PathBuf, Vec<u8>), String> {
+    let rel_path = Path::new(rel);
+    require(
+        !rel_path.is_absolute() && !rel.split('/').any(|part| part == ".."),
+        "A13 archive path escapes repository",
+    )?;
+    let path = root.join(rel_path);
+    let bytes = fs::read(&path).map_err(|error| format!("{}: {error}", path.display()))?;
+    Ok((path, bytes))
+}
+
+fn validate_lock_scope(sidecar: &Value, v5: &Value) -> Result<(), String> {
+    require(
+        sidecar["kind"] == "A13_SECURITY_LOCK_AMENDMENT_V1"
+            && sidecar["predecessor_manifest"]["path"] == MANIFEST_PATH
+            && sidecar["predecessor_manifest"]["sha256"] == MANIFEST_SHA256
+            && sidecar["amended_source_paths"] == serde_json::json!(LOCK_AMENDED_PATHS),
+        "A13 security lock sidecar identity/scope changed",
+    )?;
+    let amendments = sidecar["amendments"]
+        .as_array()
+        .ok_or("A13 lock amendments absent")?;
+    let prior = v5["amendments"].as_array().ok_or("A13 V5 prefix absent")?;
+    require(
+        prior.len() == 9
+            && amendments.len() == 10
+            && amendments[..9] == prior[..]
+            && amendments[9]["source_path"] == "Cargo.lock",
+        "A13 security lock sidecar changed V5 prefix",
+    )
+}
+
 fn verify_previous_successor(
     root: &Path,
     amendment: &Value,
@@ -177,8 +296,7 @@ fn verify_previous_successor(
             && amendment["successor"]["predecessor_sha256"] == previous["sha256"],
         "A13 predecessor archive identity differs",
     )?;
-    let archive_path = root.join(rel_path);
-    let disk_bytes = fs::read(&archive_path).map_err(|error| error.to_string())?;
+    let (archive_path, disk_bytes) = read_archive(root, rel)?;
     let bytes = override_bytes.unwrap_or(&disk_bytes);
     require(
         previous["mode"] == mode(&archive_path)?
@@ -281,6 +399,56 @@ fn rejects_clinicaltrials_mutants(root: &Path) -> Result<(), String> {
     )
 }
 
+struct SecurityLockContext<'a> {
+    v5: &'a Value,
+    container_path: &'a str,
+    container_sha: &'a str,
+    container: &'a [u8],
+    historical_sha: &'a str,
+    historical_bytes: Option<usize>,
+    current: &'a [u8],
+    current_path: &'a Path,
+}
+
+fn verify_security_lock(root: &Path, context: SecurityLockContext<'_>) -> Result<(), String> {
+    let SecurityLockContext {
+        v5,
+        container_path,
+        container_sha,
+        container,
+        historical_sha,
+        historical_bytes,
+        current,
+        current_path,
+    } = context;
+    let sidecar_bytes = fs::read(root.join(LOCK_MANIFEST_PATH)).map_err(|e| e.to_string())?;
+    require(
+        digest(&sidecar_bytes) == LOCK_MANIFEST_SHA256,
+        "A13 security lock sidecar changed",
+    )?;
+    let sidecar: Value = serde_json::from_slice(&sidecar_bytes).map_err(|e| e.to_string())?;
+    validate_lock_scope(&sidecar, v5)?;
+    let amendment = &sidecar["amendments"][9];
+    let rel = amendment["archive"]["path"]
+        .as_str()
+        .ok_or("A13 security archive path absent")?;
+    let (archive_path, archive) = read_archive(root, rel)?;
+    verify_payload(PinCheck {
+        amendment,
+        container_path,
+        container_sha,
+        container_bytes: container,
+        source_path: "Cargo.lock",
+        historical_sha,
+        historical_bytes,
+        current_bytes: current,
+        archive_bytes: &archive,
+        current_mode: &mode(current_path)?,
+        archive_mode: &mode(&archive_path)?,
+    })?;
+    verify_lock_reconstruction(&archive, current)
+}
+
 pub fn verify(
     root: &Path,
     container_path: &str,
@@ -364,8 +532,7 @@ pub fn verify(
         let archive_path = amendment["archive"]["path"]
             .as_str()
             .ok_or("A13 archive path absent")?;
-        let archive_file = root.join(archive_path);
-        let archive = fs::read(&archive_file).map_err(|error| error.to_string())?;
+        let (archive_file, archive) = read_archive(root, archive_path)?;
         verify_payload(PinCheck {
             amendment,
             container_path,
@@ -380,6 +547,21 @@ pub fn verify(
             archive_mode: &mode(&archive_file)?,
         })?;
         return verify_previous_successor(root, amendment, None);
+    }
+    if source_path == "Cargo.lock" {
+        return verify_security_lock(
+            root,
+            SecurityLockContext {
+                v5: &manifest,
+                container_path,
+                container_sha,
+                container: &container,
+                historical_sha,
+                historical_bytes,
+                current: &current,
+                current_path: &current_path,
+            },
+        );
     }
     require(
         !AMENDED_PATHS.contains(&source_path)
@@ -525,6 +707,8 @@ pub fn rejects_mutants(root: &Path) -> Result<(), String> {
         ),
         "A13 path substitution was accepted",
     )?;
+    let v5: Value = serde_json::from_slice(&manifest_bytes).map_err(|e| e.to_string())?;
+    rejects_lock_mutants(root, &v5)?;
     manifest["amended_source_paths"]
         .as_array_mut()
         .unwrap()
@@ -558,6 +742,172 @@ pub fn rejects_mutants(root: &Path) -> Result<(), String> {
         validate_scope(&manifest).is_err(),
         "A13 unlisted amendment was accepted",
     )
+}
+
+#[cfg(test)]
+fn rejects_lock_mutants(root: &Path, v5: &Value) -> Result<(), String> {
+    let bytes = fs::read(root.join(LOCK_MANIFEST_PATH)).map_err(|e| e.to_string())?;
+    require(
+        digest(&bytes) == LOCK_MANIFEST_SHA256,
+        "A13 lock test sidecar hash changed",
+    )?;
+    let sidecar: Value = serde_json::from_slice(&bytes).map_err(|e| e.to_string())?;
+    validate_lock_scope(&sidecar, v5)?;
+    let lock = &sidecar["amendments"][9];
+    let rel = lock["archive"]["path"]
+        .as_str()
+        .ok_or("A13 lock archive path absent")?;
+    let (archive_path, archive) = read_archive(root, rel)?;
+    let current_path = root.join("Cargo.lock");
+    let current = fs::read(&current_path).map_err(|e| e.to_string())?;
+    verify_lock_reconstruction(&archive, &current)?;
+    let absent = format!("{rel}.a13-test-absent");
+    require(
+        !root.join(&absent).exists(),
+        "A13 test missing-archive path unexpectedly exists",
+    )?;
+    require(
+        read_archive(root, &absent).is_err(),
+        "A13 production archive reader accepted missing archive",
+    )?;
+    for pin in lock["historical_pins"]
+        .as_array()
+        .ok_or("A13 lock pins absent")?
+    {
+        let cp = pin["container_path"]
+            .as_str()
+            .ok_or("A13 container path absent")?;
+        let container_path = root.join(cp);
+        let container = fs::read(&container_path).map_err(|e| e.to_string())?;
+        let check = |entry: &Value, path: &str, bytes: &[u8], archive_bytes: &[u8]| {
+            verify_payload(PinCheck {
+                amendment: entry,
+                container_path: path,
+                container_sha: pin["container_sha256"].as_str().unwrap(),
+                container_bytes: bytes,
+                source_path: "Cargo.lock",
+                historical_sha: pin["source_sha256"].as_str().unwrap(),
+                historical_bytes: pin["source_bytes"].as_u64().map(|v| v as usize),
+                current_bytes: &current,
+                archive_bytes,
+                current_mode: &mode(&current_path)?,
+                archive_mode: &mode(&archive_path)?,
+            })
+        };
+        require(
+            check(lock, cp, &container, &archive).is_ok(),
+            "A13 lock positive container control failed",
+        )?;
+        let wrong = if cp == "docs/rust-rewrite/a09/coverage.json" {
+            "docs/rust-rewrite/a10/qualification.json"
+        } else {
+            "docs/rust-rewrite/a09/coverage.json"
+        };
+        require(
+            check(lock, wrong, &container, &archive).is_err(),
+            "A13 wrong lock container path accepted",
+        )?;
+        let mut bad_container = container.clone();
+        bad_container.push(0);
+        require(
+            check(lock, cp, &bad_container, &archive).is_err(),
+            "A13 changed lock container accepted",
+        )?;
+        let mut bad_archive = archive.clone();
+        bad_archive.push(0);
+        require(
+            check(lock, cp, &container, &bad_archive).is_err(),
+            "A13 changed lock archive accepted",
+        )?;
+    }
+    let current_text = std::str::from_utf8(&current).map_err(|e| e.to_string())?;
+    let rollback_first = replace_lock_package(
+        current_text,
+        "rustls-webpki",
+        "0.103.16",
+        "0.103.15",
+        "4443b1b6d39d7c663139942cc4558262562d2c84123bb6282ef177009ca8b281",
+        "f3c3cf1d8b1e7d4927e2d154c3fcb02979afb9939629c62cd9048d4f07b60ac2",
+    )?;
+    require(
+        verify_lock_reconstruction(&archive, rollback_first.as_bytes()).is_err(),
+        "A13 first lock package rollback accepted",
+    )?;
+    let rollback_second = replace_lock_package(
+        current_text,
+        "webpki-root-certs",
+        "1.0.10",
+        "1.0.9",
+        "58ec80e73fd8baf57bf0d9615554c75348bda990d6d5bbeab964dd068319fecb",
+        "b96554aa2acc8ccdb7e1c9a58a7a68dd5d13bccc69cd124cb09406db612a1c9b",
+    )?;
+    require(
+        verify_lock_reconstruction(&archive, rollback_second.as_bytes()).is_err(),
+        "A13 second lock package rollback accepted",
+    )?;
+    let third = replace_lock_package(
+        current_text,
+        "adler2",
+        "2.0.1",
+        "2.0.2",
+        "320119579fcad9c21884f5c4861d16174d0e06250625266f50fe6898340abefa",
+        "1111111111111111111111111111111111111111111111111111111111111111",
+    )?;
+    let third_bytes = third.as_bytes();
+    let mut adjusted = lock.clone();
+    adjusted["successor"]["sha256"] = serde_json::json!(digest(third_bytes));
+    adjusted["successor"]["bytes"] = serde_json::json!(third_bytes.len());
+    let pin = &lock["historical_pins"][0];
+    let cp = pin["container_path"].as_str().unwrap();
+    let container = fs::read(root.join(cp)).map_err(|e| e.to_string())?;
+    require(
+        verify_payload(PinCheck {
+            amendment: &adjusted,
+            container_path: cp,
+            container_sha: pin["container_sha256"].as_str().unwrap(),
+            container_bytes: &container,
+            source_path: "Cargo.lock",
+            historical_sha: pin["source_sha256"].as_str().unwrap(),
+            historical_bytes: pin["source_bytes"].as_u64().map(|v| v as usize),
+            current_bytes: third_bytes,
+            archive_bytes: &archive,
+            current_mode: &mode(&current_path)?,
+            archive_mode: &mode(&archive_path)?,
+        })
+        .is_ok(),
+        "A13 adjusted third-package generic pins failed to demonstrate the gap",
+    )?;
+    require(
+        verify_lock_reconstruction(&archive, third_bytes).is_err(),
+        "A13 third-package mutation accepted by exact reconstruction",
+    )?;
+    let mut changed = sidecar.clone();
+    changed["amendments"][0]["successor"]["sha256"] = serde_json::json!("mutated");
+    require(
+        validate_lock_scope(&changed, v5).is_err(),
+        "A13 changed V5 prefix accepted",
+    )?;
+    let mut removed = sidecar.clone();
+    removed["amendments"].as_array_mut().unwrap().remove(0);
+    removed["amended_source_paths"]
+        .as_array_mut()
+        .unwrap()
+        .remove(0);
+    require(
+        validate_lock_scope(&removed, v5).is_err(),
+        "A13 removed prior V5 entry accepted",
+    )?;
+    let mut missing = sidecar.clone();
+    missing["amendments"].as_array_mut().unwrap().pop();
+    missing["amended_source_paths"]
+        .as_array_mut()
+        .unwrap()
+        .pop();
+    require(
+        validate_lock_scope(&missing, v5).is_err(),
+        "A13 missing security lock amendment accepted",
+    )?;
+    Ok(())
 }
 
 #[cfg(test)]
