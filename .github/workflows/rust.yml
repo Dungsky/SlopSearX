@@ -25,6 +25,8 @@ jobs:
     env:
       CARGO_TERM_COLOR: always
       RUST_BACKTRACE: 1
+      CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER: /usr/bin/env -u SSL_CERT_FILE -u SSL_CERT_DIR
+      CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_RUNNER: /usr/bin/env -u SSL_CERT_FILE -u SSL_CERT_DIR
     steps:
       - uses: actions/checkout@v7
         with:
@@ -109,7 +111,7 @@ jobs:
         run: cargo clippy --locked --workspace --all-targets -- -D warnings
 
       - name: Workspace tests, including xtask
-        run: env -u SSL_CERT_FILE -u SSL_CERT_DIR cargo test --locked --workspace
+        run: cargo test --locked --workspace
 
       - name: Linux held-writer interpreter mutation control
         timeout-minutes: 10
@@ -305,7 +307,7 @@ jobs:
           fi
 
       - name: Foundation lane evidence
-        run: env -u SSL_CERT_FILE -u SSL_CERT_DIR cargo xtask check F03 --output target/rust-evidence/F03.json
+        run: cargo xtask check F03 --output target/rust-evidence/F03.json
 
       - name: Portable replay and differential evidence
         run: cargo xtask check F04 --output target/rust-evidence/F04.json
@@ -405,7 +407,7 @@ jobs:
         run: cargo xtask check A07 --output target/rust-evidence/A07.json
 
       - name: Native regulatory financial and legal adapters
-        run: env -u SSL_CERT_FILE -u SSL_CERT_DIR cargo xtask check A08 --output target/rust-evidence/A08.json
+        run: cargo xtask check A08 --output target/rust-evidence/A08.json
 
       - name: Native catalog media geocoding and archive adapters
         run: cargo xtask check A09 --output target/rust-evidence/A09.json
