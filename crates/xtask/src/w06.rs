@@ -248,6 +248,16 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
     for (path, expected) in &qualification.owned_sources {
         if path == "crates/ssx-application/src/lib.rs" {
             super::w06_source_amendment::verify(root, expected, records)?;
+        } else if path == "Cargo.lock" {
+            crate::a13::check_source_pin(
+                root,
+                "docs/rust-rewrite/w06/qualification.json",
+                COVERAGE_SHA,
+                path,
+                expected,
+                None,
+            )
+            .map_err(|error| format!("W06 Cargo.lock source provenance: {error}"))?;
         } else {
             frozen(root, path, expected)?;
         }
