@@ -372,21 +372,184 @@ async fn context_bounds_admission_wait_before_any_provider_request() {
 }
 #[tokio::test]
 async fn real_f14_service_context_reaches_pubchem_second_request_and_keeps_synthetic_origin() {
-    use ssx_application::{cache::RoutingIdentity, policy::*, scope::*};
+    use ssx_application::{cache::RoutingIdentity, health::OutcomeOrigin, policy::*, scope::*};
     use ssx_infra::search::*;
-    use std::collections::BTreeMap;
-    let (base, seen, task) = server(vec![
-        (PC_SEARCH.into(), Duration::from_millis(15)),
-        (PC_DETAIL.into(), Duration::from_millis(120)),
-    ])
-    .await;
+    use std::{collections::BTreeMap, future::Future, task::Poll};
+
+    // Only the trusted service owner is driven. The real AdapterHttp and its
+    // absolute context/parser/network clocks remain System. A future anchor
+    // keeps that context live while bounded real loopback stages run; this is
+    // an 80ms logical service deadline control, not an 80ms wall-time claim.
+    struct OwnerClock(tokio::sync::watch::Sender<tokio::time::Instant>);
+    impl OwnerClock {
+        fn advance_to(&self, now: tokio::time::Instant) {
+            assert!(now >= *self.0.borrow());
+            let _ = self.0.send_replace(now);
+        }
+    }
+    impl SearchDeadlineClock for OwnerClock {
+        fn now(&self) -> tokio::time::Instant {
+            *self.0.borrow()
+        }
+        fn sleep_until(&self, deadline: tokio::time::Instant) -> PortFuture<'_, ()> {
+            Box::pin(async move {
+                let mut now = self.0.subscribe();
+                loop {
+                    if *now.borrow_and_update() >= deadline {
+                        return;
+                    }
+                    now.changed().await.expect("fixture owner retained");
+                }
+            })
+        }
+    }
+    struct ContextForwarder {
+        engine: Arc<dyn SearchEngine>,
+        deadlines: Arc<Mutex<Vec<Instant>>>,
+        legacy: Arc<std::sync::atomic::AtomicUsize>,
+    }
+    impl SearchEngine for ContextForwarder {
+        fn search<'a>(
+            &'a self,
+            request: &'a SearchRequest,
+        ) -> PortFuture<'a, ssx_domain::AdapterResponse> {
+            self.legacy
+                .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            self.engine.search(request)
+        }
+        fn search_with_context<'a>(
+            &'a self,
+            request: &'a SearchRequest,
+            context: SearchContext,
+        ) -> PortFuture<'a, ssx_domain::AdapterResponse> {
+            self.deadlines.lock().unwrap().push(context.deadline);
+            self.engine.search_with_context(request, context)
+        }
+    }
+    #[derive(Default)]
+    struct Observations(Mutex<Vec<(String, EngineStatus, bool, OutcomeOrigin)>>);
+    impl ssx_application::Metrics for Observations {
+        fn increment(&self, _: &'static str) {}
+        fn engine_outcome(
+            &self,
+            name: &str,
+            response: &ssx_domain::AdapterResponse,
+            origin: OutcomeOrigin,
+        ) {
+            self.0.lock().unwrap().push((
+                name.into(),
+                response.status.clone(),
+                response.synthetic,
+                origin,
+            ));
+        }
+    }
+    async fn request_headers(stream: &mut tokio::net::TcpStream) -> Result<String, String> {
+        let mut bytes = Vec::new();
+        loop {
+            let mut buf = [0; 1024];
+            let n = stream.read(&mut buf).await.map_err(|e| e.to_string())?;
+            if n == 0 {
+                return Err("EOF before complete request headers".into());
+            }
+            bytes.extend_from_slice(&buf[..n]);
+            if bytes.len() > 8192 {
+                return Err("fixture request headers exceed bound".into());
+            }
+            if let Some(end) = bytes.windows(4).position(|b| b == b"\r\n\r\n") {
+                if bytes.len() != end + 4 {
+                    return Err("unexpected GET request body".into());
+                }
+                let text = String::from_utf8(bytes).map_err(|e| e.to_string())?;
+                let mut length_seen = false;
+                for line in text.lines().skip(1) {
+                    if let Some((name, value)) = line.split_once(':') {
+                        if name.eq_ignore_ascii_case("transfer-encoding") {
+                            return Err("unexpected GET transfer encoding".into());
+                        }
+                        if name.eq_ignore_ascii_case("content-length") {
+                            if length_seen || value.trim() != "0" {
+                                return Err("unexpected GET content length".into());
+                            }
+                            length_seen = true;
+                        }
+                    }
+                }
+                return Ok(text);
+            }
+        }
+    }
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let base = format!("http://{}", listener.local_addr().unwrap());
+    let seen = Arc::new(Mutex::new(Vec::new()));
+    let requests = seen.clone();
+    let (entered_tx, mut entered_rx) = tokio::sync::oneshot::channel();
+    let server = async move {
+        for stage in 0..2 {
+            let (mut stream, _) = tokio::time::timeout(Duration::from_secs(2), listener.accept())
+                .await
+                .map_err(|_| "accept guard elapsed".to_owned())?
+                .map_err(|e| e.to_string())?;
+            let request =
+                tokio::time::timeout(Duration::from_secs(2), request_headers(&mut stream))
+                    .await
+                    .map_err(|_| "headers guard elapsed".to_owned())??;
+            let path = if stage == 0 {
+                "/compound/name/aspirin/cids/JSON"
+            } else {
+                "/compound/cid/2244,962/JSON"
+            };
+            if !request.starts_with(&format!("GET {path} HTTP/1.1\r\n")) {
+                return Err(format!("unexpected PubChem stage {stage} request"));
+            }
+            requests.lock().unwrap().push(request);
+            if stage == 0 {
+                // Actual first response is released immediately. The second
+                // response remains unavailable until the service owns expiry.
+                let header = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                    PC_SEARCH.len()
+                );
+                tokio::time::timeout(Duration::from_secs(2), async {
+                    stream.write_all(header.as_bytes()).await?;
+                    stream.write_all(PC_SEARCH.as_bytes()).await
+                })
+                .await
+                .map_err(|_| "first response guard elapsed".to_owned())?
+                .map_err(|e| e.to_string())?;
+            } else {
+                entered_tx
+                    .send(())
+                    .map_err(|_| "second-stage observer dropped".to_owned())?;
+                let mut byte = [0; 1];
+                let n = tokio::time::timeout(Duration::from_secs(2), stream.read(&mut byte))
+                    .await
+                    .map_err(|_| "second socket EOF guard elapsed".to_owned())?
+                    .map_err(|e| e.to_string())?;
+                if n != 0 {
+                    return Err("unexpected bytes instead of second socket EOF".into());
+                }
+                return Ok(());
+            }
+        }
+        Err("second stage was not observed".into())
+    };
     let http = Arc::new(AdapterHttp::default());
-    let engine = adapter(
-        "pubchem",
-        http.clone(),
-        Arc::new(AllowAllAdmission),
-        BiomedicalConfig::defaults(&base),
-    );
+    let deadlines = Arc::new(Mutex::new(Vec::new()));
+    let legacy = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let engine: Arc<dyn SearchEngine> = Arc::new(ContextForwarder {
+        engine: adapter(
+            "pubchem",
+            http.clone(),
+            Arc::new(AllowAllAdmission),
+            BiomedicalConfig::defaults(&base),
+        ),
+        deadlines: deadlines.clone(),
+        legacy: legacy.clone(),
+    });
+    let observations = Arc::new(Observations::default());
+    let anchor = tokio::time::Instant::now() + Duration::from_secs(60);
+    let owner = Arc::new(OwnerClock(tokio::sync::watch::channel(anchor).0));
     let capability = EngineCapability {
         name: "pubchem".into(),
         enabled: true,
@@ -434,33 +597,91 @@ async fn real_f14_service_context_reaches_pubchem_second_request_and_keeps_synth
         suggestions: None,
         jev: None,
         routing_cache: None,
-        metrics: Arc::new(NoopSink),
+        metrics: observations.clone(),
         supervisor: Arc::new(NoopSink),
         audit: Arc::new(NoopSink),
         cooldowns: None,
-        owned_http: vec![http],
+        owned_http: vec![http.clone()],
         owned_stores: vec![],
         clock: Arc::new(SystemSearchClock),
         reranker: None,
     };
-    let service = SearchService::new(SearchConfig::default(), deps).unwrap();
-    let out = service
-        .search(ScopeProposal::generic(SearchRequest {
-            query: "aspirin".into(),
-            engines: Some(vec!["pubchem".into()]),
-            interactive_timeout_ms: Some(80),
-            generate_suggestions: false,
-            ..Default::default()
-        }))
-        .await
+    let service = SearchService::new(SearchConfig::default(), deps)
+        .unwrap()
+        .with_deadline_clock(owner.clone())
         .unwrap();
+    let proposal = ScopeProposal::generic(SearchRequest {
+        query: "aspirin".into(),
+        engines: Some(vec!["pubchem".into()]),
+        interactive_timeout_ms: Some(80),
+        generate_suggestions: false,
+        ..Default::default()
+    });
+    let mut search = Box::pin(service.search(proposal));
+    let client = async {
+        tokio::select! {
+            biased;
+            _early = search.as_mut() => { return Err("service completed before held real second request".to_owned()); }
+            entered = &mut entered_rx => entered.map_err(|_| "second-stage barrier dropped".to_owned())?,
+        }
+        if *deadlines.lock().unwrap() != vec![(anchor + Duration::from_millis(80)).into_std()] {
+            return Err("F14_CONTEXT_FORWARD: exact 80ms owner deadline was not forwarded".into());
+        }
+        let pending =
+            std::future::poll_fn(|cx| Poll::Ready(search.as_mut().poll(cx).is_pending())).await;
+        if !pending {
+            return Err("F14_CONTEXT_HELD: actual second response must still be pending before owner advance".into());
+        }
+        owner.advance_to(anchor + Duration::from_millis(79));
+        let pending =
+            std::future::poll_fn(|cx| Poll::Ready(search.as_mut().poll(cx).is_pending())).await;
+        if !pending {
+            return Err("F14_CONTEXT_PREEXPIRY: held second response completed before80ms".into());
+        }
+        owner.advance_to(anchor + Duration::from_millis(80));
+        search
+            .as_mut()
+            .await
+            .map_err(|e| format!("service search: {e:?}"))
+    };
+    let joined = tokio::time::timeout(Duration::from_secs(5), async {
+        tokio::join!(client, server)
+    })
+    .await;
+    // The bounded join owns both local futures. Cancellation drops their
+    // listeners/sockets, then the real service/HTTP owners are drained.
+    drop(search);
+    let cleanup = tokio::time::timeout(Duration::from_secs(5), async {
+        service.shutdown().await;
+        http.shutdown_and_wait().await;
+    })
+    .await;
+    cleanup.expect("F14 context fixture cleanup guard");
+    let (out, server_result) = joined.expect("F14 context fixture deadlock guard");
+    server_result.unwrap();
+    let out = out.unwrap();
     assert!(out.deadline_exceeded);
     assert_eq!(out.engine_outcomes[0].status, "unavailable");
     assert!(out.results.is_empty());
+    assert_eq!(out.dispatched_engine_count, 1);
+    assert_eq!(
+        out.engine_outcomes[0].message.as_deref(),
+        Some("interactive deadline reached")
+    );
     assert_eq!(seen.lock().unwrap().len(), 2);
-    service.shutdown().await;
-    task.abort();
-    let _ = task.await;
+    assert_eq!(legacy.load(std::sync::atomic::Ordering::SeqCst), 0);
+    assert_eq!(
+        *observations.0.lock().unwrap(),
+        vec![(
+            "pubchem".into(),
+            EngineStatus::Unavailable,
+            true,
+            OutcomeOrigin::CallerCancelled
+        )]
+    );
+    println!(
+        "F14_CONTEXT_CAUSAL two_headers=true logical_deadline_ms=80 binding_ms=500 real_http_clock=System origin=CallerCancelled synthetic=true"
+    );
 }
 
 #[tokio::test]
