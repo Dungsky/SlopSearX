@@ -1171,3 +1171,179 @@ async fn registered_factories_share_owned_pool_and_await_teardown_after_caller_d
     http.shutdown_and_wait().await;
     assert!(requests.lock().unwrap()[0].starts_with("GET /google?"));
 }
+
+// Successor of the frozen 3f1b9cca integration control. Only the HTTP owner's
+// Manual clock advances; Tokio/HTML parser deadlines retain their System clock.
+// A pending bootstrap has no Set-Cookie response: successful-cookie behavior is
+// separately covered by the seven unchanged helper controls above.
+struct OwnerClockColdBootstrap {
+    seen: Mutex<Vec<Request>>,
+    started: tokio::sync::Notify,
+    driver: Mutex<Option<Arc<crate::http::Driver>>>,
+    bootstrap_started_at: Mutex<Option<std::time::Instant>>,
+    elapsed: Mutex<Vec<std::time::Duration>>,
+    dropped_bootstraps: std::sync::atomic::AtomicUsize,
+}
+struct PendingColdBootstrap<'a>(&'a std::sync::atomic::AtomicUsize);
+impl Drop for PendingColdBootstrap<'_> {
+    fn drop(&mut self) {
+        self.0.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    }
+}
+impl crate::http::Transport for OwnerClockColdBootstrap {
+    fn exchange(&self, request: Request) -> crate::http::ExchangeFuture<'_> {
+        Box::pin(async move {
+            let driver = self
+                .driver
+                .lock()
+                .unwrap()
+                .as_ref()
+                .expect("Manual owner installed before search")
+                .clone();
+            self.seen.lock().unwrap().push(request.clone());
+            if request.url.path() == "/home" {
+                *self.bootstrap_started_at.lock().unwrap() = Some(driver.now());
+                let _pending = PendingColdBootstrap(&self.dropped_bootstraps);
+                self.started.notify_one();
+                std::future::pending::<()>().await;
+                unreachable!("bootstrap must expire through its HTTP owner")
+            }
+            let primary = request.url.path() == "/html";
+            let second_search = self
+                .seen
+                .lock()
+                .unwrap()
+                .iter()
+                .filter(|request| request.url.path() == "/home")
+                .count()
+                == 2;
+            if primary {
+                let started = self
+                    .bootstrap_started_at
+                    .lock()
+                    .unwrap()
+                    .expect("primary must follow an actually dispatched bootstrap");
+                self.elapsed
+                    .lock()
+                    .unwrap()
+                    .push(driver.now().duration_since(started));
+            }
+            let body = if !primary {
+                "<table><tr><td><a class='result-link' href='/cold-lite'>Cold Lite</a></td></tr></table>"
+            } else if second_search {
+                "challenge"
+            } else {
+                "<div class='result'><a class='result__a' href='/cold'>Cold</a></div>"
+            };
+            Ok(crate::http::Response {
+                status: 200,
+                url: request.url,
+                headers: reqwest::header::HeaderMap::new(),
+                body: body.as_bytes().to_vec(),
+            })
+        })
+    }
+}
+#[tokio::test]
+async fn cold_bootstrap_expires_without_spending_search_deadline_or_leaking_cookies() {
+    use std::{future::Future, task::Poll, time::Duration};
+    let transport = Arc::new(OwnerClockColdBootstrap {
+        seen: Mutex::new(vec![]),
+        started: tokio::sync::Notify::new(),
+        driver: Mutex::new(None),
+        bootstrap_started_at: Mutex::new(None),
+        elapsed: Mutex::new(vec![]),
+        dropped_bootstraps: std::sync::atomic::AtomicUsize::new(0),
+    });
+    let (owner, driver) = AdapterHttp::replay_owner(transport.clone());
+    let driver = Arc::new(driver);
+    *transport.driver.lock().unwrap() = Some(driver.clone());
+    let http = Arc::new(owner);
+    let pool = Arc::new(
+        ParserPool::new(native_helper(), std::num::NonZeroUsize::new(1).unwrap()).unwrap(),
+    );
+    let config = DuckDuckGoConfig {
+        bootstrap_url: "http://cold.invalid/home".into(),
+        base_url: "http://cold.invalid/html".into(),
+        fallback_base_url: "http://cold.invalid/lite".into(),
+        ..Default::default()
+    };
+    assert_eq!(config.bootstrap_timeout_ms, 2500.0);
+    let engine = DuckDuckGoAdapter::with_parser(
+        http.clone(),
+        Arc::new(AllowAllAdmission),
+        config,
+        pool.clone(),
+    )
+    .with_test_bootstrap_owner_clock();
+    for index in 0..2 {
+        let request = SearchRequest::default();
+        let mut search = Box::pin(engine.search(&request));
+        let result = tokio::time::timeout(Duration::from_secs(10), async {
+            // This is readiness, never an assumption that a 5ms System deadline
+            // left enough host scheduling time to enter the transport.
+            tokio::select! {
+                _ = transport.started.notified() => {},
+                result = &mut search => panic!("search completed before bootstrap readiness: {:?}", result.status),
+            }
+            let origin = Duration::from_millis(index as u64 * 5);
+            driver.advance_to(origin + Duration::from_millis(4));
+            let early = std::future::poll_fn(|cx| Poll::Ready(search.as_mut().poll(cx))).await;
+            assert!(early.is_pending(), "bootstrap completed before its 5ms budget");
+            assert_eq!(transport.elapsed.lock().unwrap().len(), index);
+            assert_eq!(
+                transport.dropped_bootstraps.load(std::sync::atomic::Ordering::SeqCst),
+                index,
+            );
+            driver.advance_to(origin + Duration::from_millis(5));
+            let boundary = std::future::poll_fn(|cx| Poll::Ready(search.as_mut().poll(cx))).await;
+            assert_eq!(
+                transport.dropped_bootstraps.load(std::sync::atomic::Ordering::SeqCst),
+                index + 1,
+                "default bootstrap clamp did not expire and drop its future at exactly 5ms",
+            );
+            // Hold the owner at exactly 5ms while normal continuation/parser
+            // scheduling completes under the unchanged System harness bound.
+            match boundary {
+                Poll::Ready(result) => result,
+                Poll::Pending => search.await,
+            }
+        })
+        .await
+        .expect("bounded owner-clock cold bootstrap/search control");
+        assert_eq!(
+            result.status,
+            EngineStatus::Ok,
+            "search must restore its search deadline after bootstrap expiry",
+        );
+        assert_eq!(transport.elapsed.lock().unwrap().len(), index + 1);
+        assert_eq!(
+            result.results[0].url,
+            if index == 0 { "/cold" } else { "/cold-lite" },
+        );
+    }
+    assert_eq!(
+        *transport.elapsed.lock().unwrap(),
+        vec![Duration::from_millis(5); 2],
+    );
+    let requests = transport.seen.lock().unwrap().clone();
+    assert_eq!(requests.len(), 5);
+    for (request, path) in requests
+        .iter()
+        .zip(["/home", "/html", "/home", "/html", "/lite"])
+    {
+        assert_eq!(request.url.path(), path);
+        assert_eq!(
+            request.method,
+            if path == "/home" {
+                reqwest::Method::GET
+            } else {
+                reqwest::Method::POST
+            },
+        );
+        assert!(!request.headers.contains_key("cookie"));
+    }
+    drop(requests);
+    pool.shutdown().await.unwrap();
+    http.shutdown_and_wait().await;
+}

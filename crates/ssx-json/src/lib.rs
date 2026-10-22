@@ -540,3 +540,6 @@ pub fn decimal_value(ch: char) -> Option<u8> {
             .map(|v| v as u8)
     })
 }
+
+/// Frozen source Unicode16 word boundaries and streamed lowercase operations.
+pub mod python_text;

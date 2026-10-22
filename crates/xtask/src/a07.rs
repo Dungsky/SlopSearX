@@ -1,4 +1,5 @@
 //! Native A07 qualification: historical evidence is read-only; no Python runtime.
+use crate::a13::source_amendment::storage_document;
 use crate::{Result, command};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
@@ -7,39 +8,11 @@ use std::{
     fs,
     path::Path,
 };
+mod source_composition;
+#[cfg(test)]
+#[path = "../../../docs/rust-rewrite/storage-document-amendment/tests.rs"]
+mod storage_document_tests;
 const ARTIFACTS: &[(&str, &str)] = &[
-    (
-        "crates/ssx-infra/tests/support/default_ca_environment.rs",
-        "00aee0178f3f111449e5a6e99f495538a1eafa29ec95ced7d8343a3a8ee1108c",
-    ),
-    (
-        "crates/ssx-infra/src/http.rs",
-        "700c2a4f4526a97fe54b293c9465262ef94c5666caaae1c0e92f3fd5a64554a6",
-    ),
-    (
-        "crates/ssx-infra/tests/a07_context.rs",
-        "b913e5f13290c10b38ea1794b8cae976858ab4951bd0a43b478abb93109eae69",
-    ),
-    (
-        "crates/ssx-infra/tests/support/a07_cold_context.rs",
-        "35b0c77f25a4175fd8b25e63f10e2d95d13addde018264f3d5cb4dcf4248c55f",
-    ),
-    (
-        "crates/ssx-infra/tests/support/a07_http_clock.rs",
-        "df1b65b18a25f65586e3cc453061b9a78a9a5ce0c1bad9d20885b4df5c99866a",
-    ),
-    (
-        "crates/ssx-infra/tests/support/a07_owner_clock.rs",
-        "a3b1f31b273d82e527f587a86e27f7e1d7d972f1bbc9255767a24c632c1f9f4a",
-    ),
-    (
-        "crates/ssx-infra/tests/support/a07_source_replay.rs",
-        "f44fa9e3ac288e63bedfad3f41e6f3bc40a0182e35024a45ce3fa3c4311da04a",
-    ),
-    (
-        "crates/ssx-infra/src/http/monotonic.rs",
-        "6ea309356076a9dda8f7a313f2dd5f476c624ff28663c91b104bbf86bde63ec6",
-    ),
     (
         "docs/rust-rewrite/a07/cases.json",
         "2970b172ad13b44ea55e502cddf2a6c2ec0f18eb75eb6eadfe095d2e586067b9",
@@ -50,7 +23,7 @@ const ARTIFACTS: &[(&str, &str)] = &[
     ),
     (
         "docs/rust-rewrite/a07/coverage.json",
-        "be6826b82c155617d02ce94bc48a0ddedbc75abdd535477f2c7889c63676661b",
+        "3356fa8d6933418a666af2642d1c95705f76d60cf1d8306024a7e7f82d0718d2",
     ),
     (
         "docs/rust-rewrite/a07/fixtures/clinicaltrials-success.json",
@@ -196,6 +169,14 @@ const ARTIFACTS: &[(&str, &str)] = &[
         "docs/rust-rewrite/a06/source-payload-controls.json",
         "293796c517e7c6f41d9c427e76f2af1f892edd208f276a93af305a63b6d0e69e",
     ),
+    (
+        "docs/rust-rewrite/a07/source-amendments/pubchem-independent-budget-original-v1.json",
+        "25418d4e67381955d14275e37f9c52b2eafde81c3ee372ca2473017d73f52f96",
+    ),
+    (
+        "docs/rust-rewrite/a07/source-amendments/pubchem-independent-budget-owner-clock-v1.json",
+        "c2961952a5b8e0bdc0fbad51dabdb4227cac9c119378af009a3bda5f14fc9fa3",
+    ),
 ];
 
 fn digest(bytes: &[u8]) -> String {
@@ -288,73 +269,85 @@ fn verify_executed(output: &str, expected: &BTreeSet<String>) -> Result<()> {
         "A07 listed native tests were missing, ignored, or did not pass",
     )
 }
-const MOVED_FULL: [(&str, &str); 4] = [
-    (
-        "clinicaltrials-config-timeout_ms-bool-True",
-        "clinicaltrials_bool_true_full_source_replay",
-    ),
-    (
-        "europepmc-config-timeout_ms-bool-True",
-        "europepmc_bool_true_full_source_replay",
-    ),
-    (
-        "pubchem-config-timeout_ms-bool-True",
-        "pubchem_bool_true_full_source_replay",
-    ),
-    (
-        "uniprot-config-timeout_ms-bool-True",
-        "uniprot_bool_true_full_source_replay",
-    ),
-];
-fn verify_replay_receipts(bytes: &str, expected: &BTreeSet<String>) -> Result<()> {
-    let mut actual = BTreeSet::new();
-    for line in bytes.lines() {
-        let row: Value = serde_json::from_str(line).map_err(|e| e.to_string())?;
-        require(
-            row["kind"] == "full_public_SearchEngine"
-                && row["compared"] == "original_config_status_requests_complete_output",
-            "A07 incomplete full-adapter receipt",
-        )?;
-        let id = row["id"]
-            .as_str()
-            .filter(|id| !id.is_empty())
-            .ok_or("A07 missing replay receipt ID")?;
-        require(
-            actual.insert(id.to_owned()),
-            "A07 duplicate executed source ID",
+
+fn pubchem_clock_binding(
+    amendment: &Value,
+    available: &BTreeMap<(String, String), BTreeSet<String>>,
+) -> Result<()> {
+    require(
+        amendment["schema"] == "slopsearx.a07.explicit-pubchem-budget-control.v1",
+        "A07 PubChem amendment schema",
+    )?;
+    let integration = amendment["original_integration19"]
+        .as_array()
+        .ok_or("A07 original19 inventory absent")?;
+    let mut expected: BTreeSet<String> = integration
+        .iter()
+        .map(|n| {
+            n.as_str()
+                .map(str::to_owned)
+                .ok_or("A07 malformed original19 identity")
+        })
+        .collect::<std::result::Result<_, _>>()?;
+    require(
+        integration.len() == 19 && expected.len() == 19,
+        "A07 original19 inventory changed",
+    )?;
+    require(
+        expected.insert(source_composition::MATRIX_TEST.into()),
+        "A07 added matrix identity aliases original19",
+    )?;
+    require(
+        expected.len() == 20
+            && available.get(&("ssx-infra".into(), "test:a07_biomedical".into()))
+                == Some(&expected),
+        "A07 original19 plus sole added matrix integration identities changed",
+    )?;
+    let controls = amendment["original_resource17"]
+        .as_array()
+        .ok_or("A07 original17 controls absent")?;
+    let mut distinct = BTreeSet::new();
+    for name in controls {
+        let name = name.as_str().ok_or("A07 malformed original17 identity")?;
+        require(distinct.insert(name), "A07 duplicate original17 identity")?;
+        exact_test_present(
+            &json!({"package":"ssx-infra","target":"lib","qualified_name":name}),
+            available,
         )?;
     }
     require(
-        actual == *expected,
-        "A07 exact full-adapter172 source ID union was not executed",
-    )
+        distinct.len() == 17,
+        "A07 original17 resource controls changed",
+    )?;
+    require(
+        amendment["private_control"]
+            == json!({"package":"ssx-infra","target":"lib","qualified_name":"adapters::clinicaltrials::resource_tests::pubchem_second_request_renews_500ms_budget_on_the_same_manual_owner"}),
+        "A07 PubChem private control aliased",
+    )?;
+    exact_test_present(&amendment["private_control"], available)
 }
-struct ReplayReceipts(std::path::PathBuf);
-impl ReplayReceipts {
-    fn fresh() -> Result<Self> {
-        let stamp = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map_err(|e| e.to_string())?
-            .as_nanos();
-        let path = std::env::temp_dir().join(format!(
-            "a07-full-replay-{}-{stamp}.jsonl",
-            std::process::id()
-        ));
-        std::fs::OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&path)
-            .map_err(|e| e.to_string())?;
-        Ok(Self(path))
-    }
-}
-impl Drop for ReplayReceipts {
-    fn drop(&mut self) {
-        let _ = fs::remove_file(&self.0);
-    }
-}
+
 pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
     verify(root, ARTIFACTS)?;
+    let pubchem_amendment: Value = serde_json::from_slice(&fs::read(root.join("docs/rust-rewrite/a07/source-amendments/pubchem-independent-budget-owner-clock-v1.json" )).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
+    let pubchem_original: Value = serde_json::from_slice(
+        &fs::read(root.join(
+            "docs/rust-rewrite/a07/source-amendments/pubchem-independent-budget-original-v1.json",
+        ))
+        .map_err(|e| e.to_string())?,
+    )
+    .map_err(|e| e.to_string())?;
+    let original = pubchem_original["original_source_utf8"]
+        .as_str()
+        .ok_or("A07 frozen PubChem source absent")?;
+    require(
+        digest(original.as_bytes())
+            == pubchem_amendment["original_source_sha256"]
+                .as_str()
+                .ok_or("A07 original PubChem SHA absent")?,
+        "A07 frozen PubChem source changed",
+    )?;
+    let composition = source_composition::verify_sources(root, &pubchem_amendment, records)?;
     let ids = primary_ids(root)?;
     let coverage: Value = serde_json::from_slice(
         &fs::read(root.join("docs/rust-rewrite/a07/coverage.json")).map_err(|e| e.to_string())?,
@@ -371,6 +364,24 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
         .ok_or("A07 source inventory missing")?
     {
         let path = source["path"].as_str().ok_or("A07 malformed source path")?;
+        if storage_document::is_path(path) {
+            storage_document::verify(
+                path,
+                source["sha256"]
+                    .as_str()
+                    .ok_or("A07 malformed source hash")?,
+                source["bytes"]
+                    .as_u64()
+                    .map(usize::try_from)
+                    .transpose()
+                    .map_err(|_| "A07 source length overflow")?,
+                &fs::read(root.join(path)).map_err(|error| error.to_string())?,
+                &fs::read(root.join(storage_document::archive_path(path)?))
+                    .map_err(|error| error.to_string())?,
+            )?;
+            records.push(json!({"A07_source_binding":{"path":path,"kind":"exact original document archive plus reviewed storage-policy successor"}}));
+            continue;
+        }
         if path.starts_with("crates/") || path == "docs/rust-rewrite/ci/gates.json" {
             let blob = source["git_blob"]
                 .as_str()
@@ -398,7 +409,6 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
             &format!("A07 original source changed: {path}"),
         )?;
     }
-    let receipts = ReplayReceipts::fresh()?;
     let mut available = BTreeMap::new();
     for (package, target) in [
         ("ssx-infra", "lib"),
@@ -427,34 +437,21 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
         require(!names.is_empty(), "A07 native binary contains no tests")?;
         available.insert((package.to_owned(), target.to_owned()), names);
     }
-    let migrated = coverage["full_source_execution"]["moved"]
-        .as_array()
-        .ok_or("A07 full replay migration missing")?;
+    pubchem_clock_binding(&pubchem_amendment, &available)?;
+    source_composition::verify_partition(&composition, &ids, &available)?;
+    let mut missing_pubchem_control = available.clone();
+    missing_pubchem_control.get_mut(&("ssx-infra".into(), "lib".into())).ok_or("A07 lib inventory absent")?.remove("adapters::clinicaltrials::resource_tests::pubchem_second_request_renews_500ms_budget_on_the_same_manual_owner");
     require(
-        migrated.len() == 4
-            && coverage["full_source_execution"]["total"] == 172
-            && coverage["full_source_execution"]["remaining"]["count"] == 168,
-        "A07 full replay partition changed",
+        pubchem_clock_binding(&pubchem_amendment, &missing_pubchem_control).is_err(),
+        "A07 missing private PubChem control accepted",
     )?;
-    for (id, name) in MOVED_FULL {
-        let matching = migrated
-            .iter()
-            .filter(|row| row["id"] == id)
-            .collect::<Vec<_>>();
-        require(
-            matching.len() == 1,
-            "A07 missing/duplicate migrated source ID",
-        )?;
-        let binding = matching[0];
-        require(
-            binding["package"] == "ssx-infra"
-                && binding["target"] == "lib"
-                && binding["qualified_name"]
-                    == format!("adapters::clinicaltrials::owner_clock_tests::{name}"),
-            "A07 wrong full-adapter migration identity",
-        )?;
-        exact_test_present(binding, &available)?;
-    }
+    let mut aliased_pubchem = pubchem_amendment.clone();
+    aliased_pubchem["private_control"]["qualified_name"] =
+        json!("alias_not_the_owner_clock_control");
+    require(
+        pubchem_clock_binding(&aliased_pubchem, &available).is_err(),
+        "A07 aliased private PubChem control accepted",
+    )?;
     for mapping in coverage["regression_mapping"]
         .as_array()
         .ok_or("A07 mappings missing")?
@@ -517,39 +514,15 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
             ]);
         }
         args.extend(["--", "--format", "pretty"]);
-        // Only test evidence output is configured; Manual clocks have no env path.
-        let receipt_arg = format!("A07_COMPLETED_CASES={}", receipts.0.display());
-        let mut run_args = vec![receipt_arg.as_str(), "cargo"];
-        run_args.extend(args.iter().copied());
-        let output = command(root, "env", &run_args, records)?;
+        let output = source_composition::execute(root, package, target, &args, &ids, records)?;
         verify_executed(&output, expected)?;
     }
-    verify_replay_receipts(
-        &fs::read_to_string(&receipts.0).map_err(|e| e.to_string())?,
-        &ids,
-    )?;
     records.push(json!({"A07":{"primary_source_controls":ids.len(),"factory_availability":"actual Registry attachment, separate from historical F06 declaration","temporary_python":"not executed or required","remaining_boundaries":"G02 retained-response/global input accounting and full MCP/HTML transport remain separate"}}));
     Ok(())
 }
 #[cfg(test)]
 mod tests {
     use super::*;
-    #[test]
-    fn full_replay_receipts_reject_missing_duplicate_wrong_kind_and_extra_ids() {
-        let expected = BTreeSet::from(["one".to_owned()]);
-        let row=json!({"id":"one","kind":"full_public_SearchEngine","compared":"original_config_status_requests_complete_output"}).to_string();
-        assert!(verify_replay_receipts(&row, &expected).is_ok());
-        assert!(verify_replay_receipts("", &expected).is_err());
-        assert!(verify_replay_receipts(&format!("{row}\n{row}"), &expected).is_err());
-        assert!(
-            verify_replay_receipts(
-                &row.replace("full_public_SearchEngine", "semantic_only"),
-                &expected
-            )
-            .is_err()
-        );
-        assert!(verify_replay_receipts(&row, &BTreeSet::new()).is_err());
-    }
     #[test]
     fn ignored_missing_and_wrong_identity_execution_fail_closed() {
         let expected = BTreeSet::from(["module::required".to_owned()]);
@@ -585,6 +558,7 @@ mod tests {
     }
     #[test]
     fn duplicate_missing_and_incomplete_primary_controls_fail_closed() {
+        source_composition::controls(&Path::new(env!("CARGO_MANIFEST_DIR")).join("../.."));
         let mut ids = BTreeSet::new();
         let row = json!({"id":"one","output":{},"requests":[]});
         insert_primary(&mut ids, &row).unwrap();

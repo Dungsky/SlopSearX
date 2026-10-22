@@ -120,7 +120,8 @@ impl BraveAdapter {
         outbound
             .headers
             .insert("x-subscription-token", subscription_token);
-        let operation_deadline = Instant::now() + Duration::from_millis(self.config.timeout_ms);
+        let operation_deadline =
+            self.http.deadline_now() + Duration::from_millis(self.config.timeout_ms);
         let mut session = match self.http.session(
             Options::default(),
             tokio::time::Instant::from_std(operation_deadline),

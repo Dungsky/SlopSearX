@@ -7,7 +7,7 @@ use std::{
     fs,
     path::Path,
 };
-const COVERAGE_SHA: &str = "46f0679360e0d3b1da0c5a4935fe2377edbf8fddc0d19ab4ff4424770d158f14";
+const COVERAGE_SHA: &str = "d3dbf8be85061348dded0b783a55dd11f5d79e789857e2046ebe808504f162c8";
 fn digest(bytes: &[u8]) -> String {
     Sha256::digest(bytes)
         .iter()
@@ -185,11 +185,15 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
             .ok_or("A09 artifact pins missing")?
         {
             let path = pin["path"].as_str().ok_or("A09 pin path missing")?;
-            require(
-                pin["sha256"]
-                    == digest(&fs::read(root.join(path)).map_err(|e| format!("{path}: {e}"))?),
-                &format!("A09 source/artifact identity differs: {path}"),
-            )?;
+            crate::a13::check_source_pin(
+                root,
+                "docs/rust-rewrite/a09/coverage.json",
+                COVERAGE_SHA,
+                path,
+                pin["sha256"].as_str().ok_or("A09 pin digest absent")?,
+                pin["bytes"].as_u64().map(|value| value as usize),
+            )
+            .map_err(|error| format!("A09 source/artifact identity differs: {path}: {error}"))?;
         }
     }
     let source = read(root, "docs/rust-rewrite/a09/source.json")?;

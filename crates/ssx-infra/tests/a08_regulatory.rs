@@ -13,8 +13,9 @@ use std::{
     collections::VecDeque,
     sync::{Arc, Mutex},
 };
-const HEADER_DIFFERENCES: &str =
-    include_str!("../../../docs/rust-rewrite/a08/header-differences.json");
+const HEADER_DIFFERENCES: &str = include_str!(
+    "../../../docs/rust-rewrite/a08/source-amendments/default-user-agent-effective-v1.json"
+);
 const DIFFERENCES: &str = include_str!("../../../docs/rust-rewrite/a08/differences.json");
 const REGRESSIONS: &str = include_str!("../../../docs/rust-rewrite/a08/regressions.json");
 const SOURCE: &str = include_str!("../../../docs/rust-rewrite/a08/source.json");

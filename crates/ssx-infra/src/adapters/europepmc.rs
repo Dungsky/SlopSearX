@@ -59,9 +59,18 @@ impl EuropePMCAdapter {
             false,
         )?;
         let mut session = session(&self.http, d)?;
-        let data = get_observed(&mut session, req, d, false, true, context, observer)
-            .await?
-            .unwrap();
+        let data = get_observed_for_http(
+            &self.http,
+            &mut session,
+            req,
+            d,
+            false,
+            true,
+            context,
+            observer,
+        )
+        .await?
+        .unwrap();
         let records = data
             .as_object()
             .and_then(|d| d.get("resultList"))

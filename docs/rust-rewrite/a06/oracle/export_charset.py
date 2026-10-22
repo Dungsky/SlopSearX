@@ -118,8 +118,7 @@ async def main():
                 "plan_id": "A06",
                 "scope": "actual HTTPX Headers/email selector plus complete actual arXiv adapter outputs",
                 "normalization": (
-                    "latency_ms omitted; sets sorted; enum values serialized; "
-                    "no other output normalization"
+                    "latency_ms omitted; sets sorted; enum values serialized; no other output normalization"
                 ),
                 "library_source_sha256": {
                     str(Path(p).name): hashlib.sha256(Path(p).read_bytes()).hexdigest() for p in paths

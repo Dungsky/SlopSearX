@@ -1,4 +1,5 @@
 //! Source-bound A08 engine qualification. No interpreter or provider invocation.
+use crate::a13::source_amendment::storage_document;
 use crate::{Result, command};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
@@ -7,7 +8,8 @@ use std::{
     fs,
     path::Path,
 };
-const COVERAGE_SHA: &str = "244f51c9d585f0ed907f663e77521d86eaf356e9147974e3144a2dd93191fec3";
+pub(crate) mod header_successor;
+const COVERAGE_SHA: &str = "4bd65113eded80d605b3fede32f9cb5e97d12b47c4b1756314ed28757f653856";
 fn digest(bytes: &[u8]) -> String {
     Sha256::digest(bytes)
         .iter()
@@ -223,6 +225,7 @@ pub fn report_scope(records: &[Value]) -> String {
     }
 }
 pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
+    header_successor::verify(root, records)?;
     let coverage_bytes =
         fs::read(root.join("docs/rust-rewrite/a08/coverage.json")).map_err(|e| e.to_string())?;
     require(
@@ -244,6 +247,27 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
             let path = pin["path"].as_str().ok_or("A08 pin path missing")?;
             require(seen.insert(path), "A08 duplicate pinned artifact")?;
             let bytes = fs::read(root.join(path)).map_err(|e| format!("{path}: {e}"))?;
+            if kind == "artifacts" && path == "docs/rust-rewrite/a08/README.md" {
+                header_successor::verify_readme_pin(pin, &bytes)?;
+                records.push(json!({"A08_pin":path,"kind":"exact frozen artifact tuple plus archived main-to-pending-UA-document successor","sha256":digest(&bytes)}));
+                continue;
+            }
+            if kind == "source_inventory" && storage_document::is_path(path) {
+                storage_document::verify(
+                    path,
+                    pin["sha256"].as_str().ok_or("A08 malformed source hash")?,
+                    pin["bytes"]
+                        .as_u64()
+                        .map(usize::try_from)
+                        .transpose()
+                        .map_err(|_| "A08 source length overflow")?,
+                    &bytes,
+                    &fs::read(root.join(storage_document::archive_path(path)?))
+                        .map_err(|error| error.to_string())?,
+                )?;
+                records.push(json!({"A08_pin":path,"kind":"exact original document archive plus reviewed storage-policy successor","sha256":digest(&bytes)}));
+                continue;
+            }
             require(
                 pin["sha256"].as_str() == Some(digest(&bytes).as_str()),
                 &format!("A08 source/artifact changed: {path}"),
@@ -540,6 +564,11 @@ mod tests {
     }
     #[test]
     fn duplicate_missing_and_reordered_source_id_controls_reject() {
+        header_successor::verify(
+            &Path::new(env!("CARGO_MANIFEST_DIR")).join("../.."),
+            &mut Vec::new(),
+        )
+        .unwrap();
         let row = json!({"id":"one","responses":[],"requests":[],"output":{}});
         assert!(ids(&json!({"records":[]})).is_err());
         assert!(ids(&json!({"records":[row.clone(),row.clone()]})).is_err());

@@ -239,10 +239,21 @@ async fn all_eight_prepared_bodies_fit_candidate_quota_and_transfer_without_clon
         ("pm-200-realistic", 200),
     ] {
         let (name, bodies) = prepared(id);
-        let (engine, http, _) = harness(&name, bodies);
+        // This control measures quota/transfer, not default-budget throughput.
+        // A finite 60s fixture timeout gives PubMed its unchanged 90% (54s) aggregate.
+        let (engine, http, _) = harness_config(&name, bodies, 1000, 60_000);
         let budget = Budget::new(ROW_BYTES).unwrap();
         let q = query();
-        let batch = engine.run(&q, None, &budget, None).await.unwrap();
+        let started = Instant::now();
+        let batch = engine
+            .run(&q, None, &budget, None)
+            .await
+            .unwrap_or_else(|failure| {
+                panic!(
+                    "{id}: {failure:?}; fixture_elapsed_ms={}",
+                    started.elapsed().as_millis()
+                )
+            });
         assert_eq!(batch.results().len(), count, "{id}");
         assert_eq!(
             budget.snapshot().unwrap().used,
@@ -701,35 +712,23 @@ async fn actual_pubchem_cid_reference_parts_yield_and_release_before_second_disp
         let budget = Budget::new(ROW_BYTES).unwrap();
         let phase = AtomicUsize::new(0);
         let baseline = AtomicUsize::new(0);
-        let history = AtomicUsize::new(0);
         let observer = |p| {
             if matches!(p, Phase::CidParts | Phase::CidPartsComplete) {
-                history.fetch_or(1 << p as usize, Ordering::SeqCst);
                 phase.store(p as usize + 1, Ordering::SeqCst);
             }
         };
         let deadline = Instant::now() + Duration::from_secs(2);
         let q = query();
         let mut future = Box::pin(engine.run(&q, Some(deadline), &budget, Some(&observer)));
-        let phase_started = Instant::now();
-        poll_fn(|cx| match future.as_mut().poll(cx) {
-            Poll::Ready(result) => panic!(
-                "PubChem completed before phase: error={:?} elapsed={:?} phase={} history={} budget={:?} requests={}",
-                result.as_ref().err(), phase_started.elapsed(),
-                phase.load(Ordering::SeqCst), history.load(Ordering::SeqCst),
-                budget.snapshot().unwrap(), replies.seen.load(Ordering::SeqCst)
-            ),
-            Poll::Pending => {
-                let reached = phase.load(Ordering::SeqCst) == Phase::CidParts as usize + 1;
-                let used = budget.snapshot().unwrap().used;
-                if reached && used > baseline.load(Ordering::SeqCst) {
-                    Poll::Ready(())
-                } else {
-                    cx.waker().wake_by_ref();
-                    Poll::Pending
-                }
-            }
-        }).await;
+        until_phase(
+            future.as_mut(),
+            &phase,
+            Phase::CidParts,
+            &budget,
+            &baseline,
+            1,
+        )
+        .await;
         assert!(budget.snapshot().unwrap().used > 4096 * std::mem::size_of::<&str>());
         eprintln!(
             "A07_PROVIDER_PHASE pubchem expire={expire} live={} peak={}",
@@ -823,4 +822,108 @@ fn complete_result_normalizer_exposes_actual_nonempty_media() {
         ssx_json::json!({"media_type":"video","url":"https://example.test/media","thumbnail":"https://example.test/thumb","source":"sentinel","width":640,"height":480,"duration":12.5})
     );
     assert_ne!(value["media"], ssx_json::Value::Null);
+}
+
+/// Causal companion to the preserved integration success/404 identity.
+/// Real HTTP pool, unchanged500ms request budget, no injected transport or sleep.
+#[tokio::test]
+async fn pubchem_second_request_renews_500ms_budget_on_the_same_manual_owner() {
+    use ssx_application::SearchEngine as _;
+    use tokio::{
+        io::{AsyncReadExt, AsyncWriteExt},
+        net::TcpListener,
+        sync::oneshot,
+    };
+    struct OwnedServer<T>(Option<tokio::task::JoinHandle<T>>);
+    impl<T> Drop for OwnedServer<T> {
+        fn drop(&mut self) {
+            if let Some(task) = &self.0 {
+                task.abort();
+            }
+        }
+    }
+    tokio::time::timeout(Duration::from_secs(5), async {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let base = format!("http://{}", listener.local_addr().unwrap());
+        let (owner, driver) = AdapterHttp::clocked_real_pool_owner();
+        let http = Arc::new(owner);
+        let origin = http.deadline_now();
+        let (first_tx, first_rx) = oneshot::channel();
+        let (second_tx, second_rx) = oneshot::channel();
+        let (release_first, first_release) = oneshot::channel();
+        let (release_second, second_release) = oneshot::channel();
+        let server_http = http.clone();
+        let task = tokio::spawn(async move {
+            let mut signals = [Some(first_tx), Some(second_tx)];
+            let mut releases = [Some(first_release), Some(second_release)];
+            let bodies = [
+                include_str!("../../../../docs/rust-rewrite/a07/fixtures/pubchem-search.json"),
+                include_str!("../../../../docs/rust-rewrite/a07/fixtures/pubchem-detail.json"),
+            ];
+            let mut rows = Vec::with_capacity(2);
+            for (index, body) in bodies.into_iter().enumerate() {
+                let (mut stream, _) = listener.accept().await.unwrap();
+                let mut bytes = [0; 4096];
+                let mut length = 0;
+                while !bytes[..length].windows(4).any(|v| v == b"\r\n\r\n") {
+                    assert!(length < bytes.len(), "bounded actual PubChem headers");
+                    let count = stream.read(&mut bytes[length..]).await.unwrap();
+                    assert_ne!(count, 0, "request closed before actual headers");
+                    length += count;
+                }
+                let received = server_http.deadline_now().duration_since(origin);
+                let request = String::from_utf8(bytes[..length].to_vec()).unwrap();
+                signals[index].take().unwrap().send(received).unwrap();
+                releases[index].take().unwrap().await.unwrap();
+                let released = server_http.deadline_now().duration_since(origin);
+                let head = format!("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", body.len());
+                stream.write_all(head.as_bytes()).await.unwrap();
+                stream.write_all(body.as_bytes()).await.unwrap();
+                rows.push((request, received, released));
+            }
+            rows
+        });
+        let mut server = OwnedServer(Some(task));
+        let mut config = BiomedicalConfig::defaults(&base);
+        config.timeout_ms = ConfigScalar::Integer(500);
+        let adapter = PubChemAdapter::new(http.clone(), Arc::new(AllowAllAdmission), config);
+        let request = SearchRequest { query: "aspirin".into(), ..Default::default() };
+        let mut search = adapter.search(&request);
+        let first_at = tokio::select! {
+            biased;
+            result = &mut search => panic!("PubChem finished before first actual request: {:?}", result.status),
+            at = first_rx => at.unwrap(),
+        };
+        assert_eq!(first_at, Duration::ZERO);
+        driver.advance_to(Duration::from_millis(300));
+        release_first.send(()).unwrap();
+        let second_at = tokio::select! {
+            biased;
+            result = &mut search => panic!("PubChem finished before second actual request: {:?}", result.status),
+            at = second_rx => at.unwrap(),
+        };
+        assert_eq!(second_at, Duration::from_millis(300));
+        // The first request's deadline has arrived while the second real reply
+        // remains held. Reusing that old deadline must fail this exact assertion.
+        driver.advance_to(Duration::from_millis(500));
+        poll_fn(|cx| {
+            assert!(search.as_mut().poll(cx).is_pending(),
+                "PUBCHEM_RENEWAL_BOUNDARY: second request expired at first request deadline");
+            Poll::Ready(())
+        }).await;
+        driver.advance_to(Duration::from_millis(600));
+        release_second.send(()).unwrap();
+        let response = search.await;
+        assert_eq!(response.status, EngineStatus::Ok);
+        assert_eq!(response.results.len(), 2);
+        let rows = server.0.as_mut().unwrap().await.unwrap();
+        server.0.take();
+        assert_eq!(rows.len(), 2);
+        assert!(rows[0].0.starts_with("GET /compound/name/aspirin/cids/JSON "));
+        assert!(rows[1].0.starts_with("GET /compound/cid/2244,962/JSON "));
+        assert_eq!((rows[0].1, rows[0].2), (Duration::ZERO, Duration::from_millis(300)));
+        assert_eq!((rows[1].1, rows[1].2), (Duration::from_millis(300), Duration::from_millis(600)));
+        assert_eq!(http.deadline_now().duration_since(origin), Duration::from_millis(600));
+        http.shutdown_and_wait().await;
+    }).await.expect("bounded real loopback PubChem owner-clock control");
 }

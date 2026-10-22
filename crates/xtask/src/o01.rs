@@ -3,7 +3,7 @@ use crate::{Result, command};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::{collections::BTreeSet, fs, path::Path};
-const COVERAGE_SHA: &str = "707e31c50b53c9b0653f09985a800d6a99e5b42ea999796cf78ceac9be731521";
+const COVERAGE_SHA: &str = "76d216907f00ac637505101e83454f43d9a812213432e1c40a20d5a8d75934b0";
 fn require(ok: bool, message: &str) -> Result<()> {
     if ok { Ok(()) } else { Err(message.into()) }
 }
@@ -76,11 +76,17 @@ pub fn check(root: &Path, commands: &mut Vec<Value>) -> Result<()> {
         let path = artifact["path"]
             .as_str()
             .ok_or("O01 artifact path missing")?;
-        let bytes = fs::read(root.join(path)).map_err(|e| format!("{path}: {e}"))?;
-        require(
-            artifact["sha256"] == digest(&bytes),
-            &format!("O01 artifact differs: {path}"),
-        )?;
+        crate::a13::check_source_pin(
+            root,
+            "docs/rust-rewrite/o01/coverage.json",
+            COVERAGE_SHA,
+            path,
+            artifact["sha256"]
+                .as_str()
+                .ok_or("O01 artifact digest absent")?,
+            artifact["bytes"].as_u64().map(|v| v as usize),
+        )
+        .map_err(|_| format!("O01 artifact differs: {path}"))?;
     }
     let source: Value = serde_json::from_slice(
         &fs::read(

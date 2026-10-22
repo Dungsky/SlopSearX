@@ -8,7 +8,7 @@ use std::{
     fs,
     path::Path,
 };
-const COVERAGE_SHA: &str = "739f406782ff147a3f27581cb226d5d2db837cdc20e576a6fdeff71132511845";
+const COVERAGE_SHA: &str = "69b18d8f2ecb57639972c89bf57b105b83098ea38350bca00695182eda098ff4";
 const ORIGINAL: [&str; 4] = ["abuseipdb", "greynoise", "otx", "urlhaus"];
 fn require(ok: bool, message: &str) -> Result<()> {
     if ok { Ok(()) } else { Err(message.into()) }
@@ -336,11 +336,15 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
         .ok_or("A11 source bindings missing")?
     {
         let path = row["path"].as_str().ok_or("A11 source path absent")?;
-        require(
-            row["sha256"]
-                == digest(&fs::read(root.join(path)).map_err(|e| format!("{path}: {e}"))?),
-            &format!("A11 source/fixture differs: {path}"),
-        )?;
+        crate::a13::check_source_pin(
+            root,
+            "docs/rust-rewrite/a11/qualification.json",
+            &digest(&bytes),
+            path,
+            row["sha256"].as_str().ok_or("A11 source digest absent")?,
+            row["bytes"].as_u64().map(|value| value as usize),
+        )
+        .map_err(|_| format!("A11 source/fixture differs: {path}"))?;
     }
     let tests = pack["native_tests"]
         .as_array()

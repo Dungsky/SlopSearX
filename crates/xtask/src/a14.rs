@@ -3,6 +3,9 @@ use crate::{Result, command};
 use serde_json::{Value, json};
 use std::{collections::BTreeSet, path::Path};
 
+#[path = "../../../docs/rust-rewrite/a14/current-helper-amendment.rs"]
+mod helper_amendment;
+
 const SOURCE_BASELINE: &str = "a8a7b3e05ccb7ee2e536c0651163c429384f8738";
 const SOURCES: &[(&str, &str)] = &[
     (
@@ -50,7 +53,7 @@ const SOURCES: &[(&str, &str)] = &[
         "e83aba432f43ced82db088f18fa22b77da7d68e8",
     ),
 ];
-const CASES_SHA: &str = "a5fb77c1857be15145a92f9063ec5a0f64fc12b7da93847b235a6b23c3e31dcc";
+const CASES_SHA: &str = "4d7e4d4208a514c0f2b7b9b137651d07c9953fdaa3836d8c3a30490b6f0cd5c5";
 const SUBCASE_COUNT: usize = 178;
 const NATIVE_CASES: &[&str] = &[
     "adapters::jobs::tests::system_proxy_guard_rejects_every_enabled_system_flag: test",
@@ -225,6 +228,7 @@ fn source_tree(root: &Path, records: &mut Vec<Value>) -> Result<String> {
             "rust-toolchain.toml",
             ".cargo",
             "docs/rust-rewrite/a14",
+            "docs/rust-rewrite/a13",
         ],
         records,
     )?;
@@ -298,10 +302,30 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
         .ok_or("A14 accepted helper pins missing")?
     {
         let actual = command(root, "git", &["hash-object", "--", path], records)?;
-        require(
-            actual.trim() == expected.as_str().unwrap_or(""),
-            "A14 accepted source helper changed",
-        )?;
+        if let Some(result) = crate::a13::a06_source_successor::try_git(
+            root,
+            "docs/rust-rewrite/a14/cases.json",
+            CASES_SHA,
+            path,
+            expected.as_str().unwrap_or(""),
+            actual.trim(),
+            |archive| command(root, "git", &["hash-object", "--", archive], records),
+        ) {
+            result?;
+        } else if path == helper_amendment::SOURCE_PATH {
+            helper_amendment::verify(
+                root,
+                path,
+                expected.as_str().unwrap_or(""),
+                actual.trim(),
+                records,
+            )?;
+        } else {
+            require(
+                actual.trim() == expected.as_str().unwrap_or(""),
+                "A14 accepted source helper changed",
+            )?;
+        }
     }
 
     require(
@@ -315,6 +339,30 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
     )?;
     let before = source_tree(root, records)?;
     verify_test_inventory(root, &cases, records)?;
+    let controls = command(
+        root,
+        "cargo",
+        &[
+            "test",
+            "--offline",
+            "--locked",
+            "-p",
+            "xtask",
+            "a14::",
+            "--",
+            "--test-threads=1",
+        ],
+        records,
+    )?;
+    execution(
+        &controls,
+        &BTreeSet::from([
+            "a14::tests::exact_execution_rejects_missing_ignored_duplicate_and_wrong_counts".to_owned(),
+            "a14::tests::completed_subcase_guard_rejects_omission_duplicate_extra_and_skip".to_owned(),
+            "a14::helper_amendment::tests::original_cases_archive_current_and_unrelated_helper_mutations_are_rejected".to_owned(),
+            "a14::helper_amendment::tests::equal_but_changed_timeout_reference_sections_are_rejected".to_owned(),
+        ]),
+    )?;
     let after = source_tree(root, records)?;
     require(
         before == after,

@@ -59,7 +59,8 @@ impl PubChemAdapter {
         )
         .await?;
         let mut session = session(&self.http, d)?;
-        let Some(data) = get_observed(
+        let Some(data) = get_observed_for_http(
+            &self.http,
             &mut session,
             request(url.as_str(), &[], false, false)?,
             d,
@@ -140,9 +141,18 @@ impl PubChemAdapter {
         drop(joined);
         drop(parts);
         drop(ids);
-        let detail = get_observed(&mut session, req, d, false, false, context, observer)
-            .await?
-            .unwrap();
+        let detail = get_observed_for_http(
+            &self.http,
+            &mut session,
+            req,
+            d,
+            false,
+            false,
+            context,
+            observer,
+        )
+        .await?
+        .unwrap();
         let compounds = result_rows(
             field(&detail, "PC_Compounds", &l)?,
             &self.config.max_results,

@@ -129,3 +129,5 @@ pub mod saved_events;
 pub mod staged_runner;
 
 pub mod staged_service;
+
+pub mod research_planning;

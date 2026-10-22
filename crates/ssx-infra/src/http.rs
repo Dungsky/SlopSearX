@@ -1,6 +1,8 @@
 //! Adapter-owned sockets and search-owned identity. No provider retries or parsers.
 mod monotonic;
 pub(crate) use monotonic::Clock as DeadlineClock;
+#[cfg(test)]
+pub(crate) use monotonic::Driver;
 use reqwest::{
     Client, Method, Url,
     cookie::{CookieStore, Jar},
@@ -505,6 +507,10 @@ impl State {
 }
 pub struct AdapterHttp {
     clock: DeadlineClock,
+    #[cfg(test)]
+    replay_endpoint: Option<url::Url>,
+    #[cfg(test)]
+    operation_trace: Option<SystemOperationTrace>,
     idle: Arc<Semaphore>,
     connections: Arc<Semaphore>,
     decoder: Arc<Decoder>,
@@ -516,6 +522,10 @@ impl Default for AdapterHttp {
     fn default() -> Self {
         Self {
             clock: DeadlineClock::default(),
+            #[cfg(test)]
+            replay_endpoint: None,
+            #[cfg(test)]
+            operation_trace: None,
             idle: Arc::new(Semaphore::new(10)),
             connections: Arc::new(Semaphore::new(20)),
             decoder: Arc::new(Decoder::default()),
@@ -534,6 +544,68 @@ impl Default for AdapterHttp {
 impl AdapterHttp {
     pub(crate) fn deadline_now(&self) -> Instant {
         self.clock.now()
+    }
+    pub(crate) async fn deadline_sleep_until(&self, deadline: Instant) {
+        self.clock.sleep_until(deadline).await;
+    }
+    /// Construct a real-pool owner with a manually advanced deadline clock.
+    /// This is private to unit tests; it does not install a transport or expose
+    /// a production clock-selection path.
+    #[cfg(test)]
+    pub(crate) fn clocked_real_pool_owner() -> (Self, Driver) {
+        let (clock, driver) = DeadlineClock::replay();
+        let mut owner = Self::default();
+        owner.clock = clock;
+        (owner, driver)
+    }
+    /// Private A04 delayed-response replay; production cannot select this clock.
+    #[cfg(test)]
+    pub(crate) fn loopback_timeout_replay(
+        base: &str,
+        service_context: Option<Instant>,
+    ) -> Result<(Self, monotonic::Driver)> {
+        let endpoint = url::Url::parse(base).map_err(|_| Error::InvalidRequest)?;
+        let loopback = endpoint
+            .host_str()
+            .and_then(|h| h.parse::<std::net::IpAddr>().ok())
+            .is_some_and(|ip| ip.is_loopback());
+        if !loopback
+            || endpoint.scheme() != "http"
+            || service_context.is_some()
+            || !endpoint.username().is_empty()
+            || endpoint.password().is_some()
+        {
+            return Err(Error::InvalidRequest);
+        }
+        let (mut owner, driver) = Self::clocked_real_pool_owner();
+        owner.replay_endpoint = Some(endpoint);
+        Ok((owner, driver))
+    }
+    /// Fixed two-entry metadata observer for the private Wikipedia unit replay.
+    /// It retains System time and the real pool; it cannot inject a transport.
+    #[cfg(test)]
+    pub(crate) fn wikipedia_operation_replay(
+        base: &str,
+        service_context: Option<Instant>,
+    ) -> Result<(Self, SystemOperationTrace)> {
+        let endpoint = url::Url::parse(base).map_err(|_| Error::InvalidRequest)?;
+        let loopback = endpoint
+            .host_str()
+            .and_then(|h| h.parse::<std::net::IpAddr>().ok())
+            .is_some_and(|ip| ip.is_loopback());
+        if !loopback
+            || endpoint.scheme() != "http"
+            || service_context.is_some()
+            || !endpoint.username().is_empty()
+            || endpoint.password().is_some()
+        {
+            return Err(Error::InvalidRequest);
+        }
+        let trace = SystemOperationTrace(Arc::new(Mutex::new(Vec::with_capacity(2))));
+        let mut owner = Self::default();
+        owner.replay_endpoint = Some(endpoint);
+        owner.operation_trace = Some(trace.clone());
+        Ok((owner, trace))
     }
     pub(crate) fn deadline_clock(&self) -> DeadlineClock {
         self.clock.clone()
@@ -768,6 +840,12 @@ impl AdapterHttp {
         }
         Ok(Session {
             clock: self.clock.clone(),
+            #[cfg(test)]
+            replay_endpoint: self.replay_endpoint.clone(),
+            #[cfg(test)]
+            operation_trace: self.operation_trace.clone(),
+            #[cfg(test)]
+            replay_identity: self.operation_trace.as_ref().map(|_| Arc::new(())),
             state: self.state.clone(),
             connections: self.connections.clone(),
             decoder: self.decoder.clone(),
@@ -919,8 +997,60 @@ impl Drop for AdapterHttp {
         self.shutdown();
     }
 }
+/// Bounded test metadata, not a transport hook or alternate deadline policy.
+#[cfg(test)]
+#[derive(Clone)]
+pub(crate) struct SystemOperationTrace(Arc<Mutex<Vec<SystemOperationObservation>>>);
+#[cfg(test)]
+#[derive(Clone)]
+pub(crate) struct SystemOperationObservation {
+    session: Arc<()>,
+    pool: Weak<Pool>,
+    pub(crate) deadline: Instant,
+    pub(crate) observed_at: Instant,
+    pub(crate) preceding_requests: usize,
+}
+#[cfg(test)]
+impl SystemOperationObservation {
+    pub(crate) fn same_session(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.session, &other.session)
+    }
+    pub(crate) fn same_pool(&self, other: &Self) -> bool {
+        Weak::ptr_eq(&self.pool, &other.pool)
+    }
+}
+#[cfg(test)]
+impl SystemOperationTrace {
+    fn record(&self, session: &Session) -> Result<()> {
+        let mut observations = self.0.lock().unwrap();
+        if observations.len() >= 2 {
+            return Err(Error::RequestLimit);
+        }
+        observations.push(SystemOperationObservation {
+            session: session
+                .replay_identity
+                .as_ref()
+                .expect("observed Session owns identity")
+                .clone(),
+            pool: Arc::downgrade(&session.pool),
+            deadline: session.deadline.into_std(),
+            observed_at: session.clock.now(),
+            preceding_requests: session.requests,
+        });
+        Ok(())
+    }
+    pub(crate) fn observations(&self) -> Vec<SystemOperationObservation> {
+        self.0.lock().unwrap().clone()
+    }
+}
 pub struct Session {
     clock: DeadlineClock,
+    #[cfg(test)]
+    replay_endpoint: Option<url::Url>,
+    #[cfg(test)]
+    operation_trace: Option<SystemOperationTrace>,
+    #[cfg(test)]
+    replay_identity: Option<Arc<()>>,
     state: Arc<Mutex<State>>,
     connections: Arc<Semaphore>,
     decoder: Arc<Decoder>,
@@ -953,6 +1083,16 @@ impl Session {
         if *self.cancel.0.borrow() {
             return Err(Error::Cancelled);
         }
+        #[cfg(test)]
+        if let Some(trace) = &self.operation_trace {
+            trace.record(self)?;
+        }
+        // Timer readiness may lag the owner's clock (for example within a
+        // Tokio timer tick). Reject expired startup before request accounting,
+        // transport dispatch or client checkout, retaining stop/cancel priority.
+        if self.clock.now() >= self.deadline.into_std() {
+            return Err(Error::Deadline);
+        }
         let cancel = self.cancel.clone();
         let stop = self.stop.clone();
         let deadline = self.deadline;
@@ -972,6 +1112,14 @@ impl Session {
     async fn execute_inner(&mut self, mut request: Request) -> Result<Response> {
         let mut redirects = 0;
         loop {
+            #[cfg(test)]
+            if let Some(endpoint) = &self.replay_endpoint
+                && (request.url.scheme() != endpoint.scheme()
+                    || request.url.host() != endpoint.host()
+                    || request.url.port_or_known_default() != endpoint.port_or_known_default())
+            {
+                return Err(Error::InvalidRequest);
+            }
             if self.requests >= self.options.bounds.requests {
                 return Err(Error::RequestLimit);
             }
@@ -1112,7 +1260,11 @@ struct DecodeState {
     closed: bool,
     active: usize,
 }
+#[cfg(test)]
+type TestDecodeGate = Arc<dyn Fn() + Send + Sync>;
 struct Decoder {
+    #[cfg(test)]
+    before_work: Mutex<Option<TestDecodeGate>>,
     slots: Arc<Semaphore>,
     state: Mutex<DecodeState>,
     done: Notify,
@@ -1120,6 +1272,8 @@ struct Decoder {
 impl Default for Decoder {
     fn default() -> Self {
         Self {
+            #[cfg(test)]
+            before_work: Mutex::new(None),
             slots: Arc::new(Semaphore::new(DECODE_CONCURRENCY)),
             state: Mutex::new(DecodeState::default()),
             done: Notify::new(),
@@ -1154,10 +1308,16 @@ impl Decoder {
             }
             state.active += 1;
         }
+        #[cfg(test)]
+        let before_work = self.before_work.lock().unwrap().clone();
         let worker = DecodeWorker(self.clone());
         tokio::task::spawn_blocking(move || {
             let _permit = permit;
             let _worker = worker;
+            #[cfg(test)]
+            if let Some(before_work) = before_work {
+                before_work();
+            }
             work()
         })
         .await
@@ -1644,6 +1804,214 @@ mod f15_header_tests {
         assert!(!identity_announced_oversize(&h, 2_000_000));
     }
 }
+
+#[cfg(test)]
+#[path = "../tests/support/a10_http_clock.rs"]
+mod a10_owner_clock_tests;
+
+#[cfg(test)]
+mod pypi_operation_timeout_tests {
+    use super::AdapterHttp;
+    use crate::adapters::{AllowAllAdmission, PackageConfig, PyPIConfig, register_packages};
+    use ssx_domain::{EngineStatus, SearchRequest};
+    use ssx_registry::Registry;
+    use std::{sync::Arc, time::Duration};
+    use tokio::{
+        io::{AsyncReadExt, AsyncWriteExt},
+        net::TcpListener,
+    };
+
+    async fn run_pypi_per_operation_timeout_scenario() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let base = format!("http://{}", listener.local_addr().unwrap());
+        let (owner, driver) = AdapterHttp::clocked_real_pool_owner();
+        let http = Arc::new(owner);
+        let server = tokio::spawn(async move {
+            let mut requests = Vec::new();
+            for (index, body) in [
+                "",
+                "<a href='/simple/python-one/'>x</a><a href='/simple/python-two/'>y</a>",
+                "{\"info\":{}}",
+                "{\"info\":{}}",
+            ]
+            .iter()
+            .enumerate()
+            {
+                let (mut stream, _) = listener.accept().await.unwrap();
+                let mut buf = [0; 4096];
+                let mut read = 0;
+                while !buf[..read].windows(4).any(|window| window == b"\r\n\r\n") {
+                    assert!(read < buf.len(), "bounded HTTP request headers");
+                    let count = stream.read(&mut buf[read..]).await.unwrap();
+                    assert!(count > 0, "loopback request closed before its headers");
+                    read += count;
+                }
+                let request = std::str::from_utf8(&buf[..read])
+                    .unwrap()
+                    .lines()
+                    .next()
+                    .unwrap()
+                    .to_owned();
+                requests.push(request);
+                if index > 0 {
+                    // Model a logical 180 ms server operation without letting
+                    // host scheduling consume part of the HTTP timeout budget.
+                    driver.advance_to(Duration::from_millis(180 * index as u64));
+                }
+                let status = if index == 0 { 404 } else { 200 };
+                let head = format!(
+                    "HTTP/1.1 {status} Response\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                    body.len()
+                );
+                stream.write_all(head.as_bytes()).await.unwrap();
+                stream.write_all(body.as_bytes()).await.unwrap();
+            }
+            requests
+        });
+
+        let mut registry = Registry::builtins().unwrap();
+        register_packages(
+            &mut registry,
+            http.clone(),
+            Arc::new(AllowAllAdmission),
+            PackageConfig {
+                pypi: PyPIConfig {
+                    base_url: base,
+                    timeout_ms: 400,
+                    max_results: 2,
+                },
+                ..PackageConfig::default()
+            },
+        )
+        .unwrap();
+        let response = registry
+            .instantiate("pypi")
+            .unwrap()
+            .search(&SearchRequest {
+                query: "python".into(),
+                ..SearchRequest::default()
+            })
+            .await;
+        assert_eq!(response.status, EngineStatus::Ok);
+        assert_eq!(
+            response
+                .results
+                .iter()
+                .map(|result| result.title.as_str())
+                .collect::<Vec<_>>(),
+            ["python-one ", "python-two "]
+        );
+        assert_eq!(
+            server.await.unwrap(),
+            [
+                "GET /pypi/python/json HTTP/1.1",
+                "GET /simple/ HTTP/1.1",
+                "GET /pypi/python-one/json HTTP/1.1",
+                "GET /pypi/python-two/json HTTP/1.1",
+            ]
+        );
+        {
+            let state = http.state.lock().unwrap();
+            assert!(state.used, "the caller-owned HTTP pool was exercised");
+            assert!(state.injected.is_none(), "the real transport was retained");
+        }
+        http.shutdown();
+    }
+
+    #[tokio::test]
+    async fn pypi_uses_fresh_per_operation_timeouts_on_the_caller_pool() {
+        tokio::time::timeout(
+            Duration::from_secs(35),
+            run_pypi_per_operation_timeout_scenario(),
+        )
+        .await
+        .expect("loopback timeout scenario exceeded its wall-clock watchdog");
+    }
+}
+
+#[cfg(test)]
+#[path = "../tests/support/f10_peer_timeout.rs"]
+mod f10_peer_timeout_tests;
+
+#[cfg(test)]
+#[path = "../tests/support/http_expired_startup.rs"]
+mod expired_startup_tests;
+
+#[cfg(test)]
+#[path = "../tests/support/a04_broad_api.rs"]
+mod a04_broad_api;
+
+#[cfg(test)]
+mod loopback_timeout_replay_controls {
+    use super::*;
+    #[test]
+    fn manual_network_owner_rejects_remote_and_service_context() {
+        for base in [
+            "https://127.0.0.1:1234",
+            "http://example.com",
+            "http://localhost:1234",
+            "http://user@127.0.0.1:1234",
+        ] {
+            assert!(AdapterHttp::loopback_timeout_replay(base, None).is_err());
+            assert!(AdapterHttp::wikipedia_operation_replay(base, None).is_err());
+        }
+        assert!(
+            AdapterHttp::loopback_timeout_replay("http://127.0.0.1:1234", Some(Instant::now()))
+                .is_err()
+        );
+        assert!(AdapterHttp::loopback_timeout_replay("http://127.0.0.1:1234", None).is_ok());
+        assert!(
+            AdapterHttp::wikipedia_operation_replay("http://127.0.0.1:1234", Some(Instant::now()))
+                .is_err()
+        );
+        assert!(AdapterHttp::wikipedia_operation_replay("http://127.0.0.1:1234", None).is_ok());
+    }
+    #[tokio::test]
+    async fn manual_network_session_rejects_different_endpoint_before_wire() {
+        let (owner, driver) =
+            AdapterHttp::loopback_timeout_replay("http://127.0.0.1:1234", None).unwrap();
+        let mut session = owner
+            .session(
+                Options::default(),
+                (driver.now() + std::time::Duration::from_secs(1)).into(),
+                Cancellation::default(),
+            )
+            .unwrap();
+        assert!(matches!(
+            session
+                .execute(Request::get("http://127.0.0.1:1235/").unwrap())
+                .await,
+            Err(Error::InvalidRequest)
+        ));
+        owner.shutdown_and_wait().await;
+        let (owner, trace) =
+            AdapterHttp::wikipedia_operation_replay("http://127.0.0.1:1234", None).unwrap();
+        let mut session = owner
+            .session(
+                Options::default(),
+                (Instant::now() + Duration::from_secs(1)).into(),
+                Cancellation::default(),
+            )
+            .unwrap();
+        for _ in 0..2 {
+            assert!(matches!(
+                session
+                    .execute(Request::get("http://127.0.0.1:1235/").unwrap())
+                    .await,
+                Err(Error::InvalidRequest)
+            ));
+        }
+        assert!(matches!(
+            session
+                .execute(Request::get("http://127.0.0.1:1235/").unwrap())
+                .await,
+            Err(Error::RequestLimit)
+        ));
+        assert_eq!(trace.observations().len(), 2);
+        owner.shutdown_and_wait().await;
+    }
+}
+
 #[cfg(test)]
 #[path = "../tests/support/default_ca_environment.rs"]
 mod default_ca_environment;

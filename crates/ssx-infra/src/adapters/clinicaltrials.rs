@@ -132,6 +132,25 @@ pub(super) async fn admit_with_context(
         admit(admission, name).await
     }
 }
+async fn admit_with_http_clock(
+    admission: &Arc<dyn SearchAdmission>,
+    name: &'static str,
+    context: Option<Instant>,
+    http: &AdapterHttp,
+) -> Result<()> {
+    if let Some(deadline) = context {
+        check_using(deadline, || http.deadline_now())?;
+        let admitted = tokio::select! {
+            biased;
+            result = admit(admission, name) => result,
+            _ = http.deadline_sleep_until(deadline) => Err(timeout()),
+        };
+        check_using(deadline, || http.deadline_now())?;
+        admitted
+    } else {
+        admit(admission, name).await
+    }
+}
 pub(super) fn network_deadline(
     config: &BiomedicalConfig,
     pubmed: bool,
@@ -284,7 +303,10 @@ pub(super) fn deadline(config: &BiomedicalConfig, pubmed: bool) -> Result<Instan
         .ok_or_else(|| error("timeout overflow"))
 }
 pub(super) fn check(deadline: Instant) -> Result<()> {
-    if Instant::now() >= deadline {
+    check_using(deadline, Instant::now)
+}
+fn check_using(deadline: Instant, now: impl FnOnce() -> Instant) -> Result<()> {
+    if now() >= deadline {
         Err(timeout())
     } else {
         Ok(())
@@ -374,6 +396,28 @@ pub(super) async fn get_observed(
     }
     let value = parse_body_observed(&response.body, parse_deadline, observer).await?;
     Ok(Some(value))
+}
+#[allow(clippy::too_many_arguments)] // Compatibility interface; Session owns the authoritative request clock.
+pub(super) async fn get_observed_for_http(
+    _http: &AdapterHttp,
+    session: &mut crate::http::Session,
+    req: Request,
+    deadline: Instant,
+    empty404: bool,
+    details: bool,
+    parse_deadline: Option<Instant>,
+    observer: Observer<'_>,
+) -> Result<Option<Value>> {
+    get_observed(
+        session,
+        req,
+        deadline,
+        empty404,
+        details,
+        parse_deadline,
+        observer,
+    )
+    .await
 }
 /// Only PubMed supplies an aggregate parse budget. None retains the accepted
 /// codec's byte/depth/text/integer limits and cooperative cancellation points.
@@ -500,8 +544,8 @@ impl ClinicalTrialsAdapter {
         budget: &'b Budget,
         observer: Observer<'_>,
     ) -> Result<ProducedBatch<'b>> {
-        admit_with_context(&self.admission, "clinicaltrials", context).await?;
-        let d = network_deadline_for_http(&self.http, &self.config, context)?;
+        admit_with_http_clock(&self.admission, "clinicaltrials", context, &self.http).await?;
+        let d = network_deadline_using(&self.config, false, context, || self.http.deadline_now())?;
         let max = scalar_text(&self.config.max_results);
         let req = request(
             &self.config.base_url,
@@ -515,9 +559,18 @@ impl ClinicalTrialsAdapter {
             false,
         )?;
         let mut session = session(&self.http, d)?;
-        let data = get_observed(&mut session, req, d, false, false, context, observer)
-            .await?
-            .unwrap();
+        let data = get_observed_for_http(
+            &self.http,
+            &mut session,
+            req,
+            d,
+            false,
+            false,
+            context,
+            observer,
+        )
+        .await?
+        .unwrap();
         let l = list();
         let rows = result_rows(field(&data, "studies", &l)?, &self.config.max_results)?;
         let mut batch =
@@ -658,6 +711,155 @@ impl SearchEngine for ClinicalTrialsAdapter {
 #[cfg(test)]
 mod deadline_tests {
     use super::*;
+    use std::task::Poll;
+    use tokio::{
+        io::{AsyncReadExt, AsyncWriteExt},
+        net::TcpListener,
+        sync::oneshot,
+        task::JoinHandle,
+    };
+
+    struct AbortOnDrop<T>(Option<JoinHandle<T>>);
+    impl<T> AbortOnDrop<T> {
+        async fn join(&mut self) -> std::result::Result<T, tokio::task::JoinError> {
+            self.0.as_mut().expect("server task retained").await
+        }
+    }
+    impl<T> Drop for AbortOnDrop<T> {
+        fn drop(&mut self) {
+            if let Some(task) = &self.0 {
+                task.abort();
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn queue_time_consumes_absolute_context_instead_of_original_request_timeout() {
+        tokio::time::timeout(Duration::from_secs(5), async {
+            let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let base = format!("http://{}", listener.local_addr().unwrap());
+            let (owner, driver) = AdapterHttp::clocked_real_pool_owner();
+            let http = Arc::new(owner);
+            let start = http.deadline_now();
+            let (request_seen_tx, request_seen_rx) = oneshot::channel();
+            let (release_response_tx, release_response_rx) = oneshot::channel();
+            let server_http = http.clone();
+            let server = tokio::spawn(async move {
+                let (mut stream, _) = listener.accept().await.unwrap();
+                let mut bytes = [0_u8; 4096];
+                let mut read = 0;
+                while !bytes[..read].windows(4).any(|window| window == b"\r\n\r\n") {
+                    assert!(read < bytes.len(), "bounded HTTP request headers");
+                    let count = stream.read(&mut bytes[read..]).await.unwrap();
+                    assert!(count > 0, "loopback request closed before its headers");
+                    read += count;
+                }
+                let received_at = server_http.deadline_now();
+                request_seen_tx.send(received_at).unwrap();
+                release_response_rx.await.unwrap();
+                let response_at = server_http.deadline_now();
+                let body = r#"{"studies":[]}"#;
+                let head = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                    body.len()
+                );
+                let request_headers = String::from_utf8_lossy(&bytes[..read]).into_owned();
+                let request_line = request_headers.lines().next().unwrap().to_owned();
+                let write_result = async {
+                    stream.write_all(head.as_bytes()).await?;
+                    stream.write_all(body.as_bytes()).await?;
+                    Ok::<(), std::io::Error>(())
+                }
+                .await;
+                let write_error = write_result.as_ref().err().map(std::io::Error::kind);
+                (
+                    received_at,
+                    response_at,
+                    vec![request_line],
+                    request_headers,
+                    write_error,
+                )
+            });
+            let mut server = AbortOnDrop(Some(server));
+            let engine = ClinicalTrialsAdapter::new(
+                http.clone(),
+                Arc::new(super::super::AllowAllAdmission),
+                BiomedicalConfig {
+                    base_url: base,
+                    timeout_ms: ConfigScalar::Integer(5000),
+                    max_results: ConfigScalar::Integer(10),
+                    aggregate_timeout_ms: None,
+                },
+            );
+            let request = SearchRequest {
+                query: "context".into(),
+                interactive_timeout_ms: Some(5000),
+                ..Default::default()
+            };
+            let context = SearchContext {
+                deadline: start + Duration::from_millis(70),
+            };
+
+            // Deterministic 35 ms of queue time before the actual HTTP call.
+            driver.advance_to(Duration::from_millis(35));
+            let mut client = engine.search_with_context(&request, context);
+            let received_at = tokio::time::timeout(Duration::from_secs(5), async {
+                tokio::select! {
+                    received = request_seen_rx => received.expect("loopback request signal"),
+                    response = &mut client => panic!("request completed before response release: {:?}", response.status),
+                }
+            })
+            .await
+            .expect("bounded wait for real loopback request");
+            assert_eq!(received_at.duration_since(start), Duration::from_millis(35));
+
+            // At the absolute deadline the server is still holding its response.
+            // Poll exactly once before advancing, so success and the dropped-context
+            // mutant receive the same later response schedule.
+            driver.advance_to(Duration::from_millis(70));
+            let at_deadline = std::future::poll_fn(|cx| {
+                Poll::Ready(match client.as_mut().poll(cx) {
+                    Poll::Ready(response) => Some(response),
+                    Poll::Pending => None,
+                })
+            })
+            .await;
+            let returned_at_deadline = at_deadline.is_some();
+            driver.advance_to(Duration::from_millis(135));
+            release_response_tx.send(()).unwrap();
+            let (server_received_at, response_at, request_lines, request_headers, write_error) =
+                tokio::time::timeout(Duration::from_secs(5), server.join())
+                    .await
+                    .expect("bounded loopback server completion")
+                    .unwrap();
+            let response = match at_deadline {
+                Some(response) => response,
+                None => tokio::time::timeout(Duration::from_secs(5), client)
+                    .await
+                    .expect("bounded client completion after response release"),
+            };
+            http.shutdown_and_wait().await;
+            assert!(
+                returned_at_deadline,
+                "client must complete at the absolute context deadline"
+            );
+            assert_eq!(server_received_at, received_at);
+            assert_eq!(response_at.duration_since(received_at), Duration::from_millis(100));
+            assert_eq!(request_lines.len(), 1);
+            assert!(request_lines[0].starts_with("GET /?query.term=context"));
+            assert!(request_headers.starts_with(&request_lines[0]));
+            assert!(request_headers.to_ascii_lowercase().contains("host: 127.0.0.1:"));
+            assert_eq!(response.status, EngineStatus::Timeout);
+            assert!(matches!(
+                write_error,
+                None | Some(std::io::ErrorKind::BrokenPipe | std::io::ErrorKind::ConnectionReset)
+            ));
+            assert!(response.results.is_empty());
+            assert!(http.deadline_now().duration_since(start) < Duration::from_millis(180));
+        })
+        .await
+        .expect("real-wall-clock watchdog for the complete loopback scenario");
+    }
     #[tokio::test]
     async fn only_pubmed_aggregate_budget_applies_to_source_decode() {
         let expired = Instant::now().checked_sub(Duration::from_secs(1)).unwrap();

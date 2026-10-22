@@ -366,8 +366,8 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
             "--locked",
             "-p",
             "ssx-infra",
-            "--test",
-            "a04_broad_api",
+            "--lib",
+            "http::a04_broad_api::",
             "--",
             "--list",
         ],
@@ -376,6 +376,7 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
     let tests: BTreeSet<_> = listed
         .lines()
         .filter_map(|line| line.strip_suffix(": test"))
+        .filter_map(|name| name.strip_prefix("http::a04_broad_api::"))
         .collect();
     let expected: BTreeSet<_> = [
         "batch_registration_alone_controls_runtime_availability",
@@ -416,8 +417,8 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
             "--locked",
             "-p",
             "ssx-infra",
-            "--test",
-            "a04_broad_api",
+            "--lib",
+            "http::a04_broad_api::",
         ],
         records,
     )?;
@@ -446,7 +447,8 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
         "crates/ssx-infra/src/adapters/wikipedia.rs",
         "crates/ssx-infra/src/adapters/reddit.rs",
         "crates/ssx-infra/src/adapters/source_json.rs",
-        "crates/ssx-infra/tests/a04_broad_api.rs",
+        "crates/ssx-infra/tests/support/a04_broad_api.rs",
+        "docs/rust-rewrite/a04/source-amendments/191537e-a04_broad_api.rs.frozen",
         "crates/xtask/src/a04.rs",
         "crates/xtask/src/main.rs",
         ".github/workflows/rust.yml",
@@ -457,4 +459,13 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
             .push(serde_json::json!({"a04_native_identity":{"path":path,"git_blob":blob.trim()}}));
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod scoped_successor_controls {
+    #[test]
+    fn real_nine_bindings_and_distinct_current_history_failures() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        crate::a13::causal_successor::control_bridge(&root).unwrap();
+    }
 }

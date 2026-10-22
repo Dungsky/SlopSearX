@@ -669,6 +669,10 @@ pub(crate) enum RowLimit {
     Number(f64),
     Unlimited,
     Invalid(u8),
+    /// A10 slices selected rows before filtering and retains exact signed integers.
+    Slice(i64),
+    SliceAll,
+    InvalidSlice,
 }
 impl RowLimit {
     fn from_value(value: &ssx_json::Value) -> Self {
@@ -692,6 +696,9 @@ impl RowLimit {
             Self::Invalid(2) => Err("'>=' not supported between instances of 'int' and 'list'"),
             Self::Invalid(3) => Err("'>=' not supported between instances of 'int' and 'dict'"),
             Self::Invalid(_) => Err("invalid HTML row-limit tag"),
+            Self::Slice(_) | Self::SliceAll | Self::InvalidSlice => {
+                Err("A10 slice on A05 row layout")
+            }
         }
     }
 }
@@ -711,6 +718,9 @@ pub(crate) fn html_extract_rows(
     use crate::html::row_wire::Layout;
     match layout {
         Layout::Google => google::extract_tree(doc, limit, budget),
+        other if other.is_a10() => Err(crate::html::OperationFailure::Invariant(
+            "A10 layout requires typed child rows",
+        )),
         other => duckduckgo::extract_tree(
             doc,
             "",
@@ -723,6 +733,8 @@ pub(crate) fn html_extract_rows(
 }
 
 // A07 native biomedical implementations; selection remains resolved policy.
+#[cfg(test)]
+mod a07_matrix_replay;
 pub mod clinicaltrials;
 pub mod europepmc;
 pub mod pubchem;
@@ -977,6 +989,20 @@ pub fn register_catalog_media(
 
 mod tmdb_case;
 
+// A10 named vulnerability and exploit-knowledge adapters; metadata stays F06-owned.
+pub mod cve;
+pub mod epss;
+pub mod exploitdb;
+pub mod mitreattack;
+pub mod nvd;
+mod vulnerability;
+pub use vulnerability::{
+    VulnerabilitySettings, register_vulnerability, register_vulnerability_with_parser,
+};
+
+pub(crate) mod vulnerability_html;
+pub(crate) mod vulnerability_wire;
+
 // A11 engine-local IP/URL intelligence; catalog and admission remain shared.
 pub mod abuseipdb;
 pub mod greynoise;
@@ -985,3 +1011,21 @@ mod threat_intel;
 mod threat_ioc;
 pub mod urlhaus;
 pub use threat_intel::{ThreatIntelConfig, ThreatIntelSettings, register_threat_intelligence};
+
+// A12 engine-local infrastructure security; shared policy/transport remain caller-owned.
+pub mod censys;
+pub mod crtsh;
+mod infrastructure_security;
+pub mod shodan;
+pub mod virustotal;
+pub mod vulncheck;
+pub use infrastructure_security::{
+    Kind as InfrastructureSecurityKind, SecurityConfig, SecuritySettings,
+    register_infrastructure_security,
+};
+// A13 first slice: a real sensitive factory, mounted explicitly by its owner.
+pub mod dehashed;
+
+// A13 remaining threat intelligence; construction is explicit and policy-owned.
+pub mod hibp;
+pub mod intelx;

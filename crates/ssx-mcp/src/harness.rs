@@ -135,6 +135,31 @@ pub fn http_router_with_session_expiry(
 ) -> (ManagedRouter, SessionProbe) {
     configured_router(registry, token, cancel, true, expiry)
 }
+struct ExpiryWorkerConfig {
+    expiry: Duration,
+    #[cfg(test)]
+    setup_gate: Option<std::sync::Arc<tokio::sync::Notify>>,
+}
+/// Test-only setup seam: hold the real idle-expiry worker until the test has
+/// completed protocol initialization and established its SDK lock barrier.
+#[cfg(test)]
+fn http_router_with_gated_session_expiry(
+    registry: Registry,
+    token: Option<String>,
+    cancel: CancellationToken,
+    expiry: Duration,
+) -> (ManagedRouter, SessionProbe) {
+    configured_router_with_gate(
+        registry,
+        token,
+        cancel,
+        true,
+        ExpiryWorkerConfig {
+            expiry,
+            setup_gate: Some(std::sync::Arc::new(tokio::sync::Notify::new())),
+        },
+    )
+}
 fn configured_router(
     registry: Registry,
     token: Option<String>,
@@ -142,14 +167,33 @@ fn configured_router(
     stateful: bool,
     expiry: Duration,
 ) -> (ManagedRouter, SessionProbe) {
+    configured_router_with_gate(
+        registry,
+        token,
+        cancel,
+        stateful,
+        ExpiryWorkerConfig {
+            expiry,
+            #[cfg(test)]
+            setup_gate: None,
+        },
+    )
+}
+fn configured_router_with_gate(
+    registry: Registry,
+    token: Option<String>,
+    cancel: CancellationToken,
+    stateful: bool,
+    expiry_worker: ExpiryWorkerConfig,
+) -> (ManagedRouter, SessionProbe) {
     let catalogs = registry.opaque.clone();
-    configured_router_for(
+    configured_router_for_with_gate(
         registry,
         catalogs,
         token,
         cancel,
         stateful,
-        expiry,
+        expiry_worker,
         crate::output_limits::OutputLimits::HTTP,
     )
 }
@@ -196,6 +240,29 @@ fn configured_router_for<H: rmcp::ServerHandler + Clone + 'static>(
     expiry: Duration,
     output_limits: crate::output_limits::OutputLimits,
 ) -> (ManagedRouter, SessionProbe) {
+    configured_router_for_with_gate(
+        registry,
+        catalogs,
+        token,
+        cancel,
+        stateful,
+        ExpiryWorkerConfig {
+            expiry,
+            #[cfg(test)]
+            setup_gate: None,
+        },
+        output_limits,
+    )
+}
+fn configured_router_for_with_gate<H: rmcp::ServerHandler + Clone + 'static>(
+    registry: H,
+    catalogs: std::sync::Arc<crate::opaque::Catalogs>,
+    token: Option<String>,
+    cancel: CancellationToken,
+    stateful: bool,
+    expiry_worker: ExpiryWorkerConfig,
+    output_limits: crate::output_limits::OutputLimits,
+) -> (ManagedRouter, SessionProbe) {
     let mut manager = LocalSessionManager::default();
     // One owner governs idle expiry. The SDK timer counts time inside active
     // operations; stream/request leases below suspend idle expiry correctly.
@@ -213,10 +280,24 @@ fn configured_router_for<H: rmcp::ServerHandler + Clone + 'static>(
         task: std::sync::Mutex::new(None),
         result: Default::default(),
     });
+    let expiry = expiry_worker.expiry;
+    #[cfg(test)]
+    let setup_gate = expiry_worker.setup_gate;
+    #[cfg(test)]
+    let expiry_close_observer = setup_gate.as_ref().map(|_| {
+        std::sync::Arc::new(ExpiryCloseObserver {
+            timeouts: std::sync::atomic::AtomicUsize::new(0),
+            notify: tokio::sync::Notify::new(),
+        })
+    });
     let probe = SessionProbe {
         state: state.clone(),
         manager: manager.clone(),
         control: control.clone(),
+        #[cfg(test)]
+        setup_gate: setup_gate.clone(),
+        #[cfg(test)]
+        expiry_close_observer: expiry_close_observer.clone(),
     };
     let worker_state = state.clone();
     let worker_manager = manager.clone();
@@ -224,8 +305,20 @@ fn configured_router_for<H: rmcp::ServerHandler + Clone + 'static>(
     let worker_stopped = control.done.clone();
     let worker_stop = control.stop.clone();
     let worker_result = control.result.clone();
+    #[cfg(test)]
+    let worker_setup_gate = setup_gate;
+    #[cfg(test)]
+    let worker_expiry_close_observer = expiry_close_observer;
     let task = tokio::spawn(async move {
         let _stopped = worker_stopped.drop_guard();
+        #[cfg(test)]
+        if let Some(gate) = worker_setup_gate {
+            tokio::select! {
+                _ = gate.notified() => {},
+                _ = worker_cancel.cancelled() => {},
+                _ = worker_stop.cancelled() => {},
+            }
+        }
         let mut interval = tokio::time::interval(
             (expiry / 4).clamp(Duration::from_millis(5), Duration::from_secs(1)),
         );
@@ -265,8 +358,18 @@ fn configured_router_for<H: rmcp::ServerHandler + Clone + 'static>(
                 };
                 if close {
                     // Never hold alias/activity locks while waiting for SDK manager locks.
-                    if close_and_confirm(&worker_manager, &id).await {
+                    let (removed, timed_out) =
+                        close_and_confirm_observed(&worker_manager, &id).await;
+                    if removed {
                         worker_state.sessions.lock().unwrap().remove(&id);
+                    } else if timed_out {
+                        #[cfg(test)]
+                        if let Some(observer) = &worker_expiry_close_observer {
+                            observer
+                                .timeouts
+                                .fetch_add(1, std::sync::atomic::Ordering::Release);
+                            observer.notify.notify_one();
+                        }
                     }
                 }
             }
@@ -329,22 +432,23 @@ fn configured_router_for<H: rmcp::ServerHandler + Clone + 'static>(
     )
 }
 async fn close_and_confirm(manager: &LocalSessionManager, id: &str) -> bool {
+    close_and_confirm_observed(manager, id).await.0
+}
+async fn close_and_confirm_observed(manager: &LocalSessionManager, id: &str) -> (bool, bool) {
     use rmcp::transport::streamable_http_server::session::SessionManager;
-    if matches!(
-        tokio::time::timeout(
-            Duration::from_secs(1),
-            manager.close_session(&id.to_owned().into())
-        )
-        .await,
-        Ok(Ok(()))
-    ) {
-        return true;
+    let close = tokio::time::timeout(
+        Duration::from_secs(1),
+        manager.close_session(&id.to_owned().into()),
+    )
+    .await;
+    if matches!(close, Ok(Ok(()))) {
+        return (true, false);
     }
-    // A timeout can occur before the SDK write lock is acquired. Retain the
-    // alias admission unless actual manager removal is confirmed; retry later.
-    tokio::time::timeout(Duration::from_millis(100), manager.sessions.read())
+    let timed_out = close.is_err();
+    let removed = tokio::time::timeout(Duration::from_millis(100), manager.sessions.read())
         .await
-        .is_ok_and(|sessions| !sessions.contains_key(id))
+        .is_ok_and(|sessions| !sessions.contains_key(id));
+    (removed, timed_out)
 }
 struct CleanupControl {
     stop: CancellationToken,
@@ -406,6 +510,15 @@ pub struct SessionProbe {
     state: OpaqueState,
     manager: std::sync::Arc<LocalSessionManager>,
     control: std::sync::Arc<CleanupControl>,
+    #[cfg(test)]
+    setup_gate: Option<std::sync::Arc<tokio::sync::Notify>>,
+    #[cfg(test)]
+    expiry_close_observer: Option<std::sync::Arc<ExpiryCloseObserver>>,
+}
+#[cfg(test)]
+struct ExpiryCloseObserver {
+    timeouts: std::sync::atomic::AtomicUsize,
+    notify: tokio::sync::Notify,
 }
 impl SessionProbe {
     pub fn available_permits(&self) -> usize {
@@ -431,6 +544,25 @@ impl SessionProbe {
         )
         .await??;
         Ok(())
+    }
+    #[cfg(test)]
+    fn release_expiry_worker(&self) {
+        if let Some(gate) = &self.setup_gate {
+            gate.notify_one();
+        }
+    }
+    #[cfg(test)]
+    async fn wait_for_expiry_close_timeout(&self) -> usize {
+        loop {
+            let Some(observer) = &self.expiry_close_observer else {
+                return 0;
+            };
+            let count = observer.timeouts.load(std::sync::atomic::Ordering::Acquire);
+            if count > 0 {
+                return count;
+            }
+            observer.notify.notified().await;
+        }
     }
 }
 type SharedWire = std::sync::Arc<std::sync::Mutex<crate::opaque::WireState>>;
@@ -765,7 +897,7 @@ mod lifecycle_tests {
     #[tokio::test]
     async fn sdk_close_lock_timeout_retains_alias_admission_until_actual_removal() -> Result<()> {
         let cancel = CancellationToken::new();
-        let (router, probe) = http_router_with_session_expiry(
+        let (router, probe) = http_router_with_gated_session_expiry(
             Registry::synthetic(),
             None,
             cancel.clone(),
@@ -777,6 +909,7 @@ mod lifecycle_tests {
         let response=http.post(&url).header("accept","application/json, text/event-stream").json(&serde_json::json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"lock-test","version":"1"}}})).send().await?;
         let session = response.headers()["mcp-session-id"].to_str()?.to_owned();
         let _ = response.bytes().await?;
+        tokio::time::sleep(Duration::from_millis(125)).await;
         let response = http
             .post(&url)
             .header("mcp-session-id", &session)
@@ -786,6 +919,15 @@ mod lifecycle_tests {
             .await?;
         assert_eq!(response.status(), 202);
         let sdk_lock = probe.manager.sessions.read().await;
+        probe.release_expiry_worker();
+        assert!(
+            tokio::time::timeout(
+                Duration::from_secs(3),
+                probe.wait_for_expiry_close_timeout()
+            )
+            .await?
+                >= 1
+        );
         tokio::time::sleep(Duration::from_millis(1250)).await;
         assert_eq!(probe.aliases(), 1);
         assert_eq!(probe.available_permits(), 127);

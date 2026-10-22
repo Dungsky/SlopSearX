@@ -653,63 +653,6 @@ async fn actual_f08_429_cooldown_prevents_redispatch_and_health_stays_observed()
     http.shutdown_and_wait().await;
 }
 #[tokio::test]
-async fn actual_peer_started_timeout_records_failure_with_null_latency() {
-    use ssx_infra::http::{AdapterHttp, Cancellation, Options, Request};
-    use tokio::{io::AsyncReadExt, net::TcpListener, sync::oneshot};
-    let peer = TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let url = format!("http://{}/fixture", peer.local_addr().unwrap());
-    let (tx, rx) = oneshot::channel();
-    let task = tokio::spawn(async move {
-        let (mut io, _) = peer.accept().await.unwrap();
-        let mut request = Vec::new();
-        let mut byte = [0];
-        while !request.ends_with(b"\r\n\r\n") {
-            io.read_exact(&mut byte).await.unwrap();
-            request.push(byte[0]);
-        }
-        tx.send(()).unwrap();
-        std::future::pending::<()>().await;
-    });
-    let http = AdapterHttp::default();
-    let mut session = http
-        .session(
-            Options {
-                trust_env: false,
-                ..Default::default()
-            },
-            tokio::time::Instant::now() + Duration::from_millis(150),
-            Cancellation::default(),
-        )
-        .unwrap();
-    assert_eq!(
-        session
-            .execute(Request::get(&url).unwrap())
-            .await
-            .unwrap_err(),
-        ssx_infra::http::Error::Deadline
-    );
-    rx.await.unwrap();
-    let mut health = HealthState::default();
-    let wall = WallClockTimestamp::new(100.0).unwrap();
-    health.observe(
-        OutcomeOrigin::DispatchedSyntheticTimeout,
-        &AdapterResponse {
-            synthetic: true,
-            status: EngineStatus::Timeout,
-            latency_ms: ssx_domain::FiniteF64::new(150.0).unwrap(),
-            ..Default::default()
-        },
-        wall,
-    );
-    let view = build_engine_health(Some(&health), None, wall, 300.0).unwrap();
-    assert_eq!(view["status"], "timeout");
-    assert!(view["last_observed_latency_ms"].is_null());
-    assert_eq!(health.consecutive_errors, 1);
-    task.abort();
-    http.shutdown_and_wait().await;
-}
-
-#[tokio::test]
 async fn absent_url_warmup_is_noop_and_fail_setting_is_explicit() {
     for fail_closed in [false, true] {
         let config = QuotaConfig::new(10.0, 1.0).unwrap();

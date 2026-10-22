@@ -80,9 +80,18 @@ impl UniProtAdapter {
             true,
         )?;
         let mut session = session(&self.http, d)?;
-        let data = get_observed(&mut session, req, d, false, false, context, observer)
-            .await?
-            .unwrap();
+        let data = get_observed_for_http(
+            &self.http,
+            &mut session,
+            req,
+            d,
+            false,
+            false,
+            context,
+            observer,
+        )
+        .await?
+        .unwrap();
         let l = list();
         let proteins = result_rows(field(&data, "results", &l)?, &candidate)?;
         let mut ranked = OwnedVec::with_capacity(budget, proteins.len()).map_err(owned_error)?;

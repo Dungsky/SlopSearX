@@ -1,0 +1,809 @@
+//! Concrete snapshot/result/receipt lineage resolution. Composition must supply
+//! the workflow and entity projections; no lookup acquires or renews ownership.
+use super::{
+    Edge, Failure, Node, Resolved, Resolver, Status,
+    adjacency::{Adjacency, CompactResolved, Members, Results},
+    input,
+};
+use crate::{
+    PortFuture,
+    policy::PolicyService,
+    receipts::{Cancellation, ReceiptRepository, service::Clock, source::result_parts},
+    snapshot::{SnapshotLookup, SnapshotProjectionLookup, SnapshotService, ValidatedSnapshotRead},
+};
+use ssx_domain::{
+    ArtifactKind, ArtifactRef, LineageRelation, SearchSnapshot, SnapshotId, TenantId,
+    WallClockTimestamp, canonical::composite_artifact_id,
+};
+use ssx_json::{Value, json};
+use std::sync::Arc;
+
+/// A fresh immutable policy snapshot per lookup. The implementation uses the
+/// existing shared gate's retained_engine_rejection, never dispatch authority.
+pub trait Policy: Send + Sync {
+    fn current(&self) -> PolicyService;
+}
+#[derive(Clone, Debug)]
+pub struct EntityGroup {
+    pub id: String,
+    pub namespace: String,
+    pub result_indices: Vec<usize>,
+}
+pub trait Entities: Send + Sync {
+    fn groups(&self, snapshot: &SearchSnapshot, version: u8) -> Vec<EntityGroup>;
+    /// Existing injected entity ports keep their full snapshot path unchanged.
+    /// Only a trusted streaming-capable implementation opts into F13 visitation.
+    fn projected(&self) -> Option<&dyn ProjectedEntities> {
+        None
+    }
+}
+pub trait ProjectedEntities: Send + Sync {
+    fn groups(
+        &self,
+        snapshot: &ValidatedSnapshotRead,
+        version: u8,
+    ) -> Result<Vec<EntityGroup>, Failure>;
+}
+enum SnapshotView {
+    Full(std::sync::Arc<SearchSnapshot>),
+    Projected(ValidatedSnapshotRead),
+}
+impl SnapshotView {
+    fn id(&self) -> &SnapshotId {
+        match self {
+            Self::Full(s) => s.id(),
+            Self::Projected(s) => s.summary().id(),
+        }
+    }
+    fn query_id(&self) -> &ssx_domain::QueryId {
+        match self {
+            Self::Full(s) => s.query_id(),
+            Self::Projected(s) => s.summary().query_id(),
+        }
+    }
+    fn scope(&self) -> &ssx_domain::ScopeDecision {
+        match self {
+            Self::Full(s) => s.scope(),
+            Self::Projected(s) => s.summary().scope(),
+        }
+    }
+    fn total(&self) -> usize {
+        match self {
+            Self::Full(s) => s.total(),
+            Self::Projected(s) => s.summary().total(),
+        }
+    }
+    fn created_at(&self) -> WallClockTimestamp {
+        match self {
+            Self::Full(s) => s.created_at(),
+            Self::Projected(s) => s.summary().created_at(),
+        }
+    }
+    fn expires_at(&self) -> Option<ssx_domain::WallClockExpiry> {
+        match self {
+            Self::Full(s) => s.expires_at(),
+            Self::Projected(s) => s.summary().expires_at(),
+        }
+    }
+    fn lineage(&self) -> &[Value] {
+        match self {
+            Self::Full(s) => s.lineage(),
+            Self::Projected(s) => s.summary().lineage(),
+        }
+    }
+    fn lineage_available(&self) -> bool {
+        match self {
+            Self::Full(s) => s.lineage_available(),
+            Self::Projected(s) => s.summary().lineage_available(),
+        }
+    }
+    fn groups(&self, entities: &dyn Entities, version: u8) -> Result<Vec<EntityGroup>, Failure> {
+        match self {
+            Self::Full(s) => Ok(entities.groups(s, version)),
+            Self::Projected(s) => entities
+                .projected()
+                .ok_or(Failure::Malformed)?
+                .groups(s, version),
+        }
+    }
+}
+enum SnapshotViewLookup {
+    Found(SnapshotView),
+    Missing,
+    Expired(ssx_domain::WallClockExpiry),
+    Unavailable,
+}
+
+pub struct NativeResolver {
+    pub snapshots: SnapshotService,
+    pub receipts: Arc<dyn ReceiptRepository>,
+    pub policy: Arc<dyn Policy>,
+    pub clock: Arc<dyn Clock>,
+    pub entities: Arc<dyn Entities>,
+    /// Mandatory real workflow resolver, rather than synthetic missing records.
+    pub workflows: Arc<dyn Resolver>,
+}
+fn reference(kind: ArtifactKind, id: &str) -> Result<ArtifactRef, Failure> {
+    ArtifactRef::new(kind, id).map_err(|_| Failure::Malformed)
+}
+fn edge(from: ArtifactRef, relation: LineageRelation, to: ArtifactRef) -> Edge {
+    Edge { from, relation, to }
+}
+fn empty(reference: &ArtifactRef, status: Status) -> Resolved {
+    Resolved {
+        node: Node::missing(reference.clone(), status),
+        edges: vec![],
+    }
+}
+fn parent_error(reference: &ArtifactRef, parent: &Node) -> Resolved {
+    if parent.status == Status::PolicyDenied {
+        return Resolved {
+            node: Node::missing(reference.clone(), Status::PolicyDenied),
+            edges: vec![],
+        };
+    }
+    let mut result = empty(reference, parent.status);
+    result.node.expires_at = parent.expires_at;
+    result
+}
+fn map_failure(f: crate::receipts::Failure) -> Failure {
+    match f {
+        crate::receipts::Failure::Closed => Failure::Closed,
+        crate::receipts::Failure::Cancelled => Failure::Cancelled,
+        crate::receipts::Failure::Unavailable | crate::receipts::Failure::CompletionUnknown => {
+            Failure::Unavailable
+        }
+        _ => Failure::Malformed,
+    }
+}
+impl NativeResolver {
+    async fn read_snapshot(&self, tenant: &TenantId, id: &SnapshotId) -> SnapshotViewLookup {
+        let service = self.snapshots.for_tenant(tenant.clone());
+        if self.entities.projected().is_some() {
+            match service.read_projected(id).await {
+                SnapshotProjectionLookup::Found(owner) => {
+                    SnapshotViewLookup::Found(SnapshotView::Projected(owner))
+                }
+                SnapshotProjectionLookup::Missing => SnapshotViewLookup::Missing,
+                SnapshotProjectionLookup::Expired { expires_at } => {
+                    SnapshotViewLookup::Expired(expires_at)
+                }
+                SnapshotProjectionLookup::Unavailable => SnapshotViewLookup::Unavailable,
+            }
+        } else {
+            match service.read(id).await {
+                SnapshotLookup::Found(owner) => {
+                    SnapshotViewLookup::Found(SnapshotView::Full(owner))
+                }
+                SnapshotLookup::Missing => SnapshotViewLookup::Missing,
+                SnapshotLookup::Expired { expires_at } => SnapshotViewLookup::Expired(expires_at),
+                SnapshotLookup::Unavailable => SnapshotViewLookup::Unavailable,
+            }
+        }
+    }
+    async fn snapshot(
+        &self,
+        tenant: &TenantId,
+        root: &ArtifactRef,
+        cancel: &Cancellation,
+    ) -> Result<CompactResolved, Failure> {
+        let Ok(id) = SnapshotId::new(root.id()) else {
+            return Ok(empty(root, Status::Missing).into());
+        };
+        let read = self.read_snapshot(tenant, &id).await;
+        if cancel.is_cancelled() {
+            return Err(Failure::Cancelled);
+        }
+        let snapshot = match read {
+            SnapshotViewLookup::Found(v) => v,
+            SnapshotViewLookup::Missing => return Ok(empty(root, Status::Missing).into()),
+            SnapshotViewLookup::Unavailable => return Ok(empty(root, Status::Unavailable).into()),
+            SnapshotViewLookup::Expired(expires_at) => {
+                let mut r = empty(root, Status::Expired);
+                r.node.expires_at = Some(expires_at.timestamp());
+                return Ok(r.into());
+            }
+        };
+        if self
+            .policy
+            .current()
+            .retained_engine_rejection(&snapshot.scope().selected_engines, "engines")
+            .is_err()
+        {
+            return Ok(Resolved {
+                node: Node::policy_denied(root.clone()),
+                edges: vec![],
+            }
+            .into());
+        }
+        let mut edges = snapshot
+            .lineage()
+            .iter()
+            .filter_map(Edge::from_value)
+            .collect::<Vec<_>>();
+        let results = Results::new(root.clone(), snapshot.total())?;
+        for group in snapshot.groups(self.entities.as_ref(), 1)? {
+            if !group.id.is_empty() {
+                let id = composite_artifact_id(&[snapshot.id().as_str(), &group.id])
+                    .map_err(|_| Failure::Malformed)?;
+                edges.push(edge(
+                    reference(ArtifactKind::EntityGroup, &id)?,
+                    LineageRelation::DerivedFrom,
+                    root.clone(),
+                ));
+            }
+        }
+        Ok(CompactResolved{node:Node{artifact:root.clone(),status:Status::Live,created_at:Some(snapshot.created_at()),expires_at:snapshot.expires_at().map(|v|v.timestamp()),details:Some(json!({"query_id":snapshot.query_id().as_str(),"result_count":snapshot.total(),"lineage_status":if snapshot.lineage_available(){"available"}else{"lineage_unavailable"}}).as_object().unwrap().clone())},edges:Adjacency::new(edges,Some(results))})
+    }
+    async fn result(
+        &self,
+        tenant: &TenantId,
+        root: &ArtifactRef,
+        cancel: &Cancellation,
+    ) -> Result<Resolved, Failure> {
+        let Some((id, index)) = result_parts(root.id()) else {
+            return Ok(empty(root, Status::Missing));
+        };
+        let Ok(parent) = reference(ArtifactKind::Snapshot, id) else {
+            return Ok(empty(root, Status::Missing));
+        };
+        let status = self.snapshot(tenant, &parent, cancel).await?;
+        if status.node.status != Status::Live {
+            return Ok(parent_error(root, &status.node));
+        }
+        let read = self
+            .read_snapshot(
+                tenant,
+                &SnapshotId::new(id).map_err(|_| Failure::Malformed)?,
+            )
+            .await;
+        if cancel.is_cancelled() {
+            return Err(Failure::Cancelled);
+        }
+        let SnapshotViewLookup::Found(snapshot) = read else {
+            return Ok(empty(root, Status::Missing));
+        };
+        let Some(index) = index.filter(|i| *i < snapshot.total()) else {
+            return Ok(empty(root, Status::Missing));
+        };
+        let mut edges = vec![edge(root.clone(), LineageRelation::DerivedFrom, parent)];
+        if self
+            .policy
+            .current()
+            .policy
+            .grants
+            .contains("retrieval_receipts")
+        {
+            match self
+                .receipts
+                .read(tenant, root.id(), self.clock.now(), 20, cancel)
+                .await
+            {
+                Ok(retained) => {
+                    for receipt in retained.receipts {
+                        if let Some(id) = receipt
+                            .get("receipt_id")
+                            .and_then(Value::as_str)
+                            .filter(|s| !s.is_empty())
+                        {
+                            let composite = composite_artifact_id(&[root.id(), id])
+                                .map_err(|_| Failure::Malformed)?;
+                            edges.push(edge(
+                                reference(ArtifactKind::RetrievalReceipt, &composite)?,
+                                LineageRelation::RetrievalOf,
+                                root.clone(),
+                            ));
+                        }
+                    }
+                }
+                // Source store.read reports no receipts when disconnected.
+                Err(crate::receipts::Failure::Unavailable | crate::receipts::Failure::Closed) => {}
+                Err(e) => return Err(map_failure(e)),
+            }
+        }
+        Ok(Resolved {
+            node: Node {
+                artifact: root.clone(),
+                status: Status::Live,
+                created_at: Some(snapshot.created_at()),
+                expires_at: snapshot.expires_at().map(|v| v.timestamp()),
+                details: Some(json!({"index":index}).as_object().unwrap().clone()),
+            },
+            edges,
+        })
+    }
+    async fn entity(
+        &self,
+        tenant: &TenantId,
+        root: &ArtifactRef,
+        cancel: &Cancellation,
+    ) -> Result<CompactResolved, Failure> {
+        let Ok(parts) = input::composite(root.id(), 2) else {
+            return Ok(empty(root, Status::Missing).into());
+        };
+        let Ok(parent) = reference(ArtifactKind::Snapshot, &parts[0]) else {
+            return Ok(empty(root, Status::Missing).into());
+        };
+        let status = self.snapshot(tenant, &parent, cancel).await?;
+        if status.node.status != Status::Live {
+            return Ok(parent_error(root, &status.node).into());
+        }
+        let Ok(id) = SnapshotId::new(&parts[0]) else {
+            return Ok(empty(root, Status::Missing).into());
+        };
+        let read = self.read_snapshot(tenant, &id).await;
+        if cancel.is_cancelled() {
+            return Err(Failure::Cancelled);
+        }
+        let SnapshotViewLookup::Found(snapshot) = read else {
+            return Ok(empty(root, Status::Missing).into());
+        };
+        let version = if parts[1].starts_with("entity-v2-") {
+            2
+        } else {
+            1
+        };
+        let Some(group) = snapshot
+            .groups(self.entities.as_ref(), version)?
+            .into_iter()
+            .find(|g| g.id == parts[1])
+        else {
+            return Ok(empty(root, Status::Missing).into());
+        };
+        let member_count = group.result_indices.len();
+        let edges = Adjacency::with_members(
+            vec![edge(root.clone(), LineageRelation::DerivedFrom, parent)],
+            Members::new(root.clone(), snapshot.id().as_str(), group.result_indices)?,
+        );
+        Ok(CompactResolved {
+            node: Node {
+                artifact: root.clone(),
+                status: Status::Live,
+                created_at: Some(snapshot.created_at()),
+                expires_at: snapshot.expires_at().map(|v| v.timestamp()),
+                details: Some(
+                    json!({"namespace":group.namespace,"member_count":member_count})
+                        .as_object()
+                        .unwrap()
+                        .clone(),
+                ),
+            },
+            edges,
+        })
+    }
+    async fn receipt(
+        &self,
+        tenant: &TenantId,
+        root: &ArtifactRef,
+        cancel: &Cancellation,
+    ) -> Result<Resolved, Failure> {
+        if !self
+            .policy
+            .current()
+            .policy
+            .grants
+            .contains("retrieval_receipts")
+        {
+            return Ok(Resolved {
+                node: Node::policy_denied(root.clone()),
+                edges: vec![],
+            });
+        }
+        let Ok(parts) = input::composite(root.id(), 2) else {
+            return Ok(empty(root, Status::Missing));
+        };
+        let retained = match self
+            .receipts
+            .read(tenant, &parts[0], self.clock.now(), 20, cancel)
+            .await
+        {
+            Ok(v) => v,
+            Err(crate::receipts::Failure::Unavailable | crate::receipts::Failure::Closed) => {
+                return Ok(empty(root, Status::Unavailable));
+            }
+            Err(e) => return Err(map_failure(e)),
+        };
+        if cancel.is_cancelled() {
+            return Err(Failure::Cancelled);
+        }
+        let Some(receipt) = retained
+            .receipts
+            .into_iter()
+            .find(|r| r.get("receipt_id").and_then(Value::as_str) == Some(&parts[1]))
+        else {
+            return Ok(empty(root, Status::Missing));
+        };
+        let engines = receipt
+            .get("discovery")
+            .and_then(|v| v.get("source_engines"));
+        let allowed = engines.and_then(Value::as_array).is_some_and(|a| {
+            let names = a
+                .iter()
+                .map(|v| v.as_str().map(str::to_owned))
+                .collect::<Option<Vec<_>>>();
+            names.is_some_and(|names| {
+                self.policy
+                    .current()
+                    .retained_engine_rejection(&names, "engines")
+                    .is_ok()
+            })
+        });
+        if !allowed {
+            return Ok(Resolved {
+                node: Node::policy_denied(root.clone()),
+                edges: vec![],
+            });
+        }
+        let timestamp = |field: &str| -> Result<Option<WallClockTimestamp>, Failure> {
+            receipt
+                .get(field)
+                .filter(|v| !v.is_null())
+                .map(|v| {
+                    v.as_f64()
+                        .and_then(|n| WallClockTimestamp::new(n).ok())
+                        .ok_or(Failure::Malformed)
+                })
+                .transpose()
+        };
+        Ok(Resolved {
+            node: Node {
+                artifact: root.clone(),
+                status: Status::Live,
+                created_at: timestamp("submitted_at")?,
+                expires_at: timestamp("expires_at")?,
+                details: Some(
+                    json!({"status":receipt["observation"]["status"]})
+                        .as_object()
+                        .unwrap()
+                        .clone(),
+                ),
+            },
+            edges: vec![edge(
+                root.clone(),
+                LineageRelation::RetrievalOf,
+                reference(ArtifactKind::Result, &parts[0])?,
+            )],
+        })
+    }
+}
+impl Resolver for NativeResolver {
+    fn resolve<'a>(
+        &'a self,
+        tenant: &'a TenantId,
+        root: &'a ArtifactRef,
+        cancel: &'a Cancellation,
+    ) -> PortFuture<'a, Result<Resolved, Failure>> {
+        Box::pin(async move {
+            self.resolve_compact(tenant, root, cancel)
+                .await
+                .map(CompactResolved::materialize)
+        })
+    }
+    fn resolve_compact<'a>(
+        &'a self,
+        tenant: &'a TenantId,
+        root: &'a ArtifactRef,
+        cancel: &'a Cancellation,
+    ) -> PortFuture<'a, Result<CompactResolved, Failure>> {
+        Box::pin(async move {
+            if cancel.is_cancelled() {
+                return Err(Failure::Cancelled);
+            }
+            match root.kind() {
+                ArtifactKind::Snapshot => self.snapshot(tenant, root, cancel).await,
+                ArtifactKind::Result => self.result(tenant, root, cancel).await.map(Into::into),
+                ArtifactKind::EntityGroup => self.entity(tenant, root, cancel).await,
+                ArtifactKind::RetrievalReceipt => {
+                    self.receipt(tenant, root, cancel).await.map(Into::into)
+                }
+                ArtifactKind::ResearchManifest => Ok(empty(root, Status::Unavailable).into()),
+                _ => self.workflows.resolve_compact(tenant, root, cancel).await,
+            }
+        })
+    }
+}
+
+#[cfg(test)]
+mod contract_tests {
+    use super::*;
+    use crate::{
+        PortFuture,
+        policy::{PolicyService, SearchPolicy},
+        receipts::{Failure as ReceiptFailure, Insert, Replay, Retained, Submission},
+        scope::{CatalogSnapshot, EngineCapability, ScopeResolver},
+        snapshot::{
+            SnapshotClock, SnapshotFailure, SnapshotIds, SnapshotRepository, SnapshotTtl,
+            SnapshotWrite,
+        },
+    };
+    use std::{
+        collections::BTreeSet,
+        num::NonZeroU64,
+        sync::{
+            Mutex,
+            atomic::{AtomicUsize, Ordering},
+        },
+    };
+
+    struct CurrentPolicy(bool);
+    impl Policy for CurrentPolicy {
+        fn current(&self) -> PolicyService {
+            PolicyService {
+                policy: SearchPolicy {
+                    grants: if self.0 {
+                        ["retrieval_receipts".to_owned()].into_iter().collect()
+                    } else {
+                        BTreeSet::new()
+                    },
+                    ..Default::default()
+                },
+                catalog: CatalogSnapshot::new(vec![EngineCapability {
+                    name: "brave".into(),
+                    enabled: true,
+                    active: true,
+                    available: true,
+                    categories: vec![],
+                    media_types: vec![],
+                    auth_ready: true,
+                    circuit_open: false,
+                    cost_class: "free".into(),
+                    health_status: "ok".into(),
+                    health_stale: false,
+                    enforced_filters: Default::default(),
+                }])
+                .unwrap(),
+                resolver: ScopeResolver::default(),
+            }
+        }
+    }
+    struct TestClock;
+    impl Clock for TestClock {
+        fn now(&self) -> WallClockTimestamp {
+            WallClockTimestamp::new(100.).unwrap()
+        }
+    }
+    impl SnapshotClock for TestClock {
+        fn now(&self) -> WallClockTimestamp {
+            WallClockTimestamp::new(100.).unwrap()
+        }
+    }
+    struct Ids;
+    impl SnapshotIds for Ids {
+        fn next(&self) -> Result<SnapshotId, SnapshotFailure> {
+            panic!("readonly resolver requested an id")
+        }
+    }
+    struct EmptySnapshots;
+    impl SnapshotRepository for EmptySnapshots {
+        fn create<'a>(
+            &'a self,
+            _: &'a SearchSnapshot,
+            _: NonZeroU64,
+        ) -> PortFuture<'a, Result<SnapshotWrite, SnapshotFailure>> {
+            Box::pin(async { panic!("readonly resolver created a snapshot") })
+        }
+        fn read<'a>(
+            &'a self,
+            _: &'a TenantId,
+            _: &'a SnapshotId,
+        ) -> PortFuture<'a, Result<Option<SearchSnapshot>, SnapshotFailure>> {
+            Box::pin(async { panic!("receipt resolution must not read a snapshot") })
+        }
+    }
+    struct Receipts {
+        calls: AtomicUsize,
+        rows: Vec<Value>,
+        trace: Arc<Mutex<Vec<String>>>,
+    }
+    impl ReceiptRepository for Receipts {
+        fn replay<'a>(
+            &'a self,
+            _: &'a TenantId,
+            _: &'a str,
+            _: &'a str,
+            _: &'a str,
+            _: WallClockTimestamp,
+            _: &'a Cancellation,
+        ) -> PortFuture<'a, Result<Replay, ReceiptFailure>> {
+            Box::pin(async { Ok(Replay::Missing) })
+        }
+        fn submit<'a>(
+            &'a self,
+            _: Insert<'a>,
+        ) -> PortFuture<'a, Result<Submission, ReceiptFailure>> {
+            Box::pin(async { panic!("resolver submitted a receipt") })
+        }
+        fn read<'a>(
+            &'a self,
+            tenant: &'a TenantId,
+            result: &'a str,
+            _: WallClockTimestamp,
+            _: usize,
+            _: &'a Cancellation,
+        ) -> PortFuture<'a, Result<Retained, ReceiptFailure>> {
+            self.calls.fetch_add(1, Ordering::SeqCst);
+            self.trace
+                .lock()
+                .unwrap()
+                .push(format!("{}:{result}", tenant.as_str()));
+            let rows = self.rows.clone();
+            Box::pin(async move {
+                Ok(Retained {
+                    total: rows.len(),
+                    receipts: rows,
+                })
+            })
+        }
+    }
+    struct NoEntities;
+    impl Entities for NoEntities {
+        fn groups(&self, _: &SearchSnapshot, _: u8) -> Vec<EntityGroup> {
+            vec![]
+        }
+    }
+    struct NoWorkflows;
+    impl Resolver for NoWorkflows {
+        fn resolve<'a>(
+            &'a self,
+            _: &'a TenantId,
+            artifact: &'a ArtifactRef,
+            _: &'a Cancellation,
+        ) -> PortFuture<'a, Result<Resolved, Failure>> {
+            let node = Node::missing(artifact.clone(), Status::Missing);
+            Box::pin(async move {
+                Ok(Resolved {
+                    node,
+                    edges: vec![],
+                })
+            })
+        }
+    }
+    fn tenant(name: &str) -> TenantId {
+        TenantId::new(name).unwrap()
+    }
+    fn resolver(policy: bool, receipts: Arc<Receipts>) -> NativeResolver {
+        let snapshots = SnapshotService::new(
+            Arc::new(EmptySnapshots),
+            Arc::new(TestClock),
+            Arc::new(Ids),
+            tenant("tenant-a"),
+            SnapshotTtl::new(60).unwrap(),
+        );
+        NativeResolver {
+            snapshots,
+            receipts,
+            policy: Arc::new(CurrentPolicy(policy)),
+            clock: Arc::new(TestClock),
+            entities: Arc::new(NoEntities),
+            workflows: Arc::new(NoWorkflows),
+        }
+    }
+    fn run<F: std::future::Future>(future: F) -> F::Output {
+        let mut future = std::pin::pin!(future);
+        let mut context = std::task::Context::from_waker(std::task::Waker::noop());
+        match future.as_mut().poll(&mut context) {
+            std::task::Poll::Ready(value) => value,
+            std::task::Poll::Pending => panic!("fixture unexpectedly yielded"),
+        }
+    }
+    fn receipt(source_engines: Value) -> Value {
+        json!({"receipt_id":"receipt-1","observation":{"status":"succeeded"},"discovery":{"source_engines":source_engines}})
+    }
+
+    #[test]
+    fn receipt_lineage_requires_current_grant_and_historical_engine_allowance() {
+        let rows = vec![receipt(json!(["brave"]))];
+        let trace = Arc::new(Mutex::new(vec![]));
+        let repo = Arc::new(Receipts {
+            calls: AtomicUsize::new(0),
+            rows: rows.clone(),
+            trace: trace.clone(),
+        });
+        let composite =
+            ssx_domain::canonical::composite_artifact_id(&["result-1", "receipt-1"]).unwrap();
+        let root = ArtifactRef::new(ArtifactKind::RetrievalReceipt, composite).unwrap();
+        let denied = run(resolver(false, repo.clone()).resolve(
+            &tenant("tenant-a"),
+            &root,
+            &Cancellation::default(),
+        ))
+        .unwrap();
+        assert_eq!(denied.node.status, Status::PolicyDenied);
+        // Frozen primary behavior: slopsearx/mcp/lineage_tools.py `_node`
+        // emits this reason-only detail for policy denial; it does not expose
+        // the receipt's observation status or any adjacency.
+        assert_eq!(
+            denied
+                .node
+                .details
+                .as_ref()
+                .unwrap()
+                .get("reason")
+                .and_then(Value::as_str),
+            Some("current_policy_denied")
+        );
+        assert!(
+            denied
+                .node
+                .details
+                .as_ref()
+                .unwrap()
+                .get("status")
+                .is_none()
+        );
+        assert!(denied.edges.is_empty());
+        assert_eq!(repo.calls.load(Ordering::SeqCst), 0);
+
+        let allowed = run(resolver(true, repo.clone()).resolve(
+            &tenant("tenant-a"),
+            &root,
+            &Cancellation::default(),
+        ))
+        .unwrap();
+        assert_eq!(allowed.node.status, Status::Live);
+        assert_eq!(
+            allowed.node.details.as_ref().unwrap()["status"],
+            "succeeded"
+        );
+        assert_eq!(allowed.edges.len(), 1);
+        assert_eq!(repo.calls.load(Ordering::SeqCst), 1);
+        assert_eq!(*trace.lock().unwrap(), vec!["tenant-a:result-1"]);
+
+        let denied_repo = Arc::new(Receipts {
+            calls: AtomicUsize::new(0),
+            rows: vec![receipt(json!(["unlisted-engine"]))],
+            trace: Arc::new(Mutex::new(vec![])),
+        });
+        let denied = run(resolver(true, denied_repo.clone()).resolve(
+            &tenant("tenant-a"),
+            &root,
+            &Cancellation::default(),
+        ))
+        .unwrap();
+        assert_eq!(denied.node.status, Status::PolicyDenied);
+        assert_eq!(
+            denied
+                .node
+                .details
+                .as_ref()
+                .unwrap()
+                .get("reason")
+                .and_then(Value::as_str),
+            Some("current_policy_denied")
+        );
+        assert!(
+            denied
+                .node
+                .details
+                .as_ref()
+                .unwrap()
+                .get("status")
+                .is_none()
+        );
+        assert!(denied.edges.is_empty());
+        assert_eq!(denied_repo.calls.load(Ordering::SeqCst), 1);
+    }
+
+    #[test]
+    fn receipt_identity_is_tenant_scoped_and_wrong_receipt_id_is_missing() {
+        let rows = vec![receipt(Value::Array(vec![]))];
+        let repo = Arc::new(Receipts {
+            calls: AtomicUsize::new(0),
+            rows,
+            trace: Arc::new(Mutex::new(vec![])),
+        });
+        let composite =
+            ssx_domain::canonical::composite_artifact_id(&["result-1", "other-receipt"]).unwrap();
+        let root = ArtifactRef::new(ArtifactKind::RetrievalReceipt, composite).unwrap();
+        let value = run(resolver(true, repo.clone()).resolve(
+            &tenant("tenant-b"),
+            &root,
+            &Cancellation::default(),
+        ))
+        .unwrap();
+        assert_eq!(value.node.status, Status::Missing);
+        assert!(value.edges.is_empty());
+        assert_eq!(repo.calls.load(Ordering::SeqCst), 1);
+        assert_eq!(*repo.trace.lock().unwrap(), vec!["tenant-b:result-1"]);
+    }
+}

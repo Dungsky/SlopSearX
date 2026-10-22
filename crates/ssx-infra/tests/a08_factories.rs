@@ -1,10 +1,8 @@
-#[path = "support/default_ca_environment.rs"]
-mod default_ca_environment;
 use ssx_application::{AdmissionDecision, PortFuture, SearchAdmission, SearchContext};
 use ssx_domain::{EngineStatus, SearchRequest};
 use ssx_infra::{
     adapters::{AllowAllAdmission, RegulatorySettings, edgar::EdgarConfig, register_regulatory},
-    http::AdapterHttp,
+    http::{AdapterHttp, Cancellation, Options, Request},
 };
 use ssx_registry::Registry;
 use std::{
@@ -176,7 +174,7 @@ fn settings(edgar: EdgarConfig) -> RegulatorySettings {
 }
 
 const NAMES: [&str; 4] = ["edgar", "fred", "openfda", "oyez"];
-async fn wired(
+fn wired(
     name: &str,
     base: &str,
     timeout: i64,
@@ -191,18 +189,7 @@ async fn wired(
     config.fred.settings.timeout_ms = config.edgar.timeout_ms.clone();
     config.openfda.timeout_ms = config.edgar.timeout_ms.clone();
     config.oyez.settings.timeout_ms = config.edgar.timeout_ms.clone();
-    let startup = Instant::now();
-    let (http, preparation) = AdapterHttp::new_ready(
-        tokio::time::Instant::now() + Duration::from_secs(10),
-        ssx_infra::http::Cancellation::default(),
-    )
-    .await
-    .unwrap();
-    eprintln!(
-        "A08_STARTUP_DIAGNOSTIC engine={name} elapsed={:?} preparation={preparation:?}",
-        startup.elapsed()
-    );
-    assert_eq!(preparation, ssx_infra::http::Preparation::Prepared);
+    let http = Arc::new(AdapterHttp::default());
     let mut registry = Registry::builtins().unwrap();
     register_regulatory(&mut registry, http.clone(), admission, config).unwrap();
     assert!(registry.is_available(name));
@@ -210,11 +197,6 @@ async fn wired(
 }
 #[tokio::test]
 async fn all_four_future_drops_close_real_pending_sockets() {
-    if default_ca_environment::default_ca_test_environment(
-        "all_four_future_drops_close_real_pending_sockets",
-    ) {
-        return;
-    }
     for name in NAMES {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
@@ -249,8 +231,7 @@ async fn all_four_future_drops_close_real_pending_sockets() {
             &format!("http://{addr}/slow"),
             5000,
             Arc::new(AllowAllAdmission),
-        )
-        .await;
+        );
         let engine = registry.instantiate(name).unwrap();
         let q = SearchRequest {
             query: "test".into(),
@@ -263,18 +244,189 @@ async fn all_four_future_drops_close_real_pending_sockets() {
         http.shutdown_and_wait().await;
     }
 }
+const LOOPBACK_GUARD: Duration = Duration::from_secs(5);
+#[derive(Debug)]
+struct LoopbackWire {
+    request: String,
+    body: Vec<u8>,
+    socket_eof: Option<bool>,
+}
+async fn request_message(stream: &mut tokio::net::TcpStream) -> Result<(String, Vec<u8>), String> {
+    let mut data = vec![0; 8192];
+    let mut used = 0;
+    let header_end = loop {
+        if let Some(end) = data[..used].windows(4).position(|part| part == b"\r\n\r\n") {
+            break end + 4;
+        }
+        if used == data.len() {
+            return Err("bounded loopback request headers exceeded8192 bytes".into());
+        }
+        let count = stream
+            .read(&mut data[used..])
+            .await
+            .map_err(|e| e.to_string())?;
+        if count == 0 {
+            return Err("loopback closed before complete request headers".into());
+        }
+        used += count;
+    };
+    let headers = String::from_utf8(data[..header_end].to_vec()).map_err(|e| e.to_string())?;
+    let mut length = None;
+    for line in headers
+        .split("\r\n")
+        .skip(1)
+        .filter(|line| !line.is_empty())
+    {
+        let (name, value) = line
+            .split_once(':')
+            .ok_or("malformed loopback request header")?;
+        if name.eq_ignore_ascii_case("transfer-encoding") || name.eq_ignore_ascii_case("trailer") {
+            return Err("unsupported loopback request framing".into());
+        }
+        if name.eq_ignore_ascii_case("content-length") {
+            let value = value.trim();
+            if length.is_some()
+                || value.is_empty()
+                || !value.bytes().all(|byte| byte.is_ascii_digit())
+            {
+                return Err("invalid or duplicate loopback Content-Length".into());
+            }
+            let size = value
+                .parse::<usize>()
+                .map_err(|_| "loopback Content-Length overflow")?;
+            if size > 4096 {
+                return Err("loopback request body exceeded4096 bytes".into());
+            }
+            length = Some(size);
+        }
+    }
+    if headers.starts_with("POST ") && length.is_none() {
+        return Err("POST requires exact loopback Content-Length".into());
+    }
+    let length = length.unwrap_or(0);
+    if used - header_end > length {
+        return Err("buffered bytes exceed loopback Content-Length".into());
+    }
+    let mut body = data[header_end..used].to_vec();
+    let buffered = body.len();
+    body.resize(length, 0);
+    stream
+        .read_exact(&mut body[buffered..])
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok((headers, body))
+}
+
+// Both futures are owned here: a guard failure drops the socket/futures rather
+// than detaching a server task. The completion signal only releases accept;
+// once headers arrive, the timed path must still observe the actual socket EOF.
+async fn bounded_loopback<T>(
+    listener: &TcpListener,
+    client: impl std::future::Future<Output = Result<T, String>>,
+    respond: bool,
+) -> Result<(T, Option<LoopbackWire>), String> {
+    let (done, done_rx) = tokio::sync::oneshot::channel::<()>();
+    let server = async move {
+        let accepted = tokio::select! {
+            biased;
+            stream = tokio::time::timeout(LOOPBACK_GUARD, listener.accept()) => {
+                Some(stream.map_err(|_| "loopback accept guard".to_owned())?.map_err(|e| e.to_string())?)
+            }
+            _ = done_rx => None,
+        };
+        let Some((mut stream, _)) = accepted else {
+            return Ok::<_, String>(None);
+        };
+        let (request, body) = tokio::time::timeout(LOOPBACK_GUARD, request_message(&mut stream))
+            .await
+            .map_err(|_| "loopback request headers/body guard".to_owned())??;
+        let socket_eof = if respond {
+            tokio::time::timeout(
+                LOOPBACK_GUARD,
+                stream.write_all(
+                    b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+                ),
+            )
+            .await
+            .map_err(|_| "loopback response guard".to_owned())?
+            .map_err(|e| e.to_string())?;
+            None
+        } else {
+            let mut byte = [0; 1];
+            let count = tokio::time::timeout(Duration::from_secs(2), stream.read(&mut byte))
+                .await
+                .map_err(|_| "loopback EOF guard".to_owned())?
+                .map_err(|e| e.to_string())?;
+            if count != 0 {
+                return Err("timed socket produced further bytes instead of EOF".into());
+            }
+            Some(true)
+        };
+        Ok(Some(LoopbackWire {
+            request,
+            body,
+            socket_eof,
+        }))
+    };
+    let drive = async move {
+        let result = tokio::time::timeout(LOOPBACK_GUARD, client)
+            .await
+            .map_err(|_| "loopback client guard".to_owned())
+            .and_then(|result| result);
+        let _ = done.send(());
+        result
+    };
+    tokio::time::timeout(Duration::from_secs(15), async {
+        let (wire, result) = tokio::join!(server, drive);
+        Ok((result?, wire?))
+    })
+    .await
+    .map_err(|_| "loopback join guard".to_owned())?
+}
 #[tokio::test]
 async fn all_four_real_network_timers_match_actual_source_loopback() {
-    if default_ca_environment::default_ca_test_environment(
-        "all_four_real_network_timers_match_actual_source_loopback",
-    ) {
-        return;
-    }
     let source: serde_json::Value = serde_json::from_str(include_str!(
         "../../../docs/rust-rewrite/a08/timeout-loopback.json"
     ))
     .unwrap();
     for name in NAMES {
+        // Deterministic pre-dispatch regression: a listener with no connection
+        // must finish with the engine, not await accept after its Timeout.
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let (registry, http) = wired(
+            name,
+            &format!("http://{}/expired", listener.local_addr().unwrap()),
+            50,
+            Arc::new(AllowAllAdmission),
+        );
+        let engine = registry.instantiate(name).unwrap();
+        let query = SearchRequest {
+            query: "test".into(),
+            ..Default::default()
+        };
+        let expired = bounded_loopback(
+            &listener,
+            async {
+                Ok(engine
+                    .search_with_context(
+                        &query,
+                        SearchContext {
+                            deadline: Instant::now() - Duration::from_secs(1),
+                        },
+                    )
+                    .await)
+            },
+            false,
+        )
+        .await;
+        let retained = http.retained_pools();
+        http.shutdown_and_wait().await;
+        let (result, wire) = expired.expect("expired-context fixture must finish without dispatch");
+        assert_eq!(result.status, EngineStatus::Timeout, "{name}");
+        assert!(result.results.is_empty());
+        assert!(wire.is_none(), "{name} expired context dispatched HTTP");
+        assert_eq!(retained, 0, "{name} expired context created a pool");
+
         for timeout in [0, -1, 50] {
             let row = source["records"]
                 .as_array()
@@ -290,71 +442,106 @@ async fn all_four_real_network_timers_match_actual_source_loopback() {
                 &format!("http://{addr}/slow"),
                 timeout,
                 Arc::new(AllowAllAdmission),
-            )
-            .await;
+            );
             let engine = registry.instantiate(name).unwrap();
             if timeout > 0 {
-                let started = Instant::now();
-                let server = tokio::spawn(async move {
-                    let (mut stream, _) = listener.accept().await.unwrap();
-                    let accepted = started.elapsed();
-                    let mut data = vec![0; 8192];
-                    let n = stream.read(&mut data).await.unwrap();
-                    assert!(
-                        n > 0,
-                        "{name} timeout={timeout} accepted={accepted:?} read_elapsed={:?} bytes={n}",
-                        started.elapsed()
-                    );
-                    let mut b = [0; 1];
-                    assert_eq!(
-                        tokio::time::timeout(Duration::from_secs(2), stream.read(&mut b))
+                // Separate session/request under5000ms, same default profile,
+                // owner and origin. The timed adapter still receives50ms.
+                let warm = bounded_loopback(
+                    &listener,
+                    async {
+                        let mut session = http
+                            .session(
+                                Options::default(),
+                                (Instant::now() + Duration::from_millis(5000)).into(),
+                                Cancellation::default(),
+                            )
+                            .map_err(|e| format!("warm session: {e:?}"))?;
+                        session
+                            .execute(
+                                Request::get(&format!("http://{addr}/warm"))
+                                    .map_err(|e| format!("warm request: {e:?}"))?,
+                            )
                             .await
-                            .unwrap()
-                            .unwrap(),
-                        0
-                    )
-                });
-                let request = SearchRequest {
-                    query: "test".into(),
-                    ..Default::default()
-                };
-                let mut operation = engine.search(&request);
-                let mut polls = 0usize;
-                let result = std::future::poll_fn(|cx| {
-                    let entered = Instant::now();
-                    let state = std::future::Future::poll(operation.as_mut(), cx);
-                    polls += 1;
-                    eprintln!("A08_POLL_DIAGNOSTIC engine={name} timeout={timeout} poll={polls} entered={:?} duration={:?} ready={}", entered.duration_since(started), entered.elapsed(), state.is_ready());
-                    state
-                })
+                            .map_err(|e| format!("warm exchange: {e:?}"))
+                    },
+                    true,
+                )
                 .await;
-                eprintln!(
-                    "A08_TIMER_DIAGNOSTIC engine={name} timeout={timeout} elapsed={:?} status={:?} message={:?}",
-                    started.elapsed(),
-                    result.status,
-                    result.error_message
-                );
-                assert_eq!(result.status, EngineStatus::Timeout, "{name}");
-                assert!(result.results.is_empty());
-                assert_eq!(row["requests"].as_array().unwrap().len(), 1);
-                assert_eq!(row["socket_eof"], serde_json::json!([true]));
-                server.await.unwrap();
-            } else {
-                let result = engine
-                    .search(&SearchRequest {
-                        query: "test".into(),
-                        ..Default::default()
-                    })
-                    .await;
-                assert_eq!(result.status, EngineStatus::Timeout);
-                assert!(
-                    tokio::time::timeout(Duration::from_millis(10), listener.accept())
-                        .await
-                        .is_err()
-                );
-                assert!(row["requests"].as_array().unwrap().is_empty());
+                let reusable = http.retained_pools();
+                let warm_ok = matches!(&warm, Ok((response, Some(wire)))
+                    if response.status ==200 && response.body.is_empty()
+                    && wire.request.starts_with("GET /warm HTTP/1.1\r\n") && wire.body.is_empty());
+                if !warm_ok || reusable != 1 {
+                    let overrides: Vec<_> = [
+                        "HTTP_PROXY",
+                        "HTTPS_PROXY",
+                        "ALL_PROXY",
+                        "http_proxy",
+                        "https_proxy",
+                        "all_proxy",
+                        "SSL_CERT_FILE",
+                        "SSL_CERT_DIR",
+                    ]
+                    .into_iter()
+                    .filter(|key| std::env::var_os(key).is_some())
+                    .collect();
+                    http.shutdown_and_wait().await;
+                    panic!(
+                        "{name} reusable warmup failed: {warm:?}; pools={reusable}; override names={overrides:?}"
+                    );
+                }
             }
+            let query = SearchRequest {
+                query: "test".into(),
+                ..Default::default()
+            };
+            let timed =
+                bounded_loopback(&listener, async { Ok(engine.search(&query).await) }, false).await;
             http.shutdown_and_wait().await;
+            let (result, wire) = timed.unwrap_or_else(|error| panic!("{name}/{timeout}: {error}"));
+            assert_eq!(result.status, EngineStatus::Timeout, "{name}/{timeout}");
+            assert!(result.results.is_empty());
+            let actual: Vec<_> = wire.into_iter().collect();
+            assert_eq!(
+                actual.len(),
+                usize::from(timeout > 0),
+                "{name}/{timeout} actual dispatch count"
+            );
+            assert_eq!(row["requests"].as_array().unwrap().len(), actual.len());
+            let eof: Vec<_> = actual
+                .iter()
+                .map(|wire| {
+                    let method = if name == "oyez" { "POST" } else { "GET" };
+                    assert!(wire.request.starts_with(&format!("{method} /slow")), "{name} timed method/path");
+                    if name == "oyez" {
+                        assert_eq!(wire.request.lines().next(), Some("POST /slow HTTP/1.1"));
+                        assert!(wire.request.lines().any(|line| line.eq_ignore_ascii_case("content-type: application/json")));
+                        let body: serde_json::Value = serde_json::from_slice(&wire.body).expect("complete Oyez JSON request body");
+                        assert_eq!(body, serde_json::json!({"size":10,"query":{"multi_match":{
+                            "query":"test","type":"cross_fields","fields":[
+                                "field_docket_number^3", "field_additional_docket_numbers^3", "title^2",
+                                "field_court_term", "field_first_party", "field_second_party",
+                                "field_facts_of_the_case:value", "field_question:value", "field_conclusion:value",
+                                "field_biography:value", "field_citation:field_volume", "field_citation:field_page",
+                                "field_citation:field_year^0.2"
+                            ]}}}));
+                    } else {
+                        assert!(wire.body.is_empty(), "{name} GET body must be empty");
+                    }
+                    wire.socket_eof
+                        .expect("timed request must have actual EOF proof")
+                })
+                .collect();
+            if timeout > 0 {
+                assert_eq!(row["socket_eof"], serde_json::json!(eof));
+            }
+            assert!(
+                tokio::time::timeout(Duration::from_millis(10), listener.accept())
+                    .await
+                    .is_err(),
+                "{name}/{timeout} extra timed connection"
+            );
         }
     }
 }
@@ -372,11 +559,6 @@ impl SearchAdmission for Pending {
 }
 #[tokio::test]
 async fn all_four_denied_unavailable_and_pending_admission_stop_before_http() {
-    if default_ca_environment::default_ca_test_environment(
-        "all_four_denied_unavailable_and_pending_admission_stop_before_http",
-    ) {
-        return;
-    }
     for name in NAMES {
         for (admission, status) in [
             (
@@ -392,8 +574,7 @@ async fn all_four_denied_unavailable_and_pending_admission_stop_before_http() {
                 &format!("http://{}/blocked", listener.local_addr().unwrap()),
                 5000,
                 admission,
-            )
-            .await;
+            );
             let engine = registry.instantiate(name).unwrap();
             let q = SearchRequest {
                 query: "test".into(),

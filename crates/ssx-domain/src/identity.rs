@@ -177,9 +177,7 @@ impl SearchSnapshot {
         created_at: WallClockTimestamp,
         expires_at: Option<WallClockExpiry>,
     ) -> Result<Self, DomainError> {
-        if expires_at.is_some_and(|expiry| expiry.timestamp() < created_at) {
-            return Err(DomainError("snapshot expiry precedes creation"));
-        }
+        validate_snapshot_expiry(created_at, expires_at)?;
         Ok(Self {
             id,
             query,
@@ -241,6 +239,16 @@ impl SearchSnapshot {
     pub fn expires_at(&self) -> Option<WallClockExpiry> {
         self.expires_at
     }
+}
+/// Shared construction invariant for full and readonly projected snapshots.
+pub(crate) fn validate_snapshot_expiry(
+    created_at: WallClockTimestamp,
+    expires_at: Option<WallClockExpiry>,
+) -> Result<(), DomainError> {
+    if expires_at.is_some_and(|expiry| expiry.timestamp() < created_at) {
+        return Err(DomainError("snapshot expiry precedes creation"));
+    }
+    Ok(())
 }
 #[derive(Debug, Clone, PartialEq)]
 pub enum SnapshotRead {

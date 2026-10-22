@@ -16,7 +16,7 @@ RUN apt-get update \
 
 # Python deps
 COPY pyproject.toml .
-RUN pip install --no-cache-dir -e .
+RUN pip install --no-cache-dir -e . "certifi>=2026.10.19"
 
 # Apply base-image security updates after dependency installation so the
 # per-build refresh does not invalidate the expensive pip layer.

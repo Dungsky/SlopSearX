@@ -404,11 +404,10 @@ async fn dropping_each_adapter_search_closes_the_active_socket() {
 
 #[tokio::test]
 async fn pubchem_second_stage_has_independent_timeout_and_404_is_error() {
-    let (base, seen, task) = server(vec![
-        (200, PC_SEARCH.into(), Duration::from_millis(300)),
-        (200, PC_DETAIL.into(), Duration::from_millis(300)),
-    ])
-    .await;
+    // Functional two-request success remains here with the unchanged 500 ms
+    // configured budget. The mandatory private owner-clock control proves
+    // independence at exact 0/300/500/600 ms milestones, without wall sleeps.
+    let (base, seen, task) = server(vec![reply(PC_SEARCH), reply(PC_DETAIL)]).await;
     let mut c = BiomedicalConfig::defaults(&base);
     c.timeout_ms = ConfigScalar::Integer(500);
     let out = engine("pubchem", &base, Some(c), None)

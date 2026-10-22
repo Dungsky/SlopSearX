@@ -22,10 +22,11 @@ impl Server {
         bytes[6] = (bytes[6] & 15) | 64;
         bytes[8] = (bytes[8] & 63) | 128;
         let id: String = bytes.iter().map(|b| format!("{b:02x}")).collect();
-        #[cfg(target_os = "macos")]
-        let base = PathBuf::from("/private/tmp");
-        #[cfg(not(target_os = "macos"))]
-        let base = std::env::temp_dir();
+        // Qualification controller registers this path in its storage ledger
+        // before execution. Defaults remain compatible with ordinary CI tests.
+        let base = std::env::var_os("SLOPSEARX_TEST_TEMP_ROOT")
+            .map(PathBuf::from)
+            .unwrap_or_else(std::env::temp_dir);
         let dir = base.join(format!("ssx-t06-{id}"));
         // sockaddr_un has room for 104 bytes on macOS and 108 on Linux.
         use std::os::unix::{ffi::OsStrExt, fs::PermissionsExt};

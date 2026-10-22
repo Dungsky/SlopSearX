@@ -257,6 +257,12 @@ impl StoredSearchResult {
 /// Legacy-aware result decoder. Python accepts missing/null fields, numeric
 /// strings, and several historical `engines` representations.
 pub fn decode_result(value: Value) -> Result<SearchResult, StorageError> {
+    decode_result_ref(&value)
+}
+/// Same complete F05 result grammar/defaults/errors, borrowing the parsed row.
+/// Owned payload/work_group projections remain owned; this avoids only the
+/// redundant whole-row clone in a caller already owning the validated record.
+pub fn decode_result_ref(value: &Value) -> Result<SearchResult, StorageError> {
     let object = value
         .as_object()
         .ok_or(StorageError::ExpectedObject("result"))?;
@@ -1472,6 +1478,73 @@ mod a06_repr_scalar_compatibility {
         );
     }
 }
+#[cfg(test)]
+mod borrowed_result_tests {
+    use super::*;
+    #[test]
+    fn borrowed_result_decoder_preserves_full_payloads_and_avoids_the_extra_row_array_clone() {
+        fn arrays(value: &Value) -> usize {
+            match value {
+                Value::Array(values) => {
+                    values.capacity() * std::mem::size_of::<Value>()
+                        + values.iter().map(arrays).sum::<usize>()
+                }
+                Value::Object(values) => values.values().map(arrays).sum(),
+                _ => 0,
+            }
+        }
+        for field in ["payload", "work_group"] {
+            let count = 100_000;
+            let text = format!(
+                "{{\"{field}\":{{\"rows\":[{}]}}}}",
+                std::iter::repeat_n("{}", count)
+                    .collect::<Vec<_>>()
+                    .join(",")
+            );
+            assert!(text.len() < ssx_json::MAX_JSON_BYTES);
+            let row: Value = ssx_json::from_str(&text).unwrap();
+            let before = ssx_json::to_vec(&row).unwrap();
+            let extra_row = row.clone();
+            let extra_array_backing = arrays(&extra_row);
+            assert_eq!(extra_array_backing, count * std::mem::size_of::<Value>());
+            let owned = decode_result(extra_row).unwrap();
+            let borrowed = decode_result_ref(&row).unwrap();
+            assert_eq!(owned, borrowed);
+            assert_eq!(encode_result(&owned), encode_result(&borrowed));
+            assert_eq!(ssx_json::to_vec(&row).unwrap(), before);
+            let retained = if field == "payload" {
+                borrowed.payload.as_ref().unwrap()
+            } else {
+                borrowed.work_group.as_ref().unwrap()
+            };
+            assert_eq!(retained["rows"].as_array().unwrap().len(), count);
+            println!(
+                "W07_BORROWED_RESULT field={field} rows={count} input_bytes={} avoided_extra_row_array_capacity_bytes={extra_array_backing} owned_payload_array_capacity_bytes={} hash_map_string_decoder_allocator_rss_excluded=true",
+                text.len(),
+                arrays(retained)
+            );
+        }
+        for (case, raw) in [
+            ("empty", r#"{}"#),
+            (
+                "coercion_opaque",
+                r#"{"engines":"{'z', 'a'}","score":" ١_٢.٥ ","position":false,"tier":" 2 ","payload":{"n":18446744073709551617,"x":1.000e0}}"#,
+            ),
+            ("invalid_score", r#"{"score":"invalid"}"#),
+            ("invalid_tier", r#"{"tier":[]} "#),
+            ("null", "null"),
+            ("array", "[]"),
+        ] {
+            let row: Value = ssx_json::from_str(raw).unwrap();
+            assert_eq!(decode_result(row.clone()), decode_result_ref(&row), "{raw}");
+            println!("W07_BORROWED_RESULT_CASE case={case} full_owned_borrowed_equal=true");
+        }
+    }
+}
+
+#[cfg(test)]
+#[path = "storage/snapshot_projection_tests.rs"]
+mod snapshot_projection_tests;
 
 // Static subset of accepted contracts/unicode/python-text-16.0.0.json.
 // Source SHA256 9f6d9cb6e81031954d91cc03084237592e9d7bb2224f22cab5a5fba8cebefabd

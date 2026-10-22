@@ -283,10 +283,19 @@ impl ResearchRunner {
                     _ = interval.tick() => {
                         let check = async {
                             match monitor_store.renew(&monitor_id, &monitor_token, ttl).await? {
-                                Ownership::Applied => (),
+                                Ownership::Applied => {
+                                    #[cfg(test)]
+                                    if let Some(probe) = monitor_store.completion_probe() {
+                                        probe.renewed.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                                    }
+                                },
                                 Ownership::Lost => return Err(RunnerError::AuthorityLost),
                             }
                             let job = read_owned(&monitor_store, &monitor_id, &monitor_token).await?;
+                            #[cfg(test)]
+                            if let Some(probe) = monitor_store.completion_probe() {
+                                probe.validated_owned.add_permits(1);
+                            }
                             Ok(job.cancel_requested)
                         };
                         let result = tokio::select! { biased;
@@ -307,6 +316,17 @@ impl ResearchRunner {
             cancellation: cancellation.clone(),
             task: monitor,
         };
+        #[cfg(test)]
+        if let Some(probe) = store.completion_probe() {
+            // Fixture-only participation barrier: the actual monitor has renewed
+            // and successfully validated this owned record before execution.
+            probe
+                .validated_owned
+                .acquire()
+                .await
+                .expect("owned fixture handshake")
+                .forget();
+        }
         let result = self
             .execute(&store, &id, &token, tenant, cancellation, shutdown)
             .await;
@@ -315,6 +335,35 @@ impl ResearchRunner {
             .await
             .map_err(|_| RunnerError::AuthorityLost)
             .and_then(|r| r);
+        #[cfg(test)]
+        if let Some(probe) = store.completion_probe() {
+            probe
+                .monitor_joined
+                .store(true, std::sync::atomic::Ordering::SeqCst);
+        }
+        // All execution and snapshot writes have finished. Join the authority
+        // monitor before clearing the job token that its reads validate.
+        let result = match result {
+            Ok(_) if monitored.is_ok() => {
+                #[cfg(test)]
+                if let Some(probe) = store.completion_probe()
+                    && probe.pause_before_clear
+                {
+                    probe.before_clear.add_permits(1);
+                    probe
+                        .release_before_clear
+                        .acquire()
+                        .await
+                        .expect("owned fixture gate")
+                        .forget();
+                }
+                store
+                    .clear_ownership(&id, &token)
+                    .await
+                    .map_err(RunnerError::Store)
+            }
+            other => other,
+        };
         // Release never deletes a reclaimer's lease. Do not hide unknown writes.
         let released = store.release(&id, &token).await;
         monitored?;
@@ -342,7 +391,7 @@ impl ResearchRunner {
             })
             .await?;
         if job.caller_completed || ["cancelled", "expired"].contains(&job.state.as_str()) {
-            return Ok(store.clear_ownership(id, token).await?);
+            return Ok(job);
         }
         for index in 0..job.queries.len() {
             job = self.load_owned(store, id, token).await?;
@@ -650,8 +699,7 @@ impl ResearchRunner {
                 Ok(())
             })
             .await?;
-        let _ = job;
-        Ok(store.clear_ownership(id, token).await?)
+        Ok(job)
     }
     async fn load_owned(
         &self,
@@ -684,7 +732,15 @@ async fn read_owned(
 ) -> Result<ResearchJob, RunnerError> {
     match store.load(id).await {
         JobRead::Found(job) if job.lease_token.as_deref() == Some(token.as_str()) => Ok(*job),
-        JobRead::Found(_) => Err(RunnerError::AuthorityLost),
+        JobRead::Found(_job) => {
+            #[cfg(test)]
+            if _job.lease_token.is_none()
+                && let Some(probe) = store.completion_probe()
+            {
+                probe.read_cleared.add_permits(1);
+            }
+            Err(RunnerError::AuthorityLost)
+        }
         JobRead::Missing => Err(StoreError::Missing.into()),
         JobRead::Malformed => Err(StoreError::Store(crate::valkey::Failure::Malformed).into()),
         JobRead::Closed => Err(StoreError::Store(crate::valkey::Failure::Closed).into()),
@@ -730,3 +786,6 @@ fn workflow_budget(
         count("max_results", default_results)?,
     ))
 }
+
+#[cfg(test)]
+pub(crate) mod completion_tests;

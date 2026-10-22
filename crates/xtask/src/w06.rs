@@ -13,7 +13,7 @@ const BASELINE: &str = "9b7d888da1ee3f7e2ed045c2185ea16f419381e9";
 const CORPUS_SHA: &str = "98116bc1010da4390d2b4e48775d6b3c8e1df63a41568a344013f4746c2fcbd3";
 const EXPORTER_SHA: &str = "e7426b72d8a70a1668a9e5a123f3e821ab34b81c926b8f5f824dbf6be40f2594";
 const REGRESSION_MAP_SHA: &str = "1f8033728cef0aaf5b687f88c8ec414ed5e9bdb1133d91c9b5053972a0938af5";
-const COVERAGE_SHA: &str = "4ecad347ee79a3060d5418ea8bb83b8fbf23d70e0cc4a317e390f3c25c46d0b2";
+const COVERAGE_SHA: &str = "41223f66479f9ba4bcb51b4e60cc1abc9a806658aa1d706e349ae10efa555ed3";
 const LANGUAGE_SOURCE_SHA: &str =
     "0f4931fb02c53f706b56bdcd6c4d9d76e28b72da63ecad9c42980aa001e3ccd4";
 const LANGUAGE_PRODUCER_SHA: &str =
@@ -246,7 +246,30 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
         HUGE_INTEGER_PRODUCER_SHA,
     )?;
     for (path, expected) in &qualification.owned_sources {
-        frozen(root, path, expected)?;
+        if let Some(result) = crate::a13::a06_source_successor::try_verify(
+            root,
+            "docs/rust-rewrite/w06/qualification.json",
+            COVERAGE_SHA,
+            path,
+            expected,
+            None,
+        ) {
+            result?;
+        } else if path == "crates/ssx-application/src/lib.rs" {
+            super::w06_source_amendment::verify(root, expected, records)?;
+        } else if path == "Cargo.lock" {
+            crate::a13::check_source_pin(
+                root,
+                "docs/rust-rewrite/w06/qualification.json",
+                COVERAGE_SHA,
+                path,
+                expected,
+                None,
+            )
+            .map_err(|error| format!("W06 Cargo.lock source provenance: {error}"))?;
+        } else {
+            frozen(root, path, expected)?;
+        }
     }
     if qualification.schema_version != 2
         || qualification.plan_id != "W06"
@@ -450,7 +473,7 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
         .concat(),
         records,
     )?;
-    records.push(json!({"plan_id":"W06","status":"passed","source_sha256":CORPUS_SHA,"qualification_sha256":COVERAGE_SHA,"provider_calls":0,"source_cases":qualification.source_cases,"native_cases":qualification.native_cases,"source_only_reference_controls":qualification.reference_controls,"owned_sources":qualification.owned_sources,"authority":"full source outcomes and canonical bytes; actual native semantic assertions; private Valkey; loopback; killed native worker","limitations":"No production/hot reload/transport composition or exactly-once remote dispatch claim; source differences require explicit review"}));
+    records.push(json!({"plan_id":"W06","status":"passed","source_sha256":CORPUS_SHA,"qualification_sha256":COVERAGE_SHA,"provider_calls":0,"source_cases":qualification.source_cases,"native_cases":qualification.native_cases,"source_only_reference_controls":qualification.reference_controls,"owned_sources":qualification.owned_sources,"owned_source_amendments":[{"source_path":"crates/ssx-application/src/lib.rs","historical_pin_sha256":"a7102f8c75244e74680cf8773c527d21fb2dcd177a29f0bd27abeef2beeb880e","successor_sha256":"1ff0647013d66e6711587bbd103659959ab860bd3bd2d2b42d10b7a640a5544e","allowed_append":"pub mod lineage; + pub mod receipts;","negative_controls":5}],"authority":"full source outcomes and canonical bytes; actual native semantic assertions; private Valkey; loopback; killed native worker","limitations":"No production/hot reload/transport composition or exactly-once remote dispatch claim; source differences require explicit review"}));
     Ok(())
 }
 
