@@ -103,6 +103,8 @@ pub(super) struct DuckDuckGoAdapter {
     parser: Arc<crate::html::ParserPool>,
     #[cfg(test)]
     test_bootstrap_budget: Option<Duration>,
+    #[cfg(test)]
+    test_bootstrap_owner_clock: bool,
 }
 impl DuckDuckGoAdapter {
     pub(super) fn with_parser(
@@ -120,11 +122,21 @@ impl DuckDuckGoAdapter {
             parser,
             #[cfg(test)]
             test_bootstrap_budget: None,
+            #[cfg(test)]
+            test_bootstrap_owner_clock: false,
         }
     }
     #[cfg(test)]
     pub(super) fn with_test_bootstrap_budget(mut self, budget: Duration) -> Self {
         self.test_bootstrap_budget = Some(budget);
+        self
+    }
+    /// Unit-only opt-in to project bootstrap time from this HTTP owner.
+    /// The cold control installs a Manual owner; production has no such option.
+    #[cfg(test)]
+    pub(super) fn with_test_bootstrap_owner_clock(mut self) -> Self {
+        assert!(self.test_bootstrap_budget.is_none());
+        self.test_bootstrap_owner_clock = true;
         self
     }
     #[cfg(test)]
@@ -202,12 +214,15 @@ impl DuckDuckGoAdapter {
             if let Ok(duration) = Duration::try_from_secs_f64(bootstrap) {
                 #[cfg(test)]
                 let duration = self.test_bootstrap_budget.unwrap_or(duration);
+                let bootstrap_now = tokio::time::Instant::now();
+                #[cfg(test)]
+                let bootstrap_now = if self.test_bootstrap_owner_clock {
+                    self.http.deadline_now().into()
+                } else {
+                    bootstrap_now
+                };
                 session.set_deadline(
-                    deadline.min(
-                        tokio::time::Instant::now()
-                            .checked_add(duration)
-                            .unwrap_or(deadline),
-                    ),
+                    deadline.min(bootstrap_now.checked_add(duration).unwrap_or(deadline)),
                 );
                 let _ = session.execute(request).await;
             }

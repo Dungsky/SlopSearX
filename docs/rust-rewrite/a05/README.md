@@ -42,10 +42,21 @@ cargo test --locked --workspace --no-run
 Actual loopback tests observe every engine request. Warm cookie/fallback tests
 explicitly issue and assert a separate `/warm` request before the six search
 requests, warming shared sockets without carrying its cookie jar into search.
-The cold-bootstrap test uses injected pending I/O and a controlled Tokio clock.
-It proves no search at 4 ms and search dispatch at the 6 ms timer-wheel tick for
-the source 5 ms deadline, then preserves success/fallback outcomes and exact
-GET/POST order across five requests and two fresh searches. Cancellation
+The original cold-bootstrap integration control used paused Tokio time with a
+System HTTP owner. Its source and historical 6 ms timer-wheel witness are retained
+in `source-amendments/3f1b9cca-cold-bootstrap.rs.frozen`; they are not current
+owner-clock evidence. The explicit relocation in
+`source-amendments/cold-bootstrap-owner-clock-v1.json` preserves all thirteen
+logical controls as twelve integration tests and one private helper unit, alongside
+the seven unchanged helper controls. The cold successor uses injected pending I/O
+and the same private Manual HTTP owner for bootstrap deadline construction and
+expiry. It requires no expiry at 4 ms and expiry/drop at exactly 5 ms, holds that
+owner at 5 ms while search/parser continuation completes, and preserves success,
+fallback and exact GET/POST order across five requests and two fresh searches.
+Tokio/parser clocks remain System and the production 5 ms clamp is unchanged.
+Its no-cookie requests do not establish disposal of a late Set-Cookie response:
+the pending bootstrap never produces one. Successful-cookie propagation and
+isolation remain required in the existing helper controls. Cancellation
 aborts a real loopback bootstrap and verifies no subsequent search/fallback.
 The loopback proxy test routes requests for `provider.invalid` through local
 listeners, verifies absolute method/target/query and proves failed-route
