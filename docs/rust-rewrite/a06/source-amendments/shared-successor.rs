@@ -638,6 +638,7 @@ pub(crate) fn a13_baseline(root: &Path, requested: &Value) -> Result<(Value, Vec
     let (before, _) = verify_transition(root, row)?;
     Ok((row["baseline"].clone(), before))
 }
+#[cfg(test)]
 pub(crate) fn current_http(root: &Path, actual: &[u8]) -> Result<bool, String> {
     let doc = load(root)?;
     let row = source(&doc, "crates/ssx-infra/src/http.rs")?;
