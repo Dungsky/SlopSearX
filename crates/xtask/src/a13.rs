@@ -13,6 +13,7 @@ use std::{
 #[path = "../../../docs/rust-rewrite/a13/source-amendments/validator.rs"]
 pub(crate) mod source_amendment;
 const QUALIFICATION_SHA: &str = "e2d9249fbadd0eca06a10215f796defc5845722c63fcf9f409ab9eac8a85f74e";
+const PUBCHEM_OWNER_CLOCK_TEST: &str = "adapters::clinicaltrials::resource_tests::pubchem_second_request_renews_500ms_budget_on_the_same_manual_owner";
 const QUALIFICATION: &str = "docs/rust-rewrite/a13/qualification-v1.json";
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -508,6 +509,8 @@ fn compiled_suite_names(suite: &Suite) -> Vec<String> {
             "adapters::a07_matrix_replay::actual_source_matrix_preserves_requests_and_full_normalized_results"
                 .into(),
         );
+        names.push(PUBCHEM_OWNER_CLOCK_TEST.into());
+        names.push("adapters::html_helper_tests::cold_bootstrap_expires_without_spending_search_deadline_or_leaking_cookies".into());
     }
     if suite.package == "ssx-infra" && suite.kind == "lib" && suite.target == "ssx_infra" {
         names.push("search::deadline_drain_tests::owner_manual_clock_preserves_completion_before_original_one_ms_deadline".into());
@@ -935,6 +938,48 @@ mod tests {
             "alpha: test\n1 tests, 0 benchmarks\nunknown",
         ] {
             assert!(listed(bad).is_err());
+        }
+        let suite_for = |package: &str, kind: &str, target: &str| Suite {
+            package: package.into(),
+            target: target.into(),
+            kind: kind.into(),
+            names: strings(&["sentinel"]),
+        };
+        let exact = compiled_suite_names(&suite_for("ssx-infra", "lib", "ssx_infra"));
+        let count = |needle: &str| exact.iter().filter(|name| name.as_str() == needle).count();
+        assert_eq!(count("sentinel"), 1);
+        assert_eq!(count(PUBCHEM_OWNER_CLOCK_TEST), 1);
+        let cold = "adapters::html_helper_tests::cold_bootstrap_expires_without_spending_search_deadline_or_leaking_cookies";
+        assert_eq!(count(cold), 1);
+        for (package, kind, target) in [
+            ("other", "lib", "ssx_infra"),
+            ("ssx-infra", "test", "ssx_infra"),
+            ("ssx-infra", "lib", "other"),
+        ] {
+            assert_eq!(
+                compiled_suite_names(&suite_for(package, kind, target)),
+                strings(&["sentinel"])
+            );
+        }
+        let mut missing = exact.clone();
+        missing.retain(|name| name.as_str() != PUBCHEM_OWNER_CLOCK_TEST);
+        let mut extra = exact.clone();
+        extra.push("unrelated::unexpected_test".into());
+        let mut duplicate = exact.clone();
+        duplicate.push(PUBCHEM_OWNER_CLOCK_TEST.into());
+        let mut cold_missing = exact.clone();
+        cold_missing.retain(|name| name != cold);
+        let mut cold_duplicate = exact.clone();
+        cold_duplicate.push(cold.into());
+        for actual in [missing, extra, duplicate, cold_missing, cold_duplicate] {
+            assert!(
+                same(
+                    &actual,
+                    &exact,
+                    "A13 exact compiled inventory missing/extra/duplicate"
+                )
+                .is_err()
+            );
         }
     }
 }

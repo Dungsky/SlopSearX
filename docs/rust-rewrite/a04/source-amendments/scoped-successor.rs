@@ -89,7 +89,7 @@ const A13_COMPOSITION: &str = "docs/rust-rewrite/a04/source-amendments/a13-w07-c
 const A13_COMPOSITION_SHA: &str =
     "98263270d3e7386eafe9dd78d0abc13f0fd8a3cfa48e0b3b7b845dd4fc4daa4b";
 const W07_A13_INSERT: &[u8] = b"    if let Some(result) = crate::w06_source_amendment::verify_shared(\n        root,\n        container_path,\n        container_sha,\n        path,\n        expected_sha,\n        expected_bytes,\n    ) {\n        return result;\n    }\n";
-struct CurrentMergedA13 {
+struct HistoricalMergedA13 {
     bytes: Vec<u8>,
 }
 struct HistoricalPremergeMaterial {
@@ -100,7 +100,7 @@ fn a13_composition_payload(
     composition: &Value,
     actual_current: &[u8],
     actual_mode: &str,
-) -> Result<(CurrentMergedA13, HistoricalPremergeMaterial), String> {
+) -> Result<(HistoricalMergedA13, HistoricalPremergeMaterial), String> {
     require(
         composition["kind"] == "PR1034_W07_A13_EXACT_COMPOSITION_V1"
             && composition["frozen_http_manifest"]["path"] == MANIFEST
@@ -117,7 +117,7 @@ fn a13_composition_payload(
         actual_mode,
         "PR1034 actual CURRENT merged A13 bytes/mode",
     )?;
-    let current = CurrentMergedA13 {
+    let current = HistoricalMergedA13 {
         bytes: actual_current.to_vec(),
     };
     let insertion = text(&composition["insertion"], "utf8")?.as_bytes();
@@ -171,47 +171,64 @@ fn a13_composition_document(raw: &[u8]) -> Result<Value, String> {
     )?;
     serde_json::from_slice(raw).map_err(|e| e.to_string())
 }
-fn read_a13_composition(
+fn read_historical_a13_composition(
     root: &Path,
     v1_row: &Value,
-) -> Result<(Value, CurrentMergedA13, HistoricalPremergeMaterial), String> {
+) -> Result<(Value, HistoricalMergedA13, HistoricalPremergeMaterial), String> {
     let raw = fs::read(root.join(A13_COMPOSITION)).map_err(|e| e.to_string())?;
     let composition = a13_composition_document(&raw)?;
     require(
         composition["current"]["path"] == XTASK_A13,
         "PR1034 A13 actual current path changed",
     )?;
-    let actual = read_material(root, &composition["current"], "PR1034 CURRENT merged A13")?;
-    let actual_mode = mode(&root.join(XTASK_A13))?;
+    // This old W07 relation is now checked only on an explicitly archived predecessor.
+    let next = a13_composition_v2_document(root)?;
+    let actual = read_material(
+        root,
+        &next["predecessor_archive"],
+        "PR1034 HISTORICAL merged A13",
+    )?;
+    let actual_mode = mode(&root.join(text(&next["predecessor_archive"], "path")?))?;
     let (current, historical) =
         a13_composition_payload(v1_row, &composition, &actual, &actual_mode)?;
     Ok((composition, current, historical))
 }
-fn verify_merged_a13(root: &Path, v1_row: &Value) -> Result<(), String> {
-    let (composition, current, historical) = read_a13_composition(root, v1_row)?;
+fn verify_merged_a13(root: &Path, current_row: &Value) -> Result<(), String> {
+    let prior_row = historical_a13_row(root)?;
+    let (_, previous, historical) = read_historical_a13_composition(root, &prior_row)?;
+    let next = a13_composition_v2_document(root)?;
+    require(
+        next["current"] == *current_row,
+        "PR1034 A13 current row differs",
+    )?;
+    let actual = read_material(root, current_row, "PR1034 CURRENT composed A13")?;
+    check_source_transition(
+        &next,
+        &previous.bytes,
+        &actual,
+        &mode(&root.join(XTASK_A13))?,
+        XTASK_A13,
+        A13_EDITS_SHA,
+    )?;
     eprintln!(
-        "PR1034_MAIN_COMPOSITION_PROOF {}",
-        serde_json::json!({"current_path":XTASK_A13,"current_sha256":digest(&current.bytes),
-            "current_bytes":current.bytes.len(),"historical_premerge_sha256":digest(&historical.bytes),
-            "historical_premerge_bytes":historical.bytes.len(),"insertion":composition["insertion"]["sha256"],
-            "frozen_http_manifest_sha256":MANIFEST_SHA})
+        "PR1034_A13_ADDITIVE_COMPOSITION_PROOF {}",
+        serde_json::json!({
+        "current_path":XTASK_A13,"current_sha256":digest(&actual),"current_bytes":actual.len(),
+        "historical_w07_current_sha256":digest(&previous.bytes),
+        "historical_premerge_sha256":digest(&historical.bytes),
+        "predecessor_composition_sha256":A13_COMPOSITION_SHA})
     );
     Ok(())
 }
 #[cfg(test)]
 fn a13_composition_controls(root: &Path, manifest: &Value) -> Result<(), String> {
-    let rows: Vec<_> = manifest["additional_current_materials"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .filter(|row| row["path"] == XTASK_A13)
-        .collect();
+    let historical_row = historical_a13_row(root)?;
+    let row = &historical_row;
     require(
-        rows.len() == 1,
-        "PR1034 A13 composition V1 membership changed",
+        manifest["a13_composition"]["sha256"] == A13_COMPOSITION_V2_SHA,
+        "PR1034 A13 V2 binding differs",
     )?;
-    let row = rows[0];
-    let (composition, current, historical) = read_a13_composition(root, row)?;
+    let (composition, current, historical) = read_historical_a13_composition(root, row)?;
     let mut changed_manifest = fs::read(root.join(A13_COMPOSITION)).map_err(|e| e.to_string())?;
     changed_manifest.push(0);
     require(
@@ -252,7 +269,7 @@ fn a13_composition_controls(root: &Path, manifest: &Value) -> Result<(), String>
         rejects(&changed_claim, &extra_current, "0644")?;
     }
     eprintln!(
-        "PR1034_COMPOSITION_CONTROLS actual_current_positive=true historical_as_current_rejected=true altered_byte_delta_offset_mode_scope_and_relation_negatives=passed"
+        "PR1034_COMPOSITION_CONTROLS historical_w07_positive=true premerge_as_w07_rejected=true altered_byte_delta_offset_mode_scope_and_relation_negatives=passed"
     );
     Ok(())
 }
@@ -547,7 +564,7 @@ fn manifest_transition_controls(root: &Path, current: &Value) -> Result<(), Stri
     );
     Ok(())
 }
-fn load(root: &Path) -> Result<Value, String> {
+fn load_v2(root: &Path) -> Result<Value, String> {
     let raw = fs::read(root.join(MANIFEST)).map_err(|e| e.to_string())?;
     require(
         digest(&raw) == MANIFEST_SHA,
@@ -601,6 +618,8 @@ pub(crate) fn try_verify(
             {
                 if key == "additional_current_materials" && row["path"] == XTASK_A13 {
                     verify_merged_a13(root, row)?;
+                } else if key == "additional_current_materials" && row["path"] == VALIDATOR {
+                    verify_validator_composition(root, &manifest, row)?;
                 } else {
                     read_material(root, row, "PR1034 current/capture payload")?;
                 }
@@ -626,7 +645,8 @@ pub(crate) fn try_verify(
 #[cfg(test)]
 pub(crate) fn controls(root: &Path) -> Result<(), String> {
     let manifest = load(root)?;
-    manifest_transition_controls(root, &manifest)?;
+    manifest_transition_controls(root, &load_v2(root)?)?;
+    additive_composition_controls(root, &manifest)?;
     a13_composition_controls(root, &manifest)?;
     for binding in manifest["bindings"].as_array().unwrap() {
         let container_path = text(binding, "container_path")?;
@@ -836,5 +856,393 @@ fn original_routing_equivalence(root: &Path) -> Result<(), String> {
     }
     require(compared > 0, "no original fallback callers compared")?;
     eprintln!("PR1034_ORIGINAL_ROUTING_EQUIVALENCE comparisons={compared}");
+    Ok(())
+}
+
+// Finite security/A07 successor: old manifests remain immutable historical evidence.
+const CURRENT_V3: &str = "docs/rust-rewrite/a04/source-amendments/scoped-successor-v3.json";
+const CURRENT_V3_SHA: &str = "b90370a9d8bd50e79e8468c73eef863647dd0c18d5c649f6baf38e8f3423d6d4";
+const A13_COMPOSITION_V2: &str =
+    "docs/rust-rewrite/a04/source-amendments/a13-w07-composition-v2.json";
+const A13_COMPOSITION_V2_SHA: &str =
+    "11de2279f9f204fa6b68ea1fd7a2a0198e2ae3c2910b9750b07d700af6cc9e8d";
+const VALIDATOR: &str = "docs/rust-rewrite/a13/source-amendments/validator.rs";
+const VALIDATOR_EDITS_SHA: &str =
+    "ccf2197e181a1ea16f951040cf8910e0d5643ea7fd40c2acadd01ccb8f05fe5d";
+const A13_EDITS_SHA: &str = "7ba41c83724c7537750e782867b8f9a2341140c35636e5f250c72e93026129b6";
+
+fn historical_a13_row(root: &Path) -> Result<Value, String> {
+    let raw = fs::read(root.join(MANIFEST)).map_err(|e| e.to_string())?;
+    require(digest(&raw) == MANIFEST_SHA, "PR1034 historical V1 differs")?;
+    let document: Value = serde_json::from_slice(&raw).map_err(|e| e.to_string())?;
+    document["additional_current_materials"]
+        .as_array()
+        .ok_or("V1 materials absent")?
+        .iter()
+        .find(|row| row["path"] == XTASK_A13)
+        .cloned()
+        .ok_or("V1 A13 row absent".into())
+}
+fn a13_composition_v2_document(root: &Path) -> Result<Value, String> {
+    let raw = fs::read(root.join(A13_COMPOSITION_V2)).map_err(|e| e.to_string())?;
+    require(
+        digest(&raw) == A13_COMPOSITION_V2_SHA,
+        "PR1034 A13 composition V2 differs",
+    )?;
+    let document: Value = serde_json::from_slice(&raw).map_err(|e| e.to_string())?;
+    require(
+        document["kind"] == "PR1034_W07_SECURITY_A07_COMPOSITION_V2"
+            && document["predecessor_composition"]["path"] == A13_COMPOSITION
+            && document["predecessor_composition"]["sha256"] == A13_COMPOSITION_SHA,
+        "PR1034 A13 composition predecessor/scope differs",
+    )?;
+    Ok(document)
+}
+fn check_source_transition(
+    transition: &Value,
+    before: &[u8],
+    actual: &[u8],
+    actual_mode: &str,
+    source: &str,
+    edits_sha: &str,
+) -> Result<(), String> {
+    require(
+        [VALIDATOR, XTASK_A13].contains(&source)
+            && transition["current"]["path"] == source
+            && transition["predecessor_archive"]["source_path"] == source,
+        "PR1034 source transition scope differs",
+    )?;
+    check_material(
+        &transition["predecessor_archive"],
+        before,
+        "0644",
+        "PR1034 source transition predecessor differs",
+    )?;
+    check_material(
+        &transition["current"],
+        actual,
+        actual_mode,
+        "PR1034 source transition CURRENT differs",
+    )?;
+    let edits = transition["edits"]
+        .as_array()
+        .ok_or("PR1034 transition edits absent")?;
+    require(
+        !edits.is_empty()
+            && digest(&serde_json::to_vec(edits).map_err(|e| e.to_string())?) == edits_sha,
+        "PR1034 exact reviewed transition edits differ",
+    )?;
+    let mut output = Vec::new();
+    let mut end = 0;
+    for edit in edits {
+        let at = edit["at"]
+            .as_u64()
+            .and_then(|n| usize::try_from(n).ok())
+            .ok_or("PR1034 transition offset")?;
+        let remove: Vec<u8> =
+            serde_json::from_value(edit["remove"].clone()).map_err(|e| e.to_string())?;
+        let insert: Vec<u8> =
+            serde_json::from_value(edit["insert"].clone()).map_err(|e| e.to_string())?;
+        let next = at
+            .checked_add(remove.len())
+            .ok_or("PR1034 transition overflow")?;
+        require(
+            at >= end
+                && next <= before.len()
+                && before[at..next] == remove
+                && (!remove.is_empty() || !insert.is_empty()),
+            "PR1034 transition preimage/order differs",
+        )?;
+        output.extend_from_slice(&before[end..at]);
+        output.extend_from_slice(&insert);
+        end = next;
+    }
+    output.extend_from_slice(&before[end..]);
+    require(
+        output == actual,
+        "PR1034 reconstructed source differs from actual CURRENT",
+    )
+}
+fn validate_v3(previous: &Value, next: &Value) -> Result<(), String> {
+    require(
+        previous["kind"] == "PR1034_SCOPED_CURRENT_AND_HISTORY_V2"
+            && next["kind"] == "PR1034_SCOPED_CURRENT_AND_HISTORY_V3"
+            && next["a13_composition"]["path"] == A13_COMPOSITION_V2
+            && next["a13_composition"]["sha256"] == A13_COMPOSITION_V2_SHA,
+        "PR1034 V3 kind/composition differs",
+    )?;
+    let mut reverted = next.clone();
+    let old = previous["additional_current_materials"]
+        .as_array()
+        .ok_or("PR1034 V2 materials absent")?;
+    let rows = reverted["additional_current_materials"]
+        .as_array_mut()
+        .ok_or("PR1034 V3 materials absent")?;
+    require(rows.len() == old.len(), "PR1034 V3 material count differs")?;
+    let mut changed = 0;
+    for (row, prior) in rows.iter_mut().zip(old) {
+        if [VALIDATOR, XTASK_A13]
+            .iter()
+            .any(|path| prior["path"] == *path)
+        {
+            require(
+                row["path"] == prior["path"] && row["mode"] == prior["mode"],
+                "PR1034 V3 material path/mode differs",
+            )?;
+            *row = prior.clone();
+            changed += 1;
+        }
+    }
+    require(
+        changed == 2,
+        "PR1034 V3 exact two-material transition absent",
+    )?;
+    reverted["kind"] = previous["kind"].clone();
+    for key in [
+        "validator_transition",
+        "a13_composition",
+        "helper_predecessor_archive",
+    ] {
+        require(
+            reverted
+                .as_object_mut()
+                .ok_or("PR1034 V3 object absent")?
+                .remove(key)
+                .is_some(),
+            "PR1034 V3 required proof absent",
+        )?;
+    }
+    require(
+        reverted == *previous,
+        "PR1034 unrelated V2/V3 material differs",
+    )
+}
+fn load(root: &Path) -> Result<Value, String> {
+    let previous = load_v2(root)?;
+    let raw = fs::read(root.join(CURRENT_V3)).map_err(|e| e.to_string())?;
+    require(digest(&raw) == CURRENT_V3_SHA, "PR1034 V3 manifest differs")?;
+    let next: Value = serde_json::from_slice(&raw).map_err(|e| e.to_string())?;
+    validate_v3(&previous, &next)?;
+    let helper = read_material(
+        root,
+        &next["helper_predecessor_archive"],
+        "PR1034 historical helper differs",
+    )?;
+    require(
+        digest(&helper) == "edb8ac754f54c78da747296bf0a115ef4d04d289e9ba10b8f76a32168c092c2a",
+        "PR1034 helper predecessor identity differs",
+    )?;
+    Ok(next)
+}
+fn validate_validator_predecessor(previous: &Value, document: &Value) -> Result<(), String> {
+    let prior = previous["additional_current_materials"]
+        .as_array()
+        .ok_or("PR1034 V2 materials absent")?
+        .iter()
+        .find(|row| row["path"] == VALIDATOR)
+        .ok_or("PR1034 V2 validator absent")?;
+    let archive = &document["validator_transition"]["predecessor_archive"];
+    require(
+        archive["source_path"] == prior["path"]
+            && archive["sha256"] == prior["sha256"]
+            && archive["bytes"] == prior["bytes"]
+            && archive["mode"] == prior["mode"],
+        "PR1034 validator predecessor is not the sealed V2 material",
+    )
+}
+fn verify_validator_composition(root: &Path, document: &Value, row: &Value) -> Result<(), String> {
+    validate_validator_predecessor(&load_v2(root)?, document)?;
+    let transition = &document["validator_transition"];
+    require(
+        transition["current"] == *row,
+        "PR1034 validator current row differs",
+    )?;
+    let old = read_material(
+        root,
+        &transition["predecessor_archive"],
+        "PR1034 HISTORICAL validator",
+    )?;
+    let actual = read_material(root, row, "PR1034 CURRENT validator")?;
+    check_source_transition(
+        transition,
+        &old,
+        &actual,
+        &mode(&root.join(VALIDATOR))?,
+        VALIDATOR,
+        VALIDATOR_EDITS_SHA,
+    )?;
+    eprintln!(
+        "PR1034_VALIDATOR_ADDITIVE_COMPOSITION_PROOF current_sha256={} historical_sha256={}",
+        digest(&actual),
+        digest(&old)
+    );
+    Ok(())
+}
+#[cfg(test)]
+fn additive_composition_controls(root: &Path, document: &Value) -> Result<(), String> {
+    let previous = load_v2(root)?;
+    validate_v3(&previous, document)?;
+    validate_validator_predecessor(&previous, document)?;
+    let mut wrong_predecessor = document.clone();
+    let mut altered_predecessor = read_material(
+        root,
+        &document["validator_transition"]["predecessor_archive"],
+        "PR1034 control validator predecessor",
+    )?;
+    altered_predecessor.push(0);
+    wrong_predecessor["validator_transition"]["predecessor_archive"]["sha256"] =
+        serde_json::json!(digest(&altered_predecessor));
+    wrong_predecessor["validator_transition"]["predecessor_archive"]["bytes"] =
+        serde_json::json!(altered_predecessor.len());
+    require(
+        validate_validator_predecessor(&previous, &wrong_predecessor)
+            .err()
+            .as_deref()
+            == Some("PR1034 validator predecessor is not the sealed V2 material"),
+        "PR1034 rehashed validator predecessor escaped the V2 link",
+    )?;
+    for key in [
+        "bindings",
+        "successors",
+        "historical_chain_materials",
+        "frozen_captures",
+    ] {
+        let mut bad = document.clone();
+        bad[key]
+            .as_array_mut()
+            .ok_or("PR1034 control array absent")?
+            .pop();
+        require(
+            validate_v3(&previous, &bad).is_err(),
+            "PR1034 V3 unrelated scope mutation accepted",
+        )?;
+    }
+    let a13 = a13_composition_v2_document(root)?;
+    for (transition, source, edits_sha) in [
+        (
+            &document["validator_transition"],
+            VALIDATOR,
+            VALIDATOR_EDITS_SHA,
+        ),
+        (&a13, XTASK_A13, A13_EDITS_SHA),
+    ] {
+        let old = read_material(
+            root,
+            &transition["predecessor_archive"],
+            "PR1034 control predecessor",
+        )?;
+        let actual = read_material(root, &transition["current"], "PR1034 control CURRENT")?;
+        let positive = |claim: &Value, bytes: &[u8], permissions: &str| {
+            check_source_transition(claim, &old, bytes, permissions, source, edits_sha)
+        };
+        positive(transition, &actual, "0644")?;
+        require(
+            positive(transition, &old, "0644").is_err(),
+            "PR1034 predecessor accepted as CURRENT",
+        )?;
+        require(
+            positive(transition, &actual, "0755").is_err(),
+            "PR1034 changed mode accepted",
+        )?;
+        let mut altered = actual.clone();
+        altered.push(0);
+        let mut rehashed = transition.clone();
+        rehashed["current"]["sha256"] = serde_json::json!(digest(&altered));
+        rehashed["current"]["bytes"] = serde_json::json!(altered.len());
+        require(
+            positive(&rehashed, &altered, "0644").is_err(),
+            "PR1034 hash-only unrelated successor accepted",
+        )?;
+        // Test-only recomputed digests bypass the authority check deliberately,
+        // so these controls must reach the structural/reconstruction guards.
+        let structural_error = |claim: &Value, bytes: &[u8]| -> Result<String, String> {
+            let proposed = digest(
+                &serde_json::to_vec(claim["edits"].as_array().ok_or("control edits absent")?)
+                    .map_err(|e| e.to_string())?,
+            );
+            check_source_transition(claim, &old, bytes, "0644", source, &proposed)
+                .err()
+                .ok_or("structurally invalid transition accepted".into())
+        };
+        let mut missing_edit = transition.clone();
+        missing_edit["edits"].as_array_mut().unwrap().pop();
+        require(
+            structural_error(&missing_edit, &actual)?
+                == "PR1034 reconstructed source differs from actual CURRENT",
+            "PR1034 missing edit did not reach reconstruction guard",
+        )?;
+        let mut wrong_preimage = transition.clone();
+        let at = wrong_preimage["edits"][0]["at"].as_u64().unwrap() as usize;
+        wrong_preimage["edits"][0]["remove"] = serde_json::json!([old[at] ^ 1]);
+        require(
+            structural_error(&wrong_preimage, &actual)?
+                == "PR1034 transition preimage/order differs",
+            "PR1034 wrong preimage did not reach structural guard",
+        )?;
+        let mut reversed = transition.clone();
+        reversed["edits"].as_array_mut().unwrap().swap(0, 1);
+        require(
+            structural_error(&reversed, &actual)? == "PR1034 transition preimage/order differs",
+            "PR1034 reordered edits did not reach structural guard",
+        )?;
+        let mut moved = transition.clone();
+        moved["edits"][0]["at"] = serde_json::json!(old.len() + 1);
+        require(
+            structural_error(&moved, &actual)? == "PR1034 transition preimage/order differs",
+            "PR1034 moved edit did not reach bounds guard",
+        )?;
+        let mut repeated = transition.clone();
+        let first = repeated["edits"][0].clone();
+        repeated["edits"].as_array_mut().unwrap().insert(1, first);
+        let repeated_error = structural_error(&repeated, &actual)?;
+        require(
+            [
+                "PR1034 transition preimage/order differs",
+                "PR1034 reconstructed source differs from actual CURRENT",
+            ]
+            .contains(&repeated_error.as_str()),
+            "PR1034 duplicate edit did not reach structural/reconstruction guard",
+        )?;
+        require(
+            structural_error(&rehashed, &altered)?
+                == "PR1034 reconstructed source differs from actual CURRENT",
+            "PR1034 rehashed unrelated CURRENT did not reach reconstruction guard",
+        )?;
+        for mutation in 0..6 {
+            let mut bad = transition.clone();
+            match mutation {
+                0 => {
+                    bad["edits"].as_array_mut().unwrap().pop();
+                }
+                1 => {
+                    let edit = bad["edits"][0].clone();
+                    bad["edits"].as_array_mut().unwrap().push(edit);
+                }
+                2 => {
+                    bad["edits"][0]["at"] =
+                        serde_json::json!(bad["edits"][0]["at"].as_u64().unwrap() + 1);
+                }
+                3 => {
+                    bad["current"]["path"] = serde_json::json!("unreviewed.rs");
+                }
+                4 => {
+                    bad["predecessor_archive"]["sha256"] = serde_json::json!("unreviewed");
+                }
+                _ => {
+                    bad["edits"][0]["insert"]
+                        .as_array_mut()
+                        .unwrap()
+                        .push(serde_json::json!(0));
+                }
+            }
+            require(
+                positive(&bad, &actual, "0644").is_err(),
+                "PR1034 exact source transition negative accepted",
+            )?;
+        }
+    }
+    eprintln!(
+        "PR1034_SECURITY_A07_COMPOSITION_CONTROLS actual_current_positive=true historical_as_current_mode_scope_missing_duplicate_moved_unrelated_edits_rejected=true"
+    );
     Ok(())
 }
