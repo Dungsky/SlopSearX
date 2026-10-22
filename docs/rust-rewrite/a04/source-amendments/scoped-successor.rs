@@ -644,6 +644,7 @@ pub(crate) fn try_verify(
 }
 #[cfg(test)]
 pub(crate) fn controls(root: &Path) -> Result<(), String> {
+    factory_controls(root)?;
     let manifest = load(root)?;
     manifest_transition_controls(root, &load_v2(root)?)?;
     additive_composition_controls(root, &manifest)?;
@@ -801,6 +802,9 @@ pub(crate) fn verify_current(
     expected_sha: &str,
     expected_bytes: Option<usize>,
 ) -> Result<(), String> {
+    if factory_selected(container_path, source_path) {
+        return verify_factory_current(root, container_sha, expected_sha, expected_bytes);
+    }
     match try_verify(
         root,
         container_path,
@@ -1243,6 +1247,360 @@ fn additive_composition_controls(root: &Path, document: &Value) -> Result<(), St
     }
     eprintln!(
         "PR1034_SECURITY_A07_COMPOSITION_CONTROLS actual_current_positive=true historical_as_current_mode_scope_missing_duplicate_moved_unrelated_edits_rejected=true"
+    );
+    Ok(())
+}
+
+// One exact A09 fixture successor. Frozen coverage and every legacy route remain
+// unchanged; only this caller/source pair opts into the reconstructive sidecar.
+const FACTORY_CONTAINER: &str = "docs/rust-rewrite/a09/coverage.json";
+const FACTORY_CONTAINER_SHA: &str =
+    "d3dbf8be85061348dded0b783a55dd11f5d79e789857e2046ebe808504f162c8";
+const FACTORY_SOURCE: &str = "crates/ssx-infra/tests/a09_factories.rs";
+const FACTORY_OLD_SHA: &str = "c7eb4cb261ab85764d3ebe3e7bd1c6648469aadaa1e61fb9b6b51077f3faa8da";
+const FACTORY_ARCHIVE: &str =
+    "docs/rust-rewrite/a09/source-amendments/52c3ce7d-a09-factories.rs.frozen";
+const FACTORY_MANIFEST: &str =
+    "docs/rust-rewrite/a09/source-amendments/factory-harness-successor-v1.json";
+const FACTORY_MANIFEST_SHA: &str =
+    "5b35cc651429a2db741782354841bfa398ecb10ddabdc8cd2a15b73dc0ec33b4";
+const FACTORY_EDITS_SHA: &str = "c167ea6c274384e276b2e144d58590c0824141e55b0e94fdbfa19fe3e57a030c";
+fn factory_selected(container: &str, source: &str) -> bool {
+    container == FACTORY_CONTAINER && source == FACTORY_SOURCE
+}
+fn factory_scope(document: &Value) -> Result<(), String> {
+    require(
+        document["kind"] == "PR1034_A09_FACTORY_HARNESS_SUCCESSOR_V1"
+            && document["baseline_revision"] == "52c3ce7d481c35e74eb1afe1740ec840b5571567"
+            && document["binding"]
+                == serde_json::json!({
+                    "container_path": FACTORY_CONTAINER, "container_sha256": FACTORY_CONTAINER_SHA,
+                    "source_path": FACTORY_SOURCE, "caller_expected_sha256": FACTORY_OLD_SHA,
+                    "caller_expected_bytes": null, "row": "artifacts/79"
+                })
+            && document["current"]["path"] == FACTORY_SOURCE
+            && document["current"]["mode"] == "0644"
+            && document["historical_archive"]
+                == serde_json::json!({
+                    "path": FACTORY_ARCHIVE, "source_path": FACTORY_SOURCE,
+                    "sha256": FACTORY_OLD_SHA, "bytes": 28678, "mode": "0644"
+                }),
+        "PR1034 factory harness caller/archive scope differs",
+    )
+}
+fn factory_document(raw: &[u8]) -> Result<Value, String> {
+    require(
+        digest(raw) == FACTORY_MANIFEST_SHA,
+        "PR1034 factory harness manifest differs",
+    )?;
+    let document: Value = serde_json::from_slice(raw).map_err(|e| e.to_string())?;
+    factory_scope(&document)?;
+    Ok(document)
+}
+fn factory_transition(
+    document: &Value,
+    current: &CurrentSuccessor,
+    previous: &HistoricalEvidence,
+    current_mode: &str,
+    previous_mode: &str,
+    edits_sha: &str,
+) -> Result<(), String> {
+    factory_scope(document)?;
+    require(
+        current.path == FACTORY_SOURCE && previous.path == FACTORY_SOURCE,
+        "PR1034 factory harness typed material scope differs",
+    )?;
+    check_material(
+        &document["historical_archive"],
+        &previous.bytes,
+        previous_mode,
+        "PR1034 factory harness historical bytes/mode differ",
+    )?;
+    check_material(
+        &document["current"],
+        &current.bytes,
+        current_mode,
+        "PR1034 factory harness CURRENT bytes/mode differ",
+    )?;
+    let edits = document["edits"]
+        .as_array()
+        .ok_or("PR1034 factory harness edits absent")?;
+    require(
+        !edits.is_empty()
+            && digest(&serde_json::to_vec(edits).map_err(|e| e.to_string())?) == edits_sha,
+        "PR1034 exact factory harness edits differ",
+    )?;
+    patch_matches(document, current, previous)
+}
+fn verify_factory_current(
+    root: &Path,
+    container_sha: &str,
+    expected_sha: &str,
+    expected_bytes: Option<usize>,
+) -> Result<(), String> {
+    let raw = fs::read(root.join(FACTORY_MANIFEST)).map_err(|e| e.to_string())?;
+    let document = factory_document(&raw)?;
+    let container = fs::read(root.join(FACTORY_CONTAINER)).map_err(|e| e.to_string())?;
+    check_caller(
+        &document["binding"],
+        container_sha,
+        &container,
+        expected_sha,
+        expected_bytes,
+    )?;
+    // CURRENT is always read from the actual fixture path. The archive is only
+    // the historical operand, even if a caller tries to supply its old digest.
+    let current = CurrentSuccessor {
+        path: FACTORY_SOURCE.into(),
+        bytes: read_material(root, &document["current"], "PR1034 factory CURRENT")?,
+    };
+    let previous = HistoricalEvidence {
+        path: FACTORY_SOURCE.into(),
+        bytes: read_material(
+            root,
+            &document["historical_archive"],
+            "PR1034 factory HISTORICAL",
+        )?,
+    };
+    factory_transition(
+        &document,
+        &current,
+        &previous,
+        &mode(&root.join(FACTORY_SOURCE))?,
+        &mode(&root.join(FACTORY_ARCHIVE))?,
+        FACTORY_EDITS_SHA,
+    )?;
+    eprintln!(
+        "PR1034_FACTORY_HARNESS_SOURCE_PROOF current_sha256={} historical_sha256={}",
+        digest(&current.bytes),
+        digest(&previous.bytes)
+    );
+    Ok(())
+}
+#[cfg(test)]
+fn factory_controls(root: &Path) -> Result<(), String> {
+    let raw = fs::read(root.join(FACTORY_MANIFEST)).map_err(|e| e.to_string())?;
+    let document = factory_document(&raw)?;
+    let container = fs::read(root.join(FACTORY_CONTAINER)).map_err(|e| e.to_string())?;
+    let current = CurrentSuccessor {
+        path: FACTORY_SOURCE.into(),
+        bytes: read_material(root, &document["current"], "factory control CURRENT")?,
+    };
+    let previous = HistoricalEvidence {
+        path: FACTORY_SOURCE.into(),
+        bytes: read_material(
+            root,
+            &document["historical_archive"],
+            "factory control HISTORICAL",
+        )?,
+    };
+    let current_mode = mode(&root.join(FACTORY_SOURCE))?;
+    let previous_mode = mode(&root.join(FACTORY_ARCHIVE))?;
+    factory_transition(
+        &document,
+        &current,
+        &previous,
+        &current_mode,
+        &previous_mode,
+        FACTORY_EDITS_SHA,
+    )?;
+    verify_current(
+        root,
+        FACTORY_CONTAINER,
+        FACTORY_CONTAINER_SHA,
+        FACTORY_SOURCE,
+        FACTORY_OLD_SHA,
+        None,
+    )?;
+    require(
+        super::verify(
+            root,
+            FACTORY_CONTAINER,
+            FACTORY_CONTAINER_SHA,
+            FACTORY_SOURCE,
+            FACTORY_OLD_SHA,
+            None,
+        )
+        .is_err(),
+        "original unamended policy unexpectedly accepted actual fixture CURRENT",
+    )?;
+    for (hash, source_hash, length) in [
+        ("wrong-container", FACTORY_OLD_SHA, None),
+        (FACTORY_CONTAINER_SHA, "wrong-original", None),
+        (FACTORY_CONTAINER_SHA, FACTORY_OLD_SHA, Some(28678)),
+    ] {
+        require(
+            check_caller(&document["binding"], hash, &container, source_hash, length).is_err(),
+            "factory caller hash/original/Some-None mutation accepted",
+        )?;
+    }
+    let mut altered_container = container.clone();
+    altered_container.push(0);
+    require(
+        check_caller(
+            &document["binding"],
+            FACTORY_CONTAINER_SHA,
+            &altered_container,
+            FACTORY_OLD_SHA,
+            None,
+        )
+        .is_err(),
+        "factory changed actual container accepted",
+    )?;
+    require(
+        !factory_selected("unknown.json", FACTORY_SOURCE)
+            && !factory_selected(FACTORY_CONTAINER, "unknown.rs"),
+        "factory intercepted an unlisted caller/source",
+    )?;
+    let mut altered_manifest = raw.clone();
+    altered_manifest.push(b'\n');
+    require(
+        factory_document(&altered_manifest).is_err(),
+        "factory changed sidecar accepted",
+    )?;
+    require(
+        factory_transition(
+            &document,
+            &current,
+            &previous,
+            "0755",
+            &previous_mode,
+            FACTORY_EDITS_SHA,
+        )
+        .is_err(),
+        "factory CURRENT mode mutation accepted",
+    )?;
+    require(
+        factory_transition(
+            &document,
+            &current,
+            &previous,
+            &current_mode,
+            "0755",
+            FACTORY_EDITS_SHA,
+        )
+        .is_err(),
+        "factory historical mode mutation accepted",
+    )?;
+    let historical_as_current = CurrentSuccessor {
+        path: FACTORY_SOURCE.into(),
+        bytes: previous.bytes.clone(),
+    };
+    require(
+        factory_transition(
+            &document,
+            &historical_as_current,
+            &previous,
+            &current_mode,
+            &previous_mode,
+            FACTORY_EDITS_SHA,
+        )
+        .is_err(),
+        "factory historical bytes accepted as CURRENT",
+    )?;
+    let mut wrong_archive = HistoricalEvidence {
+        path: FACTORY_SOURCE.into(),
+        bytes: previous.bytes.clone(),
+    };
+    wrong_archive.bytes.push(0);
+    require(
+        factory_transition(
+            &document,
+            &current,
+            &wrong_archive,
+            &current_mode,
+            &previous_mode,
+            FACTORY_EDITS_SHA,
+        )
+        .is_err(),
+        "factory changed archive accepted",
+    )?;
+    let mut altered = CurrentSuccessor {
+        path: FACTORY_SOURCE.into(),
+        bytes: current.bytes.clone(),
+    };
+    altered.bytes.push(0);
+    let mut rehashed = document.clone();
+    rehashed["current"]["sha256"] = serde_json::json!(digest(&altered.bytes));
+    rehashed["current"]["bytes"] = serde_json::json!(altered.bytes.len());
+    require(
+        factory_transition(
+            &rehashed,
+            &altered,
+            &previous,
+            &current_mode,
+            &previous_mode,
+            FACTORY_EDITS_SHA,
+        )
+        .is_err_and(|error| error == "PR1034 exact reviewed patch differs"),
+        "factory unrelated rehashed CURRENT bypassed reconstruction",
+    )?;
+    // Recompute the digest only in these structural controls. Production always
+    // supplies the fixed reviewed FACTORY_EDITS_SHA above.
+    let mut missing = document.clone();
+    missing["edits"].as_array_mut().unwrap().remove(0);
+    let mut duplicate = document.clone();
+    duplicate["edits"]
+        .as_array_mut()
+        .unwrap()
+        .push(document["edits"][0].clone());
+    let mut reordered = document.clone();
+    reordered["edits"].as_array_mut().unwrap().swap(0, 1);
+    let mut moved = document.clone();
+    moved["edits"][0]["at"] = serde_json::json!(moved["edits"][0]["at"].as_u64().unwrap() + 1);
+    let mut preimage = document.clone();
+    let i = preimage["edits"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .position(|edit| !edit["remove"].as_array().unwrap().is_empty())
+        .unwrap();
+    preimage["edits"][i]["remove"][0] =
+        serde_json::json!(preimage["edits"][i]["remove"][0].as_u64().unwrap() ^ 1);
+    for claim in [missing, duplicate, reordered, moved, preimage] {
+        let edits_sha = digest(&serde_json::to_vec(&claim["edits"]).map_err(|e| e.to_string())?);
+        require(
+            factory_transition(
+                &claim,
+                &current,
+                &previous,
+                &current_mode,
+                &previous_mode,
+                &edits_sha,
+            )
+            .is_err_and(|error| {
+                error == "PR1034 reviewed edit preimage differs"
+                    || error == "PR1034 exact reviewed patch differs"
+            }),
+            "factory structural edit control did not reach preimage/reconstruction guard",
+        )?;
+    }
+    for (key, value) in [
+        ("kind", serde_json::json!("wrong-kind")),
+        ("baseline_revision", serde_json::json!("wrong-baseline")),
+    ] {
+        let mut wrong = document.clone();
+        wrong[key] = value;
+        require(
+            factory_scope(&wrong).is_err(),
+            "factory scope mutation accepted",
+        )?;
+    }
+    let mut wrong_row = document.clone();
+    wrong_row["binding"]["row"] = serde_json::json!("artifacts/78");
+    require(
+        check_caller(
+            &wrong_row["binding"],
+            FACTORY_CONTAINER_SHA,
+            &container,
+            FACTORY_OLD_SHA,
+            None,
+        )
+        .is_err(),
+        "factory moved historical row accepted",
+    )?;
+    eprintln!(
+        "PR1034_FACTORY_HARNESS_SOURCE_CONTROLS actual_current=true historical_as_current_container_mode_preimage_order_missing_duplicate_moved_unrelated_rehashed_rejected=true"
     );
     Ok(())
 }
