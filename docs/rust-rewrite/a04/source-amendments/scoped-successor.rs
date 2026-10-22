@@ -211,7 +211,7 @@ fn verify_merged_a13(root: &Path, current_row: &Value) -> Result<(), String> {
         A13_EDITS_SHA,
     )?;
     eprintln!(
-        "PR1034_A13_ADDITIVE_COMPOSITION_PROOF {}",
+        "PR1034_ADDITIVE_COMPOSITION_PROOF {}",
         serde_json::json!({
         "current_path":XTASK_A13,"current_sha256":digest(&actual),"current_bytes":actual.len(),
         "historical_w07_current_sha256":digest(&previous.bytes),
