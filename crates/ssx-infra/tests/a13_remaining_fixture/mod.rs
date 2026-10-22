@@ -945,7 +945,7 @@ pub fn inventory(engine: &str) {
     use sha2::{Digest, Sha256};
     use std::collections::BTreeSet;
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    source_amendment::rejects_mutants(&root).unwrap();
+    source_amendment::causal_successor::control_bridge(&root).unwrap();
     let bytes =
         std::fs::read(root.join("docs/rust-rewrite/a13/remaining/source-map.json")).unwrap();
     let digest = |bytes: &[u8]| {
@@ -1037,7 +1037,7 @@ pub fn inventory(engine: &str) {
     for source in map["sources"].as_array().unwrap() {
         let p = source["path"].as_str().unwrap();
         assert!(seen.insert(p));
-        source_amendment::verify(
+        source_amendment::verify_current(
             &root,
             "docs/rust-rewrite/a13/remaining/source-map.json",
             "af359782abc772c727a885e66a87d519aea5393bcec31e0e105b2de46a8c5d22",

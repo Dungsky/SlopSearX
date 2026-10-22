@@ -6,11 +6,11 @@ use std::{fs, path::Path};
 #[path = "../../storage-document-amendment/validator.rs"]
 pub(crate) mod storage_document;
 const MANIFEST_PATH: &str =
-    "docs/rust-rewrite/a13/source-amendments/a13-current-source-amendment-v5.json";
-const MANIFEST_SHA256: &str = "4b64a708e58858425e4f7758333caef9ad4a4037e48c083702c3c3da0c71f3a8";
+    "docs/rust-rewrite/a13/source-amendments/a13-current-source-amendment-v6.json";
+const MANIFEST_SHA256: &str = "69abef686c432ca207a5a3905bc5d3829763d879e227dbebeaf9f01fc27b79e5";
 const PREDECESSOR_PATH: &str =
-    "docs/rust-rewrite/a13/source-amendments/a13-current-source-amendment-v4.json";
-const PREDECESSOR_SHA256: &str = "0126da6005a6cbab910d07779a8c2a3d9076d4823d49c08f8cca64b7e791207a";
+    "docs/rust-rewrite/a13/source-amendments/a13-current-source-amendment-v5.json";
+const PREDECESSOR_SHA256: &str = "4b64a708e58858425e4f7758333caef9ad4a4037e48c083702c3c3da0c71f3a8";
 const AMENDED_PATHS: [&str; 9] = [
     "crates/ssx-infra/src/http.rs",
     "crates/ssx-infra/tests/a13_dehashed.rs",
@@ -22,6 +22,7 @@ const AMENDED_PATHS: [&str; 9] = [
     "crates/ssx-infra/src/search_deadline_drain_tests.rs",
     "crates/xtask/src/a09.rs",
 ];
+
 const LOCK_MANIFEST_PATH: &str =
     "docs/rust-rewrite/a13/source-amendments/a13-security-lock-amendment-v1.json";
 const LOCK_MANIFEST_SHA256: &str =
@@ -38,6 +39,11 @@ const LOCK_AMENDED_PATHS: [&str; 10] = [
     "crates/xtask/src/a09.rs",
     "Cargo.lock",
 ];
+
+const LOCK_BASELINE_PATH: &str =
+    "docs/rust-rewrite/a13/source-amendments/a13-current-source-amendment-v5.json";
+const LOCK_BASELINE_SHA256: &str =
+    "4b64a708e58858425e4f7758333caef9ad4a4037e48c083702c3c3da0c71f3a8";
 
 fn digest(bytes: &[u8]) -> String {
     Sha256::digest(bytes)
@@ -70,7 +76,7 @@ fn mode(_path: &Path) -> Result<String, String> {
 
 fn validate_scope(manifest: &Value) -> Result<(), String> {
     require(
-        manifest["kind"] == "A13_CURRENT_SOURCE_AMENDMENT_V5"
+        manifest["kind"] == "A13_CURRENT_SOURCE_AMENDMENT_V6"
             && manifest["amended_source_paths"] == serde_json::json!(AMENDED_PATHS),
         "A13 amendment path scope changed",
     )?;
@@ -85,6 +91,30 @@ fn validate_scope(manifest: &Value) -> Result<(), String> {
                 .eq(AMENDED_PATHS),
         "A13 amendment membership changed",
     )
+}
+
+fn verify_additional_source(
+    manifest: &Value,
+    bytes: &[u8],
+    source_mode: &str,
+) -> Result<(), String> {
+    let bindings = manifest["additional_sources"]
+        .as_array()
+        .ok_or("A13 additional source bindings absent")?;
+    require(
+        bindings.len() == 1
+            && bindings[0]["path"] == "crates/ssx-infra/tests/support/http_expired_startup.rs"
+            && bindings[0]["bytes"].as_u64() == Some(bytes.len() as u64)
+            && bindings[0]["sha256"].as_str() == Some(digest(bytes).as_str())
+            && bindings[0]["mode"] == source_mode,
+        "A13 exact HTTP startup control source differs",
+    )
+}
+
+fn verify_additional_source_file(root: &Path, manifest: &Value) -> Result<(), String> {
+    let path = root.join("crates/ssx-infra/tests/support/http_expired_startup.rs");
+    let bytes = fs::read(&path).map_err(|error| error.to_string())?;
+    verify_additional_source(manifest, &bytes, &mode(&path)?)
 }
 
 struct PinCheck<'a> {
@@ -253,8 +283,8 @@ fn read_archive(root: &Path, rel: &str) -> Result<(std::path::PathBuf, Vec<u8>),
 fn validate_lock_scope(sidecar: &Value, v5: &Value) -> Result<(), String> {
     require(
         sidecar["kind"] == "A13_SECURITY_LOCK_AMENDMENT_V1"
-            && sidecar["predecessor_manifest"]["path"] == MANIFEST_PATH
-            && sidecar["predecessor_manifest"]["sha256"] == MANIFEST_SHA256
+            && sidecar["predecessor_manifest"]["path"] == LOCK_BASELINE_PATH
+            && sidecar["predecessor_manifest"]["sha256"] == LOCK_BASELINE_SHA256
             && sidecar["amended_source_paths"] == serde_json::json!(LOCK_AMENDED_PATHS),
         "A13 security lock sidecar identity/scope changed",
     )?;
@@ -269,6 +299,15 @@ fn validate_lock_scope(sidecar: &Value, v5: &Value) -> Result<(), String> {
             && amendments[9]["source_path"] == "Cargo.lock",
         "A13 security lock sidecar changed V5 prefix",
     )
+}
+
+fn load_lock_baseline(root: &Path) -> Result<Value, String> {
+    let bytes = fs::read(root.join(LOCK_BASELINE_PATH)).map_err(|error| error.to_string())?;
+    require(
+        digest(&bytes) == LOCK_BASELINE_SHA256,
+        "A13 lock V5 baseline differs",
+    )?;
+    serde_json::from_slice(&bytes).map_err(|error| error.to_string())
 }
 
 fn verify_previous_successor(
@@ -296,7 +335,8 @@ fn verify_previous_successor(
             && amendment["successor"]["predecessor_sha256"] == previous["sha256"],
         "A13 predecessor archive identity differs",
     )?;
-    let (archive_path, disk_bytes) = read_archive(root, rel)?;
+    let archive_path = root.join(rel_path);
+    let disk_bytes = fs::read(&archive_path).map_err(|error| error.to_string())?;
     let bytes = override_bytes.unwrap_or(&disk_bytes);
     require(
         previous["mode"] == mode(&archive_path)?
@@ -473,9 +513,26 @@ pub fn verify(
             && manifest["predecessor_manifest"]["sha256"] == PREDECESSOR_SHA256,
         "A13 amendment predecessor manifest differs",
     )?;
-    // Preserve the exact V4->V3->V2 chain in addition to the new V5->V4
-    // binding. Prior manifests are not merely retained on disk.
-    let v4: Value = serde_json::from_slice(&predecessor).map_err(|error| error.to_string())?;
+    // Preserve V5's exact V4 binding and archive obligations when V6 advances
+    // only HTTP. Prior accepted manifests are verified, not merely retained.
+    let v5: Value = serde_json::from_slice(&predecessor).map_err(|error| error.to_string())?;
+    let v4_path = "docs/rust-rewrite/a13/source-amendments/a13-current-source-amendment-v4.json";
+    let v4_sha = "0126da6005a6cbab910d07779a8c2a3d9076d4823d49c08f8cca64b7e791207a";
+    let v4_bytes = fs::read(root.join(v4_path)).map_err(|error| error.to_string())?;
+    require(
+        digest(&v4_bytes) == v4_sha
+            && v5["predecessor_manifest"]["path"] == v4_path
+            && v5["predecessor_manifest"]["sha256"] == v4_sha,
+        "A13 V5 predecessor binding differs",
+    )?;
+    if let Some(prior) = v5["amendments"].as_array().and_then(|entries| {
+        entries
+            .iter()
+            .find(|entry| entry["source_path"] == source_path)
+    }) {
+        verify_previous_successor(root, prior, None)?;
+    }
+    let v4: Value = serde_json::from_slice(&v4_bytes).map_err(|error| error.to_string())?;
     let v3_path = "docs/rust-rewrite/a13/source-amendments/a13-current-source-amendment-v3.json";
     let v3_sha = "bb24fceef429f6e4084dcfa242936b3993b9da5e9bae66c9dcc84580fd7d8212";
     let v3 = fs::read(root.join(v3_path)).map_err(|error| error.to_string())?;
@@ -497,7 +554,7 @@ pub fn verify(
     )?;
     // Keep V4's previous-successor archive obligation live after the HTTP
     // current pin advances again. For HTTP this is the exact 48e9 archive;
-    // V5 separately verifies the new 7d5d predecessor below.
+    // V5 above verifies 7d5d; V6 below verifies the exact 24ee HTTP predecessor.
     let prior_amendment = v4["amendments"].as_array().and_then(|entries| {
         entries
             .iter()
@@ -507,8 +564,25 @@ pub fn verify(
         verify_previous_successor(root, prior, None)?;
     }
     validate_scope(&manifest)?;
+    verify_additional_source_file(root, &manifest)?;
     let current_path = root.join(source_path);
     let current = fs::read(&current_path).map_err(|error| format!("{source_path}: {error}"))?;
+    if source_path == "Cargo.lock" {
+        let v5 = load_lock_baseline(root)?;
+        return verify_security_lock(
+            root,
+            SecurityLockContext {
+                v5: &v5,
+                container_path,
+                container_sha,
+                container: &container,
+                historical_sha,
+                historical_bytes,
+                current: &current,
+                current_path: &current_path,
+            },
+        );
+    }
     if storage_document::is_path(source_path) {
         require(
             digest(&container) == container_sha,
@@ -532,7 +606,8 @@ pub fn verify(
         let archive_path = amendment["archive"]["path"]
             .as_str()
             .ok_or("A13 archive path absent")?;
-        let (archive_file, archive) = read_archive(root, archive_path)?;
+        let archive_file = root.join(archive_path);
+        let archive = fs::read(&archive_file).map_err(|error| error.to_string())?;
         verify_payload(PinCheck {
             amendment,
             container_path,
@@ -547,21 +622,6 @@ pub fn verify(
             archive_mode: &mode(&archive_file)?,
         })?;
         return verify_previous_successor(root, amendment, None);
-    }
-    if source_path == "Cargo.lock" {
-        return verify_security_lock(
-            root,
-            SecurityLockContext {
-                v5: &manifest,
-                container_path,
-                container_sha,
-                container: &container,
-                historical_sha,
-                historical_bytes,
-                current: &current,
-                current_path: &current_path,
-            },
-        );
     }
     require(
         !AMENDED_PATHS.contains(&source_path)
@@ -580,6 +640,20 @@ pub fn rejects_mutants(root: &Path) -> Result<(), String> {
     let mut manifest: Value =
         serde_json::from_slice(&manifest_bytes).map_err(|error| error.to_string())?;
     validate_scope(&manifest)?;
+    verify_additional_source_file(root, &manifest)?;
+    let added_path = root.join("crates/ssx-infra/tests/support/http_expired_startup.rs");
+    let mut added_bytes = fs::read(&added_path).map_err(|error| error.to_string())?;
+    added_bytes.push(0);
+    require(
+        verify_additional_source(&manifest, &added_bytes, &mode(&added_path)?).is_err(),
+        "A13 altered HTTP startup control source was accepted",
+    )?;
+    let mut changed_addition = manifest.clone();
+    changed_addition["additional_sources"][0]["path"] = serde_json::json!("unreviewed.rs");
+    require(
+        verify_additional_source_file(root, &changed_addition).is_err(),
+        "A13 substituted HTTP startup control binding was accepted",
+    )?;
     let path = AMENDED_PATHS[0];
     let amendment = manifest["amendments"]
         .as_array()
@@ -707,8 +781,6 @@ pub fn rejects_mutants(root: &Path) -> Result<(), String> {
         ),
         "A13 path substitution was accepted",
     )?;
-    let v5: Value = serde_json::from_slice(&manifest_bytes).map_err(|e| e.to_string())?;
-    rejects_lock_mutants(root, &v5)?;
     manifest["amended_source_paths"]
         .as_array_mut()
         .unwrap()
@@ -736,6 +808,7 @@ pub fn rejects_mutants(root: &Path) -> Result<(), String> {
         verify_previous_successor(root, &mutated_prior_pin, None).is_err(),
         "A13 prior HTTP archive digest mutation was accepted",
     )?;
+    rejects_lock_mutants(root, &load_lock_baseline(root)?)?;
     rejects_additive_mutants(root)?;
     rejects_clinicaltrials_mutants(root)?;
     require(
@@ -980,4 +1053,197 @@ fn rejects_additive_mutants(root: &Path) -> Result<(), String> {
         }
     }
     Ok(())
+}
+
+// Appended PR1034 draft only: each direct include owns this same nested module.
+#[path = "../../a04/source-amendments/scoped-successor.rs"]
+pub(crate) mod causal_successor;
+pub(crate) use causal_successor::verify_current;
+
+/// Historical-only legacy controls; default current-read entrypoint remains unchanged.
+#[cfg(test)]
+pub(crate) fn rejects_mutants_on_historical_evidence(
+    root: &Path,
+    historical: &causal_successor::HistoricalControlEvidence,
+) -> Result<(), String> {
+    let manifest_bytes = fs::read(root.join(MANIFEST_PATH)).map_err(|error| error.to_string())?;
+    let mut manifest: Value =
+        serde_json::from_slice(&manifest_bytes).map_err(|error| error.to_string())?;
+    validate_scope(&manifest)?;
+    verify_additional_source_file(root, &manifest)?;
+    let added_path = root.join("crates/ssx-infra/tests/support/http_expired_startup.rs");
+    let mut added_bytes = fs::read(&added_path).map_err(|error| error.to_string())?;
+    added_bytes.push(0);
+    require(
+        verify_additional_source(&manifest, &added_bytes, &mode(&added_path)?).is_err(),
+        "A13 altered HTTP startup control source was accepted",
+    )?;
+    let mut changed_addition = manifest.clone();
+    changed_addition["additional_sources"][0]["path"] = serde_json::json!("unreviewed.rs");
+    require(
+        verify_additional_source_file(root, &changed_addition).is_err(),
+        "A13 substituted HTTP startup control binding was accepted",
+    )?;
+    let path = AMENDED_PATHS[0];
+    let amendment = manifest["amendments"]
+        .as_array()
+        .unwrap()
+        .first()
+        .unwrap()
+        .clone();
+    let pin = &amendment["historical_pins"][0];
+    let container_path = pin["container_path"].as_str().unwrap();
+    let container_sha = pin["container_sha256"].as_str().unwrap();
+    let container = fs::read(root.join(container_path)).map_err(|error| error.to_string())?;
+    // Explicit accepted-V6 historical operand for unchanged pure legacy assertions.
+    let current = historical.accepted_v6_successor_bytes().to_vec();
+    let archive_path = amendment["archive"]["path"].as_str().unwrap();
+    let archive_file = root.join(archive_path);
+    let archive = fs::read(&archive_file).map_err(|error| error.to_string())?;
+    let old_sha = pin["source_sha256"].as_str().unwrap();
+    let old_bytes = pin["source_bytes"].as_u64().unwrap() as usize;
+    let current_mode = mode(&root.join(path))?;
+    let archive_mode = mode(&archive_file)?;
+    let accepts = |entry: &Value,
+                   path: &str,
+                   container_sha: &str,
+                   container: &[u8],
+                   current: &[u8],
+                   archive: &[u8]| {
+        verify_payload(PinCheck {
+            amendment: entry,
+            container_path,
+            container_sha,
+            container_bytes: container,
+            source_path: path,
+            historical_sha: old_sha,
+            historical_bytes: Some(old_bytes),
+            current_bytes: current,
+            archive_bytes: archive,
+            current_mode: &current_mode,
+            archive_mode: &archive_mode,
+        })
+        .is_ok()
+    };
+    require(
+        accepts(
+            &amendment,
+            path,
+            container_sha,
+            &container,
+            &current,
+            &archive,
+        ),
+        "A13 amendment positive control failed",
+    )?;
+    let mut changed_successor = amendment.clone();
+    changed_successor["successor"]["sha256"] = serde_json::json!("changed-successor");
+    require(
+        !accepts(
+            &changed_successor,
+            path,
+            container_sha,
+            &container,
+            &current,
+            &archive,
+        ),
+        "A13 successor mutation was accepted",
+    )?;
+    let mut changed_archive = amendment.clone();
+    changed_archive["archive"]["sha256"] = serde_json::json!("changed-archive");
+    require(
+        !accepts(
+            &changed_archive,
+            path,
+            container_sha,
+            &container,
+            &current,
+            &archive,
+        ),
+        "A13 archive mutation was accepted",
+    )?;
+    let mut changed_archive_bytes = archive.clone();
+    changed_archive_bytes.push(0);
+    require(
+        !accepts(
+            &amendment,
+            path,
+            container_sha,
+            &container,
+            &current,
+            &changed_archive_bytes,
+        ),
+        "A13 archive byte mutation was accepted",
+    )?;
+    let mut changed_container = container.clone();
+    changed_container.push(0);
+    require(
+        !accepts(
+            &amendment,
+            path,
+            container_sha,
+            &changed_container,
+            &current,
+            &archive,
+        ),
+        "A13 container mutation was accepted",
+    )?;
+    let mut changed_current = current.clone();
+    changed_current.push(0);
+    require(
+        !accepts(
+            &amendment,
+            path,
+            container_sha,
+            &container,
+            &changed_current,
+            &archive,
+        ),
+        "A13 source mutation was accepted",
+    )?;
+    require(
+        !accepts(
+            &amendment,
+            "crates/ssx-infra/src/search.rs",
+            container_sha,
+            &container,
+            &current,
+            &archive,
+        ),
+        "A13 path substitution was accepted",
+    )?;
+    manifest["amended_source_paths"]
+        .as_array_mut()
+        .unwrap()
+        .push(serde_json::json!("crates/ssx-infra/src/search.rs"));
+    require(
+        verify_previous_successor(root, &amendment, None).is_ok(),
+        "A13 prior HTTP successor positive control failed",
+    )?;
+    let prior = &amendment["previous_successor_archive"];
+    let prior_path = root.join(
+        prior["path"]
+            .as_str()
+            .ok_or("A13 prior HTTP archive path absent")?,
+    );
+    let prior_bytes = fs::read(&prior_path).map_err(|error| error.to_string())?;
+    let mut mutated_prior_bytes = prior_bytes.clone();
+    mutated_prior_bytes.push(0);
+    require(
+        verify_previous_successor(root, &amendment, Some(&mutated_prior_bytes)).is_err(),
+        "A13 prior HTTP archive byte mutation was accepted",
+    )?;
+    let mut mutated_prior_pin = amendment.clone();
+    mutated_prior_pin["previous_successor_archive"]["sha256"] = serde_json::json!("mutated-prior");
+    require(
+        verify_previous_successor(root, &mutated_prior_pin, None).is_err(),
+        "A13 prior HTTP archive digest mutation was accepted",
+    )?;
+    rejects_lock_mutants(root, &load_lock_baseline(root)?)?;
+    rejects_additive_mutants(root)?;
+    rejects_clinicaltrials_mutants(root)?;
+    require(
+        validate_scope(&manifest).is_err(),
+        "A13 unlisted amendment was accepted",
+    )
 }

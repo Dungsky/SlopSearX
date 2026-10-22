@@ -77,7 +77,9 @@ impl WikipediaAdapter {
         };
         let mut session = match self.http.session(
             Options::default(),
-            tokio::time::Instant::now() + Duration::from_millis(self.config.timeout_ms),
+            tokio::time::Instant::from_std(
+                self.http.deadline_now() + Duration::from_millis(self.config.timeout_ms),
+            ),
             Cancellation::default(),
         ) {
             Ok(s) => s,
@@ -109,7 +111,8 @@ impl WikipediaAdapter {
                 );
             }
         };
-        let stage_deadline = Instant::now() + Duration::from_millis(self.config.timeout_ms);
+        let stage_deadline =
+            self.http.deadline_now() + Duration::from_millis(self.config.timeout_ms);
         session.set_deadline(tokio::time::Instant::from_std(stage_deadline));
         let response = match session.execute(first).await {
             Ok(r) => r,
@@ -258,7 +261,8 @@ impl WikipediaAdapter {
                 );
             }
         };
-        let stage_deadline = Instant::now() + Duration::from_millis(self.config.timeout_ms);
+        let stage_deadline =
+            self.http.deadline_now() + Duration::from_millis(self.config.timeout_ms);
         session.set_deadline(tokio::time::Instant::from_std(stage_deadline));
         let response = match session.execute(rich).await {
             Ok(r) => r,

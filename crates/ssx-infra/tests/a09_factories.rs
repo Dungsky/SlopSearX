@@ -3,7 +3,7 @@ use ssx_application::{AdmissionDecision, PortFuture, SearchAdmission, SearchCont
 use ssx_domain::{EngineStatus, SearchRequest};
 use ssx_infra::{
     adapters::{AllowAllAdmission, CatalogMediaSettings, register_catalog_media},
-    http::AdapterHttp,
+    http::{AdapterHttp, Cancellation, Options, Request},
 };
 use ssx_registry::Registry;
 use std::{
@@ -421,20 +421,164 @@ async fn five_future_drops_and_owner_shutdown_close_real_pending_sockets() {
         }
     }
 }
+// Diagnostic harness bounds do not change any configured adapter/context timer.
+async fn a09_stage<T>(
+    label: &str,
+    future: impl std::future::Future<Output = std::io::Result<T>>,
+) -> T {
+    tokio::time::timeout(Duration::from_secs(2), future)
+        .await
+        .unwrap_or_else(|_| panic!("{label}: fixture stage guard elapsed"))
+        .unwrap_or_else(|error| panic!("{label}: fixture I/O failed: {error}"))
+}
+async fn a09_headers(socket: &mut tokio::net::TcpStream, label: &str) -> Vec<u8> {
+    tokio::time::timeout(Duration::from_secs(2), async {
+        let mut bytes = Vec::new();
+        loop {
+            let mut buffer = [0; 1024];
+            let n = socket.read(&mut buffer).await.unwrap();
+            assert!(n > 0, "{label}: EOF before complete HTTP headers");
+            bytes.extend_from_slice(&buffer[..n]);
+            assert!(bytes.len() <= 8192, "{label}: fixture header bound");
+            if let Some(end) = bytes.windows(4).position(|b| b == b"\r\n\r\n") {
+                assert_eq!(bytes.len(), end + 4, "{label}: unexpected GET body bytes");
+                return bytes;
+            }
+        }
+    })
+    .await
+    .unwrap_or_else(|_| panic!("{label}: complete HTTP header guard elapsed"))
+}
+struct A09OwnedServer<T>(tokio::task::JoinHandle<T>);
+impl<T> Drop for A09OwnedServer<T> {
+    fn drop(&mut self) {
+        self.0.abort();
+    }
+}
+fn a09_spawn<T: Send + 'static>(
+    future: impl std::future::Future<Output = T> + Send + 'static,
+) -> A09OwnedServer<T> {
+    A09OwnedServer(tokio::spawn(future))
+}
+async fn a09_join<T>(task: A09OwnedServer<T>, label: &str) -> Result<T, String> {
+    let mut owned = task;
+    match tokio::time::timeout(Duration::from_secs(5), &mut owned.0).await {
+        Ok(result) => result.map_err(|error| format!("{label}: server failed: {error}")),
+        Err(_) => {
+            owned.0.abort();
+            let reap = match tokio::time::timeout(Duration::from_secs(1), &mut owned.0).await {
+                Ok(Ok(_)) => "completed".to_owned(),
+                Ok(Err(error)) => format!("{error}"),
+                Err(_) => "abort reap guard elapsed".to_owned(),
+            };
+            Err(format!(
+                "{label}: server join guard elapsed; abort/reap: {reap}"
+            ))
+        }
+    }
+}
+async fn a09_client(
+    future: impl std::future::Future<Output = ssx_domain::AdapterResponse>,
+) -> Result<ssx_domain::AdapterResponse, tokio::time::error::Elapsed> {
+    // Timeout owns/drops the pending response future before caller HTTP drain.
+    tokio::time::timeout(Duration::from_secs(5), future).await
+}
+async fn a09_drain(http: &AdapterHttp) -> Result<(), tokio::time::error::Elapsed> {
+    tokio::time::timeout(Duration::from_secs(5), http.shutdown_and_wait()).await
+}
+fn a09_response_diagnostic(
+    response: &Result<ssx_domain::AdapterResponse, tokio::time::error::Elapsed>,
+) -> String {
+    match response {
+        Ok(response) => format!(
+            "status={:?} message={:?} results={}",
+            response.status,
+            response.error_message,
+            response.results.len()
+        ),
+        Err(error) => format!("response harness guard: {error}"),
+    }
+}
+// The control request warms only the same default-profile owner/origin. It is
+// separate from the source scenario and does not widen its configured deadline.
+async fn a09_warm(http: &AdapterHttp, listener: &Arc<TcpListener>, label: &str) {
+    let addr = listener.local_addr().unwrap();
+    let url = format!("http://{addr}/a09-warm");
+    assert_loopback(&url);
+    let warm_listener = Arc::clone(listener);
+    let server_label = format!("{label}: warmup");
+    let server = a09_spawn(async move {
+        let (mut socket, _) = a09_stage(&server_label, warm_listener.accept()).await;
+        let bytes = a09_headers(&mut socket, &server_label).await;
+        let wire = String::from_utf8(bytes).unwrap();
+        assert!(
+            wire.starts_with("GET /a09-warm HTTP/1.1\r\n"),
+            "{server_label}: {wire}"
+        );
+        a09_stage(
+            &server_label,
+            socket.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"),
+        )
+        .await;
+        wire
+    });
+    let warm = tokio::time::timeout(Duration::from_secs(5), async {
+        let mut session = http
+            .session(
+                Options::default(),
+                (Instant::now() + Duration::from_millis(5000)).into(),
+                Cancellation::default(),
+            )
+            .map_err(|error| format!("warm session: {error:?}"))?;
+        session
+            .execute(Request::get(&url).map_err(|error| format!("warm request: {error:?}"))?)
+            .await
+            .map_err(|error| format!("warm exchange: {error:?}"))
+    })
+    .await;
+    let server_result = a09_join(server, &format!("{label}: warmup")).await;
+    let retained = http.retained_pools();
+    let ok = matches!(&warm, Ok(Ok(response)) if response.status == 200 && response.body.is_empty())
+        && matches!(&server_result, Ok(wire) if wire.starts_with("GET /a09-warm HTTP/1.1\r\n"))
+        && retained == 1;
+    if !ok {
+        let overrides: Vec<_> = [
+            "HTTP_PROXY",
+            "HTTPS_PROXY",
+            "ALL_PROXY",
+            "http_proxy",
+            "https_proxy",
+            "all_proxy",
+            "SSL_CERT_FILE",
+            "SSL_CERT_DIR",
+        ]
+        .into_iter()
+        .filter(|key| std::env::var_os(key).is_some())
+        .collect();
+        let drain = a09_drain(http).await;
+        panic!(
+            "{label}: warmup failed: response={warm:?}; server={server_result:?}; pools={retained}; override names={overrides:?}; drain={drain:?}"
+        );
+    }
+    eprintln!(
+        "a09 warmup control case={label} actual_control_requests=1 scenario_requests=0 retained_pools={retained}"
+    );
+}
 #[tokio::test]
 async fn five_real_timeout_and_expired_context_cleanup() {
     for name in NAMES {
-        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let listener = Arc::new(TcpListener::bind("127.0.0.1:0").await.unwrap());
         let addr = listener.local_addr().unwrap();
         let (r, h) = wired(
             &format!("http://{addr}/slow"),
             30,
             Arc::new(AllowAllAdmission),
         );
-        let server = tokio::spawn(async move {
-            let (mut socket, _) = listener.accept().await.unwrap();
-            let mut data = [0; 8192];
-            assert!(socket.read(&mut data).await.unwrap() > 0);
+        a09_warm(&h, &listener, name).await;
+        let server = a09_spawn(async move {
+            let (mut socket, _) = a09_stage(&format!("{name}: accept"), listener.accept()).await;
+            let data = a09_headers(&mut socket, &format!("{name}: headers")).await;
+            assert!(!data.is_empty());
             let mut b = [0; 1];
             assert_eq!(
                 tokio::time::timeout(Duration::from_secs(2), socket.read(&mut b))
@@ -444,14 +588,25 @@ async fn five_real_timeout_and_expired_context_cleanup() {
                 0
             );
         });
-        let result = r
-            .instantiate(name)
-            .unwrap()
-            .search(&SearchRequest {
-                query: "test".into(),
-                ..Default::default()
-            })
-            .await;
+        let result = a09_client(r.instantiate(name).unwrap().search(&SearchRequest {
+            query: "test".into(),
+            ..Default::default()
+        }))
+        .await;
+        let server_result = a09_join(server, name).await;
+        let expired = a09_client(r.instantiate(name).unwrap().search_with_context(
+            &SearchRequest::default(),
+            SearchContext {
+                deadline: Instant::now() - Duration::from_secs(1),
+            },
+        ))
+        .await;
+        let drain_result = a09_drain(&h).await;
+        eprintln!(
+            "a09 fixture diagnostic case={name} configured_ms=30 response={} server={server_result:?} drain={drain_result:?}",
+            a09_response_diagnostic(&result)
+        );
+        let result = result.expect("bounded configured timer response");
         assert_eq!(
             result.status,
             if name == "internetarchive" {
@@ -460,32 +615,32 @@ async fn five_real_timeout_and_expired_context_cleanup() {
                 EngineStatus::Timeout
             }
         );
-        server.await.unwrap();
-        let result = r
-            .instantiate(name)
-            .unwrap()
-            .search_with_context(
-                &SearchRequest::default(),
-                SearchContext {
-                    deadline: Instant::now() - Duration::from_secs(1),
-                },
-            )
-            .await;
+        server_result.unwrap();
+        let result = expired.expect("bounded already-expired context response");
         assert_eq!(result.status, EngineStatus::Timeout);
-        h.shutdown_and_wait().await;
+        drain_result.expect("bounded fixture HTTP shutdown");
     }
 }
 #[tokio::test]
 async fn archive_real_cdx_timer_one_fallback_and_aggregate_context() {
     use ssx_application::SearchEngine;
     for remaining in [true, false] {
-        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let listener = Arc::new(TcpListener::bind("127.0.0.1:0").await.unwrap());
         let addr = listener.local_addr().unwrap();
-        let server = tokio::spawn(async move {
-            let (mut first, _) = listener.accept().await.unwrap();
-            let mut data = [0; 8192];
-            let n = first.read(&mut data).await.unwrap();
-            assert!(String::from_utf8_lossy(&data[..n]).starts_with("GET /cdx?url=example.com&output=json&limit=10&filter=statuscode:200&collapse=timestamp:6 "));
+        let h = Arc::new(AdapterHttp::default());
+        a09_warm(&h, &listener, &format!("archive remaining={remaining}")).await;
+        let server = a09_spawn(async move {
+            let (mut first, _) = a09_stage(
+                &format!("archive remaining={remaining}: CDX accept"),
+                listener.accept(),
+            )
+            .await;
+            let data = a09_headers(
+                &mut first,
+                &format!("archive remaining={remaining}: CDX headers"),
+            )
+            .await;
+            assert!(String::from_utf8_lossy(&data).starts_with("GET /cdx?url=example.com&output=json&limit=10&filter=statuscode:200&collapse=timestamp:6 "));
             let mut b = [0; 1];
             assert_eq!(
                 tokio::time::timeout(Duration::from_secs(2), first.read(&mut b))
@@ -495,22 +650,20 @@ async fn archive_real_cdx_timer_one_fallback_and_aggregate_context() {
                 0
             );
             if remaining {
-                let (mut next, _) = listener.accept().await.unwrap();
-                let n = next.read(&mut data).await.unwrap();
+                let (mut next, _) = a09_stage("archive fallback accept", listener.accept()).await;
+                let data = a09_headers(&mut next, "archive fallback headers").await;
                 assert!(
-                    String::from_utf8_lossy(&data[..n])
-                        .starts_with("GET /available?url=example.com ")
+                    String::from_utf8_lossy(&data).starts_with("GET /available?url=example.com ")
                 );
                 let body = r#"{"archived_snapshots":{"closest":{"available":true,"status":"200","timestamp":"20240102123456","url":"http://web.archive.org/web/20240102123456/https://example.com/"}}}"#;
-                next.write_all(
+                a09_stage("archive fallback response", next.write_all(
                     format!(
                         "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
                         body.len()
                     )
                     .as_bytes(),
-                )
-                .await
-                .unwrap();
+                ))
+                .await;
             }
             assert!(
                 tokio::time::timeout(Duration::from_millis(50), listener.accept())
@@ -518,7 +671,6 @@ async fn archive_real_cdx_timer_one_fallback_and_aggregate_context() {
                     .is_err()
             );
         });
-        let h = Arc::new(AdapterHttp::default());
         let mut c = ssx_infra::adapters::internetarchive::InternetArchiveConfig::default();
         c.settings.timeout_ms = ssx_config::ConfigScalar::Integer(200);
         c.cdx_url = Some(format!("http://{addr}/cdx"));
@@ -535,17 +687,25 @@ async fn archive_real_cdx_timer_one_fallback_and_aggregate_context() {
             ..Default::default()
         };
         let response = if remaining {
-            engine.search(&q).await
+            a09_client(engine.search(&q)).await
         } else {
-            engine
-                .search_with_context(
-                    &q,
-                    SearchContext {
-                        deadline: Instant::now() + Duration::from_millis(30),
-                    },
-                )
-                .await
+            a09_client(engine.search_with_context(
+                &q,
+                SearchContext {
+                    deadline: Instant::now() + Duration::from_millis(30),
+                },
+            ))
+            .await
         };
+        let label = format!("archive remaining={remaining}");
+        let server_result = a09_join(server, &label).await;
+        let drain_result = a09_drain(&h).await;
+        eprintln!(
+            "a09 fixture diagnostic case={label} configured_ms=200 context_ms={} response={} server={server_result:?} drain={drain_result:?}",
+            if remaining { "none" } else { "30" },
+            a09_response_diagnostic(&response)
+        );
+        let response = response.expect("bounded CDX/fallback response");
         assert_eq!(
             response.status,
             if remaining {
@@ -565,8 +725,8 @@ async fn archive_real_cdx_timer_one_fallback_and_aggregate_context() {
         } else {
             assert!(response.results.is_empty());
         }
-        server.await.unwrap();
-        h.shutdown_and_wait().await;
+        server_result.unwrap();
+        drain_result.expect("bounded fixture HTTP shutdown");
     }
 }
 #[test]
@@ -646,20 +806,25 @@ async fn actual_source_archive_configured_timers_keep_error_and_context_timeout_
             millis,
             Arc::new(AllowAllAdmission),
         );
+        let case_id = case["id"].as_str().unwrap().to_owned();
+        if millis > 0 {
+            a09_warm(&http, &listener, &case_id).await;
+        }
         let server = if millis > 0 {
             let listener = Arc::clone(&listener);
-            Some(tokio::spawn(async move {
-                let (mut socket, _) = listener.accept().await.unwrap();
-                let mut raw = [0; 8192];
-                let n = socket.read(&mut raw).await.unwrap();
-                let wire = String::from_utf8(raw[..n].to_vec()).unwrap();
+            let server_case = case_id.clone();
+            Some(a09_spawn(async move {
+                let (mut socket, _) =
+                    a09_stage(&format!("{server_case}: accept"), listener.accept()).await;
+                let raw = a09_headers(&mut socket, &format!("{server_case}: headers")).await;
+                let wire = String::from_utf8(raw).unwrap();
                 assert!(wire.starts_with(
                     "GET /advancedsearch.php?q=books&output=json&rows=10 HTTP/1.1\r\n"
                 ));
                 assert!(!wire.to_lowercase().contains("authorization:"));
                 if !stall {
                     let body = r#"{"response":{"docs":[{"identifier":"book","title":"Book","downloads":5000}]}}"#;
-                    socket.write_all(format!("HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",body.len()).as_bytes()).await.unwrap();
+                    a09_stage(&format!("{server_case}: immediate response"), socket.write_all(format!("HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",body.len()).as_bytes())).await;
                 }
                 let mut b = [0; 1];
                 assert_eq!(
@@ -674,14 +839,39 @@ async fn actual_source_archive_configured_timers_keep_error_and_context_timeout_
         } else {
             None
         };
-        let response = registry
-            .instantiate("internetarchive")
-            .unwrap()
-            .search(&SearchRequest {
+        let response = a09_client(registry.instantiate("internetarchive").unwrap().search(
+            &SearchRequest {
                 query: "books".into(),
                 ..Default::default()
-            })
-            .await;
+            },
+        ))
+        .await;
+        let server_result = match server {
+            Some(server) => Some(a09_join(server, &case_id).await),
+            None => None,
+        };
+        // Already-expired caller context remains independent of configured Error.
+        let expired = a09_client(
+            registry
+                .instantiate("internetarchive")
+                .unwrap()
+                .search_with_context(
+                    &SearchRequest {
+                        query: "books".into(),
+                        ..Default::default()
+                    },
+                    SearchContext {
+                        deadline: Instant::now() - Duration::from_secs(1),
+                    },
+                ),
+        )
+        .await;
+        let drain_result = a09_drain(&http).await;
+        eprintln!(
+            "a09 fixture diagnostic case={case_id} configured_ms={millis} stall={stall} response={} server={server_result:?} drain={drain_result:?}",
+            a09_response_diagnostic(&response)
+        );
+        let response = response.expect("bounded frozen source timer response");
         let expected = if let Some(d) = differences["records"]
             .as_array()
             .unwrap()
@@ -694,8 +884,8 @@ async fn actual_source_archive_configured_timers_keep_error_and_context_timeout_
             &case["output"]
         };
         assert_eq!(timeout_output(&response), *expected, "{}", case["id"]);
-        if let Some(server) = server {
-            let wire = server.await.unwrap();
+        if let Some(server) = server_result {
+            let wire = server.unwrap();
             assert_eq!(case["requests"].as_array().unwrap().len(), 1);
             assert!(
                 case["requests"][0]
@@ -707,21 +897,9 @@ async fn actual_source_archive_configured_timers_keep_error_and_context_timeout_
             assert!(case["requests"].as_array().unwrap().is_empty());
         }
         // A caller's already-expired execution context takes precedence over configured Error.
-        let expired = registry
-            .instantiate("internetarchive")
-            .unwrap()
-            .search_with_context(
-                &SearchRequest {
-                    query: "books".into(),
-                    ..Default::default()
-                },
-                SearchContext {
-                    deadline: Instant::now() - Duration::from_secs(1),
-                },
-            )
-            .await;
+        let expired = expired.expect("bounded already-expired context response");
         assert_eq!(expired.status, EngineStatus::Timeout);
-        http.shutdown_and_wait().await;
+        drain_result.expect("bounded fixture HTTP shutdown");
         assert!(
             tokio::time::timeout(Duration::from_millis(5), listener.accept())
                 .await

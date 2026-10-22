@@ -8,6 +8,10 @@ const REVIEW: &str = "63bb5265fbc7e2228b121d44823a476b544a1968bbfd823791f50cdad5
 const REVIEW_2: &str = "fa247104d9829f24ec5d3ddd62c1c47cfb640e9dedd5e7edd8823fc4900302d2";
 const COVERAGE: &str = "8a9f65dc267903f7fa07cc8b78ee7603c114c44b29ef0b2b6d2b7e0273cb323f";
 const UNICODE_BOUNDARY: &str = "69e4594300a116e547a3eeca1b98a47a3f57dd3eade381bf083c1c7c57e97b4c";
+const COLD_LOGICAL: &str =
+    "cold_bootstrap_expires_without_spending_search_deadline_or_leaking_cookies";
+const COLD_HELPER: &str = "adapters::html_helper_tests::cold_bootstrap_expires_without_spending_search_deadline_or_leaking_cookies";
+const COLD_RELOCATION: &str = "d20165844dceae8d12c64bcec6fe0437846bcd971a17535b9daa37513f675fef";
 fn digest(bytes: &[u8]) -> String {
     Sha256::digest(bytes)
         .iter()
@@ -194,6 +198,11 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
     if expected.len() != 13 {
         return Err("A05 native inventory incomplete".into());
     }
+    let relocation = cold_relocation(root, &coverage)?;
+    let mut expected_integration = expected.clone();
+    if !expected_integration.remove(COLD_LOGICAL) || expected_integration.len() != 12 {
+        return Err("A05 cold relocation must preserve exactly thirteen logical controls".into());
+    }
     let expected_helpers: BTreeSet<_> = coverage["native_helper_unit_tests"]
         .as_array()
         .ok_or("missing A05 helper unit inventory")?
@@ -247,7 +256,7 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
         .lines()
         .filter_map(|l| l.strip_suffix(": test"))
         .collect();
-    if actual != expected {
+    if actual != expected_integration {
         return Err("A05 native tests missing/extra".into());
     }
     let output = command(
@@ -269,10 +278,15 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
         .lines()
         .filter_map(|l| l.strip_prefix("A05_CASE "))
         .collect();
-    if completed != ids
+    let passed_integration: BTreeSet<_> = output
+        .lines()
+        .filter_map(|line| line.strip_prefix("test ")?.strip_suffix(" ... ok"))
+        .collect();
+    if passed_integration != expected_integration
+        || completed != ids
         || !output.lines().any(|l| {
             l.starts_with(
-                "test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out;",
+                "test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out;",
             )
         })
     {
@@ -329,14 +343,14 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
     if passed_units != expected_units || !units_output.contains("1 passed; 0 failed; 0 ignored;") {
         return Err("A05 required units did not execute".into());
     }
-    let expected_helper_units: BTreeSet<_> = coverage["native_helper_unit_tests"]
+    let mut expected_helper_units: BTreeSet<_> = coverage["native_helper_unit_tests"]
         .as_array()
         .ok_or("missing A05 unit inventory")?
         .iter()
         .filter_map(Value::as_str)
         .collect();
-    if expected_helper_units.len() != 7 {
-        return Err("A05 unit inventory incomplete".into());
+    if expected_helper_units.len() != 7 || !expected_helper_units.insert(COLD_HELPER) {
+        return Err("A05 cold helper relocation inventory invalid".into());
     }
     let helper_units_list = command(
         root,
@@ -380,10 +394,18 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
         .filter_map(|line| line.strip_prefix("test ")?.strip_suffix(" ... ok"))
         .collect();
     if passed_helper_units != expected_helper_units
-        || !helper_units_output.contains("7 passed; 0 failed; 0 ignored;")
+        || !helper_units_output.contains("8 passed; 0 failed; 0 ignored;")
     {
         return Err("A05 required units did not execute".into());
     }
+    let mut logical_passed = passed_integration.clone();
+    if !passed_helper_units.contains(COLD_HELPER)
+        || !logical_passed.insert(COLD_LOGICAL)
+        || logical_passed != expected
+    {
+        return Err("A05 thirteen logical controls did not all execute".into());
+    }
+    records.push(json!({"cold_bootstrap_relocation":relocation,"logical_native_tests":logical_passed,"integration_tests":passed_integration,"helper_unit_tests":passed_helper_units,"status":"passed"}));
     let expected_scenarios: BTreeSet<_> = coverage["helper_scenario_ids"]
         .as_array()
         .ok_or("missing A05 helper scenario inventory")?
@@ -906,5 +928,122 @@ mod process_inventory_tests {
             q["native_process_unit_tests"][0] = q["native_linux_process_unit_tests"][0].clone();
             assert!(process_cases_for_platform(&q, linux).is_err());
         }
+    }
+}
+
+fn validate_cold_relocation(coverage: &Value, amendment: &Value, frozen: &[u8]) -> Result<()> {
+    if amendment["schema_version"] != 1
+        || amendment["kind"] != "A05_COLD_BOOTSTRAP_OWNER_CLOCK_RELOCATION_V1"
+        || amendment["frozen_coverage_sha256"] != COVERAGE
+        || amendment["logical_native_tests"] != coverage["native_tests"]
+        || amendment["retained_helper_unit_tests"] != coverage["native_helper_unit_tests"]
+        || amendment["relocation"]
+            != json!({"old_target":"a05_html","old_name":COLD_LOGICAL,"new_target":"ssx-infra --lib","new_name":COLD_HELPER})
+        || amendment["frozen_control"]["sha256"].as_str() != Some(digest(frozen).as_str())
+        || amendment["frozen_control"]["bytes"].as_u64() != Some(frozen.len() as u64)
+        || amendment["current_boundary"]["preexpiry_ms"] != 4
+        || amendment["current_boundary"]["expiry_ms"] != 5
+        || amendment["current_boundary"]["duration_override"] != false
+        || amendment["current_boundary"]["production_behavior_change"] != false
+    {
+        return Err("A05 cold relocation authority/identity mismatch".into());
+    }
+    let logical = amendment["logical_native_tests"]
+        .as_array()
+        .ok_or("missing logical controls")?;
+    let helpers = amendment["retained_helper_unit_tests"]
+        .as_array()
+        .ok_or("missing retained helpers")?;
+    let logical_names: BTreeSet<_> = logical.iter().filter_map(Value::as_str).collect();
+    let helper_names: BTreeSet<_> = helpers.iter().filter_map(Value::as_str).collect();
+    if logical.len() != 13
+        || logical_names.len() != 13
+        || !logical_names.contains(COLD_LOGICAL)
+        || helpers.len() != 7
+        || helper_names.len() != 7
+        || helper_names.contains(COLD_HELPER)
+    {
+        return Err("A05 cold relocation pruned or duplicated controls".into());
+    }
+    Ok(())
+}
+fn cold_relocation(root: &Path, coverage: &Value) -> Result<Value> {
+    let amendment = pinned(
+        root,
+        "docs/rust-rewrite/a05/source-amendments/cold-bootstrap-owner-clock-v1.json",
+        COLD_RELOCATION,
+    )?;
+    let frozen_path = amendment["frozen_control"]["path"]
+        .as_str()
+        .ok_or("missing frozen cold control")?;
+    let frozen = std::fs::read(root.join(frozen_path)).map_err(|error| error.to_string())?;
+    validate_cold_relocation(coverage, &amendment, &frozen)?;
+    let bindings = amendment["source_bindings"]
+        .as_array()
+        .ok_or("missing cold source bindings")?;
+    let expected_paths: BTreeSet<_> = [
+        "crates/ssx-infra/tests/a05_html.rs",
+        "crates/ssx-infra/src/adapters/duckduckgo.rs",
+        "crates/ssx-infra/src/adapters/html_helper_tests.rs",
+    ]
+    .into_iter()
+    .collect();
+    let mut paths = BTreeSet::new();
+    for binding in bindings {
+        let path = binding["path"].as_str().ok_or("missing cold source path")?;
+        let bytes = std::fs::read(root.join(path)).map_err(|error| error.to_string())?;
+        if !paths.insert(path)
+            || binding["sha256"].as_str() != Some(digest(&bytes).as_str())
+            || binding["bytes"].as_u64() != Some(bytes.len() as u64)
+        {
+            return Err(format!("A05 cold source binding drift: {path}"));
+        }
+    }
+    if paths != expected_paths || bindings.len() != 3 {
+        return Err("A05 cold source binding inventory changed".into());
+    }
+    Ok(amendment)
+}
+#[cfg(test)]
+mod cold_relocation_tests {
+    use super::*;
+    #[test]
+    fn relocation_cannot_prune_alias_or_change_the_owner_boundary() {
+        let coverage: Value = serde_json::from_slice(include_bytes!(
+            "../../../docs/rust-rewrite/a05/coverage.json"
+        ))
+        .unwrap();
+        let amendment: Value = serde_json::from_slice(include_bytes!(
+            "../../../docs/rust-rewrite/a05/source-amendments/cold-bootstrap-owner-clock-v1.json"
+        ))
+        .unwrap();
+        let frozen = include_bytes!(
+            "../../../docs/rust-rewrite/a05/source-amendments/3f1b9cca-cold-bootstrap.rs.frozen"
+        );
+        validate_cold_relocation(&coverage, &amendment, frozen).unwrap();
+        for variant in 0..5 {
+            let mut changed = amendment.clone();
+            match variant {
+                0 => {
+                    changed["logical_native_tests"]
+                        .as_array_mut()
+                        .unwrap()
+                        .pop();
+                }
+                1 => changed["relocation"]["new_name"] = json!("unrelated::case"),
+                2 => {
+                    changed["retained_helper_unit_tests"]
+                        .as_array_mut()
+                        .unwrap()
+                        .pop();
+                }
+                3 => changed["current_boundary"]["expiry_ms"] = json!(6),
+                _ => changed["current_boundary"]["duration_override"] = json!(true),
+            }
+            assert!(validate_cold_relocation(&coverage, &changed, frozen).is_err());
+        }
+        let mut changed = frozen.to_vec();
+        changed.push(b'\n');
+        assert!(validate_cold_relocation(&coverage, &amendment, &changed).is_err());
     }
 }

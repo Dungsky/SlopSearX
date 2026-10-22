@@ -353,6 +353,10 @@ impl State {
 }
 pub struct AdapterHttp {
     clock: DeadlineClock,
+    #[cfg(test)]
+    replay_endpoint: Option<url::Url>,
+    #[cfg(test)]
+    operation_trace: Option<SystemOperationTrace>,
     idle: Arc<Semaphore>,
     connections: Arc<Semaphore>,
     decoder: Arc<Decoder>,
@@ -363,6 +367,10 @@ impl Default for AdapterHttp {
     fn default() -> Self {
         Self {
             clock: DeadlineClock::default(),
+            #[cfg(test)]
+            replay_endpoint: None,
+            #[cfg(test)]
+            operation_trace: None,
             idle: Arc::new(Semaphore::new(10)),
             connections: Arc::new(Semaphore::new(20)),
             decoder: Arc::new(Decoder::default()),
@@ -393,6 +401,55 @@ impl AdapterHttp {
         let mut owner = Self::default();
         owner.clock = clock;
         (owner, driver)
+    }
+    /// Private A04 delayed-response replay; production cannot select this clock.
+    #[cfg(test)]
+    pub(crate) fn loopback_timeout_replay(
+        base: &str,
+        service_context: Option<Instant>,
+    ) -> Result<(Self, monotonic::Driver)> {
+        let endpoint = url::Url::parse(base).map_err(|_| Error::InvalidRequest)?;
+        let loopback = endpoint
+            .host_str()
+            .and_then(|h| h.parse::<std::net::IpAddr>().ok())
+            .is_some_and(|ip| ip.is_loopback());
+        if !loopback
+            || endpoint.scheme() != "http"
+            || service_context.is_some()
+            || !endpoint.username().is_empty()
+            || endpoint.password().is_some()
+        {
+            return Err(Error::InvalidRequest);
+        }
+        let (mut owner, driver) = Self::clocked_real_pool_owner();
+        owner.replay_endpoint = Some(endpoint);
+        Ok((owner, driver))
+    }
+    /// Fixed two-entry metadata observer for the private Wikipedia unit replay.
+    /// It retains System time and the real pool; it cannot inject a transport.
+    #[cfg(test)]
+    pub(crate) fn wikipedia_operation_replay(
+        base: &str,
+        service_context: Option<Instant>,
+    ) -> Result<(Self, SystemOperationTrace)> {
+        let endpoint = url::Url::parse(base).map_err(|_| Error::InvalidRequest)?;
+        let loopback = endpoint
+            .host_str()
+            .and_then(|h| h.parse::<std::net::IpAddr>().ok())
+            .is_some_and(|ip| ip.is_loopback());
+        if !loopback
+            || endpoint.scheme() != "http"
+            || service_context.is_some()
+            || !endpoint.username().is_empty()
+            || endpoint.password().is_some()
+        {
+            return Err(Error::InvalidRequest);
+        }
+        let trace = SystemOperationTrace(Arc::new(Mutex::new(Vec::with_capacity(2))));
+        let mut owner = Self::default();
+        owner.replay_endpoint = Some(endpoint);
+        owner.operation_trace = Some(trace.clone());
+        Ok((owner, trace))
     }
     #[cfg(test)]
     pub(crate) fn assert_direct_replay_context(&self, context: Option<Instant>) {
@@ -493,6 +550,12 @@ impl AdapterHttp {
         }
         Ok(Session {
             clock: self.clock.clone(),
+            #[cfg(test)]
+            replay_endpoint: self.replay_endpoint.clone(),
+            #[cfg(test)]
+            operation_trace: self.operation_trace.clone(),
+            #[cfg(test)]
+            replay_identity: self.operation_trace.as_ref().map(|_| Arc::new(())),
             state: self.state.clone(),
             connections: self.connections.clone(),
             decoder: self.decoder.clone(),
@@ -536,8 +599,60 @@ impl Drop for AdapterHttp {
         self.shutdown();
     }
 }
+/// Bounded test metadata, not a transport hook or alternate deadline policy.
+#[cfg(test)]
+#[derive(Clone)]
+pub(crate) struct SystemOperationTrace(Arc<Mutex<Vec<SystemOperationObservation>>>);
+#[cfg(test)]
+#[derive(Clone)]
+pub(crate) struct SystemOperationObservation {
+    session: Arc<()>,
+    pool: Weak<Pool>,
+    pub(crate) deadline: Instant,
+    pub(crate) observed_at: Instant,
+    pub(crate) preceding_requests: usize,
+}
+#[cfg(test)]
+impl SystemOperationObservation {
+    pub(crate) fn same_session(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.session, &other.session)
+    }
+    pub(crate) fn same_pool(&self, other: &Self) -> bool {
+        Weak::ptr_eq(&self.pool, &other.pool)
+    }
+}
+#[cfg(test)]
+impl SystemOperationTrace {
+    fn record(&self, session: &Session) -> Result<()> {
+        let mut observations = self.0.lock().unwrap();
+        if observations.len() >= 2 {
+            return Err(Error::RequestLimit);
+        }
+        observations.push(SystemOperationObservation {
+            session: session
+                .replay_identity
+                .as_ref()
+                .expect("observed Session owns identity")
+                .clone(),
+            pool: Arc::downgrade(&session.pool),
+            deadline: session.deadline.into_std(),
+            observed_at: session.clock.now(),
+            preceding_requests: session.requests,
+        });
+        Ok(())
+    }
+    pub(crate) fn observations(&self) -> Vec<SystemOperationObservation> {
+        self.0.lock().unwrap().clone()
+    }
+}
 pub struct Session {
     clock: DeadlineClock,
+    #[cfg(test)]
+    replay_endpoint: Option<url::Url>,
+    #[cfg(test)]
+    operation_trace: Option<SystemOperationTrace>,
+    #[cfg(test)]
+    replay_identity: Option<Arc<()>>,
     state: Arc<Mutex<State>>,
     connections: Arc<Semaphore>,
     decoder: Arc<Decoder>,
@@ -566,6 +681,16 @@ impl Session {
         if *self.cancel.0.borrow() {
             return Err(Error::Cancelled);
         }
+        #[cfg(test)]
+        if let Some(trace) = &self.operation_trace {
+            trace.record(self)?;
+        }
+        // Timer readiness may lag the owner's clock (for example within a
+        // Tokio timer tick). Reject expired startup before request accounting,
+        // transport dispatch or client checkout, retaining stop/cancel priority.
+        if self.clock.now() >= self.deadline.into_std() {
+            return Err(Error::Deadline);
+        }
         let cancel = self.cancel.clone();
         let stop = self.stop.clone();
         let deadline = self.deadline;
@@ -585,6 +710,14 @@ impl Session {
     async fn execute_inner(&mut self, mut request: Request) -> Result<Response> {
         let mut redirects = 0;
         loop {
+            #[cfg(test)]
+            if let Some(endpoint) = &self.replay_endpoint
+                && (request.url.scheme() != endpoint.scheme()
+                    || request.url.host() != endpoint.host()
+                    || request.url.port_or_known_default() != endpoint.port_or_known_default())
+            {
+                return Err(Error::InvalidRequest);
+            }
             if self.requests >= self.options.bounds.requests {
                 return Err(Error::RequestLimit);
             }
@@ -1402,3 +1535,82 @@ mod pypi_operation_timeout_tests {
 #[cfg(test)]
 #[path = "../tests/support/f10_peer_timeout.rs"]
 mod f10_peer_timeout_tests;
+
+#[cfg(test)]
+#[path = "../tests/support/http_expired_startup.rs"]
+mod expired_startup_tests;
+
+#[cfg(test)]
+#[path = "../tests/support/a04_broad_api.rs"]
+mod a04_broad_api;
+
+#[cfg(test)]
+mod loopback_timeout_replay_controls {
+    use super::*;
+    #[test]
+    fn manual_network_owner_rejects_remote_and_service_context() {
+        for base in [
+            "https://127.0.0.1:1234",
+            "http://example.com",
+            "http://localhost:1234",
+            "http://user@127.0.0.1:1234",
+        ] {
+            assert!(AdapterHttp::loopback_timeout_replay(base, None).is_err());
+            assert!(AdapterHttp::wikipedia_operation_replay(base, None).is_err());
+        }
+        assert!(
+            AdapterHttp::loopback_timeout_replay("http://127.0.0.1:1234", Some(Instant::now()))
+                .is_err()
+        );
+        assert!(AdapterHttp::loopback_timeout_replay("http://127.0.0.1:1234", None).is_ok());
+        assert!(
+            AdapterHttp::wikipedia_operation_replay("http://127.0.0.1:1234", Some(Instant::now()))
+                .is_err()
+        );
+        assert!(AdapterHttp::wikipedia_operation_replay("http://127.0.0.1:1234", None).is_ok());
+    }
+    #[tokio::test]
+    async fn manual_network_session_rejects_different_endpoint_before_wire() {
+        let (owner, driver) =
+            AdapterHttp::loopback_timeout_replay("http://127.0.0.1:1234", None).unwrap();
+        let mut session = owner
+            .session(
+                Options::default(),
+                (driver.now() + std::time::Duration::from_secs(1)).into(),
+                Cancellation::default(),
+            )
+            .unwrap();
+        assert!(matches!(
+            session
+                .execute(Request::get("http://127.0.0.1:1235/").unwrap())
+                .await,
+            Err(Error::InvalidRequest)
+        ));
+        owner.shutdown_and_wait().await;
+        let (owner, trace) =
+            AdapterHttp::wikipedia_operation_replay("http://127.0.0.1:1234", None).unwrap();
+        let mut session = owner
+            .session(
+                Options::default(),
+                (Instant::now() + Duration::from_secs(1)).into(),
+                Cancellation::default(),
+            )
+            .unwrap();
+        for _ in 0..2 {
+            assert!(matches!(
+                session
+                    .execute(Request::get("http://127.0.0.1:1235/").unwrap())
+                    .await,
+                Err(Error::InvalidRequest)
+            ));
+        }
+        assert!(matches!(
+            session
+                .execute(Request::get("http://127.0.0.1:1235/").unwrap())
+                .await,
+            Err(Error::RequestLimit)
+        ));
+        assert_eq!(trace.observations().len(), 2);
+        owner.shutdown_and_wait().await;
+    }
+}

@@ -113,8 +113,8 @@ fn complete_response(transport: &Captured, request: &Request, response: Response
 }
 async fn staged_session(manual: bool) {
     let (transport, request) = captured();
-    // Pause before creating the owner's origin. Even host preemption during
-    // later setup cannot put the System sleep past its deadline before staging.
+    // Pausing Tokio freezes timer progression, not the System owner's std clock.
+    // Manual retains the exact captured 250us; System uses a supplemental synthetic budget.
     tokio::time::pause();
     let (http, driver) = if manual {
         let (owner, driver) = AdapterHttp::replay_owner(transport.clone());
@@ -133,12 +133,22 @@ async fn staged_session(manual: bool) {
         .unwrap();
     // Pause only Tokio staging in this isolated test. No System c::check is
     // bypassed: this test enters the real Session directly, not an adapter.
-    let deadline = http.deadline_now() + Duration::from_micros(250);
+    let setup_started = std::time::Instant::now();
+    let budget = if manual {
+        Duration::from_micros(250)
+    } else {
+        Duration::from_secs(60)
+    };
+    let deadline = http.deadline_now() + budget;
     let mut session = http
         .session(Options::default(), deadline.into(), Cancellation::default())
         .unwrap();
     let mut execute = Box::pin(session.execute(request.clone()));
     let state = std::future::poll_fn(|cx| Poll::Ready(execute.as_mut().poll(cx))).await;
+    assert!(
+        setup_started.elapsed() < Duration::from_secs(5),
+        "bounded staging before synthetic System deadline"
+    );
     assert!(state.is_pending());
     assert_eq!(transport.seen.lock().unwrap().len(), 1, "response consumed");
     assert_eq!(http.decoder.state.lock().unwrap().active, 0);
