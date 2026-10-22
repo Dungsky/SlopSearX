@@ -312,3 +312,5 @@ EXP-119 readout:not-supported at development. Metadata-conditioned selector nP@5
 - [2026-10-20 delivery closeout](daily-delivery-2026-10-20.md): verified #1014 merged as `ff3a6ede` after #1033 resolved the CI budget prerequisite; both architecture jobs and applicable checks passed. Prior blocked records remain historical. No new implementation or trial today.
 
 - [2026-10-21 prerequisite delivery](daily-delivery-2026-10-21.md): #1035 merged `4548a4f1` with exact-head green architecture checks and substantive review. Quota-fixture qualification only; no production improvement claimed. #1034 remains blocked by its distinct cold-bootstrap ARM failure; existing owner corrections preserved.
+
+- [2026-10-22 initial publication audit](publication-audit-2026-10-22.md): #995 source-backed coverage inventory; no observed missed fault or new checker justified. #1034 unchanged failed ARM qualification preserved; no repeated CI or product improvement claimed.
