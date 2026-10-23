@@ -27,6 +27,24 @@ fn load(root: &Path) -> Result<Value, String> {
     )?;
     document(&std::fs::read(path).map_err(|e| e.to_string())?)
 }
+fn prior_caller() -> Value {
+    serde_json::json!({
+        "path": SOURCE,
+        "bytes": 50563,
+        "mode": "0644",
+        "sha256": "fde085dcc7d153cf8304e69baa3c4a193e07501175e8f982ad10351f55da7fdc",
+        "git_blob": "6329f367feac5befb3e9a45b84e844fbd2fc0949"
+    })
+}
+fn current_caller() -> Value {
+    serde_json::json!({
+        "path": SOURCE,
+        "bytes": 54039,
+        "mode": "0644",
+        "sha256": "879170e1508789dd9de5db697511aba88b103dfde85e1705e6dcbb4ea144365e",
+        "git_blob": "26f207734bea712f361096944672e84fcddec344"
+    })
+}
 fn validate(
     doc: &Value,
     expected: &Value,
@@ -35,8 +53,21 @@ fn validate(
     mode: &str,
 ) -> Result<(), String> {
     super::need(
-        doc["prior"] == *expected,
+        *expected == prior_caller(),
         "A13 header marker exact d448 caller",
+    )?;
+    super::need(
+        doc["prior"]
+            == serde_json::json!({
+                "path": SOURCE, "bytes": 50563, "mode": "0644",
+                "sha256": "fde085dcc7d153cf8304e69baa3c4a193e07501175e8f982ad10351f55da7fdc"
+            })
+            && doc["current"]
+                == serde_json::json!({
+                    "path": SOURCE, "bytes": 54039, "mode": "0644",
+                    "sha256": "879170e1508789dd9de5db697511aba88b103dfde85e1705e6dcbb4ea144365e"
+                }),
+        "A13 marker exact pinned four-field capsule material",
     )?;
     super::material(&doc["prior"], prior, "0644")?;
     super::material(&doc["current"], current, mode)?;
@@ -60,7 +91,7 @@ pub(super) fn archived_prior(root: &Path, expected: &Value) -> Result<Vec<u8>, S
 }
 pub(super) fn effective_current(root: &Path, expected: &Value) -> Result<Value, String> {
     archived_prior(root, expected)?;
-    Ok(load(root)?["current"].clone())
+    Ok(current_caller())
 }
 #[cfg(test)]
 pub(super) fn library_source(root: &Path, expected: &Value) -> Result<(), String> {
@@ -69,7 +100,7 @@ pub(super) fn library_source(root: &Path, expected: &Value) -> Result<(), String
         expected == &serde_json::json!({"path":SOURCE,"sha256":doc["prior"]["sha256"]}),
         "A13 marker prior exact A13 predecessor",
     )?;
-    archived_prior(root, &doc["prior"])?;
+    archived_prior(root, &prior_caller())?;
     Ok(())
 }
 #[cfg(test)]
@@ -77,35 +108,74 @@ pub(super) fn controls(root: &Path) -> Result<(), String> {
     let doc = load(root)?;
     let prior = super::read(root, &doc["archive"])?;
     let current = super::read(root, &doc["current"])?;
-    validate(&doc, &doc["prior"], &prior, &current, "0644")?;
+    validate(&doc, &prior_caller(), &prior, &current, "0644")?;
     library_source(
         root,
         &serde_json::json!({"path":SOURCE,"sha256":doc["prior"]["sha256"]}),
     )?;
-    let mut wrong = doc["prior"].clone();
+    let mut wrong = prior_caller();
     wrong["path"] = serde_json::json!("wrong-caller.rs");
     super::need(
         validate(&doc, &wrong, &prior, &current, "0644").is_err(),
         "A13 wrong inventory caller accepted",
     )?;
     super::need(
-        validate(&doc, &doc["prior"], &prior, &prior, "0644").is_err(),
+        validate(&doc, &prior_caller(), &prior, &prior, "0644").is_err(),
         "A13 old inventory accepted as current",
     )?;
     super::need(
-        validate(&doc, &doc["prior"], &prior, &current, "0755").is_err(),
+        validate(&doc, &prior_caller(), &prior, &current, "0755").is_err(),
         "A13 changed inventory source mode accepted",
+    )?;
+    let caller = prior_caller();
+    let inherited: Value =
+        serde_json::from_slice(
+            &std::fs::read(root.join(
+                "docs/rust-rewrite/a06/source-amendments/a13-json-inventory-successor-v1.json",
+            ))
+            .map_err(|e| e.to_string())?,
+        )
+        .map_err(|e| e.to_string())?;
+    super::need(
+        inherited["current"] == caller,
+        "A13 marker actual JSON caller differs",
+    )?;
+    archived_prior(root, &inherited["current"])?;
+    super::need(
+        effective_current(root, &caller)? == current_caller(),
+        "A13 marker current Git caller differs",
+    )?;
+    let mut missing = caller.clone();
+    missing
+        .as_object_mut()
+        .ok_or("A13 caller object")?
+        .remove("git_blob");
+    let mut wrong_git = caller.clone();
+    wrong_git["git_blob"] = serde_json::json!("0000000000000000000000000000000000000000");
+    let mut extra = caller.clone();
+    extra["extra"] = serde_json::json!(true);
+    for bad in [&missing, &wrong_git, &extra] {
+        super::need(
+            validate(&doc, bad, &prior, &current, "0644").is_err(),
+            "A13 marker unclosed historical caller accepted",
+        )?;
+    }
+    let mut expected_current = current_caller();
+    expected_current["git_blob"] = serde_json::json!("0000000000000000000000000000000000000000");
+    super::need(
+        effective_current(root, &caller)? != expected_current,
+        "A13 marker wrong current Git identity accepted",
     )?;
     let mut changed = current.clone();
     changed.push(b'\n');
     super::need(
-        validate(&doc, &doc["prior"], &prior, &changed, "0644").is_err(),
+        validate(&doc, &prior_caller(), &prior, &changed, "0644").is_err(),
         "A13 changed inventory source accepted",
     )?;
     let mut changed_prior = prior.clone();
     changed_prior.push(b'\n');
     super::need(
-        validate(&doc, &doc["prior"], &changed_prior, &current, "0644").is_err(),
+        validate(&doc, &prior_caller(), &changed_prior, &current, "0644").is_err(),
         "A13 edited inventory archive accepted",
     )?;
     let mut changed_doc = doc.clone();
