@@ -137,7 +137,7 @@ fn verify_doc(root: &Path, doc: &Value, expected: &Value) -> Result<(), String> 
     let mut changes = Vec::new();
     collect_changes(&before, &after, "", &mut changes);
     super::need(
-        !changes.is_empty() && changes == doc["changes"],
+        !changes.is_empty() && doc["changes"].as_array() == Some(&changes),
         "A13 qualification finite source transition differs",
     )?;
     Ok(())
