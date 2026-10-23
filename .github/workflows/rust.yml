@@ -103,6 +103,11 @@ jobs:
         run: |
           sh scripts/rust-valkey-build.sh "$RUNNER_TEMP/ssx-valkey/bin"
           echo "$RUNNER_TEMP/ssx-valkey/bin" >> "$GITHUB_PATH"
+          valkey_server="$RUNNER_TEMP/ssx-valkey/bin/valkey-server"
+          {
+            printf 'SLOPSEARX_TEST_VALKEY_SERVER=%s\n' "$valkey_server"
+            printf 'SLOPSEARX_TEST_VALKEY_SERVER_SHA256=%s\n' "$(sha256sum "$valkey_server" | cut -d ' ' -f 1)"
+          } >> "$GITHUB_ENV"
 
       - name: Formatting
         run: cargo fmt --all --check
