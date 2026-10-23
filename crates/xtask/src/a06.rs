@@ -113,6 +113,75 @@ fn expected_tests_for_platform(group: &Value, linux_enabled: bool) -> Result<BTr
     }
     Ok(expected)
 }
+
+// Preserve historical A06 coverage and compose only the exact current library inventory.
+const CURRENT_LIBRARY: &str =
+    "docs/rust-rewrite/a06/source-amendments/current-library-inventory-v1.json";
+const CURRENT_LIBRARY_SHA256: &str =
+    "f631ecbced0d8ccec249c0d7b83e5155e892730c0597ac452c929216a254a24c";
+const CURRENT_LIBRARY_NAMES_SHA256: &str =
+    "373449cec9c40115ba54055f6852bc65ed75756dfd0d219f144cc189b3221839";
+fn library_names(doc: &Value, key: &str) -> Result<BTreeSet<String>> {
+    let rows = doc[key].as_array().ok_or("A06 library names missing")?;
+    let mut names = BTreeSet::new();
+    for row in rows {
+        let name = row
+            .as_str()
+            .filter(|s| !s.is_empty())
+            .ok_or("A06 library name malformed")?;
+        if !names.insert(name.to_owned()) {
+            return Err("A06 duplicate library name".into());
+        }
+    }
+    Ok(names)
+}
+fn current_library_inventory(root: &Path) -> Result<Value> {
+    let raw = fs::read(root.join(CURRENT_LIBRARY)).map_err(|e| e.to_string())?;
+    if digest(&raw) != CURRENT_LIBRARY_SHA256 {
+        return Err("A06 current library sidecar changed".into());
+    }
+    let doc: Value = serde_json::from_slice(&raw).map_err(|e| e.to_string())?;
+    if doc["qualification"]["path"] != "docs/rust-rewrite/a13/qualification-v1.json"
+        || doc["a13_source"]["path"] != "crates/xtask/src/a13.rs"
+    {
+        return Err("A06 library derivation source path changed".into());
+    }
+    verify_artifact(root, &doc["qualification"])?;
+    verify_artifact(root, &doc["a13_source"])?;
+    Ok(doc)
+}
+fn current_tests_for_platform(group: &Value, doc: &Value, linux: bool) -> Result<BTreeSet<String>> {
+    let mut expected = expected_tests_for_platform(group, linux)?;
+    if group["package"] != "ssx-infra" || group["target"] != "lib" {
+        return Ok(expected);
+    }
+    if doc["schema"] != "SLOPSEARX_A06_CURRENT_LIBRARY_INVENTORY_V1"
+        || doc["frozen_coverage_sha256"] != COVERAGE_SHA256
+        || doc["original_common"] != group["tests"]
+        || doc["linux_extra"] != group["linux_tests"]
+        || doc["current_common_count"] != 383
+        || doc["current_common_sha256"] != CURRENT_LIBRARY_NAMES_SHA256
+    {
+        return Err("A06 current library predecessor/identity differs".into());
+    }
+    let mut common = expected_tests_for_platform(group, false)?;
+    let added = library_names(doc, "additive_common")?;
+    if common.len() != 295 || added.len() != 88 || !common.is_disjoint(&added) {
+        return Err("A06 current library partition differs".into());
+    }
+    common.extend(added.iter().cloned());
+    if digest(&serde_json::to_vec(&common).map_err(|e| e.to_string())?)
+        != CURRENT_LIBRARY_NAMES_SHA256
+    {
+        return Err("A06 current library exact closed names differ".into());
+    }
+    expected.extend(added);
+    if expected.len() != 383 + usize::from(linux) {
+        return Err("A06 current library platform cardinality differs".into());
+    }
+    Ok(expected)
+}
+
 pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
     let bytes =
         fs::read(root.join("docs/rust-rewrite/a06/coverage.json")).map_err(|e| e.to_string())?;
@@ -182,6 +251,7 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
         ],
         records,
     )?;
+    let current_library = current_library_inventory(root)?;
     let mut bindings = BTreeSet::new();
     let mut completed_output = String::new();
     for group in coverage["native_groups"]
@@ -190,7 +260,8 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
     {
         let package = group["package"].as_str().ok_or("A06 package missing")?;
         let target = group["target"].as_str().ok_or("A06 target missing")?;
-        let expected = expected_tests_for_platform(group, cfg!(target_os = "linux"))?;
+        let expected =
+            current_tests_for_platform(group, &current_library, cfg!(target_os = "linux"))?;
         for name in &expected {
             if !bindings.insert(format!("{package}/{target}/{name}")) {
                 return Err("A06 duplicate native binding".into());
@@ -266,6 +337,7 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
             }
         }
     }
+    records.push(json!({"A06_current_library_inventory":{"sidecar":CURRENT_LIBRARY,"sha256":CURRENT_LIBRARY_SHA256,"historical_common":295,"additive_common":88,"current_common":383,"linux_extra":1,"scope":"exact closed list and execution, not arbitrary superset admission"}}));
     records.push(json!({"A06":{"original_regressions":mapped.len(),"completed_native_identities":bindings,"qualification":"local source-bound scholarly factories/helper semantics/lifecycle; reviewed differences retained","temporary_python":"not executed or required","remaining":"G02/global ownership, final platform/exact-head and issue984 cross-surface acceptance remain separate"}}));
     Ok(())
 }
@@ -293,6 +365,83 @@ mod tests {
                 assert!(expected_tests_for_platform(&group, linux).is_err());
             }
         }
+
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let doc = current_library_inventory(&root).unwrap();
+        let coverage: Value = serde_json::from_slice(
+            &fs::read(root.join("docs/rust-rewrite/a06/coverage.json")).unwrap(),
+        )
+        .unwrap();
+        let group = coverage["native_groups"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|g| g["package"] == "ssx-infra" && g["target"] == "lib")
+            .unwrap();
+        let common = current_tests_for_platform(group, &doc, false).unwrap();
+        let linux = current_tests_for_platform(group, &doc, true).unwrap();
+        assert_eq!(common.len(), 383);
+        assert_eq!(linux.len(), 384);
+        assert_eq!(
+            linux.difference(&common).cloned().collect::<BTreeSet<_>>(),
+            library_names(&doc, "linux_extra").unwrap()
+        );
+        let text = common
+            .iter()
+            .map(|name| format!("test {name} ... ok\n"))
+            .collect::<String>();
+        verify_executed(&text, &common).unwrap();
+        let first = common.first().unwrap();
+        for bad in [
+            text.replacen(&format!("test {first} ... ok\n"), "", 1),
+            format!("{text}test unexpected::extra ... ok\n"),
+            format!("{text}test {first} ... ok\n"),
+        ] {
+            assert!(verify_executed(&bad, &common).is_err());
+        }
+        for kind in [
+            "missing",
+            "duplicate",
+            "substitution",
+            "overlap",
+            "predecessor",
+            "linux",
+            "schema",
+        ] {
+            let mut bad = doc.clone();
+            match kind {
+                "missing" => {
+                    bad["additive_common"].as_array_mut().unwrap().pop();
+                }
+                "duplicate" => {
+                    let name = bad["additive_common"][0].clone();
+                    bad["additive_common"].as_array_mut().unwrap().push(name);
+                }
+                "substitution" => bad["additive_common"][0] = json!("unexpected::substitute"),
+                "overlap" => bad["additive_common"][0] = group["tests"][0].clone(),
+                "predecessor" => bad["original_common"][0] = json!("unexpected::predecessor"),
+                "linux" => bad["linux_extra"][0] = json!("unexpected::linux"),
+                "schema" => bad["schema"] = json!("another-inventory"),
+                _ => unreachable!(),
+            }
+            for is_linux in [false, true] {
+                assert!(
+                    current_tests_for_platform(group, &bad, is_linux).is_err(),
+                    "{kind}"
+                );
+            }
+        }
+        for (key, value) in [("package", "other"), ("target", "other")] {
+            let mut other = group.clone();
+            other[key] = json!(value);
+            assert_eq!(
+                current_tests_for_platform(&other, &doc, false).unwrap(),
+                expected_tests_for_platform(&other, false).unwrap()
+            );
+        }
+        println!(
+            "A06_CURRENT_LIBRARY_INVENTORY_CONTROLS frozen295_add88_exact383_linux384_missing_extra_duplicate_substitution_and_partition_rejected=true"
+        );
     }
     #[test]
     fn missing_ignored_duplicate_and_wrong_completed_identities_fail_closed() {
