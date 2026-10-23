@@ -296,16 +296,35 @@ fn payload_allowed(payload: &str, allowed: &[String]) -> bool {
 fn execution(output: &str, name: &str, allowed: &[String], filtered: usize) -> Result<()> {
     let lines: Vec<_> = output.lines().collect();
     let prefix = format!("test {name} ... ");
+    let progress_prefix = format!("test {name} has been running for over ");
+    let is_progress = |line: &str| {
+        line.strip_prefix(&progress_prefix)
+            .and_then(|s| s.strip_suffix(" seconds"))
+            .is_some_and(|s| {
+                !s.starts_with('0')
+                    && s.bytes().all(|b| b.is_ascii_digit())
+                    && s.parse::<u64>().is_ok_and(|seconds| seconds > 0)
+            })
+    };
     let named: Vec<_> = lines
         .iter()
         .enumerate()
-        .filter(|(_, s)| s.starts_with("test ") && !s.starts_with("test result:"))
+        .filter(|(_, s)| {
+            s.starts_with("test ") && !s.starts_with("test result:") && !is_progress(s)
+        })
         .collect();
     require(
         named.len() == 1,
         "A13 one exact named start/terminal required",
     )?;
     let (start, line) = named[0];
+    require(
+        lines
+            .iter()
+            .enumerate()
+            .all(|(index, line)| !is_progress(line) || index < start),
+        "A13 progress must precede named terminal/start",
+    )?;
     let suffix = line
         .strip_prefix(&prefix)
         .ok_or("A13 wrong harness name/framing")?;
@@ -892,6 +911,53 @@ mod tests {
     fn strict_harness_framing() {
         let good = output("selected", "", false);
         assert!(execution(&good, "selected", &[], 0).is_ok());
+        let progress = "test selected has been running for over 60 seconds\n";
+        let slow = good.replace("test selected ...", &format!("{progress}test selected ..."));
+        assert!(execution(&slow, "selected", &[], 0).is_ok());
+        for bad in [
+            slow.replace("test selected has", "test other has"),
+            slow.replace("test selected ... ok", "test other ... ok"),
+            slow.replace("test selected ... ok\n", ""),
+            slow.replace("test selected ... ok", "test selected ... FAILED"),
+            slow.replace("test selected ... ok", "test selected ... ignored"),
+            slow.replace(
+                "test selected ... ok",
+                "test selected ... ok\ntest selected ... ok",
+            ),
+            good.replace(
+                "test selected ... ok\n",
+                &format!("test selected ... ok\n{progress}"),
+            ),
+        ] {
+            assert!(execution(&bad, "selected", &[], 0).is_err(), "{bad}");
+        }
+        for seconds in [
+            "",
+            "0",
+            "060",
+            "-1",
+            "+60",
+            "1.5",
+            "nan",
+            "18446744073709551616",
+        ] {
+            assert!(
+                execution(
+                    &slow.replace("60 seconds", &format!("{seconds} seconds")),
+                    "selected",
+                    &[],
+                    0
+                )
+                .is_err(),
+                "{seconds}"
+            );
+        }
+        for bad in [
+            slow.replace(" seconds", " second"),
+            slow.replace(" seconds", " seconds extra"),
+        ] {
+            assert!(execution(&bad, "selected", &[], 0).is_err(), "{bad}");
+        }
         for bad in [
             good.replace("selected", "other"),
             good.replace("... ok", "... arbitrary"),
@@ -924,6 +990,15 @@ mod tests {
         let allowed = strings(&["A13_REMAINING_CASE_COMPLETE selected"]);
         let split = output("selected", &allowed[0], true);
         assert!(execution(&split, "selected", &allowed, 0).is_ok());
+        assert!(
+            execution(
+                &split.replace("test selected ...", &format!("{progress}test selected ...")),
+                "selected",
+                &allowed,
+                0
+            )
+            .is_ok()
+        );
         assert!(
             execution(
                 &split.replace("A13_REMAINING", "junk A13_REMAINING"),
