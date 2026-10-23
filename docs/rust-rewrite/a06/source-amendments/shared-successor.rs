@@ -2,6 +2,8 @@
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::{fs, path::Path};
+#[path = "a13-header-layout-successor.rs"]
+mod a13_header_layout_successor;
 #[path = "real-clock-successor.rs"]
 mod real_clock_successor;
 const MANIFEST: &str = "docs/rust-rewrite/a06/source-amendments/shared-successor-v2.json";
@@ -469,7 +471,10 @@ fn verify_transition(root: &Path, row: &Value) -> Result<(Vec<u8>, Vec<u8>), Str
     let before = read(root, &row["archive"])?;
     let path = text(&row["current"], "path")?;
     let selected_child = real_clock_successor::selected(path);
-    let historical = if selected_child {
+    let selected_layout = path == a13_header_layout_successor::SOURCE;
+    let historical = if selected_layout {
+        a13_header_layout_successor::archived_prior(root, &row["current"])?
+    } else if selected_child {
         real_clock_successor::archived_prior(
             root,
             &row["current"],
@@ -486,7 +491,9 @@ fn verify_transition(root: &Path, row: &Value) -> Result<(Vec<u8>, Vec<u8>), Str
         "0644",
         text(row, "edits_sha256")?,
     )?;
-    if selected_child {
+    if selected_layout {
+        a13_header_layout_successor::prove_current(root, &row["current"], &historical)?;
+    } else if selected_child {
         real_clock_successor::prove_current(
             root,
             &row["current"],
@@ -704,6 +711,9 @@ pub(crate) fn compose_scoped(root: &Path, previous: &Value) -> Result<Value, Str
             }).collect::<Result<Vec<Value>, String>>()?);
             if path == "crates/ssx-infra/src/http.rs" {
                 *row = real_clock_successor::scoped_http(root, row, &historical)?;
+            }
+            if path == a13_header_layout_successor::SOURCE {
+                *row = a13_header_layout_successor::scoped(root, row, &historical)?;
             }
         }
     }
@@ -1468,4 +1478,10 @@ pub(crate) fn real_clock_http_prior(
         "real-clock private/shared09ee prior differs",
     )?;
     Ok(named_prior)
+}
+
+// Called from the existing DeHashed source-closure selector; adds no test identity.
+#[allow(dead_code)]
+pub(crate) fn a13_header_layout_controls(root: &Path) -> Result<(), String> {
+    a13_header_layout_successor::controls(root)
 }
