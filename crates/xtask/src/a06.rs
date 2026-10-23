@@ -76,6 +76,16 @@ pub fn check_source_log(root: &Path, path: &Path) -> Result<()> {
 fn verify_artifact(root: &Path, row: &Value) -> Result<()> {
     let path = row["path"].as_str().ok_or("A06 artifact path missing")?;
     let expected = row["sha256"].as_str().ok_or("A06 artifact hash missing")?;
+    if let Some(result) = crate::a13::a06_source_successor::try_verify(
+        root,
+        "docs/rust-rewrite/a06/coverage.json",
+        COVERAGE_SHA256,
+        path,
+        expected,
+        None,
+    ) {
+        return result;
+    }
     if digest(&fs::read(root.join(path)).map_err(|e| e.to_string())?) != expected {
         return Err(format!("A06 artifact changed: {path}"));
     }
@@ -484,5 +494,7 @@ mod tests {
         fs::write(dir.join("fixture"), b"fixed").unwrap();
         verify_artifact(&dir, &row).unwrap();
         fs::remove_dir_all(dir).unwrap();
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        crate::a13::a06_source_successor::artifact_controls(&root).unwrap();
     }
 }

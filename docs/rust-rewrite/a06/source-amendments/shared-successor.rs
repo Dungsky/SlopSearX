@@ -552,6 +552,9 @@ pub(crate) fn try_verify(
     expected: &str,
     bytes: Option<usize>,
 ) -> Option<Result<(), String>> {
+    if let Some(result) = try_a06_artifact(root, container, container_sha, path, expected, bytes) {
+        return Some(result);
+    }
     if !selected(container, path) {
         return None;
     }
@@ -950,6 +953,379 @@ pub(crate) fn controls(root: &Path) -> Result<(), String> {
     );
     eprintln!(
         "A06_SHARED_TRANSITION_CONTROLS actual_current=true typed_callers_archives_order_scope_modes_and_rehashed_mutations=passed"
+    );
+    artifact_controls(root)?;
+    Ok(())
+}
+
+// The original 20-transition/62-caller capsule above remains immutable.
+const ARTIFACT_MANIFEST: &str =
+    "docs/rust-rewrite/a06/source-amendments/artifact-pin-successor-v1.json";
+const ARTIFACT_MANIFEST_SHA: &str =
+    "dd452bd28cbfdd9b79bcd20eba7dd39322b392696450939ee592e7a44d335f24";
+const ARTIFACT_MANIFEST_BYTES: usize = 94620;
+const ARTIFACT_COVERAGE: &str = "docs/rust-rewrite/a06/coverage.json";
+const ARTIFACT_COVERAGE_SHA: &str =
+    "92686ed70979a698b0dab3414cad813198b720fe586421062db8a4cef5102d9b";
+const ARTIFACT_PAIRS: &[(&str, &str)] = &[
+    (
+        "crates/ssx-infra/src/adapters/brave.rs",
+        "1924c74ef0476f58b2d8328d3db0048e29143e87189db3c7ff8342388a17221f",
+    ),
+    (
+        "crates/ssx-infra/src/adapters/clinicaltrials.rs",
+        "95d06b3b7b2a57525cf21aef2f55121d08f4cf18f1d281b1f8a6e735062c7e7f",
+    ),
+    (
+        "crates/ssx-infra/src/adapters/europepmc.rs",
+        "6335f2ed2f40e4f8e3d126cdc5aba16adf12ef0cf690410baed723fe7482c7ad",
+    ),
+    (
+        "crates/ssx-infra/src/adapters/mod.rs",
+        "d6cecd7e52941ce0d83d2c28349e2b3473d0ab8970ed2619e65c9e9304aeeca1",
+    ),
+    (
+        "crates/ssx-infra/src/adapters/pubchem.rs",
+        "65be1a90f6fc9cfd2c50f69c6b4a0b09129916d28ba1abd7d90877ffa920dbea",
+    ),
+    (
+        "crates/ssx-infra/src/adapters/pypi.rs",
+        "eebde15c314d6af81e485e3cacd9f20bd14fedaadbe9ac34f10ba0042f6cc452",
+    ),
+    (
+        "crates/ssx-infra/src/adapters/reddit.rs",
+        "400d5e6638f9821ff81fcbc29b7843b96ed9d9e9b89c36126e242a5f18d004a3",
+    ),
+    (
+        "crates/ssx-infra/src/adapters/source_payload.rs",
+        "ebd1bdecb28d598b991529ac98dce9190f7c8a039d51473d6286250c26a16446",
+    ),
+    (
+        "crates/ssx-infra/src/adapters/uniprot.rs",
+        "1b4d19cdbd60683e8faeb96c99ca92e22b03293292a6b0965f525ffa38cba355",
+    ),
+    (
+        "crates/ssx-infra/src/adapters/wikipedia.rs",
+        "c0dcbcf98bfad239717cf9ce3e26f92600b5de5b867c090ef19f204e6ce2158d",
+    ),
+    (
+        "crates/ssx-infra/src/http.rs",
+        "700c2a4f4526a97fe54b293c9465262ef94c5666caaae1c0e92f3fd5a64554a6",
+    ),
+    (
+        "crates/ssx-infra/tests/a08_factories.rs",
+        "ddc2b6c6219a519c9faf79825b852addd9d11dc49e7c5286c25d5f5d6c44df68",
+    ),
+    (
+        "crates/ssx-infra/tests/support/a07_resources.rs",
+        "38174d6e08b54d21e1227a6ebdbf9092c4e1f0e65af14b8c9c97eeebd05b60fb",
+    ),
+    (
+        "crates/ssx-infra/tests/a07_biomedical.rs",
+        "01b40a80fe473a3ce88ffcdc8356b0e3ab637a970cfdb87c724da9b0298ae260",
+    ),
+    (
+        "crates/ssx-infra/tests/a07_context.rs",
+        "b913e5f13290c10b38ea1794b8cae976858ab4951bd0a43b478abb93109eae69",
+    ),
+];
+const ARTIFACT_SHARED_CURRENT: &[&str] = &[
+    "crates/ssx-infra/src/adapters/clinicaltrials.rs",
+    "crates/ssx-infra/src/adapters/mod.rs",
+    "crates/ssx-infra/src/adapters/source_payload.rs",
+    "crates/ssx-infra/src/http.rs",
+];
+fn artifact_scope(doc: &Value) -> Result<(), String> {
+    use std::collections::BTreeSet;
+    need(
+        doc["kind"] == "PURE_A06_ARTIFACT_PIN_SUCCESSOR_V1"
+            && doc["published_A06"] == "6e4ed9e90c59f304f28206ec0bb61b3a2b365938"
+            && doc["coverage"]["path"] == ARTIFACT_COVERAGE
+            && doc["coverage"]["sha256"] == ARTIFACT_COVERAGE_SHA,
+        "A06 artifact capsule scope differs",
+    )?;
+    let paths = doc["transitions"]
+        .as_array()
+        .ok_or("A06 artifact transitions absent")?
+        .iter()
+        .map(|row| text(&row["current"], "path"))
+        .collect::<Result<Vec<_>, _>>()?;
+    need(
+        paths.len() == ARTIFACT_PAIRS.len()
+            && paths.into_iter().collect::<BTreeSet<_>>()
+                == ARTIFACT_PAIRS.iter().map(|(p, _)| *p).collect(),
+        "A06 artifact transition membership differs",
+    )?;
+    let rows = doc["bindings"]
+        .as_array()
+        .ok_or("A06 artifact callers absent")?;
+    let pairs = rows
+        .iter()
+        .map(|row| Ok((text(row, "source_path")?, text(row, "expected_digest")?)))
+        .collect::<Result<Vec<_>, String>>()?;
+    need(
+        pairs.len() == ARTIFACT_PAIRS.len()
+            && pairs.into_iter().collect::<BTreeSet<_>>()
+                == ARTIFACT_PAIRS.iter().copied().collect()
+            && rows.iter().all(|r| {
+                r["container"] == doc["coverage"]
+                    && r["digest_kind"] == "sha256"
+                    && r["expected_bytes"].is_null()
+                    && r["row_shape"] == "object"
+            }),
+        "A06 artifact exact caller membership differs",
+    )
+}
+fn artifact_document(raw: &[u8]) -> Result<Value, String> {
+    need(
+        digest(raw) == ARTIFACT_MANIFEST_SHA,
+        "A06 artifact sidecar changed",
+    )?;
+    let doc: Value = serde_json::from_slice(raw).map_err(|e| e.to_string())?;
+    artifact_scope(&doc)?;
+    Ok(doc)
+}
+fn artifact_load(root: &Path) -> Result<Value, String> {
+    artifact_document(&read(
+        root,
+        &json!({"path":ARTIFACT_MANIFEST,"bytes":ARTIFACT_MANIFEST_BYTES,
+        "sha256":ARTIFACT_MANIFEST_SHA,"mode":"0644"}),
+    )?)
+}
+fn artifact_transition(
+    row: &Value,
+    before: &[u8],
+    archive_mode: &str,
+    actual: &[u8],
+    current_mode: &str,
+    edit_sha: &str,
+) -> Result<(), String> {
+    material(&row["archive"], before, archive_mode)?;
+    transition(row, before, actual, current_mode, edit_sha)
+}
+fn artifact_current(root: &Path, row: &Value) -> Result<(), String> {
+    let before = read(root, &row["archive"])?;
+    let actual = read(root, &row["current"])?;
+    artifact_transition(
+        row,
+        &before,
+        &permissions(&root.join(text(&row["archive"], "path")?))?,
+        &actual,
+        &permissions(&root.join(text(&row["current"], "path")?))?,
+        text(row, "edits_sha256")?,
+    )?;
+    let path = text(&row["current"], "path")?;
+    if ARTIFACT_SHARED_CURRENT.contains(&path) {
+        let shared = load(root)?;
+        frozen(root, &shared)?;
+        let (_, shared_actual) = verify_transition(root, source(&shared, path)?)?;
+        need(
+            shared_actual == actual,
+            "A06 artifact/shared current differs",
+        )?;
+    }
+    Ok(())
+}
+/// Selected A06 tuples require current reconstruction even if historical bytes match.
+fn try_a06_artifact(
+    root: &Path,
+    container: &str,
+    container_sha: &str,
+    path: &str,
+    expected: &str,
+    bytes: Option<usize>,
+) -> Option<Result<(), String>> {
+    if container != ARTIFACT_COVERAGE || !ARTIFACT_PAIRS.iter().any(|(p, _)| *p == path) {
+        return None;
+    }
+    Some((|| {
+        let doc = artifact_load(root)?;
+        let binding =
+            pair(&doc, container, path, "sha256")?.ok_or("A06 artifact selected caller absent")?;
+        caller(
+            binding,
+            container_sha,
+            &read(root, &binding["container"])?,
+            path,
+            expected,
+            bytes,
+        )?;
+        artifact_current(root, source(&doc, path)?)
+    })())
+}
+#[cfg(test)]
+pub(crate) fn artifact_controls(root: &Path) -> Result<(), String> {
+    let doc = artifact_load(root)?;
+    for binding in doc["bindings"]
+        .as_array()
+        .ok_or("A06 artifact controls callers absent")?
+    {
+        let path = text(binding, "source_path")?;
+        let old = text(binding, "expected_digest")?;
+        try_a06_artifact(
+            root,
+            ARTIFACT_COVERAGE,
+            ARTIFACT_COVERAGE_SHA,
+            path,
+            old,
+            None,
+        )
+        .ok_or("A06 artifact current route absent")??;
+        let row = source(&doc, path)?;
+        let before = read(root, &row["archive"])?;
+        let actual = read(root, &row["current"])?;
+        let edit_sha = text(row, "edits_sha256")?;
+        let coverage = read(root, &doc["coverage"])?;
+        for (bad_container, bad_old, bad_count) in [
+            ("wrong", old, None),
+            (ARTIFACT_COVERAGE_SHA, "wrong", None),
+            (ARTIFACT_COVERAGE_SHA, old, Some(0)),
+            (ARTIFACT_COVERAGE_SHA, old, Some(before.len())),
+        ] {
+            need(
+                caller(binding, bad_container, &coverage, path, bad_old, bad_count).is_err(),
+                "A06 artifact wrong caller accepted",
+            )?;
+        }
+        need(
+            caller(
+                binding,
+                ARTIFACT_COVERAGE_SHA,
+                &coverage,
+                "wrong.rs",
+                old,
+                None,
+            )
+            .is_err(),
+            "A06 artifact wrong source caller accepted",
+        )?;
+        let mut archive_bad = before.clone();
+        archive_bad.push(0);
+        need(
+            artifact_transition(row, &archive_bad, "0644", &actual, "0644", edit_sha).is_err(),
+            "A06 artifact altered archive accepted",
+        )?;
+        let mut current_bad = actual.clone();
+        current_bad.push(0);
+        need(
+            artifact_transition(row, &before, "0644", &current_bad, "0644", edit_sha).is_err(),
+            "A06 artifact altered current accepted",
+        )?;
+        need(
+            artifact_transition(row, &before, "0644", &before, "0644", edit_sha).is_err(),
+            "A06 artifact historical as current accepted",
+        )?;
+        for mode in ["0600".to_owned(), raw_mode(0o104644)] {
+            need(mode != "0644", "A06 special mode extraction masked bits")?;
+            need(
+                artifact_transition(row, &before, &mode, &actual, "0644", edit_sha).is_err(),
+                "A06 archive mode accepted",
+            )?;
+            need(
+                artifact_transition(row, &before, "0644", &actual, &mode, edit_sha).is_err(),
+                "A06 current mode accepted",
+            )?;
+        }
+        let mut absent = row["archive"].clone();
+        absent["path"] = json!("docs/rust-rewrite/a06/source-amendments/absent-artifact-archive");
+        need(
+            read(root, &absent).is_err(),
+            "A06 missing archive accepted by production loader",
+        )?;
+        let mut bad = row.clone();
+        bad["archive"]["source_path"] = json!("unlisted.rs");
+        need(
+            artifact_transition(&bad, &before, "0644", &actual, "0644", edit_sha).is_err(),
+            "A06 archive linkage accepted",
+        )?;
+        let mut bad = row.clone();
+        bad["edits"][0]["at"] = json!(before.len() + 1);
+        let rehashed = digest(&serde_json::to_vec(&bad["edits"]).map_err(|e| e.to_string())?);
+        need(
+            artifact_transition(&bad, &before, "0644", &actual, "0644", &rehashed)
+                .err()
+                .as_deref()
+                == Some("A06 edit preimage/order differs"),
+            "A06 rehashed edit escaped structural guard",
+        )?;
+        let mut out_of_order = row.clone();
+        out_of_order["edits"]
+            .as_array_mut()
+            .ok_or("A06 controls edits absent")?
+            .insert(1, json!({"at":0,"remove_utf8":"","insert_utf8":"!"}));
+        let rehashed =
+            digest(&serde_json::to_vec(&out_of_order["edits"]).map_err(|e| e.to_string())?);
+        need(
+            artifact_transition(&out_of_order, &before, "0644", &actual, "0644", &rehashed)
+                .err()
+                .as_deref()
+                == Some("A06 edit preimage/order differs"),
+            "A06 rehashed edit order accepted",
+        )?;
+        let mut missing_edit = row.clone();
+        missing_edit["edits"]
+            .as_array_mut()
+            .ok_or("A06 controls edits absent")?
+            .pop();
+        let rehashed =
+            digest(&serde_json::to_vec(&missing_edit["edits"]).map_err(|e| e.to_string())?);
+        need(
+            artifact_transition(&missing_edit, &before, "0644", &actual, "0644", &rehashed)
+                .is_err(),
+            "A06 rehashed missing edit accepted",
+        )?;
+        let mut bad = row.clone();
+        let insert = text(&bad["edits"][0], "insert_utf8")?.to_owned();
+        bad["edits"][0]["insert_utf8"] = json!(format!("{insert}!"));
+        let rehashed = digest(&serde_json::to_vec(&bad["edits"]).map_err(|e| e.to_string())?);
+        need(
+            artifact_transition(&bad, &before, "0644", &actual, "0644", &rehashed)
+                .err()
+                .as_deref()
+                == Some("A06 reconstruction differs from actual current"),
+            "A06 rehashed edit escaped actual reconstruction",
+        )?;
+    }
+    for kind in ["missing", "duplicate", "extra"] {
+        let mut bad = doc.clone();
+        let rows = bad["transitions"]
+            .as_array_mut()
+            .ok_or("A06 controls transitions absent")?;
+        match kind {
+            "missing" => {
+                rows.pop();
+            }
+            "duplicate" => {
+                rows.push(rows[0].clone());
+            }
+            "extra" => {
+                rows[0]["current"]["path"] = json!("unlisted.rs");
+            }
+            _ => unreachable!(),
+        }
+        need(
+            artifact_scope(&bad).is_err(),
+            "A06 artifact scope mutation accepted",
+        )?;
+        need(
+            artifact_document(&serde_json::to_vec(&bad).map_err(|e| e.to_string())?).is_err(),
+            "A06 rehashed capsule replaced fixed sidecar",
+        )?;
+    }
+    need(
+        try_a06_artifact(
+            root,
+            ARTIFACT_COVERAGE,
+            ARTIFACT_COVERAGE_SHA,
+            "unlisted.rs",
+            "wrong",
+            None,
+        )
+        .is_none(),
+        "A06 unlisted route selected",
+    )?;
+    eprintln!(
+        "A06_ARTIFACT_SUCCESSOR_CONTROLS historical15_actual_current_callers_archives_modes_and_rehashed_edits_rejected=true"
     );
     Ok(())
 }
