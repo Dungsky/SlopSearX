@@ -49,7 +49,7 @@ fn validate(
 pub(super) fn archived_prior(root: &Path, expected: &Value) -> Result<Vec<u8>, String> {
     let doc = load(root)?;
     let prior = super::read(root, &doc["archive"])?;
-    let current = super::read(root, &doc["current"])?;
+    let current = super::a13_marker_successor::archived_prior(root, &doc["current"])?;
     validate(
         &doc,
         expected,
@@ -61,7 +61,7 @@ pub(super) fn archived_prior(root: &Path, expected: &Value) -> Result<Vec<u8>, S
 }
 pub(super) fn prove_current(root: &Path, expected: &Value, prior: &[u8]) -> Result<(), String> {
     let doc = load(root)?;
-    let current = super::read(root, &doc["current"])?;
+    let current = super::a13_marker_successor::archived_prior(root, &doc["current"])?;
     validate(
         &doc,
         expected,
@@ -72,7 +72,7 @@ pub(super) fn prove_current(root: &Path, expected: &Value, prior: &[u8]) -> Resu
 }
 pub(super) fn effective_current(root: &Path, expected: &Value) -> Result<Value, String> {
     archived_prior(root, expected)?;
-    Ok(load(root)?["current"].clone())
+    super::a13_marker_successor::effective_current(root, &load(root)?["current"])
 }
 pub(super) fn library_source(root: &Path, expected: &Value) -> Result<(), String> {
     let doc = load(root)?;
@@ -85,9 +85,10 @@ pub(super) fn library_source(root: &Path, expected: &Value) -> Result<(), String
 }
 #[cfg(test)]
 pub(super) fn controls(root: &Path) -> Result<(), String> {
+    super::a13_marker_successor::controls(root)?;
     let doc = load(root)?;
     let prior = super::read(root, &doc["archive"])?;
-    let current = super::read(root, &doc["current"])?;
+    let current = super::a13_marker_successor::archived_prior(root, &doc["current"])?;
     validate(&doc, &doc["prior"], &prior, &current, "0644")?;
     library_source(
         root,

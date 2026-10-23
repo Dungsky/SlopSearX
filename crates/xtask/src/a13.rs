@@ -691,6 +691,21 @@ fn compiled_suite_names(suite: &Suite) -> Vec<String> {
     }
     names
 }
+// The frozen qualification keeps its original128 markers. The reviewed header
+// successor adds one mandatory marker to this exact current-source selector.
+fn current_parent_markers(spec: &Selector) -> Vec<String> {
+    let mut expected = spec.markers.clone();
+    if spec.id == "dehashed-source_inventory_is_closed_and_bound_without_original_execution"
+        && spec.package == "ssx-infra"
+        && spec.kind == "test"
+        && spec.target == "a13_dehashed"
+        && spec.name == "source_inventory_is_closed_and_bound_without_original_execution"
+        && spec.source == "crates/ssx-infra/tests/a13_dehashed.rs"
+    {
+        expected.push("A13_HEADER_LAYOUT_CONTROLS exact119a_archive_current_and_scoped_proofs_wrong_caller_mode_old_as_current_and_rehashed_edits_rejected=true".into());
+    }
+    expected
+}
 pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
     #[cfg(test)]
     causal_successor::control_bridge(root)?;
@@ -797,7 +812,8 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
             compiled_suite_names(suite).len() - 1,
         )?;
         let actual = markers(&output, &spec.name, &spec.inline_payloads)?;
-        let mut expected = spec.markers.clone();
+        let parent_markers = current_parent_markers(spec);
+        let mut expected = parent_markers.clone();
         if spec.child.is_some() {
             expected.extend(child(&actual, spec, records)?);
         }
@@ -806,7 +822,7 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
             &expected,
             "A13 complete parent markers/child raw fields missing/extra/duplicate",
         )?;
-        records.push(json!({"A13_native_completion":spec.name,"parent_markers":spec.markers,"original_execution":false,"provider_calls":0}));
+        records.push(json!({"A13_native_completion":spec.name,"parent_markers":parent_markers,"original_execution":false,"provider_calls":0}));
     }
     let output = command(
         root,
@@ -1042,6 +1058,64 @@ mod tests {
     fn compiled_inventory_is_closed() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
         a06_source_successor::controls(&root).unwrap();
+        let qualification: Qualification =
+            serde_json::from_str(&std::fs::read_to_string(root.join(QUALIFICATION)).unwrap())
+                .unwrap();
+        validate(&qualification).unwrap();
+        let spec = qualification
+            .selectors
+            .iter()
+            .find(|spec| {
+                spec.id
+                    == "dehashed-source_inventory_is_closed_and_bound_without_original_execution"
+            })
+            .unwrap();
+        let extended = current_parent_markers(spec);
+        assert_eq!(
+            spec.markers,
+            strings(&["A13_DEHASHED_CASE_COMPLETE source-bindings-closed"])
+        );
+        assert_eq!(extended.len(), 2);
+        assert_eq!(extended[0], spec.markers[0]);
+        let header = "A13_HEADER_LAYOUT_CONTROLS exact119a_archive_current_and_scoped_proofs_wrong_caller_mode_old_as_current_and_rehashed_edits_rejected=true";
+        assert_eq!(extended[1], header);
+        assert!(same(&spec.markers, &extended, "missing header control").is_err());
+        let mut duplicate = extended.clone();
+        duplicate.push(header.into());
+        assert!(same(&duplicate, &extended, "duplicate header control").is_err());
+        let mut extra = extended.clone();
+        extra.push("A13_UNREVIEWED_CONTROL true".into());
+        assert!(same(&extra, &extended, "extra marker").is_err());
+        let mut altered = extended.clone();
+        altered[1].push('x');
+        assert!(same(&altered, &extended, "altered header control").is_err());
+        for field in ["id", "package", "kind", "target", "name", "source"] {
+            let mut value: Value =
+                serde_json::from_str(&std::fs::read_to_string(root.join(QUALIFICATION)).unwrap())
+                    .unwrap();
+            let selected = value["selectors"]
+                .as_array_mut()
+                .unwrap()
+                .iter_mut()
+                .find(|row| row["id"] == spec.id)
+                .unwrap();
+            selected[field] = json!("wrong");
+            let wrong: Selector = serde_json::from_value(selected.clone()).unwrap();
+            assert_eq!(current_parent_markers(&wrong), spec.markers);
+            assert!(
+                same(
+                    &extended,
+                    &current_parent_markers(&wrong),
+                    "wrong selector marker"
+                )
+                .is_err()
+            );
+        }
+        for other in &qualification.selectors {
+            if other.id != spec.id {
+                assert_eq!(current_parent_markers(other), other.markers);
+            }
+        }
         assert_eq!(
             listed("alpha: test\nbeta: test\n2 tests, 0 benchmarks\n").unwrap(),
             strings(&["alpha", "beta"])

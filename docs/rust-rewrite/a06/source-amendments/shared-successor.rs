@@ -13,6 +13,8 @@ const MANIFEST_SHA: &str = "864e6158d6d51cb13793ed4abed3df577c795c1ffb08940eb730
 const BASELINE: &str = "d5615ace90b827f31789ccf04c72aaad4516e8f7";
 #[path = "a13-json-inventory-successor.rs"]
 mod a13_json_inventory_successor;
+#[path = "a13-marker-successor.rs"]
+mod a13_marker_successor;
 const A13: &str = "crates/xtask/src/a13.rs";
 const SHA_PAIRS: &[(&str, &str)] = &[
     ("docs/rust-rewrite/a09/coverage.json", "Cargo.lock"),
