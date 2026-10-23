@@ -73,9 +73,124 @@ pub fn check_source_log(root: &Path, path: &Path) -> Result<()> {
         &expected,
     )
 }
+const ADMISSION_SUCCESSOR: &str =
+    "docs/rust-rewrite/a06/source-amendments/shared-admission-successor-v2.json";
+const ADMISSION_SUCCESSOR_SHA: &str =
+    "e9acae3d1d7cf7841d1dba2a3ccee5452a14d1b1d11734e669cff933f678a948";
+const ADMISSION_PATHS: &[&str] = &[
+    "crates/ssx-infra/src/adapters/arxiv_expat.rs",
+    "crates/ssx-infra/src/adapters/arxiv_runtime.rs",
+    "crates/ssx-infra/src/adapters/openalex_runtime.rs",
+    "crates/ssx-infra/src/adapters/semantic_runtime.rs",
+    "crates/ssx-infra/tests/a06_admission.rs",
+    "crates/ssx-infra/tests/support/a06_timeout_clock.rs",
+];
+fn admission_bytes(raw: &[u8], expected: &str, row: &Value) -> Result<()> {
+    if row.as_object().is_none_or(|v| v.len() != 6)
+        || row["historical_sha256"] != expected
+        || row["current_sha256"] != digest(raw)
+        || row["current_bytes"].as_u64() != Some(raw.len() as u64)
+    {
+        return Err("A06 shared admission exact current/caller differs".into());
+    }
+    let edits = row["edits"]
+        .as_array()
+        .ok_or("A06 admission edits absent")?;
+    if edits.is_empty() {
+        return Err("A06 admission edits empty".into());
+    }
+    let mut original = Vec::new();
+    let mut cursor = 0usize;
+    let mut old_cursor = 0usize;
+    for edit in edits {
+        if edit.as_object().is_none_or(|v| v.len() != 3) {
+            return Err("A06 admission edit shape differs".into());
+        }
+        let at = edit["at"]
+            .as_u64()
+            .and_then(|v| usize::try_from(v).ok())
+            .ok_or("A06 admission edit offset invalid")?;
+        let remove = edit["remove"]
+            .as_str()
+            .ok_or("A06 admission removal invalid")?
+            .as_bytes();
+        let insert = edit["insert"]
+            .as_str()
+            .ok_or("A06 admission insertion invalid")?
+            .as_bytes();
+        let unchanged = at
+            .checked_sub(old_cursor)
+            .ok_or("A06 admission edits overlap")?;
+        let start = cursor
+            .checked_add(unchanged)
+            .ok_or("A06 admission offset overflow")?;
+        let end = start
+            .checked_add(insert.len())
+            .ok_or("A06 admission offset overflow")?;
+        if raw.get(start..end) != Some(insert) {
+            return Err("A06 admission exact inserted bytes differ".into());
+        }
+        original.extend_from_slice(
+            raw.get(cursor..start)
+                .ok_or("A06 admission prefix absent")?,
+        );
+        original.extend_from_slice(remove);
+        cursor = end;
+        old_cursor = at
+            .checked_add(remove.len())
+            .ok_or("A06 admission offset overflow")?;
+    }
+    original.extend_from_slice(raw.get(cursor..).ok_or("A06 admission tail absent")?);
+    if row["historical_bytes"].as_u64() != Some(original.len() as u64)
+        || digest(&original) != expected
+    {
+        return Err("A06 admission edits do not reconstruct historical source".into());
+    }
+    Ok(())
+}
+fn admission_capsule(root: &Path) -> Result<Value> {
+    let raw = fs::read(root.join(ADMISSION_SUCCESSOR)).map_err(|e| e.to_string())?;
+    if digest(&raw) != ADMISSION_SUCCESSOR_SHA
+        || digest(
+            &fs::read(root.join("docs/rust-rewrite/a06/coverage.json"))
+                .map_err(|e| e.to_string())?,
+        ) != COVERAGE_SHA256
+    {
+        return Err("A06 admission capsule/frozen coverage changed".into());
+    }
+    let doc: Value = serde_json::from_slice(&raw).map_err(|e| e.to_string())?;
+    let rows = doc["sources"]
+        .as_array()
+        .ok_or("A06 admission sources absent")?;
+    let paths: BTreeSet<_> = rows.iter().filter_map(|r| r["path"].as_str()).collect();
+    if doc.as_object().is_none_or(|v| v.len() != 3)
+        || doc["schema"] != "A06_SHARED_ADMISSION_SUCCESSOR_V1"
+        || doc["coverage_sha256"] != COVERAGE_SHA256
+        || rows.len() != ADMISSION_PATHS.len()
+        || paths != ADMISSION_PATHS.iter().copied().collect()
+    {
+        return Err("A06 admission closed source selection differs".into());
+    }
+    Ok(doc)
+}
+
 fn verify_artifact(root: &Path, row: &Value) -> Result<()> {
     let path = row["path"].as_str().ok_or("A06 artifact path missing")?;
     let expected = row["sha256"].as_str().ok_or("A06 artifact hash missing")?;
+    if ADMISSION_PATHS.contains(&path) {
+        let doc = admission_capsule(root)?;
+        let selected = doc["sources"]
+            .as_array()
+            .ok_or("A06 admission sources absent")?
+            .iter()
+            .find(|r| r["path"] == path)
+            .ok_or("A06 admission source absent")?;
+        return admission_bytes(
+            &fs::read(root.join(path)).map_err(|e| e.to_string())?,
+            expected,
+            selected,
+        );
+    }
     if let Some(result) = crate::a13::a06_source_successor::try_verify(
         root,
         "docs/rust-rewrite/a06/coverage.json",
@@ -496,5 +611,22 @@ mod tests {
         fs::remove_dir_all(dir).unwrap();
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
         crate::a13::a06_source_successor::artifact_controls(&root).unwrap();
+        let doc = admission_capsule(&root).unwrap();
+        for row in doc["sources"].as_array().unwrap() {
+            let raw = fs::read(root.join(row["path"].as_str().unwrap())).unwrap();
+            let expected = row["historical_sha256"].as_str().unwrap();
+            admission_bytes(&raw, expected, row).unwrap();
+            assert!(admission_bytes(&raw, "wrong-caller", row).is_err());
+            let mut changed = raw.clone();
+            changed.push(0);
+            assert!(admission_bytes(&changed, expected, row).is_err());
+            let mut edits = row.clone();
+            edits["edits"][0]["at"] = json!(usize::MAX);
+            assert!(admission_bytes(&raw, expected, &edits).is_err());
+            let mut rehashed = row.clone();
+            rehashed["current_sha256"] = json!(digest(&changed));
+            rehashed["current_bytes"] = json!(changed.len());
+            assert!(admission_bytes(&changed, expected, &rehashed).is_err());
+        }
     }
 }

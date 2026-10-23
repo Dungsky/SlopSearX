@@ -130,30 +130,35 @@ impl OpenAlexAdapter {
         #[cfg(test)]
         self.http
             .record_scholarly_deadlines(network_deadline, deadline);
-        let operation =
-            match self
-                .lifecycle
-                .begin_raw_for_http(budget.clone(), deadline.into(), &self.http)
-            {
-                Ok(v) => v,
-                Err(RawAdmissionError::Deadline) => {
-                    return bare(EngineStatus::Timeout, None, start);
-                }
-                Err(RawAdmissionError::Shutdown) => {
-                    return bare(
-                        EngineStatus::Error,
-                        Some("OpenAlex lifecycle shutdown"),
-                        start,
-                    );
-                }
-                Err(RawAdmissionError::Saturated) => {
-                    return bare(
-                        EngineStatus::Error,
-                        Some("OpenAlex lifecycle saturated"),
-                        start,
-                    );
-                }
-            };
+        let operation = match self
+            .lifecycle
+            .begin_raw_for_http(
+                budget.clone(),
+                deadline.into(),
+                network_deadline.into(),
+                &self.http,
+            )
+            .await
+        {
+            Ok(v) => v,
+            Err(RawAdmissionError::Deadline) => {
+                return bare(EngineStatus::Timeout, None, start);
+            }
+            Err(RawAdmissionError::Shutdown) => {
+                return bare(
+                    EngineStatus::Error,
+                    Some("OpenAlex lifecycle shutdown"),
+                    start,
+                );
+            }
+            Err(RawAdmissionError::Saturated) => {
+                return bare(
+                    EngineStatus::Error,
+                    Some("OpenAlex lifecycle saturated"),
+                    start,
+                );
+            }
+        };
         let result = operation
             .run_until_cancelled(self.execute(
                 request,

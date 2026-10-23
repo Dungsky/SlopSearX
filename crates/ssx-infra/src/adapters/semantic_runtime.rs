@@ -116,30 +116,35 @@ impl SemanticAdapter {
         #[cfg(test)]
         self.http
             .record_scholarly_deadlines(network_deadline, deadline);
-        let operation =
-            match self
-                .lifecycle
-                .begin_raw_for_http(budget.clone(), deadline.into(), &self.http)
-            {
-                Ok(v) => v,
-                Err(RawAdmissionError::Deadline) => {
-                    return bare(EngineStatus::Timeout, None, start);
-                }
-                Err(RawAdmissionError::Shutdown) => {
-                    return bare(
-                        EngineStatus::Error,
-                        Some("Semantic Scholar lifecycle shutdown"),
-                        start,
-                    );
-                }
-                Err(RawAdmissionError::Saturated) => {
-                    return bare(
-                        EngineStatus::Error,
-                        Some("Semantic Scholar lifecycle saturated"),
-                        start,
-                    );
-                }
-            };
+        let operation = match self
+            .lifecycle
+            .begin_raw_for_http(
+                budget.clone(),
+                deadline.into(),
+                network_deadline.into(),
+                &self.http,
+            )
+            .await
+        {
+            Ok(v) => v,
+            Err(RawAdmissionError::Deadline) => {
+                return bare(EngineStatus::Timeout, None, start);
+            }
+            Err(RawAdmissionError::Shutdown) => {
+                return bare(
+                    EngineStatus::Error,
+                    Some("Semantic Scholar lifecycle shutdown"),
+                    start,
+                );
+            }
+            Err(RawAdmissionError::Saturated) => {
+                return bare(
+                    EngineStatus::Error,
+                    Some("Semantic Scholar lifecycle saturated"),
+                    start,
+                );
+            }
+        };
         let result = operation
             .run_until_cancelled(self.execute(request, budget, deadline, network_deadline, start))
             .await;

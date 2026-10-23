@@ -110,30 +110,35 @@ impl ArxivAdapter {
         #[cfg(test)]
         self.http
             .record_scholarly_deadlines(network_deadline, deadline);
-        let operation =
-            match self
-                .parser
-                .begin_raw_for_http(budget.clone(), deadline.into(), &self.http)
-            {
-                Ok(value) => value,
-                Err(RawAdmissionError::Deadline) => {
-                    return bare(EngineStatus::Timeout, None, start);
-                }
-                Err(RawAdmissionError::Shutdown) => {
-                    return bare(
-                        EngineStatus::Error,
-                        Some("arXiv native XML parser shutdown"),
-                        start,
-                    );
-                }
-                Err(RawAdmissionError::Saturated) => {
-                    return bare(
-                        EngineStatus::Error,
-                        Some("arXiv native XML parser saturated"),
-                        start,
-                    );
-                }
-            };
+        let operation = match self
+            .parser
+            .begin_raw_for_http(
+                budget.clone(),
+                deadline.into(),
+                network_deadline.into(),
+                &self.http,
+            )
+            .await
+        {
+            Ok(value) => value,
+            Err(RawAdmissionError::Deadline) => {
+                return bare(EngineStatus::Timeout, None, start);
+            }
+            Err(RawAdmissionError::Shutdown) => {
+                return bare(
+                    EngineStatus::Error,
+                    Some("arXiv native XML parser shutdown"),
+                    start,
+                );
+            }
+            Err(RawAdmissionError::Saturated) => {
+                return bare(
+                    EngineStatus::Error,
+                    Some("arXiv native XML parser saturated"),
+                    start,
+                );
+            }
+        };
         let fetched = operation
             .run_until_cancelled(self.fetch(request, budget, deadline, network_deadline))
             .await;

@@ -373,6 +373,22 @@ struct RawLease {
     _child: ssx_owned_budget::Charge,
     _output: std::sync::Arc<ssx_owned_budget::Charge>,
 }
+// The acquire future may own a semaphore reservation before its next poll.
+// Keep both that future and a delivered permit inside one cancellation guard.
+// Notification MUST follow both drops so shutdown can observe restored capacity.
+struct AdmissionAttempt<F> {
+    waiting: Option<F>,
+    permit: Option<tokio::sync::OwnedSemaphorePermit>,
+    drained: std::sync::Arc<tokio::sync::Notify>,
+}
+impl<F> Drop for AdmissionAttempt<F> {
+    fn drop(&mut self) {
+        drop(self.waiting.take());
+        drop(self.permit.take());
+        self.drained.notify_waiters();
+    }
+}
+
 impl RawOperation {
     fn expired(&self) -> bool {
         #[cfg(test)]
@@ -609,31 +625,62 @@ impl AtomPool {
             clock: None,
         })
     }
-    pub(crate) fn begin_raw_for_http(
+    /// Wait for the same single operation before HTTP. Queueing consumes the
+    /// already selected network deadline, never a renewed timeout; parsing keeps
+    /// the original caller operation deadline. Dropping this future removes its
+    /// semaphore waiter without creating a worker or retaining a permit.
+    pub(crate) async fn begin_raw_for_http(
         &self,
         budget: ssx_owned_budget::Budget,
         deadline: tokio::time::Instant,
+        network_deadline: tokio::time::Instant,
         http: &crate::http::AdapterHttp,
     ) -> Result<RawOperation, RawAdmissionError> {
+        let clock = http.deadline_clock();
         #[cfg(test)]
-        {
-            let clock = http.deadline_clock();
-            assert!(
-                !clock.is_manual() || clock.is_pending_only(),
-                "scholarly Manual owner is pending-only"
-            );
-            if clock.observed() {
-                if clock.expired(deadline.into_std()) {
-                    return Err(RawAdmissionError::Deadline);
-                }
-                let mut operation = self.begin_raw_admitted(budget, deadline)?;
-                operation.clock = Some(clock);
-                return Ok(operation);
-            }
+        assert!(
+            !clock.is_manual() || clock.is_pending_only(),
+            "scholarly Manual owner is pending-only"
+        );
+        let wait_deadline = deadline.min(network_deadline).into_std();
+        let mut closing = self.closing.subscribe();
+        if *closing.borrow() || self.admission.is_closed() {
+            return Err(RawAdmissionError::Shutdown);
         }
-        #[cfg(not(test))]
-        let _ = http;
-        self.begin_raw(budget, deadline)
+        if clock.expired(wait_deadline) {
+            return Err(RawAdmissionError::Deadline);
+        }
+        let mut attempt = AdmissionAttempt {
+            waiting: Some(Box::pin(self.admission.clone().acquire_owned())),
+            permit: None,
+            drained: self.drained.clone(),
+        };
+        attempt.permit = Some(tokio::select! {
+            biased;
+            _ = closing.changed() => return Err(RawAdmissionError::Shutdown),
+            _ = clock.sleep_until(wait_deadline) => return Err(RawAdmissionError::Deadline),
+            permit = attempt.waiting.as_mut().expect("admission acquire retained").as_mut() =>
+                permit.map_err(|_| RawAdmissionError::Shutdown)?,
+        });
+        // Closure or expiry can become ready together with the permit. Recheck
+        // before exposing operation ownership or polling any HTTP/source work.
+        if *closing.borrow() || self.admission.is_closed() {
+            return Err(RawAdmissionError::Shutdown);
+        }
+        if clock.expired(wait_deadline) {
+            return Err(RawAdmissionError::Deadline);
+        }
+        Ok(RawOperation {
+            pool: self.clone(),
+            operation: std::sync::Arc::new(Operation {
+                permit: attempt.permit.take(),
+                drained: self.drained.clone(),
+            }),
+            budget,
+            deadline,
+            #[cfg(test)]
+            clock: clock.observed().then_some(clock),
+        })
     }
     pub fn new(helper: PathBuf, capacity: NonZeroUsize) -> Result<Self, ProcessError> {
         // Initial reviewed operational policy is exactly one operation. Raising

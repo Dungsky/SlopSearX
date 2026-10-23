@@ -385,15 +385,23 @@ async fn sealed_pending_owner_rejects_replacement_context_and_worker_entry() {
         NonZeroUsize::new(1).unwrap(),
     )
     .unwrap();
+    let unsupported_deadline = unsupported_driver.now() + Duration::from_secs(1);
+    let mut unsupported_admission = Box::pin(unsupported_pool.begin_raw_for_http(
+        ssx_owned_budget::Budget::new(512 * 1024 * 1024).unwrap(),
+        unsupported_deadline.into(),
+        unsupported_deadline.into(),
+        &unsupported,
+    ));
+    // Async construction does not enter the owner check: poll it inside the
+    // panic boundary so the original forbidden-owner assertion still executes.
     assert!(
-        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| unsupported_pool
-            .begin_raw_for_http(
-                ssx_owned_budget::Budget::new(512 * 1024 * 1024).unwrap(),
-                (unsupported_driver.now() + Duration::from_secs(1)).into(),
-                &unsupported
-            )))
+        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let mut cx = std::task::Context::from_waker(std::task::Waker::noop());
+            std::future::Future::poll(unsupported_admission.as_mut(), &mut cx)
+        }))
         .is_err()
     );
+    drop(unsupported_admission);
     unsupported_pool.shutdown().await.unwrap();
     unsupported.shutdown_and_wait().await;
     let (_, _, other) = AdapterHttp::pending_replay_owner(true);
@@ -413,8 +421,10 @@ async fn sealed_pending_owner_rejects_replacement_context_and_worker_entry() {
         .begin_raw_for_http(
             ssx_owned_budget::Budget::new(512 * 1024 * 1024).unwrap(),
             deadline.into(),
+            deadline.into(),
             &http,
         )
+        .await
         .unwrap();
     let child = tokio::spawn(async move { operation.parse(std::iter::empty(), b"").await });
     assert!(child.await.unwrap_err().is_panic());
