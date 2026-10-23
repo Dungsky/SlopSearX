@@ -363,7 +363,18 @@ fn check_caller(
                 .as_u64()
                 .map(|n| n as usize)
                 == expected_bytes,
-        "PR1034 caller tuple changed",
+        &format!(
+            "PR1034 caller tuple changed: container={} source={} sealed_container_sha={} supplied_container_sha={} actual_operand_sha={} sealed_source_sha={} supplied_source_sha={} sealed_bytes={} supplied_bytes={:?}",
+            binding["container_path"],
+            binding["source_path"],
+            binding["container_sha256"],
+            container_sha,
+            digest(container),
+            binding["caller_expected_sha256"],
+            expected_sha,
+            binding["caller_expected_bytes"],
+            expected_bytes
+        ),
     )?;
     let document: Value = serde_json::from_slice(container).map_err(|e| e.to_string())?;
     let pointer = format!("/{}", text(binding, "row")?);
@@ -1367,7 +1378,8 @@ fn verify_factory_current(
 ) -> Result<(), String> {
     let raw = fs::read(root.join(FACTORY_MANIFEST)).map_err(|e| e.to_string())?;
     let document = factory_document(&raw)?;
-    let container = fs::read(root.join(FACTORY_CONTAINER)).map_err(|e| e.to_string())?;
+    let container =
+        a06_source_successor::historical_caller(root, FACTORY_CONTAINER, container_sha)?;
     check_caller(
         &document["binding"],
         container_sha,
@@ -1408,7 +1420,8 @@ fn verify_factory_current(
 fn factory_controls(root: &Path) -> Result<(), String> {
     let raw = fs::read(root.join(FACTORY_MANIFEST)).map_err(|e| e.to_string())?;
     let document = factory_document(&raw)?;
-    let container = fs::read(root.join(FACTORY_CONTAINER)).map_err(|e| e.to_string())?;
+    let container =
+        a06_source_successor::historical_caller(root, FACTORY_CONTAINER, FACTORY_CONTAINER_SHA)?;
     let current = CurrentSuccessor {
         path: FACTORY_SOURCE.into(),
         bytes: read_material(root, &document["current"], "factory control CURRENT")?,

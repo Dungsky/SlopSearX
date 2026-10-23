@@ -2,7 +2,7 @@
 use serde_json::{Value, json};
 use std::{fs, path::Path, process::Command};
 const CAPSULE: &str = "docs/rust-rewrite/a06/source-amendments/post-a06-generation-v1.json";
-const SHA: &str = "f8b109e6a2c1e6c6b8ab33c337473fa3bfc749bd184ed669fb115991dbb5cfe3";
+const SHA: &str = "5b7ff0786855e613a9da549aeaab63c387061c03657053e2cf4a6eaade03609b";
 fn document(raw: &[u8]) -> Result<Value, String> {
     super::need(super::digest(raw) == SHA, "T02 generation capsule changed")?;
     let doc: Value = serde_json::from_slice(raw).map_err(|e| e.to_string())?;
@@ -11,7 +11,7 @@ fn document(raw: &[u8]) -> Result<Value, String> {
             && doc["source_parent"] == "233c7934f9e2da5c2e94f0c1213945335d786502"
             && doc["continuation_head"] == "4de0d641ea6e80b398f2cc12b46b2c818608bbac"
             && doc["rows"].as_array().is_some_and(|r| r.len() == 24)
-            && doc["callers"].as_array().is_some_and(|r| r.len() == 76),
+            && doc["callers"].as_array().is_some_and(|r| r.len() == 77),
         "T02 generation closed membership",
     )?;
     Ok(doc)
@@ -19,7 +19,7 @@ fn document(raw: &[u8]) -> Result<Value, String> {
 fn load(root: &Path) -> Result<Value, String> {
     document(&super::read_exact(
         root,
-        &json!({"path":CAPSULE,"sha256":SHA,"bytes":124038,"mode":"0644"}),
+        &json!({"path":CAPSULE,"sha256":SHA,"bytes":124661,"mode":"0644"}),
     )?)
 }
 fn tuple(expected: &Value, sealed: &Value) -> bool {
@@ -240,6 +240,16 @@ pub(super) fn try_current(
             super::super::try_verify(root, container, old_hash, source, old_expected, old_bytes)
                 .ok_or("T02 original scoped route absent")??;
         }
+        if route == "factory" {
+            super::super::verify_current(
+                root,
+                container,
+                old_hash,
+                source,
+                old_expected,
+                old_bytes,
+            )?;
+        }
         if binding["route"] == "direct" {
             if let Some(row) = doc["rows"]
                 .as_array()
@@ -381,7 +391,7 @@ pub(super) fn controls(root: &Path) -> Result<(), String> {
         "T02 rehashed sidecar accepted",
     )?;
     eprintln!(
-        "T02_POST_A06_GENERATION_CONTROLS closed24_sources_76_callers_git_archives_modes_order_and_rehashed_mutations_rejected=true"
+        "T02_POST_A06_GENERATION_CONTROLS closed24_sources_77_callers_git_archives_modes_order_and_rehashed_mutations_rejected=true"
     );
     Ok(())
 }
