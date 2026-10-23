@@ -639,7 +639,18 @@ pub(crate) fn verify(root: &Path, records: &mut Vec<Value>) -> Result<Value> {
         &doc["effective_headers"],
     ] {
         let path = str_field(row, "path")?;
-        materials.insert(path.to_owned(), load(root, path)?);
+        let material = if path == "crates/ssx-infra/src/http.rs" {
+            Material {
+                bytes: crate::a13::a06_source_successor::real_clock_http_prior(
+                    root,
+                    crate::a13::a06_source_successor::RealClockHttpCaller::A08,
+                )?,
+                mode: 0o644,
+            }
+        } else {
+            load(root, path)?
+        };
+        materials.insert(path.to_owned(), material);
     }
     let effective = validate(&doc, &|p| {
         materials

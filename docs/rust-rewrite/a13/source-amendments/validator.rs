@@ -114,7 +114,14 @@ fn verify_additional_source(
 fn verify_additional_source_file(root: &Path, manifest: &Value) -> Result<(), String> {
     let path = root.join("crates/ssx-infra/tests/support/http_expired_startup.rs");
     let bytes = fs::read(&path).map_err(|error| error.to_string())?;
-    verify_additional_source(manifest, &bytes, &mode(&path)?)
+    let source_mode = mode(&path)?;
+    let historical = causal_successor::a06_source_successor::real_clock_additional_source(
+        root,
+        manifest,
+        &bytes,
+        &source_mode,
+    )?;
+    verify_additional_source(manifest, &historical, "0644")
 }
 
 struct PinCheck<'a> {
@@ -658,7 +665,15 @@ pub fn rejects_mutants(root: &Path) -> Result<(), String> {
     validate_scope(&manifest)?;
     verify_additional_source_file(root, &manifest)?;
     let added_path = root.join("crates/ssx-infra/tests/support/http_expired_startup.rs");
-    let mut added_bytes = fs::read(&added_path).map_err(|error| error.to_string())?;
+    let actual_added_bytes = fs::read(&added_path).map_err(|error| error.to_string())?;
+    // Original negative mutates proven09ee only after mandatory actual-child proof.
+    let mut added_bytes = causal_successor::a06_source_successor::real_clock_additional_source(
+        root,
+        &manifest,
+        &actual_added_bytes,
+        &mode(&added_path)?,
+    )?;
+    verify_additional_source(&manifest, &added_bytes, "0644")?;
     added_bytes.push(0);
     require(
         verify_additional_source(&manifest, &added_bytes, &mode(&added_path)?).is_err(),
@@ -1100,7 +1115,15 @@ pub(crate) fn rejects_mutants_on_historical_evidence(
     validate_scope(&manifest)?;
     verify_additional_source_file(root, &manifest)?;
     let added_path = root.join("crates/ssx-infra/tests/support/http_expired_startup.rs");
-    let mut added_bytes = fs::read(&added_path).map_err(|error| error.to_string())?;
+    let actual_added_bytes = fs::read(&added_path).map_err(|error| error.to_string())?;
+    // Original negative mutates proven09ee only after mandatory actual-child proof.
+    let mut added_bytes = causal_successor::a06_source_successor::real_clock_additional_source(
+        root,
+        &manifest,
+        &actual_added_bytes,
+        &mode(&added_path)?,
+    )?;
+    verify_additional_source(&manifest, &added_bytes, "0644")?;
     added_bytes.push(0);
     require(
         verify_additional_source(&manifest, &added_bytes, &mode(&added_path)?).is_err(),

@@ -1090,7 +1090,7 @@ impl Session {
         // Timer readiness may lag the owner's clock (for example within a
         // Tokio timer tick). Reject expired startup before request accounting,
         // transport dispatch or client checkout, retaining stop/cancel priority.
-        if self.clock.now() >= self.deadline.into_std() {
+        if self.clock.expired(self.deadline.into_std()) {
             return Err(Error::Deadline);
         }
         let cancel = self.cancel.clone();

@@ -74,6 +74,21 @@ fn load(root: &Path, path: &str) -> Result<Material> {
         mode,
     })
 }
+/// Named09ee operand only at this private proof boundary, after actual-child proof.
+fn composition_material(root: &Path, path: &str) -> Result<Material> {
+    if path == "crates/ssx-infra/src/http.rs" {
+        Ok(Material {
+            bytes: crate::a13::a06_source_successor::real_clock_http_prior(
+                root,
+                crate::a13::a06_source_successor::RealClockHttpCaller::A07,
+            )?,
+            mode: 0o644,
+        })
+    } else {
+        load(root, path)
+    }
+}
+
 fn check_material(row: &Value, material: &Material) -> Result<()> {
     require(
         row["bytes"].as_u64() == Some(material.bytes.len() as u64)
@@ -187,7 +202,7 @@ pub(super) fn verify_sources(
     let capsule = load(root, CAPSULE)?;
     require(capsule.mode == 0o644, "A07 composition capsule mode")?;
     let doc = parse(&capsule.bytes)?;
-    verify_payload(&doc, predecessor, &|p| load(root, p))?;
+    verify_payload(&doc, predecessor, &|p| composition_material(root, p))?;
     records.push(json!({"A07_source_composition":{"capsule":CAPSULE,"sha256":CAPSULE_SHA,"transitions":4,"fixed_sources":16,"frozen_evidence":"unchanged; exact historical Git inventory checks retained"}}));
     Ok(doc)
 }
@@ -323,12 +338,12 @@ pub(super) fn controls(root: &Path) {
     for t in doc["transitions"].as_array().unwrap() {
         for row in [&t["archive"], &t["after"]] {
             let p = row["path"].as_str().unwrap();
-            materials.insert(p.to_owned(), load(root, p).unwrap());
+            materials.insert(p.to_owned(), composition_material(root, p).unwrap());
         }
     }
     for row in doc["fixed_sources"].as_array().unwrap() {
         let p = row["path"].as_str().unwrap();
-        materials.insert(p.to_owned(), load(root, p).unwrap());
+        materials.insert(p.to_owned(), composition_material(root, p).unwrap());
     }
     let verify = |d: &Value, p: &Value, m: &BTreeMap<String, Material>| {
         verify_payload(d, p, &|path| {

@@ -2,6 +2,8 @@
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::{fs, path::Path};
+#[path = "real-clock-successor.rs"]
+mod real_clock_successor;
 const MANIFEST: &str = "docs/rust-rewrite/a06/source-amendments/shared-successor-v2.json";
 const PREDECESSOR: &str = "docs/rust-rewrite/a06/source-amendments/shared-successor-v1.json";
 const VALIDATOR: &str = "docs/rust-rewrite/a13/source-amendments/validator.rs";
@@ -465,23 +467,58 @@ fn source<'a>(doc: &'a Value, path: &str) -> Result<&'a Value, String> {
 }
 fn verify_transition(root: &Path, row: &Value) -> Result<(Vec<u8>, Vec<u8>), String> {
     let before = read(root, &row["archive"])?;
-    let actual = read(root, &row["current"])?;
+    let path = text(&row["current"], "path")?;
+    let selected_child = real_clock_successor::selected(path);
+    let historical = if selected_child {
+        real_clock_successor::archived_prior(
+            root,
+            &row["current"],
+            real_clock_successor::Role::SharedCurrent,
+        )?
+    } else {
+        read(root, &row["current"])?
+    };
+    // Original main-to09ee proof remains exact and is completed first.
     transition(
         row,
         &before,
-        &actual,
-        &permissions(&root.join(text(&row["current"], "path")?))?,
+        &historical,
+        "0644",
         text(row, "edits_sha256")?,
     )?;
-    Ok((before, actual))
+    if selected_child {
+        real_clock_successor::prove_current(
+            root,
+            &row["current"],
+            real_clock_successor::Role::SharedCurrent,
+            &historical,
+        )?;
+    } else {
+        material(
+            &row["current"],
+            &historical,
+            &permissions(&root.join(path))?,
+        )?;
+    }
+    Ok((before, historical))
 }
 fn frozen(root: &Path, doc: &Value) -> Result<(), String> {
     for row in doc["immutable_predecessors"]
         .as_array()
         .ok_or("A06 predecessor authority absent")?
     {
-        read(root, row)?;
+        if row["path"] == "crates/ssx-infra/tests/support/http_expired_startup.rs" {
+            real_clock_successor::proven_historical(
+                root,
+                row,
+                real_clock_successor::Role::FrozenSupport,
+            )?;
+        } else {
+            read(root, row)?;
+        }
     }
+    real_clock_http_prior(root, RealClockHttpCaller::A07)?;
+    real_clock_http_prior(root, RealClockHttpCaller::A08)?;
     Ok(())
 }
 fn pair<'a>(
@@ -573,7 +610,7 @@ pub(crate) fn try_verify(
         frozen(root, &doc)?;
         let (_, actual) = verify_transition(root, source(&doc, path)?)?;
         eprintln!(
-            "A06_SHARED_CURRENT_PROOF source={path} current_sha256={} prior_binding={expected}",
+            "A06_SHARED_CURRENT_PROOF source={path} reviewed09ee_sha256={} prior_binding={expected}",
             digest(&actual)
         );
         Ok(())
@@ -620,8 +657,17 @@ where
         let accepted = &binding["accepted_archive"];
         read(root, accepted)?;
         let archived_blob = archived_blob(text(accepted, "path")?)?;
+        let current = if real_clock_successor::selected(path) {
+            real_clock_successor::effective_current(
+                root,
+                &row["current"],
+                real_clock_successor::Role::SharedCurrent,
+            )?
+        } else {
+            row["current"].clone()
+        };
         need(
-            archived_blob.trim() == expected && row["current"]["git_blob"] == actual_blob,
+            archived_blob.trim() == expected && current["git_blob"] == actual_blob,
             "A06 exact accepted/current Git blob differs",
         )?;
         Ok(())
@@ -656,21 +702,39 @@ pub(crate) fn compose_scoped(root: &Path, previous: &Value) -> Result<Value, Str
             row["edits"] = json!(replacement["scoped_edits"].as_array().ok_or("A06 scoped edits absent")?.iter().map(|edit| {
                 Ok(json!({"at":edit["at"],"remove":text(edit,"remove_utf8")?.as_bytes(),"insert":text(edit,"insert_utf8")?.as_bytes()}))
             }).collect::<Result<Vec<Value>, String>>()?);
+            if path == "crates/ssx-infra/src/http.rs" {
+                *row = real_clock_successor::scoped_http(root, row, &historical)?;
+            }
         }
     }
     for row in next["additional_current_materials"]
         .as_array_mut()
         .ok_or("A06 scoped current materials absent")?
     {
-        let path = text(row, "path")?;
-        if TRANSITION_PATHS.contains(&path) {
-            let replacement = source(&doc, path)?;
+        let path = text(row, "path")?.to_owned();
+        if TRANSITION_PATHS.contains(&path.as_str()) {
+            let replacement = source(&doc, &path)?;
             need(
                 *row == replacement["baseline"],
                 "A06 additional predecessor differs",
             )?;
             verify_transition(root, replacement)?;
             *row = replacement["current"].clone();
+            if path == VALIDATOR {
+                *row = real_clock_successor::effective_current(
+                    root,
+                    row,
+                    real_clock_successor::Role::SharedCurrent,
+                )?;
+            }
+        }
+    }
+    for row in next["historical_chain_materials"]
+        .as_array_mut()
+        .ok_or("A06 scoped historical materials absent")?
+    {
+        if row["path"] == "crates/ssx-infra/tests/support/http_expired_startup.rs" {
+            *row = real_clock_successor::scoped_history(root, row)?;
         }
     }
     Ok(next)
@@ -693,11 +757,16 @@ pub(crate) fn validator_baseline(
 ) -> Result<(Value, Vec<u8>), String> {
     let doc = load(root)?;
     let row = source(&doc, VALIDATOR)?;
+    let (before, _) = verify_transition(root, row)?;
+    let effective = real_clock_successor::effective_current(
+        root,
+        &row["current"],
+        real_clock_successor::Role::SharedCurrent,
+    )?;
     need(
-        *requested == row["baseline"] || *requested == row["current"],
+        *requested == row["baseline"] || *requested == row["current"] || *requested == effective,
         "A06 validator predecessor/current request differs",
     )?;
-    let (before, _) = verify_transition(root, row)?;
     Ok((row["baseline"].clone(), before))
 }
 pub(crate) fn security_lock_baseline(
@@ -756,10 +825,17 @@ pub(crate) fn legacy_control_operand(
 pub(crate) fn current_http(root: &Path, actual: &[u8]) -> Result<bool, String> {
     let doc = load(root)?;
     let row = source(&doc, "crates/ssx-infra/src/http.rs")?;
-    Ok(row["current"]["sha256"] == digest(actual))
+    verify_transition(root, row)?;
+    let current = real_clock_successor::effective_current(
+        root,
+        &row["current"],
+        real_clock_successor::Role::SharedCurrent,
+    )?;
+    Ok(read(root, &current)? == actual)
 }
 #[cfg(test)]
 pub(crate) fn controls(root: &Path) -> Result<(), String> {
+    real_clock_successor::controls(root)?;
     let doc = load(root)?;
     frozen(root, &doc)?;
     scope(&doc)?;
@@ -1105,7 +1181,16 @@ fn artifact_transition(
 }
 fn artifact_current(root: &Path, row: &Value) -> Result<(), String> {
     let before = read(root, &row["archive"])?;
-    let actual = read(root, &row["current"])?;
+    let child_http = row["current"]["path"] == "crates/ssx-infra/src/http.rs";
+    let actual = if child_http {
+        real_clock_successor::archived_prior(
+            root,
+            &row["current"],
+            real_clock_successor::Role::ArtifactCurrent,
+        )?
+    } else {
+        read(root, &row["current"])?
+    };
     artifact_transition(
         row,
         &before,
@@ -1123,6 +1208,23 @@ fn artifact_current(root: &Path, row: &Value) -> Result<(), String> {
             shared_actual == actual,
             "A06 artifact/shared current differs",
         )?;
+        if child_http {
+            let artifact_child = real_clock_successor::prove_current(
+                root,
+                &row["current"],
+                real_clock_successor::Role::ArtifactCurrent,
+                &actual,
+            )?;
+            let shared_child = real_clock_successor::effective_current(
+                root,
+                &source(&shared, path)?["current"],
+                real_clock_successor::Role::SharedCurrent,
+            )?;
+            need(
+                read(root, &artifact_child)? == read(root, &shared_child)?,
+                "A06 artifact/shared effective child differs",
+            )?;
+        }
     }
     Ok(())
 }
@@ -1173,7 +1275,15 @@ pub(crate) fn artifact_controls(root: &Path) -> Result<(), String> {
         .ok_or("A06 artifact current route absent")??;
         let row = source(&doc, path)?;
         let before = read(root, &row["archive"])?;
-        let actual = read(root, &row["current"])?;
+        let actual = if path == "crates/ssx-infra/src/http.rs" {
+            real_clock_successor::proven_historical(
+                root,
+                &row["current"],
+                real_clock_successor::Role::ArtifactCurrent,
+            )?
+        } else {
+            read(root, &row["current"])?
+        };
         let edit_sha = text(row, "edits_sha256")?;
         let coverage = read(root, &doc["coverage"])?;
         for (bad_container, bad_old, bad_count) in [
@@ -1328,4 +1438,34 @@ pub(crate) fn artifact_controls(root: &Path) -> Result<(), String> {
         "A06_ARTIFACT_SUCCESSOR_CONTROLS historical15_actual_current_callers_archives_modes_and_rehashed_edits_rejected=true"
     );
     Ok(())
+}
+
+/// Exact live A13 additional-source caller; no unlisted historical byte fallback.
+pub(crate) fn real_clock_additional_source(
+    root: &Path,
+    manifest: &Value,
+    supplied: &[u8],
+    mode: &str,
+) -> Result<Vec<u8>, String> {
+    real_clock_successor::a13_additional(root, manifest, supplied, mode)
+}
+
+#[derive(Clone, Copy)]
+pub(crate) enum RealClockHttpCaller {
+    A07,
+    A08,
+}
+/// Only private historical-proof loaders may receive09ee after actual-child proof.
+pub(crate) fn real_clock_http_prior(
+    root: &Path,
+    caller: RealClockHttpCaller,
+) -> Result<Vec<u8>, String> {
+    let doc = load(root)?;
+    let (_, shared_prior) = verify_transition(root, source(&doc, "crates/ssx-infra/src/http.rs")?)?;
+    let named_prior = real_clock_successor::private_http(root, caller)?;
+    need(
+        named_prior == shared_prior,
+        "real-clock private/shared09ee prior differs",
+    )?;
+    Ok(named_prior)
 }
