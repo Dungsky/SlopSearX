@@ -11,6 +11,8 @@ const PREDECESSOR: &str = "docs/rust-rewrite/a06/source-amendments/shared-succes
 const VALIDATOR: &str = "docs/rust-rewrite/a13/source-amendments/validator.rs";
 const MANIFEST_SHA: &str = "864e6158d6d51cb13793ed4abed3df577c795c1ffb08940eb7309f4ef21efb3b";
 const BASELINE: &str = "d5615ace90b827f31789ccf04c72aaad4516e8f7";
+#[path = "a13-json-inventory-successor.rs"]
+mod a13_json_inventory_successor;
 const A13: &str = "crates/xtask/src/a13.rs";
 const SHA_PAIRS: &[(&str, &str)] = &[
     ("docs/rust-rewrite/a09/coverage.json", "Cargo.lock"),
@@ -472,7 +474,9 @@ fn verify_transition(root: &Path, row: &Value) -> Result<(Vec<u8>, Vec<u8>), Str
     let path = text(&row["current"], "path")?;
     let selected_child = real_clock_successor::selected(path);
     let selected_layout = path == a13_header_layout_successor::SOURCE;
-    let historical = if selected_layout {
+    let historical = if path == A13 {
+        a13_json_inventory_successor::archived_prior(root, &row["current"])?
+    } else if selected_layout {
         a13_header_layout_successor::archived_prior(root, &row["current"])?
     } else if selected_child {
         real_clock_successor::archived_prior(
@@ -491,7 +495,9 @@ fn verify_transition(root: &Path, row: &Value) -> Result<(Vec<u8>, Vec<u8>), Str
         "0644",
         text(row, "edits_sha256")?,
     )?;
-    if selected_layout {
+    if path == A13 {
+        a13_json_inventory_successor::prove_current(root, &row["current"], &historical)?;
+    } else if selected_layout {
         a13_header_layout_successor::prove_current(root, &row["current"], &historical)?;
     } else if selected_child {
         real_clock_successor::prove_current(
@@ -664,7 +670,9 @@ where
         let accepted = &binding["accepted_archive"];
         read(root, accepted)?;
         let archived_blob = archived_blob(text(accepted, "path")?)?;
-        let current = if real_clock_successor::selected(path) {
+        let current = if path == A13 {
+            a13_json_inventory_successor::effective_current(root, &row["current"])?
+        } else if real_clock_successor::selected(path) {
             real_clock_successor::effective_current(
                 root,
                 &row["current"],
@@ -730,6 +738,9 @@ pub(crate) fn compose_scoped(root: &Path, previous: &Value) -> Result<Value, Str
             )?;
             verify_transition(root, replacement)?;
             *row = replacement["current"].clone();
+            if path == A13 {
+                *row = a13_json_inventory_successor::effective_current(root, row)?;
+            }
             if path == VALIDATOR {
                 *row = real_clock_successor::effective_current(
                     root,
@@ -754,8 +765,9 @@ pub(crate) fn compose_scoped(root: &Path, previous: &Value) -> Result<Value, Str
 pub(crate) fn a13_baseline(root: &Path, requested: &Value) -> Result<(Value, Vec<u8>), String> {
     let doc = load(root)?;
     let row = source(&doc, A13)?;
+    let effective = a13_json_inventory_successor::effective_current(root, &row["current"])?;
     need(
-        *requested == row["baseline"] || *requested == row["current"],
+        *requested == row["baseline"] || *requested == row["current"] || *requested == effective,
         "A06 A13 predecessor/current request differs",
     )?;
     let (before, _) = verify_transition(root, row)?;
@@ -845,6 +857,7 @@ pub(crate) fn current_http(root: &Path, actual: &[u8]) -> Result<bool, String> {
 }
 #[cfg(test)]
 pub(crate) fn controls(root: &Path) -> Result<(), String> {
+    a13_json_inventory_successor::controls(root)?;
     real_clock_successor::controls(root)?;
     let doc = load(root)?;
     frozen(root, &doc)?;
@@ -1484,4 +1497,8 @@ pub(crate) fn real_clock_http_prior(
 #[allow(dead_code)]
 pub(crate) fn a13_header_layout_controls(root: &Path) -> Result<(), String> {
     a13_header_layout_successor::controls(root)
+}
+
+pub(crate) fn a13_inventory_library_source(root: &Path, expected: &Value) -> Result<(), String> {
+    a13_json_inventory_successor::library_source(root, expected)
 }

@@ -107,6 +107,10 @@ const A06_LIB_TESTS: &[&str] = &[
     "http::scholarly_timeout_clock::sealed_pending_owner_rejects_replacement_context_and_worker_entry",
     "jev::ready_constructor_tests::actual_production_ready_router_constructor_prepares_without_dispatch",
 ];
+const A06_JSON_TESTS: &[&str] = &[
+    "float::buffer_tests::provided_scratch_never_reallocates_across_grammar_and_numeric_paths",
+    "float::buffer_tests::storage_refusal_and_constructor_errors_are_distinct",
+];
 const QUALIFICATION: &str = "docs/rust-rewrite/a13/qualification-v1.json";
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -682,6 +686,9 @@ fn compiled_suite_names(suite: &Suite) -> Vec<String> {
     if suite.package == "ssx-infra" && suite.kind == "lib" && suite.target == "ssx_infra" {
         names.extend(A06_LIB_TESTS.iter().map(|name| (*name).to_owned()));
     }
+    if suite.package == "ssx-json" && suite.kind == "lib" && suite.target == "ssx_json" {
+        names.extend(A06_JSON_TESTS.iter().map(|name| (*name).to_owned()));
+    }
     names
 }
 pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
@@ -1053,6 +1060,44 @@ mod tests {
             kind: kind.into(),
             names: strings(&["sentinel"]),
         };
+        let json = compiled_suite_names(&suite_for("ssx-json", "lib", "ssx_json"));
+        assert_eq!(json.len(), 1 + A06_JSON_TESTS.len());
+        assert_eq!(A06_JSON_TESTS.len(), 2);
+        assert_eq!(
+            A06_JSON_TESTS
+                .iter()
+                .copied()
+                .collect::<BTreeSet<_>>()
+                .len(),
+            2
+        );
+        for name in A06_JSON_TESTS {
+            assert_eq!(
+                json.iter()
+                    .filter(|actual| actual.as_str() == *name)
+                    .count(),
+                1
+            );
+            let mut omitted = json.clone();
+            omitted.retain(|actual| actual.as_str() != *name);
+            assert!(same(&omitted, &json, "A06 omitted JSON compiled identity").is_err());
+            let mut repeated = json.clone();
+            repeated.push((*name).into());
+            assert!(same(&repeated, &json, "A06 duplicated JSON compiled identity").is_err());
+        }
+        let mut extra_json = json.clone();
+        extra_json.push("unrelated::unexpected_json_test".into());
+        assert!(same(&extra_json, &json, "A06 extra JSON compiled identity").is_err());
+        for (package, kind, target) in [
+            ("other", "lib", "ssx_json"),
+            ("ssx-json", "test", "ssx_json"),
+            ("ssx-json", "lib", "other"),
+        ] {
+            assert_eq!(
+                compiled_suite_names(&suite_for(package, kind, target)),
+                strings(&["sentinel"])
+            );
+        }
         let exact = compiled_suite_names(&suite_for("ssx-infra", "lib", "ssx_infra"));
         let count = |needle: &str| exact.iter().filter(|name| name.as_str() == needle).count();
         assert_eq!(count("sentinel"), 1);

@@ -157,7 +157,7 @@ fn current_library_inventory(root: &Path) -> Result<Value> {
         return Err("A06 library derivation source path changed".into());
     }
     verify_artifact(root, &doc["qualification"])?;
-    verify_artifact(root, &doc["a13_source"])?;
+    crate::a13::a06_source_successor::a13_inventory_library_source(root, &doc["a13_source"])?;
     Ok(doc)
 }
 fn current_tests_for_platform(group: &Value, doc: &Value, linux: bool) -> Result<BTreeSet<String>> {
