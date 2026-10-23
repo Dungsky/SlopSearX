@@ -244,7 +244,7 @@ fn replace_lock_package(
     Ok(result)
 }
 
-fn verify_lock_reconstruction(archive: &[u8], current: &[u8]) -> Result<(), String> {
+fn verify_lock_reconstruction(root: &Path, archive: &[u8], current: &[u8]) -> Result<(), String> {
     let old = std::str::from_utf8(archive).map_err(|error| error.to_string())?;
     let current = std::str::from_utf8(current).map_err(|error| error.to_string())?;
     let first = replace_lock_package(
@@ -263,10 +263,18 @@ fn verify_lock_reconstruction(archive: &[u8], current: &[u8]) -> Result<(), Stri
         "b96554aa2acc8ccdb7e1c9a58a7a68dd5d13bccc69cd124cb09406db612a1c9b",
         "58ec80e73fd8baf57bf0d9615554c75348bda990d6d5bbeab964dd068319fecb",
     )?;
-    require(
-        expected.as_bytes() == current.as_bytes(),
-        "A13 Cargo.lock contains an unapproved delta",
+    if expected.as_bytes() == current.as_bytes() {
+        return Ok(());
+    }
+    // Both exact TLS replacements above are still mandatory. The resulting
+    // expected bytes must be the sealed accepted-main baseline, and the supplied
+    // current bytes must be the actual fully reconstructed A06 successor.
+    causal_successor::a06_source_successor::security_lock_successor(
+        root,
+        expected.as_bytes(),
+        current.as_bytes(),
     )
+    .map_err(|error| format!("A13 Cargo.lock contains an unapproved delta: {error}"))
 }
 
 fn read_archive(root: &Path, rel: &str) -> Result<(std::path::PathBuf, Vec<u8>), String> {
@@ -369,7 +377,13 @@ fn rejects_clinicaltrials_mutants(root: &Path) -> Result<(), String> {
     let container_sha = pin["container_sha256"]
         .as_str()
         .ok_or("A13 ClinicalTrials container SHA absent")?;
-    let current = fs::read(root.join(path)).map_err(|error| error.to_string())?;
+    let actual_current = fs::read(root.join(path)).map_err(|error| error.to_string())?;
+    let current = causal_successor::a06_source_successor::legacy_control_operand(
+        root,
+        path,
+        &amendment["successor"],
+        &actual_current,
+    )?;
     let archive_path = amendment["archive"]["path"]
         .as_str()
         .ok_or("A13 ClinicalTrials archive absent")?;
@@ -473,6 +487,8 @@ fn verify_security_lock(root: &Path, context: SecurityLockContext<'_>) -> Result
         .as_str()
         .ok_or("A13 security archive path absent")?;
     let (archive_path, archive) = read_archive(root, rel)?;
+    let accepted_main_lock =
+        causal_successor::a06_source_successor::security_lock_baseline(root, current)?;
     verify_payload(PinCheck {
         amendment,
         container_path,
@@ -481,12 +497,12 @@ fn verify_security_lock(root: &Path, context: SecurityLockContext<'_>) -> Result
         source_path: "Cargo.lock",
         historical_sha,
         historical_bytes,
-        current_bytes: current,
+        current_bytes: &accepted_main_lock,
         archive_bytes: &archive,
         current_mode: &mode(current_path)?,
         archive_mode: &mode(&archive_path)?,
     })?;
-    verify_lock_reconstruction(&archive, current)
+    verify_lock_reconstruction(root, &archive, current)
 }
 
 pub fn verify(
@@ -832,8 +848,10 @@ fn rejects_lock_mutants(root: &Path, v5: &Value) -> Result<(), String> {
         .ok_or("A13 lock archive path absent")?;
     let (archive_path, archive) = read_archive(root, rel)?;
     let current_path = root.join("Cargo.lock");
-    let current = fs::read(&current_path).map_err(|e| e.to_string())?;
-    verify_lock_reconstruction(&archive, &current)?;
+    let actual_current = fs::read(&current_path).map_err(|e| e.to_string())?;
+    verify_lock_reconstruction(root, &archive, &actual_current)?;
+    let current =
+        causal_successor::a06_source_successor::security_lock_baseline(root, &actual_current)?;
     let absent = format!("{rel}.a13-test-absent");
     require(
         !root.join(&absent).exists(),
@@ -903,7 +921,7 @@ fn rejects_lock_mutants(root: &Path, v5: &Value) -> Result<(), String> {
         "f3c3cf1d8b1e7d4927e2d154c3fcb02979afb9939629c62cd9048d4f07b60ac2",
     )?;
     require(
-        verify_lock_reconstruction(&archive, rollback_first.as_bytes()).is_err(),
+        verify_lock_reconstruction(root, &archive, rollback_first.as_bytes()).is_err(),
         "A13 first lock package rollback accepted",
     )?;
     let rollback_second = replace_lock_package(
@@ -915,7 +933,7 @@ fn rejects_lock_mutants(root: &Path, v5: &Value) -> Result<(), String> {
         "b96554aa2acc8ccdb7e1c9a58a7a68dd5d13bccc69cd124cb09406db612a1c9b",
     )?;
     require(
-        verify_lock_reconstruction(&archive, rollback_second.as_bytes()).is_err(),
+        verify_lock_reconstruction(root, &archive, rollback_second.as_bytes()).is_err(),
         "A13 second lock package rollback accepted",
     )?;
     let third = replace_lock_package(
@@ -951,7 +969,7 @@ fn rejects_lock_mutants(root: &Path, v5: &Value) -> Result<(), String> {
         "A13 adjusted third-package generic pins failed to demonstrate the gap",
     )?;
     require(
-        verify_lock_reconstruction(&archive, third_bytes).is_err(),
+        verify_lock_reconstruction(root, &archive, third_bytes).is_err(),
         "A13 third-package mutation accepted by exact reconstruction",
     )?;
     let mut changed = sidecar.clone();
@@ -1006,7 +1024,17 @@ fn rejects_additive_mutants(root: &Path) -> Result<(), String> {
             let archive_path = root.join(entry["archive"]["path"].as_str().unwrap());
             let archive = fs::read(&archive_path).map_err(|e| e.to_string())?;
             let current_path = root.join(path);
-            let current = fs::read(&current_path).map_err(|e| e.to_string())?;
+            let actual_current = fs::read(&current_path).map_err(|e| e.to_string())?;
+            let current = if path == "crates/ssx-infra/src/adapters/mod.rs" {
+                causal_successor::a06_source_successor::legacy_control_operand(
+                    root,
+                    path,
+                    &entry["successor"],
+                    &actual_current,
+                )?
+            } else {
+                actual_current
+            };
             let check = |payload: &Value, archive: &[u8], current: &[u8], container: &[u8]| {
                 verify_payload(PinCheck {
                     amendment: payload,

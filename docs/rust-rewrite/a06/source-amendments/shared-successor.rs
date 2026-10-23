@@ -2,8 +2,10 @@
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::{fs, path::Path};
-const MANIFEST: &str = "docs/rust-rewrite/a06/source-amendments/shared-successor-v1.json";
-const MANIFEST_SHA: &str = "7b2846032c62d17cc4b56dd9f53f56e8fcab2140bd4166443c65ee5d2c166da0";
+const MANIFEST: &str = "docs/rust-rewrite/a06/source-amendments/shared-successor-v2.json";
+const PREDECESSOR: &str = "docs/rust-rewrite/a06/source-amendments/shared-successor-v1.json";
+const VALIDATOR: &str = "docs/rust-rewrite/a13/source-amendments/validator.rs";
+const MANIFEST_SHA: &str = "864e6158d6d51cb13793ed4abed3df577c795c1ffb08940eb7309f4ef21efb3b";
 const BASELINE: &str = "d5615ace90b827f31789ccf04c72aaad4516e8f7";
 const A13: &str = "crates/xtask/src/a13.rs";
 const SHA_PAIRS: &[(&str, &str)] = &[
@@ -248,6 +250,7 @@ const TRANSITION_PATHS: &[&str] = &[
     "crates/xtask/src/main.rs",
     "docs/rust-rewrite/a09/README.md",
     "docs/rust-rewrite/f08/parity.md",
+    VALIDATOR,
 ];
 fn need(ok: bool, message: &str) -> Result<(), String> {
     if ok { Ok(()) } else { Err(message.into()) }
@@ -357,7 +360,7 @@ fn document(raw: &[u8]) -> Result<Value, String> {
     need(digest(raw) == MANIFEST_SHA, "A06 shared sidecar changed")?;
     let doc: Value = serde_json::from_slice(raw).map_err(|e| e.to_string())?;
     need(
-        doc["kind"] == "PURE_A06_SHARED_SOURCE_SUCCESSOR_V1"
+        doc["kind"] == "PURE_A06_SHARED_SOURCE_SUCCESSOR_V2"
             && doc["baseline_revision"] == BASELINE,
         "A06 shared sidecar scope differs",
     )?;
@@ -400,8 +403,51 @@ fn scope(doc: &Value) -> Result<(), String> {
         "A06 exact caller membership differs",
     )
 }
+fn validate_v2(previous: &Value, next: &Value) -> Result<(), String> {
+    let old = previous["transitions"]
+        .as_array()
+        .ok_or("A06 V1 transitions absent")?;
+    let new = next["transitions"]
+        .as_array()
+        .ok_or("A06 V2 transitions absent")?;
+    need(
+        old.len() == 19
+            && new.len() == 20
+            && new[..19] == old[..]
+            && new[19]["current"]["path"] == VALIDATOR,
+        "A06 V2 must preserve all nineteen V1 transitions",
+    )?;
+    let mut restored = next.clone();
+    restored["transitions"] = previous["transitions"].clone();
+    restored["kind"] = previous["kind"].clone();
+    need(
+        restored
+            .as_object_mut()
+            .ok_or("A06 V2 object absent")?
+            .remove("predecessor_manifest")
+            .is_some(),
+        "A06 V2 predecessor absent",
+    )?;
+    need(
+        restored == *previous,
+        "A06 V2 unrelated predecessor material differs",
+    )
+}
 fn load(root: &Path) -> Result<Value, String> {
-    document(&fs::read(root.join(MANIFEST)).map_err(|e| e.to_string())?)
+    let doc = document(&fs::read(root.join(MANIFEST)).map_err(|e| e.to_string())?)?;
+    let predecessor = &doc["predecessor_manifest"];
+    need(
+        predecessor["path"] == PREDECESSOR
+            && predecessor["sha256"]
+                == "7b2846032c62d17cc4b56dd9f53f56e8fcab2140bd4166443c65ee5d2c166da0"
+            && predecessor["bytes"] == 211805
+            && predecessor["mode"] == "0644",
+        "A06 exact V1 predecessor differs",
+    )?;
+    let previous: Value =
+        serde_json::from_slice(&read(root, predecessor)?).map_err(|e| e.to_string())?;
+    validate_v2(&previous, &doc)?;
+    Ok(doc)
 }
 fn source<'a>(doc: &'a Value, path: &str) -> Result<&'a Value, String> {
     let rows = doc["transitions"]
@@ -638,6 +684,71 @@ pub(crate) fn a13_baseline(root: &Path, requested: &Value) -> Result<(Value, Vec
     let (before, _) = verify_transition(root, row)?;
     Ok((row["baseline"].clone(), before))
 }
+pub(crate) fn validator_baseline(
+    root: &Path,
+    requested: &Value,
+) -> Result<(Value, Vec<u8>), String> {
+    let doc = load(root)?;
+    let row = source(&doc, VALIDATOR)?;
+    need(
+        *requested == row["baseline"] || *requested == row["current"],
+        "A06 validator predecessor/current request differs",
+    )?;
+    let (before, _) = verify_transition(root, row)?;
+    Ok((row["baseline"].clone(), before))
+}
+pub(crate) fn security_lock_baseline(
+    root: &Path,
+    supplied_current: &[u8],
+) -> Result<Vec<u8>, String> {
+    let doc = load(root)?;
+    let (before, actual) = verify_transition(root, source(&doc, "Cargo.lock")?)?;
+    need(
+        supplied_current == actual,
+        "A06 supplied lock differs from actual current",
+    )?;
+    Ok(before)
+}
+pub(crate) fn security_lock_successor(
+    root: &Path,
+    computed_tls_baseline: &[u8],
+    supplied_current: &[u8],
+) -> Result<(), String> {
+    let before = security_lock_baseline(root, supplied_current)?;
+    need(
+        computed_tls_baseline == before,
+        "A06 computed TLS baseline differs from sealed predecessor",
+    )
+}
+#[cfg(test)]
+pub(crate) fn legacy_control_operand(
+    root: &Path,
+    path: &str,
+    expected: &Value,
+    supplied_current: &[u8],
+) -> Result<Vec<u8>, String> {
+    need(
+        [
+            "crates/ssx-infra/src/adapters/clinicaltrials.rs",
+            "crates/ssx-infra/src/adapters/mod.rs",
+        ]
+        .contains(&path),
+        "A06 unlisted historical control operand",
+    )?;
+    let doc = load(root)?;
+    let row = source(&doc, path)?;
+    let (before, actual) = verify_transition(root, row)?;
+    need(
+        supplied_current == actual,
+        "A06 control operand differs from actual current",
+    )?;
+    need(
+        expected["path"] == path,
+        "A06 historical control path differs",
+    )?;
+    material(expected, &before, "0644")?;
+    Ok(before)
+}
 #[cfg(test)]
 pub(crate) fn current_http(root: &Path, actual: &[u8]) -> Result<bool, String> {
     let doc = load(root)?;
@@ -769,6 +880,74 @@ pub(crate) fn controls(root: &Path) -> Result<(), String> {
             )?;
         }
     }
+    let previous: Value = serde_json::from_slice(&read(root, &doc["predecessor_manifest"])?)
+        .map_err(|e| e.to_string())?;
+    validate_v2(&previous, &doc)?;
+    for index in 0..19 {
+        let mut wrong = doc.clone();
+        wrong["transitions"][index]["current"]["sha256"] = json!("changed");
+        need(
+            validate_v2(&previous, &wrong).is_err(),
+            "A06 V2 altered a frozen V1 transition",
+        )?;
+    }
+    let mut dropped = doc.clone();
+    dropped["transitions"].as_array_mut().unwrap().pop();
+    need(
+        validate_v2(&previous, &dropped).is_err(),
+        "A06 V2 missing validator accepted",
+    )?;
+    let lock = source(&doc, "Cargo.lock")?;
+    let (before, actual) = verify_transition(root, lock)?;
+    security_lock_successor(root, &before, &actual)?;
+    let mut wrong_baseline = before.clone();
+    wrong_baseline.push(0);
+    need(
+        security_lock_successor(root, &wrong_baseline, &actual)
+            .err()
+            .as_deref()
+            == Some("A06 computed TLS baseline differs from sealed predecessor"),
+        "A06 changed computed TLS baseline escaped the exact link",
+    )?;
+    let mut wrong_current = actual.clone();
+    wrong_current.push(0);
+    need(
+        security_lock_successor(root, &before, &wrong_current)
+            .err()
+            .as_deref()
+            == Some("A06 supplied lock differs from actual current"),
+        "A06 altered actual lock accepted",
+    )?;
+    for path in [
+        "crates/ssx-infra/src/adapters/clinicaltrials.rs",
+        "crates/ssx-infra/src/adapters/mod.rs",
+    ] {
+        let row = source(&doc, path)?;
+        let (before, actual) = verify_transition(root, row)?;
+        let accepted = legacy_control_operand(root, path, &row["baseline"], &actual)?;
+        need(
+            accepted == before,
+            "A06 historical control baseline changed",
+        )?;
+        let mut wrong = actual.clone();
+        wrong.push(0);
+        need(
+            legacy_control_operand(root, path, &row["baseline"], &wrong)
+                .err()
+                .as_deref()
+                == Some("A06 control operand differs from actual current"),
+            "A06 historical control hid changed current",
+        )?;
+        let mut claim = row["baseline"].clone();
+        claim["sha256"] = json!("wrong");
+        need(
+            legacy_control_operand(root, path, &claim, &actual).is_err(),
+            "A06 altered historical typed tuple accepted",
+        )?;
+    }
+    eprintln!(
+        "A06_SECURITY_LOCK_BRIDGE_CONTROLS actual_current=true tls_computed_baseline_current_mutations_and_frozen19_validator_link_rejected=true"
+    );
     eprintln!(
         "A06_SHARED_TRANSITION_CONTROLS actual_current=true typed_callers_archives_order_scope_modes_and_rehashed_mutations=passed"
     );

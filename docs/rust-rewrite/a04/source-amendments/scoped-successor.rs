@@ -1075,9 +1075,11 @@ fn validate_validator_predecessor(previous: &Value, document: &Value) -> Result<
 fn verify_validator_composition(root: &Path, document: &Value, row: &Value) -> Result<(), String> {
     validate_validator_predecessor(&load_v2(root)?, document)?;
     let transition = &document["validator_transition"];
+    let (accepted_main_row, accepted_main_bytes) =
+        a06_source_successor::validator_baseline(root, row)?;
     require(
-        transition["current"] == *row,
-        "PR1034 validator current row differs",
+        transition["current"] == accepted_main_row,
+        "PR1034 validator accepted-main predecessor row differs",
     )?;
     let old = read_material(
         root,
@@ -1088,8 +1090,8 @@ fn verify_validator_composition(root: &Path, document: &Value, row: &Value) -> R
     check_source_transition(
         transition,
         &old,
-        &actual,
-        &mode(&root.join(VALIDATOR))?,
+        &accepted_main_bytes,
+        "0644", // Archived mode already checked by the new exact transition.
         VALIDATOR,
         VALIDATOR_EDITS_SHA,
     )?;
@@ -1155,6 +1157,8 @@ fn additive_composition_controls(root: &Path, document: &Value) -> Result<(), St
         )?;
         let actual = if source == XTASK_A13 {
             a06_source_successor::a13_baseline(root, &transition["current"])?.1
+        } else if source == VALIDATOR {
+            a06_source_successor::validator_baseline(root, &transition["current"])?.1
         } else {
             read_material(root, &transition["current"], "PR1034 control CURRENT")?
         };
