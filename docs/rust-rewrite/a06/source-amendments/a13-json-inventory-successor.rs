@@ -90,7 +90,7 @@ pub(super) fn controls(root: &Path) -> Result<(), String> {
     let prior = super::read(root, &doc["archive"])?;
     let current = super::a13_marker_successor::archived_prior(root, &doc["current"])?;
     validate(&doc, &doc["prior"], &prior, &current, "0644")?;
-    library_source(
+    super::a13_inventory_library_source(
         root,
         &serde_json::json!({"path":SOURCE,"sha256":doc["prior"]["sha256"]}),
     )?;
