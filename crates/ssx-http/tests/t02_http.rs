@@ -1695,12 +1695,11 @@ async fn successful_yaml_break_scalars_match_pinned_emitter_on_actual_http() {
         .unwrap();
     let mut differences = Vec::new();
     for (index, case) in rows.iter().enumerate() {
-        let response = client
-            .get(format!("{base}/search"))
-            .query(&[("q", case["query"].as_str().unwrap()), ("format", "yaml")])
-            .send()
-            .await
-            .unwrap();
+        let mut query = url::form_urlencoded::Serializer::new(String::new());
+        query.append_pair("q", case["query"].as_str().unwrap());
+        query.append_pair("format", "yaml");
+        let request_target = format!("{base}/search?{}", query.finish());
+        let response = client.get(&request_target).send().await.unwrap();
         let status = response.status().as_u16();
         let media = response.headers()["content-type"]
             .to_str()
@@ -1724,7 +1723,7 @@ async fn successful_yaml_break_scalars_match_pinned_emitter_on_actual_http() {
             differences
                 .push(json!({"id":case["id"],"status":status,"media":media,"fields":mismatches}));
         }
-        fs::write(out.join(format!("{index:02}.json")),json!({"id":case["id"],"status":status,"media":media,"body":body,"mismatches":mismatches}).to_string()).unwrap();
+        fs::write(out.join(format!("{index:02}.json")),json!({"id":case["id"],"request_target":request_target,"status":status,"media":media,"body":body,"mismatches":mismatches}).to_string()).unwrap();
     }
     let calls = fs::read_to_string(out.join("engine-calls.jsonl")).unwrap();
     let calls = calls

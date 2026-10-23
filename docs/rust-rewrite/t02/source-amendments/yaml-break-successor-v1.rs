@@ -3,7 +3,7 @@ use super::{Inputs, Result, Transition, git, need, read, reconstruct, sha};
 use serde::Deserialize;
 use std::path::Path;
 const CAPSULE: &str = "docs/rust-rewrite/t02/source-amendments/yaml-break-successor-v1.json";
-const CAPSULE_SHA: &str = "d8809f4ab738e8a1808c08c56c1772a68d9772f29a8d8a2847ef4a96be259865";
+const CAPSULE_SHA: &str = "edacbf9fff22342414237ac0c7e46c5d589ce93b8245f326f8db2f2f7e4a88a8";
 const BASE: &str = "6120c8604bd96a560cda1e8b2b2374c6ab6abeb6";
 const ROWS: [(&str, &str); 3] = [
     (
