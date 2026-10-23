@@ -122,6 +122,21 @@ impl SearchEngine for Contract {
                     result.url = control["input"].as_str().unwrap_or("").into();
                 }
             }
+            if let Some(text) = request
+                .query
+                .strip_prefix("yaml-break:")
+                .and_then(|s| s.strip_suffix(":end"))
+            {
+                result.content = text.into();
+                let breaks = text
+                    .chars()
+                    .filter(|c| matches!(c, '\n' | '\r' | '\u{85}' | '\u{2028}' | '\u{2029}'))
+                    .collect::<String>();
+                let mut data = json!({"note":text});
+                data[format!("key{breaks}end").as_str()] = json!(text);
+                result.payload =
+                    Some(json!({"domain":"security","type":"vulnerability","data":data}));
+            }
             if request.query == "surrogate" {
                 result.payload = Some(
                     json!({"domain":"security","type":"vulnerability","data":{"note":"\u{fffd}"}}),

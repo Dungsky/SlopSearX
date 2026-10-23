@@ -1676,3 +1676,74 @@ async fn yaml_invalid_date_field_escapes_nonprintable_unicode_before_dispatch() 
         "invalid date field must not dispatch an engine"
     );
 }
+
+#[tokio::test]
+async fn successful_yaml_break_scalars_match_pinned_emitter_on_actual_http() {
+    let _process_test_guard = PROCESS_TEST_LOCK.lock().await;
+    let controls: Value = ssx_json::from_str(include_str!(
+        "../../../docs/rust-rewrite/t02/yaml-break-source-controls-v1.json"
+    ))
+    .unwrap();
+    let rows = controls["records"].as_array().unwrap();
+    assert_eq!(rows.len(), 18);
+    let out = directory("yaml-break-scalars");
+    let (mut process, base, _) = start(&out, "dark");
+    let client = reqwest::Client::builder()
+        .no_proxy()
+        .timeout(Duration::from_secs(5))
+        .build()
+        .unwrap();
+    let mut differences = Vec::new();
+    for (index, case) in rows.iter().enumerate() {
+        let response = client
+            .get(format!("{base}/search"))
+            .query(&[("q", case["query"].as_str().unwrap()), ("format", "yaml")])
+            .send()
+            .await
+            .unwrap();
+        let status = response.status().as_u16();
+        let media = response.headers()["content-type"]
+            .to_str()
+            .unwrap()
+            .to_owned();
+        let body = response.text().await.unwrap();
+        let document = body
+            .split_once("---\n## Results Summary\n")
+            .map(|(yaml, _)| yaml)
+            .unwrap_or("");
+        let mut mismatches = Vec::new();
+        for (field, expected) in case["fragments"].as_object().unwrap() {
+            if !document.contains(expected.as_str().unwrap()) {
+                mismatches.push(field.clone());
+            }
+        }
+        if status != 200
+            || media != "text/vnd.yaml+markdown; charset=utf-8"
+            || !mismatches.is_empty()
+        {
+            differences
+                .push(json!({"id":case["id"],"status":status,"media":media,"fields":mismatches}));
+        }
+        fs::write(out.join(format!("{index:02}.json")),json!({"id":case["id"],"status":status,"media":media,"body":body,"mismatches":mismatches}).to_string()).unwrap();
+    }
+    let calls = fs::read_to_string(out.join("engine-calls.jsonl")).unwrap();
+    let calls = calls
+        .lines()
+        .map(|line| ssx_json::from_str::<Value>(line).unwrap())
+        .collect::<Vec<_>>();
+    let clean = stop(&mut process).await;
+    fs::write(out.join("terminal.json"),json!({"expected":rows.len(),"completed":rows.len(),"differences":differences,"engine_calls":calls.len(),"child_joined":clean}).to_string()).unwrap();
+    assert!(clean, "owned actual HTTP child must shut down successfully");
+    assert_eq!(
+        calls.len(),
+        rows.len(),
+        "every successful input must reach the counted engine"
+    );
+    for (call, case) in calls.iter().zip(rows) {
+        assert_eq!(call["query"], case["query"]);
+    }
+    assert!(
+        differences.is_empty(),
+        "successful YAML scalar source differences: {differences:?}"
+    );
+}

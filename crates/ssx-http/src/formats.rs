@@ -140,71 +140,173 @@ pub fn python_repr(v: &Value) -> String {
         _ => v.to_string(),
     }
 }
-fn scalar(v: &Value) -> String {
-    match v {
-        Value::Null => "null".into(),
-        Value::String(s) => {
-            let lower = s.to_lowercase();
-            let plain = !s.is_empty()
-                && !s.starts_with([
-                    '-', '?', ':', ',', '[', ']', '{', '}', '#', '&', '*', '!', '|', '>', '\'',
-                    '"', '%', '@', '`',
-                ])
-                && s.trim() == s
-                && !s.contains(['\n', '\r'])
-                && !s.contains(": ")
-                && !s.contains(" #")
-                && !s.ends_with(':')
-                && ![
-                    "null", "~", "true", "false", "yes", "no", "on", "off", ".nan", ".inf",
-                    "-.inf", "+.inf",
-                ]
-                .contains(&lower.as_str())
-                && !s
-                    .chars()
-                    .next()
-                    .is_some_and(|c| c.is_ascii_digit() || matches!(c, '+' | '-' | '.'))
-                && !s.chars().any(char::is_control);
-            if plain {
-                s.clone()
-            } else if !s.chars().any(char::is_control) {
-                format!("'{}'", s.replace('\'', "''"))
-            } else {
-                ssx_json::to_string(v).expect("string")
+// PyYAML 6.0.3 Emitter.analyze_scalar / scalar writers (allow_unicode=True).
+// CR is a special character, not a foldable YAML break; it must be escaped.
+fn yaml_break(c: char) -> bool {
+    matches!(c, '\n' | '\u{85}' | '\u{2028}' | '\u{2029}')
+}
+fn yaml_special(c: char) -> bool {
+    !(c == '\n'
+        || (' '..='~').contains(&c)
+        || ((c == '\u{85}'
+            || ('\u{a0}'..='\u{d7ff}').contains(&c)
+            || ('\u{e000}'..='\u{fffd}').contains(&c)
+            || ('\u{10000}'..'\u{10ffff}').contains(&c))
+            && c != '\u{feff}'))
+}
+fn yaml_column(out: &str) -> usize {
+    out.rsplit(yaml_break).next().unwrap_or("").chars().count()
+}
+fn yaml_indent(indent: usize, out: &mut String) {
+    out.push('\n');
+    out.push_str(&" ".repeat(indent + 2));
+}
+fn double_quoted(s: &str, indent: usize, split: bool, out: &mut String) {
+    let text = s.chars().collect::<Vec<_>>();
+    out.push('"');
+    let mut start = 0;
+    for end in 0..=text.len() {
+        let ch = text.get(end).copied();
+        if ch.is_none_or(|c| {
+            matches!(
+                c,
+                '"' | '\\' | '\u{85}' | '\u{2028}' | '\u{2029}' | '\u{feff}'
+            ) || !((' '..='~').contains(&c)
+                || ('\u{a0}'..='\u{d7ff}').contains(&c)
+                || ('\u{e000}'..='\u{fffd}').contains(&c))
+        }) {
+            out.extend(text[start..end].iter());
+            start = end;
+            if let Some(c) = ch {
+                let escape = match c {
+                    '\0' => "\\0".into(),
+                    '\u{7}' => "\\a".into(),
+                    '\u{8}' => "\\b".into(),
+                    '\t' => "\\t".into(),
+                    '\n' => "\\n".into(),
+                    '\u{b}' => "\\v".into(),
+                    '\u{c}' => "\\f".into(),
+                    '\r' => "\\r".into(),
+                    '\u{1b}' => "\\e".into(),
+                    '"' => "\\\"".into(),
+                    '\\' => "\\\\".into(),
+                    '\u{85}' => "\\N".into(),
+                    '\u{a0}' => "\\_".into(),
+                    '\u{2028}' => "\\L".into(),
+                    '\u{2029}' => "\\P".into(),
+                    c if c <= '\u{ff}' => format!("\\x{:02X}", c as u32),
+                    c if c <= '\u{ffff}' => format!("\\u{:04X}", c as u32),
+                    c => format!("\\U{:08X}", c as u32),
+                };
+                out.push_str(&escape);
+                start = end + 1;
             }
         }
-        Value::Array(a) if a.is_empty() => "[]".into(),
-        Value::Object(o) if o.is_empty() => "{}".into(),
-        _ => v.to_string(),
+        if split
+            && end > 0
+            && end + 1 < text.len()
+            && (ch == Some(' ') || start >= end)
+            && yaml_column(out) as isize + end as isize - start as isize > 80
+        {
+            if start < end {
+                out.extend(text[start..end].iter());
+                start = end;
+            }
+            out.push('\\');
+            yaml_indent(indent, out);
+            if text[start] == ' ' {
+                out.push('\\');
+            }
+        }
+    }
+    out.push('"');
+}
+fn text_scalar(s: &str, indent: usize, key: bool, out: &mut String) {
+    let text = s.chars().collect::<Vec<_>>();
+    let multiline = text.iter().copied().any(yaml_break);
+    let single = !text.iter().copied().any(yaml_special)
+        && !text
+            .windows(2)
+            .any(|w| (w[0] == ' ' && yaml_break(w[1])) || (yaml_break(w[0]) && w[1] == ' '))
+        && !(key && multiline);
+    let lower = s.to_lowercase();
+    let plain = single
+        && !multiline
+        && !s.is_empty()
+        && !s.starts_with([
+            '-', '?', ':', ',', '[', ']', '{', '}', '#', '&', '*', '!', '|', '>', '\'', '"', '%',
+            '@', '`',
+        ])
+        && s.trim() == s
+        && !s.contains(": ")
+        && !s.contains(" #")
+        && !s.ends_with(':')
+        && ![
+            "null", "~", "true", "false", "yes", "no", "on", "off", ".nan", ".inf", "-.inf",
+            "+.inf",
+        ]
+        .contains(&lower.as_str())
+        && !s
+            .chars()
+            .next()
+            .is_some_and(|c| c.is_ascii_digit() || matches!(c, '+' | '-' | '.'));
+    if !single {
+        double_quoted(s, indent, !key, out);
+        return;
+    }
+    if !plain {
+        out.push('\'');
+    }
+    let mut index = 0;
+    while index < text.len() {
+        let start = index;
+        if text[index] == ' ' {
+            while index < text.len() && text[index] == ' ' {
+                index += 1;
+            }
+            if !key
+                && index == start + 1
+                && yaml_column(out) > 80
+                && (plain || (start != 0 && index != text.len()))
+            {
+                yaml_indent(indent, out);
+            } else {
+                out.extend(text[start..index].iter());
+            }
+        } else if yaml_break(text[index]) {
+            while index < text.len() && yaml_break(text[index]) {
+                index += 1;
+            }
+            // A leading LF needs an extra physical line break to prevent folding.
+            if text[start] == '\n' {
+                out.push('\n');
+            }
+            out.extend(text[start..index].iter());
+            out.push_str(&" ".repeat(indent + 2));
+        } else {
+            let c = text[index];
+            out.push(c);
+            if !plain && c == '\'' {
+                out.push(c);
+            }
+            index += 1;
+        }
+    }
+    if !plain {
+        out.push('\'');
+    }
+}
+fn scalar(value: &Value, indent: usize, key: bool, out: &mut String) {
+    match value {
+        Value::String(s) => text_scalar(s, indent, key, out),
+        _ => out.push_str(&value.to_string()),
     }
 }
 fn complex(v: &Value) -> bool {
     matches!(v,Value::Object(o) if !o.is_empty()) || matches!(v,Value::Array(a) if !a.is_empty())
 }
 fn scalar_line(value: &Value, indent: usize, out: &mut String) {
-    let text = scalar(value);
-    let mut chunks = text.split_inclusive(' ').peekable();
-    while let Some(chunk) = chunks.next() {
-        let space = chunk.ends_with(' ');
-        let word = if space {
-            &chunk[..chunk.len() - 1]
-        } else {
-            chunk
-        };
-        out.push_str(word);
-        if space {
-            let column = out.rsplit('\n').next().unwrap_or("").chars().count();
-            if column > 80
-                && chunks.peek().is_some_and(|next| !next.starts_with(' '))
-                && !word.is_empty()
-            {
-                out.push('\n');
-                out.push_str(&" ".repeat(indent + 2));
-            } else {
-                out.push(' ');
-            }
-        }
-    }
+    scalar(value, indent, false, out);
 }
 fn write_yaml(value: &Value, indent: usize, out: &mut String) {
     let pad = " ".repeat(indent);
@@ -212,7 +314,15 @@ fn write_yaml(value: &Value, indent: usize, out: &mut String) {
         Value::Object(map) => {
             for (key, v) in map {
                 out.push_str(&pad);
-                out.push_str(&scalar(&Value::String(key.clone())));
+                if key.chars().any(yaml_break) {
+                    // PyYAML uses an explicit mapping key for multiline scalars.
+                    out.push_str("? ");
+                    scalar(&Value::String(key.clone()), indent, false, out);
+                    out.push('\n');
+                    out.push_str(&pad);
+                } else {
+                    scalar(&Value::String(key.clone()), indent, true, out);
+                }
                 out.push(':');
                 if complex(v) {
                     out.push('\n');
@@ -249,7 +359,7 @@ fn write_yaml(value: &Value, indent: usize, out: &mut String) {
         }
         _ => {
             out.push_str(&pad);
-            out.push_str(&scalar(value));
+            scalar_line(value, indent, out);
             out.push('\n');
         }
     }

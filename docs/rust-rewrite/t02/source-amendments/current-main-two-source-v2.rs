@@ -2,6 +2,8 @@
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
 use std::{fs, path::Path, process::Command};
+#[path = "yaml-break-successor-v1.rs"]
+mod yaml_break;
 type Result<T> = std::result::Result<T, String>;
 const CAPSULE: &str = "docs/rust-rewrite/t02/source-amendments/current-main-two-source-v2.json";
 const CAPSULE_SHA: &str = "6297b5145efd8e1761b7198ac7c0bfe1a3d854f0a34baf1b4fdb35576f056a30";
@@ -259,6 +261,9 @@ fn verify_materials(c: &Capsule, items: &[Inputs]) -> Result<()> {
 }
 /// None is reserved for the other forty-one artifacts; a selected failure never falls through.
 pub(super) fn verify(root: &Path, path: &str, old_sha: &str, coverage: &str) -> Option<Result<()>> {
+    if let Some(result) = yaml_break::verify(root, path, old_sha, coverage) {
+        return Some(result);
+    }
     let b = BINDINGS.iter().find(|b| b.path == path)?;
     Some((|| {
         need(
@@ -273,6 +278,7 @@ pub(super) fn verify(root: &Path, path: &str, old_sha: &str, coverage: &str) -> 
 }
 /// Mandatory production gate controls, also called by the existing unit identity.
 pub(super) fn controls(root: &Path) -> Result<()> {
+    yaml_break::controls(root)?;
     let raw = read(root, CAPSULE)?;
     need(raw.mode == 0o644, "T02 capsule mode")?;
     let c = decode(&raw.bytes, CAPSULE_SHA)?;
