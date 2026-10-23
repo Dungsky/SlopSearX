@@ -607,7 +607,8 @@ pub(crate) fn try_verify(
             .iter()
             .find(|r| r["container_path"] == container_path && r["source_path"] == source_path)
             .ok_or("PR1034 exact binding absent")?;
-        let container = fs::read(root.join(container_path)).map_err(|e| e.to_string())?;
+        let container =
+            a06_source_successor::historical_caller(root, container_path, container_sha)?;
         check_caller(
             binding,
             container_sha,
@@ -672,7 +673,7 @@ pub(crate) fn controls(root: &Path) -> Result<(), String> {
             super::verify(root, container_path, sha, source, expected, length).is_err(),
             "old actual-current policy unexpectedly accepted a reviewed successor",
         )?;
-        let container = fs::read(root.join(container_path)).map_err(|e| e.to_string())?;
+        let container = a06_source_successor::historical_caller(root, container_path, sha)?;
         require(
             check_caller(binding, "wrong", &container, expected, length).is_err(),
             "wrong container accepted",

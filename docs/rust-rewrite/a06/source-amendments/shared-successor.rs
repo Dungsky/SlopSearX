@@ -4,6 +4,8 @@ use sha2::{Digest, Sha256};
 use std::{fs, path::Path};
 #[path = "a13-header-layout-successor.rs"]
 mod a13_header_layout_successor;
+#[path = "post-a06-generation.rs"]
+mod post_a06_generation;
 #[path = "real-clock-successor.rs"]
 mod real_clock_successor;
 const MANIFEST: &str = "docs/rust-rewrite/a06/source-amendments/shared-successor-v2.json";
@@ -302,6 +304,12 @@ fn material(row: &Value, raw: &[u8], mode: &str) -> Result<(), String> {
     )
 }
 fn read(root: &Path, row: &Value) -> Result<Vec<u8>, String> {
+    if let Some(prior) = post_a06_generation::historical(root, row)? {
+        return Ok(prior);
+    }
+    read_exact(root, row)
+}
+fn read_exact(root: &Path, row: &Value) -> Result<Vec<u8>, String> {
     let path = root.join(text(row, "path")?);
     let stat = fs::symlink_metadata(&path).map_err(|e| e.to_string())?;
     need(
@@ -608,6 +616,11 @@ pub(crate) fn try_verify(
     expected: &str,
     bytes: Option<usize>,
 ) -> Option<Result<(), String>> {
+    if let Some(result) =
+        post_a06_generation::try_current(root, container, container_sha, path, expected, bytes)
+    {
+        return Some(result);
+    }
     if let Some(result) = try_a06_artifact(root, container, container_sha, path, expected, bytes) {
         return Some(result);
     }
@@ -730,6 +743,8 @@ pub(crate) fn compose_scoped(root: &Path, previous: &Value) -> Result<Value, Str
                 *row = a13_header_layout_successor::scoped(root, row, &historical)?;
             }
         }
+        let historical = read(root, &row["historical191"])?;
+        *row = post_a06_generation::scoped(root, row, &historical)?;
     }
     for row in next["additional_current_materials"]
         .as_array_mut()
@@ -753,6 +768,7 @@ pub(crate) fn compose_scoped(root: &Path, previous: &Value) -> Result<Value, Str
                     row,
                     real_clock_successor::Role::SharedCurrent,
                 )?;
+                *row = post_a06_generation::effective(root, row)?;
             }
         }
     }
@@ -791,6 +807,7 @@ pub(crate) fn validator_baseline(
         &row["current"],
         real_clock_successor::Role::SharedCurrent,
     )?;
+    let effective = post_a06_generation::effective(root, &effective)?;
     need(
         *requested == row["baseline"] || *requested == row["current"] || *requested == effective,
         "A06 validator predecessor/current request differs",
@@ -802,7 +819,9 @@ pub(crate) fn security_lock_baseline(
     supplied_current: &[u8],
 ) -> Result<Vec<u8>, String> {
     let doc = load(root)?;
-    let (before, actual) = verify_transition(root, source(&doc, "Cargo.lock")?)?;
+    let row = source(&doc, "Cargo.lock")?;
+    let (before, _) = verify_transition(root, row)?;
+    let actual = post_a06_generation::actual(root, &row["current"])?;
     need(
         supplied_current == actual,
         "A06 supplied lock differs from actual current",
@@ -863,6 +882,7 @@ pub(crate) fn current_http(root: &Path, actual: &[u8]) -> Result<bool, String> {
 }
 #[cfg(test)]
 pub(crate) fn controls(root: &Path) -> Result<(), String> {
+    post_a06_generation::controls(root)?;
     a13_json_inventory_successor::controls(root)?;
     a13_qualification_successor::controls(root)?;
     real_clock_successor::controls(root)?;
@@ -1007,7 +1027,8 @@ pub(crate) fn controls(root: &Path) -> Result<(), String> {
         "A06 V2 missing validator accepted",
     )?;
     let lock = source(&doc, "Cargo.lock")?;
-    let (before, actual) = verify_transition(root, lock)?;
+    let (before, _) = verify_transition(root, lock)?;
+    let actual = post_a06_generation::actual(root, &lock["current"])?;
     security_lock_successor(root, &before, &actual)?;
     let mut wrong_baseline = before.clone();
     wrong_baseline.push(0);
@@ -1512,4 +1533,23 @@ pub(crate) fn a13_inventory_library_source(root: &Path, expected: &Value) -> Res
 
 pub(crate) fn verify_current_qualification(root: &Path, expected: &Value) -> Result<(), String> {
     a13_qualification_successor::verify(root, expected)
+}
+
+/// Historical caller bytes are available only after exact live generation proof.
+pub(crate) fn historical_caller(
+    root: &Path,
+    path: &str,
+    expected_sha: &str,
+) -> Result<Vec<u8>, String> {
+    post_a06_generation::caller_material(root, path, expected_sha)
+}
+
+#[cfg(test)]
+pub(crate) fn generation_control_operand(
+    root: &Path,
+    path: &str,
+    expected: &Value,
+    supplied_current: &[u8],
+) -> Result<Vec<u8>, String> {
+    post_a06_generation::control_operand(root, path, expected, supplied_current)
 }
