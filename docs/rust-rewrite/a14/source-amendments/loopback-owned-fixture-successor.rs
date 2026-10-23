@@ -16,7 +16,10 @@ fn need(ok: bool, message: &str) -> Result<(), String> {
     if ok { Ok(()) } else { Err(message.into()) }
 }
 fn digest(raw: &[u8]) -> String {
-    format!("{:x}", Sha256::digest(raw))
+    Sha256::digest(raw)
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect()
 }
 fn text<'a>(row: &'a Value, key: &str) -> Result<&'a str, String> {
     row[key]
