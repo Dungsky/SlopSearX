@@ -3,7 +3,7 @@ use serde_json::Value;
 use std::path::Path;
 pub(super) const SOURCE: &str = "crates/xtask/src/a13.rs";
 const CAPSULE: &str = "docs/rust-rewrite/a06/source-amendments/a13-marker-successor-v1.json";
-const CAPSULE_SHA: &str = "19db726ff5ba2b6a6868d9ab14a06d046fdc6d33d0388e11f04ea676e00d61e8";
+const CAPSULE_SHA: &str = "f7a17eb80597d6e36e72de3dd693bec6b1a7343c44c2dc1cd421431fdf910690";
 fn document(raw: &[u8]) -> Result<Value, String> {
     super::need(
         super::digest(raw) == CAPSULE_SHA,
@@ -39,10 +39,10 @@ fn prior_caller() -> Value {
 fn current_caller() -> Value {
     serde_json::json!({
         "path": SOURCE,
-        "bytes": 54039,
+        "bytes": 56700,
         "mode": "0644",
-        "sha256": "879170e1508789dd9de5db697511aba88b103dfde85e1705e6dcbb4ea144365e",
-        "git_blob": "26f207734bea712f361096944672e84fcddec344"
+        "sha256": "a0396a72539e782ba129f6fb35d51e4097848242fa53dad1d7912c1232eb00bc",
+        "git_blob": "963163633fcd35dea9258c0685dd68a5b4002316"
     })
 }
 fn validate(
@@ -64,8 +64,8 @@ fn validate(
             })
             && doc["current"]
                 == serde_json::json!({
-                    "path": SOURCE, "bytes": 54039, "mode": "0644",
-                    "sha256": "879170e1508789dd9de5db697511aba88b103dfde85e1705e6dcbb4ea144365e"
+                    "path": SOURCE, "bytes": 56700, "mode": "0644",
+                    "sha256": "a0396a72539e782ba129f6fb35d51e4097848242fa53dad1d7912c1232eb00bc"
                 }),
         "A13 marker exact pinned four-field capsule material",
     )?;
