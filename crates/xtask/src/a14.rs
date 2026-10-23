@@ -5,6 +5,8 @@ use std::{collections::BTreeSet, path::Path};
 
 #[path = "../../../docs/rust-rewrite/a14/current-helper-amendment.rs"]
 mod helper_amendment;
+#[path = "../../../docs/rust-rewrite/a14/source-amendments/loopback-owned-fixture-successor.rs"]
+mod loopback_owned_fixture_successor;
 
 const SOURCE_BASELINE: &str = "a8a7b3e05ccb7ee2e536c0651163c429384f8738";
 const SOURCES: &[(&str, &str)] = &[
@@ -328,14 +330,12 @@ pub fn check(root: &Path, records: &mut Vec<Value>) -> Result<()> {
         }
     }
 
-    require(
-        digest(
-            &std::fs::read(root.join("crates/ssx-infra/src/adapters/jobs.rs"))
-                .map_err(|e| e.to_string())?,
-        ) == cases["owned_source_sha256"]["crates/ssx-infra/src/adapters/jobs.rs"]
+    loopback_owned_fixture_successor::verify(
+        root,
+        CASES_SHA,
+        cases["owned_source_sha256"]["crates/ssx-infra/src/adapters/jobs.rs"]
             .as_str()
             .unwrap_or(""),
-        "A14 reviewed implementation source changed",
     )?;
     let before = source_tree(root, records)?;
     verify_test_inventory(root, &cases, records)?;
@@ -391,6 +391,8 @@ mod tests {
     }
     #[test]
     fn completed_subcase_guard_rejects_omission_duplicate_extra_and_skip() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        loopback_owned_fixture_successor::controls(&root).unwrap();
         let expected = vec![json!("a"), json!("b")];
         subcases("A14_CASE a\nA14_CASE b\n", &expected).unwrap();
         for invalid in [
