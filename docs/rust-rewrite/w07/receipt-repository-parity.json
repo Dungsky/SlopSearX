@@ -47,7 +47,7 @@
   "qualification": {
     "current_source_native_executed": true,
     "historical_predecessor_evidence_is_current_acceptance": false,
-    "required": "full-workspace build/tests and inherited gates remain separate, currently blocked by the known A12 baseline pending A06 integration; required hooks and final published-head CI/review remain pending",
+    "required": "full-workspace build/tests, inherited gates, and final published-head CI/review remain pending; no A06 integration dependency is asserted",
     "platforms": "macOS focused qualification passed; Linux AMD64/ARM64 published-head CI pending; no Windows claim",
     "source_seal_sha256": "64ed3c1e7743c5bf4e16d3ea3f6afcbff1ae93d9f67b462ca4051cc02bc8f335",
     "evidence_seal_sha256": "2478d9ce0a735db5bb4c4c9c2836868b075079f7905970caee4d7900a88e8b4c",
