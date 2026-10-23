@@ -301,3 +301,6 @@ pub mod snapshot;
 pub mod saved;
 
 pub mod staged;
+
+/// Immutable caller-supplied retrieval receipt authority (W07 increment).
+pub mod retrieval;

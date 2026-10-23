@@ -1700,7 +1700,7 @@
             {
               "name": "Build pinned disposable native Valkey",
               "timeout-minutes": 15,
-              "run": "sh scripts/rust-valkey-build.sh \"$RUNNER_TEMP/ssx-valkey/bin\"\necho \"$RUNNER_TEMP/ssx-valkey/bin\" >> \"$GITHUB_PATH\"\n"
+              "run": "sh scripts/rust-valkey-build.sh \"$RUNNER_TEMP/ssx-valkey/bin\"\necho \"$RUNNER_TEMP/ssx-valkey/bin\" >> \"$GITHUB_PATH\"\nvalkey_server=\"$RUNNER_TEMP/ssx-valkey/bin/valkey-server\"\n{\n  printf 'SLOPSEARX_TEST_VALKEY_SERVER=%s\\n' \"$valkey_server\"\n  printf 'SLOPSEARX_TEST_VALKEY_SERVER_SHA256=%s\\n' \"$(sha256sum \"$valkey_server\" | cut -d ' ' -f 1)\"\n} >> \"$GITHUB_ENV\"\n"
             },
             {
               "name": "Formatting",
