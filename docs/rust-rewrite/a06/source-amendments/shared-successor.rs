@@ -13,8 +13,10 @@ const MANIFEST_SHA: &str = "864e6158d6d51cb13793ed4abed3df577c795c1ffb08940eb730
 const BASELINE: &str = "d5615ace90b827f31789ccf04c72aaad4516e8f7";
 #[path = "a13-json-inventory-successor.rs"]
 mod a13_json_inventory_successor;
-#[path = "a13-marker-successor.rs"]
+#[path = "a13-marker-successor-v2.rs"]
 mod a13_marker_successor;
+#[path = "a13-qualification-successor.rs"]
+mod a13_qualification_successor;
 const A13: &str = "crates/xtask/src/a13.rs";
 const SHA_PAIRS: &[(&str, &str)] = &[
     ("docs/rust-rewrite/a09/coverage.json", "Cargo.lock"),
@@ -528,6 +530,8 @@ fn frozen(root: &Path, doc: &Value) -> Result<(), String> {
                 row,
                 real_clock_successor::Role::FrozenSupport,
             )?;
+        } else if row["path"] == "docs/rust-rewrite/a13/qualification-v1.json" {
+            a13_qualification_successor::verify(root, row)?;
         } else {
             read(root, row)?;
         }
@@ -860,6 +864,7 @@ pub(crate) fn current_http(root: &Path, actual: &[u8]) -> Result<bool, String> {
 #[cfg(test)]
 pub(crate) fn controls(root: &Path) -> Result<(), String> {
     a13_json_inventory_successor::controls(root)?;
+    a13_qualification_successor::controls(root)?;
     real_clock_successor::controls(root)?;
     let doc = load(root)?;
     frozen(root, &doc)?;
@@ -1503,4 +1508,8 @@ pub(crate) fn a13_header_layout_controls(root: &Path) -> Result<(), String> {
 
 pub(crate) fn a13_inventory_library_source(root: &Path, expected: &Value) -> Result<(), String> {
     a13_json_inventory_successor::library_source(root, expected)
+}
+
+pub(crate) fn verify_current_qualification(root: &Path, expected: &Value) -> Result<(), String> {
+    a13_qualification_successor::verify(root, expected)
 }

@@ -1,10 +1,10 @@
 {
   "schema_version": 1,
   "kind": "T02_CURRENT_MAIN_TWO_SOURCE_SUCCESSOR_V2",
-  "coverage_sha256": "49c113e42009501981348382d8b866e8379579f47f6bd63b25aad93405cc4b71",
+  "coverage_sha256": "5ce1ab45a2e2006daa03ebf4a4fcd9ed62d9d59b8490ddc8f5eb82b19fc37f28",
   "baseline_pr": "f7cb4ad1e6d8a72b053cf09cfffb29cc607d9827",
   "incoming_main": "51fda0f70e2051e145478783ca9c32e1f4de9596",
-  "qualification": "SOURCE_ONLY_A06_T02_MERGE_CANDIDATE_NATIVE_PENDING",
+  "qualification": "SOURCE_ONLY_CURRENT_MAIN_INTEGRATION_NATIVE_PENDING",
   "transitions": [
     {
       "path": "crates/ssx-infra/src/search.rs",

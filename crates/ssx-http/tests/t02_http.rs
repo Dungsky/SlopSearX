@@ -719,14 +719,24 @@ impl PrivateValkey {
     fn start(out: &std::path::Path) -> Self {
         let mut random = [0u8; 8];
         aws_lc_rs::rand::fill(&mut random).unwrap();
-        // A short Unix temp path also fits macOS sockaddr_un limits.
-        let socket = PathBuf::from("/tmp").join(format!(
+        // The runner owns a short temporary root so Unix sockets fit
+        // sockaddr_un without falling back to the host's default temp path.
+        let temp_root = std::env::var_os("SLOPSEARX_TEST_TEMP_ROOT")
+            .map(PathBuf::from)
+            .expect("SLOPSEARX_TEST_TEMP_ROOT must name an owned short temp directory");
+        assert!(temp_root.is_dir(), "T02 temp root must already exist");
+        let socket = temp_root.join(format!(
             "t02-http-cache-{}.sock",
             random
                 .iter()
                 .map(|b| format!("{b:02x}"))
                 .collect::<String>()
         ));
+        use std::os::unix::ffi::OsStrExt;
+        assert!(
+            socket.as_os_str().as_bytes().len() < 104,
+            "private Valkey socket path exceeds sockaddr_un limit"
+        );
         assert!(!socket.exists(), "private socket already exists");
         let executable = std::env::var("SLOPSEARX_TEST_VALKEY_SERVER")
             .unwrap_or_else(|_| "valkey-server".into());

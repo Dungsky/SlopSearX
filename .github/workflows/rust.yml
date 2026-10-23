@@ -153,7 +153,15 @@ jobs:
         run: cargo build --locked -p ssx-http --example t02_fixture
 
       - name: Workspace tests, including xtask
-        run: cargo test --locked --workspace
+        env:
+          SLOPSEARX_TEST_TEMP_ROOT: ${{ runner.temp }}/t02-sockets-workspace
+          TMPDIR: ${{ runner.temp }}/t02-sockets-workspace
+          TMP: ${{ runner.temp }}/t02-sockets-workspace
+          TEMP: ${{ runner.temp }}/t02-sockets-workspace
+        run: |
+          mkdir "$SLOPSEARX_TEST_TEMP_ROOT"
+          trap 'rmdir "$SLOPSEARX_TEST_TEMP_ROOT" 2>/dev/null || true' EXIT
+          cargo test --locked --workspace
 
       - name: Linux held-writer interpreter mutation control
         timeout-minutes: 10
@@ -521,7 +529,15 @@ jobs:
           NODE
 
       - name: Foundation lane evidence
-        run: cargo xtask check F03 --output target/rust-evidence/F03.json
+        env:
+          SLOPSEARX_TEST_TEMP_ROOT: ${{ runner.temp }}/t02-sockets-f03
+          TMPDIR: ${{ runner.temp }}/t02-sockets-f03
+          TMP: ${{ runner.temp }}/t02-sockets-f03
+          TEMP: ${{ runner.temp }}/t02-sockets-f03
+        run: |
+          mkdir "$SLOPSEARX_TEST_TEMP_ROOT"
+          trap 'rmdir "$SLOPSEARX_TEST_TEMP_ROOT" 2>/dev/null || true' EXIT
+          cargo xtask check F03 --output target/rust-evidence/F03.json
 
       - name: Portable replay and differential evidence
         run: cargo xtask check F04 --output target/rust-evidence/F04.json
@@ -563,7 +579,15 @@ jobs:
         run: cargo xtask check F15 --output target/rust-evidence/F15.json
 
       - name: Native HTTP original corpus and real-process evidence
-        run: cargo xtask check T02 --output target/rust-evidence/T02.json
+        env:
+          SLOPSEARX_TEST_TEMP_ROOT: ${{ runner.temp }}/t02-sockets
+          TMPDIR: ${{ runner.temp }}/t02-sockets
+          TMP: ${{ runner.temp }}/t02-sockets
+          TEMP: ${{ runner.temp }}/t02-sockets
+        run: |
+          mkdir "$SLOPSEARX_TEST_TEMP_ROOT"
+          trap 'rmdir "$SLOPSEARX_TEST_TEMP_ROOT" 2>/dev/null || true' EXIT
+          cargo xtask check T02 --output target/rust-evidence/T02.json
 
       - name: Native Valkey ownership and lifecycle evidence
         run: cargo xtask check F07 --output target/rust-evidence/F07.json

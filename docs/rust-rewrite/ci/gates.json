@@ -1721,7 +1721,13 @@
                 },
                 {
                   "name": "Workspace tests, including xtask",
-                  "run": "cargo test --locked --workspace"
+                  "run": "mkdir \"$SLOPSEARX_TEST_TEMP_ROOT\"\ntrap 'rmdir \"$SLOPSEARX_TEST_TEMP_ROOT\" 2>/dev/null || true' EXIT\ncargo test --locked --workspace\n",
+                  "env": {
+                    "SLOPSEARX_TEST_TEMP_ROOT": "${{ runner.temp }}/t02-sockets-workspace",
+                    "TMPDIR": "${{ runner.temp }}/t02-sockets-workspace",
+                    "TMP": "${{ runner.temp }}/t02-sockets-workspace",
+                    "TEMP": "${{ runner.temp }}/t02-sockets-workspace"
+                  }
                 },
                 {
                   "name": "Linux held-writer interpreter mutation control",
@@ -1822,7 +1828,13 @@
                 },
                 {
                   "name": "Foundation lane evidence",
-                  "run": "cargo xtask check F03 --output target/rust-evidence/F03.json"
+                  "run": "mkdir \"$SLOPSEARX_TEST_TEMP_ROOT\"\ntrap 'rmdir \"$SLOPSEARX_TEST_TEMP_ROOT\" 2>/dev/null || true' EXIT\ncargo xtask check F03 --output target/rust-evidence/F03.json\n",
+                  "env": {
+                    "SLOPSEARX_TEST_TEMP_ROOT": "${{ runner.temp }}/t02-sockets-f03",
+                    "TMPDIR": "${{ runner.temp }}/t02-sockets-f03",
+                    "TMP": "${{ runner.temp }}/t02-sockets-f03",
+                    "TEMP": "${{ runner.temp }}/t02-sockets-f03"
+                  }
                 },
                 {
                   "name": "Portable replay and differential evidence",
@@ -1878,7 +1890,13 @@
                 },
                 {
                   "name": "Native HTTP original corpus and real-process evidence",
-                  "run": "cargo xtask check T02 --output target/rust-evidence/T02.json"
+                  "run": "mkdir \"$SLOPSEARX_TEST_TEMP_ROOT\"\ntrap 'rmdir \"$SLOPSEARX_TEST_TEMP_ROOT\" 2>/dev/null || true' EXIT\ncargo xtask check T02 --output target/rust-evidence/T02.json\n",
+                  "env": {
+                    "SLOPSEARX_TEST_TEMP_ROOT": "${{ runner.temp }}/t02-sockets",
+                    "TMPDIR": "${{ runner.temp }}/t02-sockets",
+                    "TMP": "${{ runner.temp }}/t02-sockets",
+                    "TEMP": "${{ runner.temp }}/t02-sockets"
+                  }
                 },
                 {
                   "name": "Native Valkey ownership and lifecycle evidence",
@@ -2623,7 +2641,13 @@
                 },
                 {
                   "name": "Workspace tests, including xtask",
-                  "run": "cargo test --locked --workspace"
+                  "run": "mkdir \"$SLOPSEARX_TEST_TEMP_ROOT\"\ntrap 'rmdir \"$SLOPSEARX_TEST_TEMP_ROOT\" 2>/dev/null || true' EXIT\ncargo test --locked --workspace\n",
+                  "env": {
+                    "SLOPSEARX_TEST_TEMP_ROOT": "${{ runner.temp }}/t02-sockets-workspace",
+                    "TMPDIR": "${{ runner.temp }}/t02-sockets-workspace",
+                    "TMP": "${{ runner.temp }}/t02-sockets-workspace",
+                    "TEMP": "${{ runner.temp }}/t02-sockets-workspace"
+                  }
                 },
                 {
                   "name": "Linux held-writer interpreter mutation control",
@@ -2724,7 +2748,13 @@
                 },
                 {
                   "name": "Foundation lane evidence",
-                  "run": "cargo xtask check F03 --output target/rust-evidence/F03.json"
+                  "run": "mkdir \"$SLOPSEARX_TEST_TEMP_ROOT\"\ntrap 'rmdir \"$SLOPSEARX_TEST_TEMP_ROOT\" 2>/dev/null || true' EXIT\ncargo xtask check F03 --output target/rust-evidence/F03.json\n",
+                  "env": {
+                    "SLOPSEARX_TEST_TEMP_ROOT": "${{ runner.temp }}/t02-sockets-f03",
+                    "TMPDIR": "${{ runner.temp }}/t02-sockets-f03",
+                    "TMP": "${{ runner.temp }}/t02-sockets-f03",
+                    "TEMP": "${{ runner.temp }}/t02-sockets-f03"
+                  }
                 },
                 {
                   "name": "Portable replay and differential evidence",
@@ -2780,7 +2810,13 @@
                 },
                 {
                   "name": "Native HTTP original corpus and real-process evidence",
-                  "run": "cargo xtask check T02 --output target/rust-evidence/T02.json"
+                  "run": "mkdir \"$SLOPSEARX_TEST_TEMP_ROOT\"\ntrap 'rmdir \"$SLOPSEARX_TEST_TEMP_ROOT\" 2>/dev/null || true' EXIT\ncargo xtask check T02 --output target/rust-evidence/T02.json\n",
+                  "env": {
+                    "SLOPSEARX_TEST_TEMP_ROOT": "${{ runner.temp }}/t02-sockets",
+                    "TMPDIR": "${{ runner.temp }}/t02-sockets",
+                    "TMP": "${{ runner.temp }}/t02-sockets",
+                    "TEMP": "${{ runner.temp }}/t02-sockets"
+                  }
                 },
                 {
                   "name": "Native Valkey ownership and lifecycle evidence",
@@ -3184,7 +3220,13 @@
             },
             {
               "name": "Workspace tests, including xtask",
-              "run": "cargo test --locked --workspace"
+              "run": "mkdir \"$SLOPSEARX_TEST_TEMP_ROOT\"\ntrap 'rmdir \"$SLOPSEARX_TEST_TEMP_ROOT\" 2>/dev/null || true' EXIT\ncargo test --locked --workspace\n",
+              "env": {
+                "SLOPSEARX_TEST_TEMP_ROOT": "${{ runner.temp }}/t02-sockets-workspace",
+                "TMPDIR": "${{ runner.temp }}/t02-sockets-workspace",
+                "TMP": "${{ runner.temp }}/t02-sockets-workspace",
+                "TEMP": "${{ runner.temp }}/t02-sockets-workspace"
+              }
             },
             {
               "name": "Linux held-writer interpreter mutation control",
@@ -3311,7 +3353,13 @@
                 },
                 {
                   "name": "Workspace tests, including xtask",
-                  "run": "cargo test --locked --workspace"
+                  "run": "mkdir \"$SLOPSEARX_TEST_TEMP_ROOT\"\ntrap 'rmdir \"$SLOPSEARX_TEST_TEMP_ROOT\" 2>/dev/null || true' EXIT\ncargo test --locked --workspace\n",
+                  "env": {
+                    "SLOPSEARX_TEST_TEMP_ROOT": "${{ runner.temp }}/t02-sockets-workspace",
+                    "TMPDIR": "${{ runner.temp }}/t02-sockets-workspace",
+                    "TMP": "${{ runner.temp }}/t02-sockets-workspace",
+                    "TEMP": "${{ runner.temp }}/t02-sockets-workspace"
+                  }
                 },
                 {
                   "name": "Linux held-writer interpreter mutation control",
@@ -3412,7 +3460,13 @@
                 },
                 {
                   "name": "Foundation lane evidence",
-                  "run": "cargo xtask check F03 --output target/rust-evidence/F03.json"
+                  "run": "mkdir \"$SLOPSEARX_TEST_TEMP_ROOT\"\ntrap 'rmdir \"$SLOPSEARX_TEST_TEMP_ROOT\" 2>/dev/null || true' EXIT\ncargo xtask check F03 --output target/rust-evidence/F03.json\n",
+                  "env": {
+                    "SLOPSEARX_TEST_TEMP_ROOT": "${{ runner.temp }}/t02-sockets-f03",
+                    "TMPDIR": "${{ runner.temp }}/t02-sockets-f03",
+                    "TMP": "${{ runner.temp }}/t02-sockets-f03",
+                    "TEMP": "${{ runner.temp }}/t02-sockets-f03"
+                  }
                 },
                 {
                   "name": "Portable replay and differential evidence",
@@ -3468,7 +3522,13 @@
                 },
                 {
                   "name": "Native HTTP original corpus and real-process evidence",
-                  "run": "cargo xtask check T02 --output target/rust-evidence/T02.json"
+                  "run": "mkdir \"$SLOPSEARX_TEST_TEMP_ROOT\"\ntrap 'rmdir \"$SLOPSEARX_TEST_TEMP_ROOT\" 2>/dev/null || true' EXIT\ncargo xtask check T02 --output target/rust-evidence/T02.json\n",
+                  "env": {
+                    "SLOPSEARX_TEST_TEMP_ROOT": "${{ runner.temp }}/t02-sockets",
+                    "TMPDIR": "${{ runner.temp }}/t02-sockets",
+                    "TMP": "${{ runner.temp }}/t02-sockets",
+                    "TEMP": "${{ runner.temp }}/t02-sockets"
+                  }
                 },
                 {
                   "name": "Native Valkey ownership and lifecycle evidence",
@@ -3871,7 +3931,13 @@
             },
             {
               "name": "Foundation lane evidence",
-              "run": "cargo xtask check F03 --output target/rust-evidence/F03.json"
+              "run": "mkdir \"$SLOPSEARX_TEST_TEMP_ROOT\"\ntrap 'rmdir \"$SLOPSEARX_TEST_TEMP_ROOT\" 2>/dev/null || true' EXIT\ncargo xtask check F03 --output target/rust-evidence/F03.json\n",
+              "env": {
+                "SLOPSEARX_TEST_TEMP_ROOT": "${{ runner.temp }}/t02-sockets-f03",
+                "TMPDIR": "${{ runner.temp }}/t02-sockets-f03",
+                "TMP": "${{ runner.temp }}/t02-sockets-f03",
+                "TEMP": "${{ runner.temp }}/t02-sockets-f03"
+              }
             },
             {
               "name": "Portable replay and differential evidence",
@@ -3927,7 +3993,13 @@
             },
             {
               "name": "Native HTTP original corpus and real-process evidence",
-              "run": "cargo xtask check T02 --output target/rust-evidence/T02.json"
+              "run": "mkdir \"$SLOPSEARX_TEST_TEMP_ROOT\"\ntrap 'rmdir \"$SLOPSEARX_TEST_TEMP_ROOT\" 2>/dev/null || true' EXIT\ncargo xtask check T02 --output target/rust-evidence/T02.json\n",
+              "env": {
+                "SLOPSEARX_TEST_TEMP_ROOT": "${{ runner.temp }}/t02-sockets",
+                "TMPDIR": "${{ runner.temp }}/t02-sockets",
+                "TMP": "${{ runner.temp }}/t02-sockets",
+                "TEMP": "${{ runner.temp }}/t02-sockets"
+              }
             },
             {
               "name": "Native Valkey ownership and lifecycle evidence",
@@ -4102,7 +4174,13 @@
                 },
                 {
                   "name": "Workspace tests, including xtask",
-                  "run": "cargo test --locked --workspace"
+                  "run": "mkdir \"$SLOPSEARX_TEST_TEMP_ROOT\"\ntrap 'rmdir \"$SLOPSEARX_TEST_TEMP_ROOT\" 2>/dev/null || true' EXIT\ncargo test --locked --workspace\n",
+                  "env": {
+                    "SLOPSEARX_TEST_TEMP_ROOT": "${{ runner.temp }}/t02-sockets-workspace",
+                    "TMPDIR": "${{ runner.temp }}/t02-sockets-workspace",
+                    "TMP": "${{ runner.temp }}/t02-sockets-workspace",
+                    "TEMP": "${{ runner.temp }}/t02-sockets-workspace"
+                  }
                 },
                 {
                   "name": "Linux held-writer interpreter mutation control",
@@ -4203,7 +4281,13 @@
                 },
                 {
                   "name": "Foundation lane evidence",
-                  "run": "cargo xtask check F03 --output target/rust-evidence/F03.json"
+                  "run": "mkdir \"$SLOPSEARX_TEST_TEMP_ROOT\"\ntrap 'rmdir \"$SLOPSEARX_TEST_TEMP_ROOT\" 2>/dev/null || true' EXIT\ncargo xtask check F03 --output target/rust-evidence/F03.json\n",
+                  "env": {
+                    "SLOPSEARX_TEST_TEMP_ROOT": "${{ runner.temp }}/t02-sockets-f03",
+                    "TMPDIR": "${{ runner.temp }}/t02-sockets-f03",
+                    "TMP": "${{ runner.temp }}/t02-sockets-f03",
+                    "TEMP": "${{ runner.temp }}/t02-sockets-f03"
+                  }
                 },
                 {
                   "name": "Portable replay and differential evidence",
@@ -4259,7 +4343,13 @@
                 },
                 {
                   "name": "Native HTTP original corpus and real-process evidence",
-                  "run": "cargo xtask check T02 --output target/rust-evidence/T02.json"
+                  "run": "mkdir \"$SLOPSEARX_TEST_TEMP_ROOT\"\ntrap 'rmdir \"$SLOPSEARX_TEST_TEMP_ROOT\" 2>/dev/null || true' EXIT\ncargo xtask check T02 --output target/rust-evidence/T02.json\n",
+                  "env": {
+                    "SLOPSEARX_TEST_TEMP_ROOT": "${{ runner.temp }}/t02-sockets",
+                    "TMPDIR": "${{ runner.temp }}/t02-sockets",
+                    "TMP": "${{ runner.temp }}/t02-sockets",
+                    "TEMP": "${{ runner.temp }}/t02-sockets"
+                  }
                 },
                 {
                   "name": "Native Valkey ownership and lifecycle evidence",

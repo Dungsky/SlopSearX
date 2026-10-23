@@ -8,7 +8,7 @@ use std::{
     path::Path,
     process::Command,
 };
-const COVERAGE_SHA: &str = "49c113e42009501981348382d8b866e8379579f47f6bd63b25aad93405cc4b71";
+const COVERAGE_SHA: &str = "5ce1ab45a2e2006daa03ebf4a4fcd9ed62d9d59b8490ddc8f5eb82b19fc37f28";
 #[path = "../../../docs/rust-rewrite/t02/source-amendments/current-main-two-source-v2.rs"]
 mod source_successor;
 fn require(ok: bool, why: &str) -> Result<()> {

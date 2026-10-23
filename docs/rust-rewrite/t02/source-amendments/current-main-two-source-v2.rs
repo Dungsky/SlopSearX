@@ -4,8 +4,8 @@ use sha2::{Digest, Sha256};
 use std::{fs, path::Path, process::Command};
 type Result<T> = std::result::Result<T, String>;
 const CAPSULE: &str = "docs/rust-rewrite/t02/source-amendments/current-main-two-source-v2.json";
-const CAPSULE_SHA: &str = "9a111b81128f231f1def077a656432987b469a0aeb72b1d3dbfaf01673d09702";
-const COVERAGE_SHA: &str = "49c113e42009501981348382d8b866e8379579f47f6bd63b25aad93405cc4b71";
+const CAPSULE_SHA: &str = "6297b5145efd8e1761b7198ac7c0bfe1a3d854f0a34baf1b4fdb35576f056a30";
+const COVERAGE_SHA: &str = "5ce1ab45a2e2006daa03ebf4a4fcd9ed62d9d59b8490ddc8f5eb82b19fc37f28";
 const PR: &str = "f7cb4ad1e6d8a72b053cf09cfffb29cc607d9827";
 const MAIN: &str = "51fda0f70e2051e145478783ca9c32e1f4de9596";
 struct Binding {
