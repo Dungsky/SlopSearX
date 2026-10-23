@@ -19,7 +19,7 @@ fn document(raw: &[u8]) -> Result<Value, String> {
 fn load(root: &Path) -> Result<Value, String> {
     document(&super::read_exact(
         root,
-        &json!({"path":CAPSULE,"sha256":SHA,"bytes":123624,"mode":"0644"}),
+        &json!({"path":CAPSULE,"sha256":SHA,"bytes":124038,"mode":"0644"}),
     )?)
 }
 fn tuple(expected: &Value, sealed: &Value) -> bool {
