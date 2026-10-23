@@ -974,7 +974,13 @@ fn rejects_lock_mutants(root: &Path, v5: &Value) -> Result<(), String> {
     adjusted["successor"]["bytes"] = serde_json::json!(third_bytes.len());
     let pin = &lock["historical_pins"][0];
     let cp = pin["container_path"].as_str().unwrap();
-    let container = fs::read(root.join(cp)).map_err(|e| e.to_string())?;
+    let container = causal_successor::a06_source_successor::historical_caller(
+        root,
+        cp,
+        pin["container_sha256"]
+            .as_str()
+            .ok_or("A13 third-package caller hash absent")?,
+    )?;
     require(
         verify_payload(PinCheck {
             amendment: &adjusted,

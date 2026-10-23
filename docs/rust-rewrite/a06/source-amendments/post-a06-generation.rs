@@ -2,7 +2,7 @@
 use serde_json::{Value, json};
 use std::{fs, path::Path, process::Command};
 const CAPSULE: &str = "docs/rust-rewrite/a06/source-amendments/post-a06-generation-v1.json";
-const SHA: &str = "199a75fea4f3225df37cb9f81be0ba0b437bdfdc0233dfef8249ec9e190894bd";
+const SHA: &str = "f8b109e6a2c1e6c6b8ab33c337473fa3bfc749bd184ed669fb115991dbb5cfe3";
 fn document(raw: &[u8]) -> Result<Value, String> {
     super::need(super::digest(raw) == SHA, "T02 generation capsule changed")?;
     let doc: Value = serde_json::from_slice(raw).map_err(|e| e.to_string())?;

@@ -1369,8 +1369,8 @@
       },
       "current": {
         "path": "docs/rust-rewrite/a13/source-amendments/validator.rs",
-        "sha256": "fd7beae23cfd4dc3c1374537774dafe42fc996035afee07344feee55f2f93f2c",
-        "bytes": 50167,
+        "sha256": "bb1eec7b1376a2437d7069588634d9c40bf985a233b66106b1e5b49c0a473c58",
+        "bytes": 50322,
         "mode": "0644"
       },
       "source_commit": "4de0d641ea6e80b398f2cc12b46b2c818608bbac",
@@ -1390,6 +1390,11 @@
           "at": 33603,
           "remove_utf8": "        let container_path = root.join(cp);\n        let container = fs::read(&container_path).map_err(|e| e.to_string())?;\n",
           "insert_utf8": "        let container = causal_successor::a06_source_successor::historical_caller(\n            root,\n            cp,\n            pin[\"container_sha256\"]\n                .as_str()\n                .ok_or(\"A13 lock caller hash absent\")?,\n        )?;\n"
+        },
+        {
+          "at": 36976,
+          "remove_utf8": "    let container = fs::read(root.join(cp)).map_err(|e| e.to_string())?;\n",
+          "insert_utf8": "    let container = causal_successor::a06_source_successor::historical_caller(\n        root,\n        cp,\n        pin[\"container_sha256\"]\n            .as_str()\n            .ok_or(\"A13 third-package caller hash absent\")?,\n    )?;\n"
         },
         {
           "at": 39616,
