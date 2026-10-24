@@ -9,7 +9,7 @@ const BASELINE: &str = "87af8096d46359241421ac747ed6aa1ad07f38ec";
 const EVIDENCE: &[(&str, &str)] = &[
     (
         "docs/rust-rewrite/w03/source-amendments/review-harness-pin.rs",
-        "97e5908a0423d4f6a7077d4ea031a8aa06d4fb9de756eef603a6b6acc8fedfa1",
+        "38322a0855f6a1da818ff57c0131af235387d2832efead7a35abd21cbd600fb2",
     ),
     (
         "docs/rust-rewrite/w03/error-envelope-map.json",

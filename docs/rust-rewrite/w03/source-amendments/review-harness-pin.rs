@@ -10,7 +10,10 @@ const OLD_LINE: &[u8] = b"\nHARNESS_SHA = \"04c7fc0b42221872e6c6b611be91c68e462f
 const NEW_LINE: &[u8] = b"\nHARNESS_SHA = \"1c76d40290cdaf9b6603721f899da6c7e8a382b4\"\n";
 
 fn digest(raw: &[u8]) -> String {
-    format!("{:x}", Sha256::digest(raw))
+    Sha256::digest(raw)
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect()
 }
 fn reject() -> String {
     "W03 review-harness pin source is not the exact reviewed successor".into()
