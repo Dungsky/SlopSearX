@@ -1660,7 +1660,7 @@
             "foundation-prerequisites": {
               "name": "Foundation prerequisites (${{ matrix.runner }})",
               "runs-on": "${{ matrix.runner }}",
-              "timeout-minutes": 90,
+              "timeout-minutes": 120,
               "strategy": {
                 "fail-fast": false,
                 "matrix": {
@@ -2245,7 +2245,7 @@
             "foundation-adapters"
           ],
           "runs-on": "${{ matrix.runner }}",
-          "timeout-minutes": 120,
+          "timeout-minutes": 10,
           "strategy": {
             "fail-fast": false,
             "matrix": {
@@ -2580,7 +2580,7 @@
             "foundation-prerequisites": {
               "name": "Foundation prerequisites (${{ matrix.runner }})",
               "runs-on": "${{ matrix.runner }}",
-              "timeout-minutes": 90,
+              "timeout-minutes": 120,
               "strategy": {
                 "fail-fast": false,
                 "matrix": {
@@ -3159,7 +3159,7 @@
         "job": {
           "name": "Foundation prerequisites (${{ matrix.runner }})",
           "runs-on": "${{ matrix.runner }}",
-          "timeout-minutes": 90,
+          "timeout-minutes": 120,
           "strategy": {
             "fail-fast": false,
             "matrix": {
@@ -3292,7 +3292,7 @@
             "foundation-prerequisites": {
               "name": "Foundation prerequisites (${{ matrix.runner }})",
               "runs-on": "${{ matrix.runner }}",
-              "timeout-minutes": 90,
+              "timeout-minutes": 120,
               "strategy": {
                 "fail-fast": false,
                 "matrix": {
@@ -4113,7 +4113,7 @@
             "foundation-prerequisites": {
               "name": "Foundation prerequisites (${{ matrix.runner }})",
               "runs-on": "${{ matrix.runner }}",
-              "timeout-minutes": 90,
+              "timeout-minutes": 120,
               "strategy": {
                 "fail-fast": false,
                 "matrix": {
