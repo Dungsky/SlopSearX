@@ -224,11 +224,18 @@ fn archive_wire_records(rows: &[Value]) -> Result<Vec<Value>> {
     rows.iter().filter(|r|r.get("receipt").is_some()).map(|binding|{let path=Path::new(binding["receipt"].as_str().ok_or("archive receipt path missing")?);let raw=fs::read(path).map_err(|e|e.to_string())?;let receipt:Value=serde_json::from_slice(&raw).map_err(|e|e.to_string())?;let process=load(&path.parent().ok_or("archive parent missing")?.join("process-start.json"))?;let html=if binding["kind"]=="html"{Some(fs::read_to_string(receipt["raw_http_records"].as_str().ok_or("HTML raw stream missing")?).map_err(|e|e.to_string())?)}else{None};Ok(json!({"binding":binding,"raw_receipt_utf8":String::from_utf8(raw).map_err(|e|e.to_string())?,"process":process,"raw_html_stream_utf8":html}))}).collect()
 }
 fn exact_tests(output: &str, expected: &Value) -> Result<()> {
-    let tests = output
-        .lines()
-        .filter_map(|l| l.strip_prefix("test ")?.strip_suffix(" ... ok"))
-        .map(str::to_owned)
-        .collect::<Vec<_>>();
+    let mut tests = Vec::new();
+    for line in output.lines().filter_map(|line| line.strip_prefix("test ")) {
+        if let Some((name, status)) = line.rsplit_once(" ... ") {
+            require(
+                status == "ok",
+                "native test missing, duplicate, extra or ignored",
+            )?;
+            tests.push(name.to_owned());
+        } else {
+            require(line.starts_with("result:"), "malformed native test result")?;
+        }
+    }
     let names = tests.iter().cloned().collect::<BTreeSet<_>>();
     let wanted = expected
         .as_array()
@@ -241,11 +248,7 @@ fn exact_tests(output: &str, expected: &Value) -> Result<()> {
         })
         .collect::<Result<BTreeSet<_>>>()?;
     require(
-        names == wanted
-            && tests.len() == names.len()
-            && !output
-                .lines()
-                .any(|l| l.starts_with("test ") && l.ends_with(" ... ignored")),
+        names == wanted && tests.len() == names.len(),
         "native test missing, duplicate, extra or ignored",
     )
 }
@@ -770,7 +773,20 @@ mod tests {
                 .is_err()
             );
         }
+        for status in ["ignored", "ignored, reason", "FAILED", "unexpected"] {
+            for name in names {
+                let line = format!("test {} ... ok\n", name.as_str().unwrap());
+                let ignored = format!("test {} ... {status}\n", name.as_str().unwrap());
+                assert!(exact_tests(&output.replace(&line, &ignored), &current).is_err());
+                assert!(exact_tests(&format!("{output}{ignored}"), &current).is_err());
+            }
+            assert!(
+                exact_tests(&format!("{output}test unlisted ... {status}\n"), &current).is_err()
+            );
+        }
         assert!(exact_tests(&format!("{output}test unlisted ... ok\n"), &current).is_err());
+        assert!(exact_tests(&format!("{output}test malformed\n"), &current).is_err());
+        assert!(exact_tests(&format!("{output}test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s\n"), &current).is_ok());
         assert!(current_tests(&json!([]), "http").is_err());
         let mut wrong = frozen.clone();
         wrong[0] = json!(YAML_SCALAR_TEST);
