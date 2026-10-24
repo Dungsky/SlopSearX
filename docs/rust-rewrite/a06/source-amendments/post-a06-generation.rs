@@ -1,6 +1,8 @@
 //! Closed T02 generations after A06. Historical operands never become current identity.
 use serde_json::{Value, json};
 use std::{fs, path::Path, process::Command};
+#[path = "native-search-reader.rs"]
+pub(crate) mod native_search;
 const CAPSULE: &str = "docs/rust-rewrite/a06/source-amendments/post-a06-generation-v1.json";
 const SHA: &str = "5b7ff0786855e613a9da549aeaab63c387061c03657053e2cf4a6eaade03609b";
 fn document(raw: &[u8]) -> Result<Value, String> {
@@ -47,6 +49,12 @@ fn payload(row: &Value, prior: &[u8], current: &[u8], mode: &str) -> Result<(), 
     )
 }
 fn verify(root: &Path, row: &Value) -> Result<(Vec<u8>, Vec<u8>), String> {
+    if row["previous"]["path"] == native_search::SOURCE
+        && row["previous"]["sha256"]
+            == "fcac2929eb6637960d5e1086c321f0eac62fc0f8446cf73f22d6b43406137b12"
+    {
+        return native_search::materials_for_row(root, row);
+    }
     let prior = super::read_exact(root, &row["archive"])?;
     let current = super::read_exact(root, &row["current"])?;
     payload(

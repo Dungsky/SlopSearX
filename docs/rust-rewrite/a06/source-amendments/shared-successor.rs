@@ -6,6 +6,7 @@ use std::{fs, path::Path};
 mod a13_header_layout_successor;
 #[path = "post-a06-generation.rs"]
 mod post_a06_generation;
+pub(crate) use post_a06_generation::native_search;
 #[path = "real-clock-successor.rs"]
 mod real_clock_successor;
 const MANIFEST: &str = "docs/rust-rewrite/a06/source-amendments/shared-successor-v2.json";
@@ -882,6 +883,7 @@ pub(crate) fn current_http(root: &Path, actual: &[u8]) -> Result<bool, String> {
 }
 #[cfg(test)]
 pub(crate) fn controls(root: &Path) -> Result<(), String> {
+    native_search::controls(root)?;
     post_a06_generation::controls(root)?;
     a13_json_inventory_successor::controls(root)?;
     a13_qualification_successor::controls(root)?;
