@@ -540,7 +540,7 @@ fn frozen(root: &Path, doc: &Value) -> Result<(), String> {
                 real_clock_successor::Role::FrozenSupport,
             )?;
         } else if row["path"] == "docs/rust-rewrite/a13/qualification-v1.json" {
-            a13_qualification_successor::verify(root, row)?;
+            verify_current_qualification(root, row)?;
         } else {
             read(root, row)?;
         }
