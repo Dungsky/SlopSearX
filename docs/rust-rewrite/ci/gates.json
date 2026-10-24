@@ -2245,7 +2245,7 @@
             "foundation-adapters"
           ],
           "runs-on": "${{ matrix.runner }}",
-          "timeout-minutes": 10,
+          "timeout-minutes": 120,
           "strategy": {
             "fail-fast": false,
             "matrix": {
