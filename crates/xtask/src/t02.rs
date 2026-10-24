@@ -5,7 +5,7 @@ use sha2::{Digest, Sha256};
 use std::{
     collections::{BTreeMap, BTreeSet},
     fs,
-    path::Path,
+    path::{Path, PathBuf},
     process::Command,
 };
 const COVERAGE_SHA: &str = "5ce1ab45a2e2006daa03ebf4a4fcd9ed62d9d59b8490ddc8f5eb82b19fc37f28";
@@ -249,6 +249,196 @@ fn exact_tests(output: &str, expected: &Value) -> Result<()> {
         "native test missing, duplicate, extra or ignored",
     )
 }
+const YAML_SCALAR_TEST: &str = "successful_yaml_break_scalars_match_pinned_emitter_on_actual_http";
+const YAML_SCALAR_REFERENCE: &str = "docs/rust-rewrite/t02/yaml-break-source-controls-v1.json";
+const YAML_SCALAR_REFERENCE_SHA: &str =
+    "5e00f07a6b613a8d2bca60010dac90499cc1d09698a764d3c466abcc4223051c";
+const FROZEN_HTTP_TESTS: [&str; 8] = [
+    "original_literal_corpus_through_a_real_native_http_process",
+    "original_fault_bodies_and_private_valkey_cache_match_real_http",
+    "original_owned_html_assertions_use_real_native_renderer",
+    "original_assertion_families_use_runtime_policy_config_and_public_discovery",
+    "absolute_date_proof_and_forwarding_reach_actual_http_without_claiming_a06",
+    "reviewed_offsets_category_labels_and_duplicate_queries_match_original_http",
+    "unobserved_metric_outcomes_require_joint_complete_absence",
+    "yaml_invalid_date_field_escapes_nonprintable_unicode_before_dispatch",
+];
+fn current_tests(frozen: &Value, family: &str) -> Result<Value> {
+    let mut expected = frozen.clone();
+    match family {
+        "http" => {
+            require(
+                *frozen == json!(FROZEN_HTTP_TESTS),
+                "T02 frozen eight HTTP tests differ",
+            )?;
+            expected
+                .as_array_mut()
+                .ok_or("HTTP test inventory missing")?
+                .push(json!(YAML_SCALAR_TEST));
+        }
+        "formatter" | "library" => {}
+        _ => return Err("unknown T02 native test family".into()),
+    }
+    Ok(expected)
+}
+fn yaml_scalar_roots() -> Result<BTreeSet<PathBuf>> {
+    let paths = if let Some(base) = std::env::var_os("T02_HTTP_RECEIPTS") {
+        let p = PathBuf::from(base).join("yaml-break-scalars");
+        if p.exists() { vec![p] } else { vec![] }
+    } else {
+        fs::read_dir(std::env::temp_dir())
+            .map_err(|e| e.to_string())?
+            .map(|entry| entry.map(|e| e.path()).map_err(|e| e.to_string()))
+            .collect::<Result<Vec<_>>>()?
+            .into_iter()
+            .filter(|p| {
+                p.file_name()
+                    .and_then(|s| s.to_str())
+                    .is_some_and(|s| s.starts_with("t02-http-yaml-break-scalars-"))
+            })
+            .collect()
+    };
+    for path in &paths {
+        let m = fs::symlink_metadata(path).map_err(|e| e.to_string())?;
+        require(
+            m.is_dir() && !m.file_type().is_symlink(),
+            "YAML scalar receipt root is not an owned directory",
+        )?;
+    }
+    Ok(paths.into_iter().collect())
+}
+fn yaml_scalar_cases(
+    reference: &[Value],
+    wires: &[Value],
+    calls: &[Value],
+    terminal: &Value,
+) -> Result<()> {
+    require(
+        reference.len() == 18 && wires.len() == 18 && calls.len() == 18,
+        "YAML scalar eighteen-case inventory differs",
+    )?;
+    require(
+        terminal["expected"] == 18
+            && terminal["completed"] == 18
+            && terminal["engine_calls"] == 18
+            && terminal["child_joined"] == true
+            && terminal["differences"]
+                .as_array()
+                .is_some_and(Vec::is_empty),
+        "YAML scalar completion or owned-child join differs",
+    )?;
+    for ((case, wire), call) in reference.iter().zip(wires).zip(calls) {
+        require(
+            wire["id"] == case["id"]
+                && wire["status"] == 200
+                && wire["media"] == "text/vnd.yaml+markdown; charset=utf-8"
+                && wire["mismatches"].as_array().is_some_and(Vec::is_empty)
+                && call["query"] == case["query"],
+            "YAML scalar source case/status/dispatch differs",
+        )?;
+        let body = wire["body"].as_str().ok_or("YAML scalar body missing")?;
+        let document = body
+            .split_once("---\n## Results Summary\n")
+            .ok_or("YAML scalar document separator missing")?
+            .0;
+        let fields = case["fragments"]
+            .as_object()
+            .ok_or("YAML scalar reference fields missing")?;
+        require(
+            fields.len() == 4
+                && fields
+                    .values()
+                    .all(|v| v.as_str().is_some_and(|v| document.contains(v))),
+            "YAML scalar measured field bytes differ",
+        )?;
+    }
+    Ok(())
+}
+fn yaml_scalar_witness(root: &Path, before: &BTreeSet<PathBuf>) -> Result<Value> {
+    let after = yaml_scalar_roots()?;
+    let added = after.difference(before).collect::<Vec<_>>();
+    require(
+        added.len() == 1,
+        "new YAML scalar receipt root missing or duplicated",
+    )?;
+    let directory = added[0];
+    let read = |name: &str| -> Result<Vec<u8>> {
+        let path = directory.join(name);
+        let m = fs::symlink_metadata(&path).map_err(|e| e.to_string())?;
+        require(
+            m.is_file() && !m.file_type().is_symlink(),
+            "YAML scalar receipt is not regular",
+        )?;
+        fs::read(path).map_err(|e| e.to_string())
+    };
+    let raw_reference = fs::read(root.join(YAML_SCALAR_REFERENCE)).map_err(|e| e.to_string())?;
+    require(
+        digest(&raw_reference) == YAML_SCALAR_REFERENCE_SHA,
+        "YAML scalar reference identity differs",
+    )?;
+    let reference: Value = serde_json::from_slice(&raw_reference).map_err(|e| e.to_string())?;
+    let reference = reference["records"]
+        .as_array()
+        .ok_or("YAML scalar reference cases missing")?;
+    let mut wires = Vec::new();
+    let mut archived = Vec::new();
+    let mut expected = BTreeSet::from([
+        "process-start.json".to_owned(),
+        "engine-calls.jsonl".to_owned(),
+        "server-stderr.log".to_owned(),
+        "terminal.json".to_owned(),
+    ]);
+    for index in 0..18 {
+        let name = format!("{index:02}.json");
+        let raw = read(&name)?;
+        let wire: Value = serde_json::from_slice(&raw).map_err(|e| e.to_string())?;
+        archived.push(json!({"id":wire["id"],"receipt":directory.join(&name),"receipt_sha256":digest(&raw),"raw_receipt_utf8":String::from_utf8(raw).map_err(|e|e.to_string())?}));
+        wires.push(wire);
+        expected.insert(name);
+    }
+    let names = fs::read_dir(directory)
+        .map_err(|e| e.to_string())?
+        .map(|p| {
+            p.map(|p| p.file_name().to_string_lossy().into_owned())
+                .map_err(|e| e.to_string())
+        })
+        .collect::<Result<BTreeSet<_>>>()?;
+    require(
+        names == expected,
+        "YAML scalar receipt file inventory differs",
+    )?;
+    let terminal_raw = read("terminal.json")?;
+    let terminal: Value = serde_json::from_slice(&terminal_raw).map_err(|e| e.to_string())?;
+    let calls_raw = read("engine-calls.jsonl")?;
+    let calls = std::str::from_utf8(&calls_raw)
+        .map_err(|e| e.to_string())?
+        .lines()
+        .map(|l| serde_json::from_str(l).map_err(|e| e.to_string()))
+        .collect::<Result<Vec<Value>>>()?;
+    yaml_scalar_cases(reference, &wires, &calls, &terminal)?;
+    let start_raw = read("process-start.json")?;
+    let start: Value = serde_json::from_slice(&start_raw).map_err(|e| e.to_string())?;
+    require(
+        start["pid"].as_u64().is_some_and(|p| p > 0)
+            && start["startup"]["mode"] == "offline-t02-fixture",
+        "YAML scalar actual process identity missing",
+    )?;
+    let binary = Path::new(
+        start["binary"]
+            .as_str()
+            .ok_or("YAML scalar executable missing")?,
+    );
+    let m = fs::symlink_metadata(binary).map_err(|e| e.to_string())?;
+    require(
+        m.is_file()
+            && !m.file_type().is_symlink()
+            && start["binary_sha256"] == digest(&fs::read(binary).map_err(|e| e.to_string())?),
+        "YAML scalar executed binary identity differs",
+    )?;
+    Ok(
+        json!({"T02_completed_yaml_scalar_records":18,"scope":"current additive real HTTP scalar witness; separate from frozen421 bindings","native_test":YAML_SCALAR_TEST,"reference_sha256":YAML_SCALAR_REFERENCE_SHA,"receipt_root":directory,"process":start,"terminal":terminal,"terminal_sha256":digest(&terminal_raw),"engine_calls_sha256":digest(&calls_raw),"records":archived}),
+    )
+}
 fn original_execution(root: &Path, coverage: &Value) -> Result<()> {
     let original = load(
         &root.join(
@@ -487,8 +677,17 @@ pub fn check(root: &Path, commands: &mut Vec<Value>) -> Result<()> {
             ],
         ),
     ] {
+        let expected_tests = current_tests(&coverage["native_tests"][name], name)?;
+        let before = if name == "http" {
+            Some(yaml_scalar_roots()?)
+        } else {
+            None
+        };
         let output = command(root, "cargo", &args, commands)?;
-        exact_tests(&output, &coverage["native_tests"][name])?;
+        exact_tests(&output, &expected_tests)?;
+        if let Some(before) = before {
+            commands.push(yaml_scalar_witness(root, &before)?);
+        }
         completed.extend(completions(&output)?);
     }
     verify_records(&completed, expected, true)?;
@@ -549,6 +748,68 @@ mod tests {
     #[test]
     fn missing_duplicate_extra_and_source_drift_fail_closed() {
         source_successor::controls(&Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")).unwrap();
+        // Current discovery is precisely the frozen eight plus one reviewed test.
+        let frozen = json!(FROZEN_HTTP_TESTS);
+        let current = current_tests(&frozen, "http").unwrap();
+        let names = current.as_array().unwrap();
+        assert_eq!(names.len(), 9);
+        let output = names
+            .iter()
+            .map(|n| format!("test {} ... ok\n", n.as_str().unwrap()))
+            .collect::<String>();
+        assert!(exact_tests(&output, &current).is_ok());
+        for name in names {
+            let line = format!("test {} ... ok\n", name.as_str().unwrap());
+            assert!(exact_tests(&output.replace(&line, ""), &current).is_err());
+            assert!(exact_tests(&format!("{output}{line}"), &current).is_err());
+            assert!(
+                exact_tests(
+                    &output.replace(&line, &line.replace(" ... ok", " ... ignored")),
+                    &current
+                )
+                .is_err()
+            );
+        }
+        assert!(exact_tests(&format!("{output}test unlisted ... ok\n"), &current).is_err());
+        assert!(current_tests(&json!([]), "http").is_err());
+        let mut wrong = frozen.clone();
+        wrong[0] = json!(YAML_SCALAR_TEST);
+        assert!(current_tests(&wrong, "http").is_err());
+        // Synthetic verifier controls; real HTTP acceptance still requires the subprocess receipts.
+        let reference: Value = serde_json::from_str(include_str!(
+            "../../../docs/rust-rewrite/t02/yaml-break-source-controls-v1.json"
+        ))
+        .unwrap();
+        let reference = reference["records"].as_array().unwrap();
+        let wires=reference.iter().map(|case|json!({"id":case["id"],"status":200,"media":"text/vnd.yaml+markdown; charset=utf-8","mismatches":[],"body":format!("{}---\n## Results Summary\n",case["fragments"].as_object().unwrap().values().map(|v|v.as_str().unwrap()).collect::<String>())})).collect::<Vec<_>>();
+        let calls = reference
+            .iter()
+            .map(|case| json!({"query":case["query"]}))
+            .collect::<Vec<_>>();
+        let terminal = json!({"expected":18,"completed":18,"engine_calls":18,"child_joined":true,"differences":[]});
+        assert!(yaml_scalar_cases(reference, &wires, &calls, &terminal).is_ok());
+        for case in 0..12 {
+            let mut bad = wires.clone();
+            let mut bad_calls = calls.clone();
+            let mut bad_terminal = terminal.clone();
+            match case {
+                0 => {
+                    bad.pop();
+                }
+                1 => bad.push(bad[0].clone()),
+                2 => bad.swap(0, 1),
+                3 => bad[0]["id"] = json!("unlisted"),
+                4 => bad[0]["mismatches"] = json!(["query"]),
+                5 => bad[0]["body"] = json!("query: wrong\n---\n## Results Summary\n"),
+                6 => bad[0]["status"] = json!(503),
+                7 => bad_calls[0]["query"] = json!("wrong"),
+                8 => bad_terminal["child_joined"] = json!(false),
+                9 => bad_terminal["engine_calls"] = json!(17),
+                10 => bad_terminal["completed"] = json!(17),
+                _ => bad_terminal["differences"] = json!(["query"]),
+            }
+            assert!(yaml_scalar_cases(reference, &bad, &bad_calls, &bad_terminal).is_err());
+        }
         let expected = vec![json!({"kind":"http","id":"a","source_record_sha256":"a"})];
         assert!(verify_records(&expected, &expected, false).is_ok());
         assert!(verify_records(&[], &expected, false).is_err());
