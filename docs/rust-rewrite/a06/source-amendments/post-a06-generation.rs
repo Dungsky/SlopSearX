@@ -184,13 +184,13 @@ fn deadline_current(
     const CONTAINER: &str = "docs/rust-rewrite/a13/qualification-v1.json";
     const SOURCE: &str = "crates/ssx-infra/src/search_deadline_drain_tests.rs";
     const OLD: &str = "e2d9249fbadd0eca06a10215f796defc5845722c63fcf9f409ab9eac8a85f74e";
-    if container != CONTAINER || source != SOURCE || hash == OLD {
+    const CURRENT: &str = "77661b6d69dc2926a2d01d277e68e22932d7fb1aae258fb272ab1192dff18c6e";
+    if container != CONTAINER || source != SOURCE || hash != CURRENT {
         return None;
     }
     Some((|| {
         super::need(
-            hash == "77661b6d69dc2926a2d01d277e68e22932d7fb1aae258fb272ab1192dff18c6e"
-                && expected == "46cfdee019bb3922e6bff0997c0b5e7067d12554e3ca98c775254df40289081d"
+            expected == "46cfdee019bb3922e6bff0997c0b5e7067d12554e3ca98c775254df40289081d"
                 && bytes == Some(14360),
             "A13 deadline current caller tuple differs",
         )?;
@@ -399,31 +399,40 @@ pub(super) fn controls(root: &Path) -> Result<(), String> {
     let h = "77661b6d69dc2926a2d01d277e68e22932d7fb1aae258fb272ab1192dff18c6e";
     let e = "46cfdee019bb3922e6bff0997c0b5e7067d12554e3ca98c775254df40289081d";
     deadline_current(root, c, h, s, e, Some(14360)).ok_or("deadline positive absent")??;
-    for (hash, digest, len) in [
-        ("wrong", e, Some(14360)),
-        (h, "wrong", Some(14360)),
-        (h, e, None),
-        (h, e, Some(14361)),
-    ] {
+    for (digest, len) in [("wrong", Some(14360)), (e, None), (e, Some(14361))] {
         super::need(
-            deadline_current(root, c, hash, s, digest, len).is_some_and(|r| r.is_err()),
-            "deadline altered caller accepted",
+            deadline_current(root, c, h, s, digest, len).is_some_and(|r| r.is_err())
+                && super::super::verify_current(root, c, h, s, digest, len).is_err(),
+            "deadline altered source operand accepted",
         )?;
     }
-    super::need(
-        deadline_current(root, "unknown", h, s, e, Some(14360)).is_none()
-            && deadline_current(root, c, h, "unknown", e, Some(14360)).is_none()
-            && deadline_current(
-                root,
-                c,
-                "e2d9249fbadd0eca06a10215f796defc5845722c63fcf9f409ab9eac8a85f74e",
-                s,
-                e,
-                Some(14360),
-            )
-            .is_none(),
-        "deadline unlisted or historical caller intercepted",
-    )?;
+    // Unlisted caller hashes must preserve the original fallback's complete Result,
+    // including its error string; this is the frozen routing-equivalence contract.
+    for hash in [
+        "wrong",
+        "mutated-container-hash",
+        "0000000000000000000000000000000000000000000000000000000000000000",
+        "e2d9249fbadd0eca06a10215f796defc5845722c63fcf9f409ab9eac8a85f74e",
+    ] {
+        super::need(
+            deadline_current(root, c, hash, s, e, Some(14360)).is_none(),
+            "deadline unlisted or historical caller intercepted",
+        )?;
+        let current = super::super::verify_current(root, c, hash, s, e, Some(14360));
+        let original = super::super::super::verify(root, c, hash, s, e, Some(14360));
+        super::need(
+            current.is_err() && current == original,
+            "deadline original fallback result changed",
+        )?;
+    }
+    for (container, source) in [("unknown", s), (c, "unknown")] {
+        super::need(
+            deadline_current(root, container, h, source, e, Some(14360)).is_none()
+                && super::super::verify_current(root, container, h, source, e, Some(14360))
+                    .is_err(),
+            "deadline unlisted path intercepted or accepted",
+        )?;
+    }
     let doc = load(root)?;
     for row in doc["rows"].as_array().ok_or("T02 rows absent")? {
         let (prior, current) = verify(root, row)?;
